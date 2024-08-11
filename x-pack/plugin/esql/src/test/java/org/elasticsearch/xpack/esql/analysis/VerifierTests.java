@@ -10,13 +10,23 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
@@ -42,6 +52,186 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:40: second argument of [a - c] must be [datetime or numeric], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a - c")
+        );
+    }
+
+    public void testUnsupportedAndMultiTypedFields() {
+        final String unsupported = "unsupported";
+        final String multiTyped = "multi_typed";
+
+        EsField unsupportedField = new UnsupportedEsField(unsupported, "flattened");
+        // Use linked maps/sets to fix the order in the error message.
+        LinkedHashSet<String> ipIndices = new LinkedHashSet<>();
+        ipIndices.add("test1");
+        ipIndices.add("test2");
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("ip", ipIndices);
+        typesToIndices.put("keyword", Set.of("test3"));
+        EsField multiTypedField = new InvalidMappedField(multiTyped, typesToIndices);
+
+        // Also add an unsupported/multityped field under the names `int` and `double` so we can use `LOOKUP int_number_names ...` and
+        // `LOOKUP double_number_names` without renaming the fields first.
+        IndexResolution indexWithUnsupportedAndMultiTypedField = IndexResolution.valid(
+            new EsIndex(
+                "test*",
+                Map.of(unsupported, unsupportedField, multiTyped, multiTypedField, "int", unsupportedField, "double", multiTypedField)
+            )
+        );
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnsupportedAndMultiTypedField);
+
+        assertEquals(
+            "1:22: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | dissect unsupported \"%{foo}\"", analyzer)
+        );
+        assertEquals(
+            "1:22: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
+            error("from test* | dissect multi_typed \"%{foo}\"", analyzer)
+        );
+
+        assertEquals(
+            "1:19: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | grok unsupported \"%{WORD:foo}\"", analyzer)
+        );
+        assertEquals(
+            "1:19: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
+            error("from test* | grok multi_typed \"%{WORD:foo}\"", analyzer)
+        );
+
+        assertEquals(
+            "1:36: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | enrich client_cidr on unsupported", analyzer)
+        );
+        assertEquals(
+            "1:36: Unsupported type [unsupported] for enrich matching field [multi_typed];"
+                + " only [keyword, text, ip, long, integer, float, double, datetime] allowed for type [range]",
+            error("from test* | enrich client_cidr on multi_typed", analyzer)
+        );
+
+        assertEquals(
+            "1:23: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | eval x = unsupported", analyzer)
+        );
+        assertEquals(
+            "1:23: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
+            error("from test* | eval x = multi_typed", analyzer)
+        );
+
+        assertEquals(
+            "1:32: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | eval x = to_lower(unsupported)", analyzer)
+        );
+        assertEquals(
+            "1:32: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
+            error("from test* | eval x = to_lower(multi_typed)", analyzer)
+        );
+
+        assertEquals(
+            "1:32: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | stats count(1) by unsupported", analyzer)
+        );
+        assertEquals(
+            "1:32: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
+            error("from test* | stats count(1) by multi_typed", analyzer)
+        );
+        if (EsqlCapabilities.Cap.INLINESTATS.isEnabled()) {
+            assertEquals(
+                "1:38: Cannot use field [unsupported] with unsupported type [flattened]",
+                error("from test* | inlinestats count(1) by unsupported", analyzer)
+            );
+            assertEquals(
+                "1:38: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [ip] in [test1, test2], [keyword] in [test3]",
+                error("from test* | inlinestats count(1) by multi_typed", analyzer)
+            );
+        }
+
+        assertEquals(
+            "1:27: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | stats values(unsupported)", analyzer)
+        );
+        assertEquals(
+            "1:27: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
+            error("from test* | stats values(multi_typed)", analyzer)
+        );
+        if (EsqlCapabilities.Cap.INLINESTATS.isEnabled()) {
+            assertEquals(
+                "1:33: Cannot use field [unsupported] with unsupported type [flattened]",
+                error("from test* | inlinestats values(unsupported)", analyzer)
+            );
+            assertEquals(
+                "1:33: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [ip] in [test1, test2], [keyword] in [test3]",
+                error("from test* | inlinestats values(multi_typed)", analyzer)
+            );
+        }
+
+        assertEquals(
+            "1:27: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | stats values(unsupported)", analyzer)
+        );
+        assertEquals(
+            "1:27: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
+            error("from test* | stats values(multi_typed)", analyzer)
+        );
+
+        if (EsqlCapabilities.Cap.LOOKUP_V4.isEnabled()) {
+            // LOOKUP with unsupported type
+            assertEquals(
+                "1:41: column type mismatch, table column was [integer] and original column was [unsupported]",
+                error("from test* | lookup int_number_names on int", analyzer)
+            );
+            // LOOKUP with multi-typed field
+            assertEquals(
+                "1:44: column type mismatch, table column was [double] and original column was [unsupported]",
+                error("from test* | lookup double_number_names on double", analyzer)
+            );
+        }
+
+        assertEquals(
+            "1:24: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | mv_expand unsupported", analyzer)
+        );
+        assertEquals(
+            "1:24: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
+            error("from test* | mv_expand multi_typed", analyzer)
+        );
+
+        assertEquals(
+            "1:21: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | rename unsupported as x", analyzer)
+        );
+        assertEquals(
+            "1:21: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
+            error("from test* | rename multi_typed as x", analyzer)
+        );
+
+        assertEquals(
+            "1:19: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | sort unsupported asc", analyzer)
+        );
+        assertEquals(
+            "1:19: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
+            error("from test* | sort multi_typed desc", analyzer)
+        );
+
+        assertEquals(
+            "1:20: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | where unsupported is null", analyzer)
+        );
+        assertEquals(
+            "1:20: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
+            error("from test* | where multi_typed is not null", analyzer)
         );
     }
 
@@ -663,6 +853,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchCommand() throws Exception {
+        assumeTrue("skipping because MATCH_COMMAND is not enabled", EsqlCapabilities.Cap.MATCH_COMMAND.isEnabled());
         assertEquals("1:24: MATCH cannot be used after LIMIT", error("from test | limit 10 | match \"Anna\""));
         assertEquals("1:13: MATCH cannot be used after SHOW", error("show info | match \"8.16.0\""));
         assertEquals("1:17: MATCH cannot be used after ROW", error("row a= \"Anna\" | match \"Anna\""));

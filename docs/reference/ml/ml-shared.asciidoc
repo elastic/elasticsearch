@@ -384,6 +384,10 @@ model. Unless you also specify `skip_result`, the results will be created as
 usual. This action is suitable when certain values are expected to be
 consistently anomalous and they affect the model in a way that negatively
 impacts the rest of the results.
+* `force_time_shift`: This action will shift the time inside the anomaly detector by a specified
+amount. This is useful, e.g. to quickly adapt to the daylight saving time events that
+are known beforehand. This action requires a `force_time_shift` parameter
+in the `params` object.
 end::custom-rules-actions[]
 
 tag::custom-rules-scope[]
@@ -427,6 +431,16 @@ end::custom-rules-conditions-operator[]
 tag::custom-rules-conditions-value[]
 The value that is compared against the `applies_to` field using the `operator`.
 end::custom-rules-conditions-value[]
+
+tag::custom-rules-params[]
+A set of parameter objects that customize the actions defined in the custom rules
+actions array. The available parameters (depending on the specified actions) include:
+`force_time_shift`.
+end::custom-rules-params[]
+
+tag::custom-rules-params-force-time-shift[]
+Set `time_shift_amount` to the signed number of seconds by which you want to shift the time.
+end::custom-rules-params-force-time-shift[]
 
 tag::custom-settings[]
 Advanced configuration option. Contains custom metadata about the job. For

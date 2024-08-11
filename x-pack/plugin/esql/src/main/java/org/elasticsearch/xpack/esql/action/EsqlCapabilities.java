@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
@@ -157,6 +158,12 @@ public class EsqlCapabilities {
         UNION_TYPES_REMOVE_FIELDS,
 
         /**
+         * Fix for union-types when renaming unrelated columns.
+         * https://github.com/elastic/elasticsearch/issues/111452
+         */
+        UNION_TYPES_FIX_RENAME_RESOLUTION,
+
+        /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */
@@ -208,6 +215,16 @@ public class EsqlCapabilities {
          * MATCH command support
          */
         MATCH_COMMAND(true),
+
+        /**
+         * Support for nanosecond dates as a data type
+         */
+        DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * Support CIDRMatch in CombineDisjunctions rule.
+         */
+        COMBINE_DISJUNCTIVE_CIDRMATCHES,
 
         /**
          * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.

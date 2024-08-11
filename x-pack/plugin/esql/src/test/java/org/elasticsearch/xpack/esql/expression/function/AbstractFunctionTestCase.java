@@ -10,12 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function;
 import com.carrotsearch.randomizedtesting.ClassModel;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.document.InetAddressPoint;
-import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -27,8 +24,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.geo.GeometryTestUtils;
-import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -43,7 +38,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -71,21 +65,18 @@ import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.versionfield.Version;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -104,9 +95,8 @@ import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -140,46 +130,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         entry("is_null", IsNull.class),
         entry("is_not_null", IsNotNull.class)
     );
-
-    /**
-     * Generate a random value of the appropriate type to fit into blocks of {@code e}.
-     */
-    public static Literal randomLiteral(DataType type) {
-        return new Literal(Source.EMPTY, switch (type) {
-            case BOOLEAN -> randomBoolean();
-            case BYTE -> randomByte();
-            case SHORT -> randomShort();
-            case INTEGER, COUNTER_INTEGER -> randomInt();
-            case UNSIGNED_LONG, LONG, COUNTER_LONG -> randomLong();
-            case DATE_PERIOD -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
-            case DATETIME -> randomMillisUpToYear9999();
-            case DOUBLE, SCALED_FLOAT, COUNTER_DOUBLE -> randomDouble();
-            case FLOAT -> randomFloat();
-            case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
-            case KEYWORD -> new BytesRef(randomAlphaOfLength(5));
-            case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-            case TIME_DURATION -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
-            case TEXT -> new BytesRef(randomAlphaOfLength(50));
-            case VERSION -> randomVersion().toBytesRef();
-            case GEO_POINT -> GEO.asWkb(GeometryTestUtils.randomPoint());
-            case CARTESIAN_POINT -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
-            case GEO_SHAPE -> GEO.asWkb(GeometryTestUtils.randomGeometry(randomBoolean()));
-            case CARTESIAN_SHAPE -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()));
-            case NULL -> null;
-            case SOURCE -> {
-                try {
-                    yield BytesReference.bytes(
-                        JsonXContent.contentBuilder().startObject().field(randomAlphaOfLength(3), randomAlphaOfLength(10)).endObject()
-                    ).toBytesRef();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-            case UNSUPPORTED, OBJECT, NESTED, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
-                "can't make random values for [" + type.typeName() + "]"
-            );
-        }, type);
-    }
 
     protected TestCaseSupplier.TestCase testCase;
 
@@ -481,7 +431,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                  */
                 return false;
             }
-            if (t == DataType.OBJECT || t == DataType.NESTED) {
+            if (t == DataType.OBJECT) {
                 // Object and nested fields aren't supported by any functions yet
                 return false;
             }
@@ -491,6 +441,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             if (t == DataType.DATE_PERIOD || t == DataType.TIME_DURATION) {
                 // We don't test that functions don't take date_period or time_duration. We should.
+                return false;
+            }
+            if (t == DataType.DATE_NANOS) {
+                // Date nanos is still under construction
                 return false;
             }
             if (t.isCounter()) {
@@ -1292,16 +1246,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (CircuitBreaker breaker : breakers) {
             assertThat(breaker.getUsed(), equalTo(0L));
         }
-    }
-
-    static Version randomVersion() {
-        // TODO degenerate versions and stuff
-        return switch (between(0, 2)) {
-            case 0 -> new Version(Integer.toString(between(0, 100)));
-            case 1 -> new Version(between(0, 100) + "." + between(0, 100));
-            case 2 -> new Version(between(0, 100) + "." + between(0, 100) + "." + between(0, 100));
-            default -> throw new IllegalArgumentException();
-        };
     }
 
     /**

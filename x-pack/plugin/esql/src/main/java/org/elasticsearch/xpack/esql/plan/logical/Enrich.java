@@ -24,9 +24,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
@@ -235,9 +235,9 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
             if (enrichField.name().equals(newName)) {
                 newEnrichFields.add(enrichField);
             } else if (enrichField instanceof ReferenceAttribute ra) {
-                newEnrichFields.add(new Alias(ra.source(), newName, ra.qualifier(), ra, new NameId(), ra.synthetic()));
+                newEnrichFields.add(new Alias(ra.source(), newName, ra, new NameId(), ra.synthetic()));
             } else if (enrichField instanceof Alias a) {
-                newEnrichFields.add(new Alias(a.source(), newName, a.qualifier(), a.child(), new NameId(), a.synthetic()));
+                newEnrichFields.add(new Alias(a.source(), newName, a.child(), new NameId(), a.synthetic()));
             } else {
                 throw new IllegalArgumentException("Enrich field must be Alias or ReferenceAttribute");
             }

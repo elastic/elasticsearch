@@ -1,6 +1,0 @@
-pr: 108896
-summary: Introduce `logs` index mode as Tech Preview
-area: Logs
-type: feature
-issues:
- - 108896

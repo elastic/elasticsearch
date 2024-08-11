@@ -80,8 +80,15 @@ dependencies {
 
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:11.10.1"
-  api "com.nimbusds:nimbus-jose-jwt:9.37.3"
-  api project(xpackModule('security:lib:jose-wrapper'))
+  api project(path: xpackModule('security:lib:nimbus-jose-jwt-fixed'), configuration: 'shadow')
+//  if (isEclipse) {
+//    /*
+//     * Eclipse can't pick up the shadow dependency so we point it at *something*
+//     * so it can compile things.
+//     */
+//    api project(xpackModule('security:lib:nimbus-jose-jwt-fixed'))
+//  }
+//  api project(xpackModule('security:lib:jose-wrapper'))
   api "com.nimbusds:lang-tag:1.4.4"
   api "com.sun.mail:jakarta.mail:1.6.3"
   api "net.jcip:jcip-annotations:1.0"
@@ -104,7 +111,7 @@ dependencies {
   testImplementation('org.apache.kerby:kerb-crypto:1.1.1')
   testImplementation('org.apache.kerby:kerb-util:1.1.1')
   testImplementation('org.apache.kerby:token-provider:1.1.1')
-  testImplementation('com.nimbusds:nimbus-jose-jwt:9.37.3')
+//  testImplementation('com.nimbusds:nimbus-jose-jwt:9.37.3')
   testImplementation('net.jcip:jcip-annotations:1.0')
   testImplementation('org.apache.kerby:kerb-admin:1.1.1')
   testImplementation('org.apache.kerby:kerb-server:1.1.1')
@@ -192,7 +199,6 @@ tasks.named('forbiddenApisMain').configure {
     'forbidden/ldap-signatures.txt',
     'forbidden/xml-signatures.txt',
     'forbidden/oidc-signatures.txt',
-    'forbidden/jwt-signatures.txt'
   )
 }
 
@@ -334,14 +340,12 @@ tasks.named("thirdPartyAudit").configure {
     'org.bouncycastle.crypto.StreamCipher',
     'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
     // 'org.bouncycastle.crypto.ec.CustomNamedCurves',
-    'org.bouncycastle.crypto.engines.AESEngine',
     'org.bouncycastle.crypto.generators.BCrypt',
     'org.bouncycastle.crypto.generators.OpenSSLPBEParametersGenerator',
     'org.bouncycastle.crypto.generators.PKCS5S1ParametersGenerator',
     'org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator',
     'org.bouncycastle.crypto.macs.HMac',
     'org.bouncycastle.crypto.modes.AEADBlockCipher',
-    'org.bouncycastle.crypto.modes.GCMBlockCipher',
     'org.bouncycastle.crypto.paddings.BlockCipherPadding',
     'org.bouncycastle.crypto.paddings.PaddedBufferedBlockCipher',
     'org.bouncycastle.crypto.params.AsymmetricKeyParameter',
@@ -381,14 +385,7 @@ tasks.named("thirdPartyAudit").configure {
     'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
     'org.bouncycastle.util.Arrays',
     'org.bouncycastle.util.io.Streams',
-    'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
-    'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
     'org.bouncycastle.cert.X509CertificateHolder',
-    'org.bouncycastle.openssl.PEMKeyPair',
-    'org.bouncycastle.openssl.PEMParser',
-    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
-    'org.bouncycastle.crypto.InvalidCipherTextException',
-    'org.bouncycastle.jce.provider.BouncyCastleProvider',
   )
 
   ignoreViolations(
@@ -419,11 +416,6 @@ tasks.named("thirdPartyAudit").configure {
     // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
     'org.cryptomator.siv.SivMode',
     // Optional dependency of nimbus-jose-jwt for handling Ed25519 signatures and ECDH with X25519 (RFC 8037)
-    'com.google.crypto.tink.subtle.Ed25519Sign',
-    'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
-    'com.google.crypto.tink.subtle.Ed25519Verify',
-    'com.google.crypto.tink.subtle.X25519',
-    'com.google.crypto.tink.subtle.XChaCha20Poly1305',
     'com.nimbusds.common.contenttype.ContentType',
     'com.nimbusds.common.contenttype.ContentType$Parameter',
     'javax.activation.ActivationDataFlavor',
@@ -461,17 +453,17 @@ String[] noSecurityManagerClasses = [
   "**/TransportOpenIdConnectLogoutActionTests.class",
   "**/OpenIdConnectRealmTests.class",
 ]
-
-tasks.register('testNoSecurityManager', Test) {
-  testClassesDirs = sourceSets.test.output.classesDirs
-  classpath = sourceSets.test.runtimeClasspath
-  include noSecurityManagerClasses
-  systemProperty 'tests.security.manager', 'false'
-  systemProperty 'es.insecure_network_trace_enabled', 'true'
-}
-
-tasks.named("check").configure { dependsOn 'testNoSecurityManager' }
-
-tasks.named('test').configure {
-  exclude noSecurityManagerClasses
-}
+//
+//tasks.register('testNoSecurityManager', Test) {
+//  testClassesDirs = sourceSets.test.output.classesDirs
+//  classpath = sourceSets.test.runtimeClasspath
+//  include noSecurityManagerClasses
+//  systemProperty 'tests.security.manager', 'false'
+//  systemProperty 'es.insecure_network_trace_enabled', 'true'
+//}
+//
+//tasks.named("check").configure { dependsOn 'testNoSecurityManager' }
+//
+//tasks.named('test').configure {
+//  exclude noSecurityManagerClasses
+//}

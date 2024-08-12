@@ -118,5 +118,26 @@ ROW x = [0, 5, 10]
 ;
 
 x:integer  | MV_PERCENTILE(x, 75):integer | a:integer | b:double | c:integer
-[0, 5, 10] |7                             | 7         | 7.5      | 7
+[0, 5, 10] | 7                            | 7         | 7.5      | 7
+;
+
+nullsAndFolds
+required_capability: fn_mv_percentile
+
+ROW x = [5, 5, 10, 12, 5000], n = null, y = 50
+| EVAL evalNull = null / 2, evalValue = 31 + 1
+| LIMIT 1
+| EVAL
+    a = mv_percentile(y, 90),
+    b = mv_percentile(x, y),
+    c = mv_percentile(null, null),
+    d = mv_percentile(null, y),
+    e = mv_percentile(evalNull, y),
+    f = mv_percentile(evalValue, y),
+    g = mv_percentile(n, y)
+| KEEP a, b, c, d, e, f, g
+;
+
+a:integer | b:integer | c:null | d:null | e:integer | f:integer | g:null
+50        | 10        | null   | null   | null      | 32        | null
 ;

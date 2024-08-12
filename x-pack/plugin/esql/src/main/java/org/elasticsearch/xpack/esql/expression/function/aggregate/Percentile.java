@@ -161,7 +161,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         var field = field();
 
         if (field.foldable()) {
-            return new MvPercentile(source(), new ToDouble(source(), field()), percentile());
+            return new MvPercentile(source(), new ToDouble(source(), field), percentile());
         }
 
         return null;

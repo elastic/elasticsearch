@@ -139,6 +139,9 @@ public final class Source implements Writeable {
         return offset;
     }
 
+    /**
+     * Offsets into the source string that we use for serialization.
+     */
     private record SourcePositions(int line, int column, int length) implements Writeable {
         SourcePositions(StreamInput in) throws IOException {
             this(in.readInt(), in.readInt(), in.readInt());

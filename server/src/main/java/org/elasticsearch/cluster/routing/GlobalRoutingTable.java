@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.common.collect.Iterators;
@@ -19,6 +20,7 @@ import java.util.Iterator;
 
 public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<GlobalRoutingTable> {
 
+    public static final GlobalRoutingTable EMPTY_ROUTING_TABLE = new GlobalRoutingTable(0, RoutingTable.EMPTY_ROUTING_TABLE);
     private final long version;
 
     private final RoutingTable routingTable;
@@ -74,6 +76,10 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
         out.writeWriteable(routingTable);
     }
 
+    public boolean hasSameIndexRouting(GlobalRoutingTable other) {
+        return this.getRoutingTable().indicesRouting() == other.getRoutingTable().indicesRouting();
+    }
+
     private static class GlobalRoutingTableDiff implements Diff<GlobalRoutingTable> {
 
         private final long version;
@@ -86,7 +92,11 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
         }
 
         GlobalRoutingTableDiff(StreamInput in) throws IOException {
-            this.version = in.readLong();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+                this.version = in.readLong();
+            } else {
+                this.version = -1;
+            }
             this.routingTable = RoutingTable.readDiffFrom(in);
         }
 
@@ -96,12 +106,14 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
             if (part.version == version && updatedTable == part.routingTable) {
                 return part;
             }
-            return new GlobalRoutingTable(version, updatedTable);
+            return new GlobalRoutingTable(version == -1 ? updatedTable.version() : version, updatedTable);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(version);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+                out.writeLong(version);
+            }
             routingTable.writeTo(out);
         }
     }

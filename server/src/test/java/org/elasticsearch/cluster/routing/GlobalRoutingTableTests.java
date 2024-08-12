@@ -8,17 +8,25 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.DiffableTestUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
+import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Function;
 
 public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<GlobalRoutingTable> {
+
+    private static final TransportVersion PRE_MULTI_PROJECT_TRANSPORT_VERSION = TransportVersionUtils.getPreviousVersion(
+        TransportVersions.MULTI_PROJECT
+    );
 
     /**
      * We intentionally don't want production code comparing two routing tables for equality.
@@ -52,7 +60,11 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
             var leftTable = left.getRoutingTable();
             var rightTable = right.getRoutingTable();
 
-            return leftTable.version() == rightTable.version() && Objects.equals(leftTable.indicesRouting(), rightTable.indicesRouting());
+            return equals(leftTable, rightTable);
+        }
+
+        static boolean equals(RoutingTable left, RoutingTable right) {
+            return left.version() == right.version() && Objects.equals(left.indicesRouting(), right.indicesRouting());
         }
 
         @Override
@@ -78,6 +90,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
             getNamedWriteableRegistry(),
             instanceReader(),
             GlobalRoutingTable::readDiffFrom,
+            null,
             GlobalRoutingTableWithEquals::equals
         );
     }
@@ -89,7 +102,24 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
             getNamedWriteableRegistry(),
             instanceReader(),
             GlobalRoutingTable::readDiffFrom,
+            null,
             GlobalRoutingTableWithEquals::equals
+        );
+    }
+
+    public final void testDiffSerializationPreMultiProject() throws IOException {
+        DiffableTestUtils.testDiffableSerialization(
+            this::testRoutingTable,
+            this::mutateInstance,
+            getNamedWriteableRegistry(),
+            instanceReader(),
+            GlobalRoutingTable::readDiffFrom,
+            PRE_MULTI_PROJECT_TRANSPORT_VERSION,
+            (original, reconstructed) -> {
+                // The round-trip will lose the version of the global table and replace it with the version from the inner routing table
+                return GlobalRoutingTableWithEquals.equals(original.getRoutingTable(), reconstructed.getRoutingTable())
+                    && reconstructed.version() == reconstructed.getRoutingTable().version();
+            }
         );
     }
 
@@ -130,7 +160,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
     }
 
     private RoutingTable randomRoutingTable() {
-        return addIndices(randomIntBetween(0, 10), new RoutingTable.Builder());
+        return addIndices(randomIntBetween(0, 10), new RoutingTable.Builder().version(randomLong()));
     }
 
     private static RoutingTable addIndices(int indexCount, RoutingTable.Builder builder) {

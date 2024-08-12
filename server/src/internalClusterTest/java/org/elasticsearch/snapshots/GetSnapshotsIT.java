@@ -847,6 +847,10 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         // ?sort and ?order parameters
         final var sortKey = randomFrom(SnapshotSortKey.values());
         final var order = randomFrom(SortOrder.values());
+        // NB we sometimes choose to sort by FAILED_SHARDS, but there are no failed shards in these snapshots. We're still testing the
+        // fallback sorting by snapshot ID in this case. We also have no multi-shard indices so there's no difference between sorting by
+        // INDICES and by SHARDS. The actual sorting behaviour for these cases is tested elsewhere, here we're just checking that sorting
+        // interacts correctly with the other parameters to the API.
 
         // compute the ordered sequence of snapshots which match the repository/snapshot name filters
         final var selectedSnapshots = snapshotInfos.stream()

@@ -63,7 +63,9 @@ public class Preallocate {
         boolean success = false;
         try {
             if (prealloactor.useNative()) {
-                try (NativeFileHandle openFile = prealloactor.open(cacheFile.toAbsolutePath().toString())) {
+                var absolutePath = cacheFile.toAbsolutePath();
+                Files.createDirectories(absolutePath.getParent());
+                try (NativeFileHandle openFile = prealloactor.open(absolutePath.toString())) {
                     long currentSize = openFile.getSize();
                     if (currentSize < fileSize) {
                         logger.info("pre-allocating cache file [{}] ({} bytes) using native methods", cacheFile, fileSize);

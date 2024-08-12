@@ -23,8 +23,8 @@ public class DataStreamGlobalRetentionProviderTests extends ESTestCase {
         DataStreamGlobalRetentionProvider resolver = new DataStreamGlobalRetentionProvider(factoryRetention);
         DataStreamGlobalRetention globalRetention = resolver.provide();
         assertThat(globalRetention, notNullValue());
-        assertThat(globalRetention.getDefaultRetention(), equalTo(factoryRetention.getDefaultRetention()));
-        assertThat(globalRetention.getMaxRetention(), equalTo(factoryRetention.getMaxRetention()));
+        assertThat(globalRetention.defaultRetention(), equalTo(factoryRetention.getDefaultRetention()));
+        assertThat(globalRetention.maxRetention(), equalTo(factoryRetention.getMaxRetention()));
     }
 
     private static DataStreamFactoryRetention randomNonEmptyFactoryRetention() {

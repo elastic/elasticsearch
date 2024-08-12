@@ -30,6 +30,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -44,6 +45,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
      */
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        // TODO this needs lots of stuff flipped to parameters
         return parameterSuppliersFromTypedData(
             List.of(new TestCaseSupplier("keyword", List.of(DataType.BOOLEAN, DataType.KEYWORD, DataType.KEYWORD), () -> {
                 List<TestCaseSupplier.TypedData> typedData = List.of(
@@ -201,35 +203,6 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 );
             }))
         );
-    }
-
-    @Override
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        if (nullBlock == 0) {
-            if (data.size() == 2) {
-                assertThat(value.isNull(0), equalTo(true));
-            } else if (data.size() > 2) {
-                assertThat(toJavaObject(value, 0), equalTo(data.get(2)));
-            }
-            return;
-        }
-        if (((Boolean) data.get(0)).booleanValue()) {
-            if (nullBlock == 1) {
-                super.assertSimpleWithNulls(data, value, nullBlock);
-            } else {
-                assertThat(toJavaObject(value, 0), equalTo(data.get(1)));
-            }
-            return;
-        }
-        if (nullBlock == 2) {
-            super.assertSimpleWithNulls(data, value, nullBlock);
-        } else {
-            if (data.size() > 2) {
-                assertThat(toJavaObject(value, 0), equalTo(data.get(2)));
-            } else {
-                super.assertSimpleWithNulls(data, value, nullBlock);
-            }
-        }
     }
 
     @Override

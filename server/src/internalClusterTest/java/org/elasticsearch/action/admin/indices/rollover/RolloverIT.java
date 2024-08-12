@@ -211,9 +211,8 @@ public class RolloverIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test_index-2").addAlias(testAlias).get());
         indexDoc("test_index-2", "1", "field", "value");
         flush("test_index-2");
-        final Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
         final RolloverResponse response = indicesAdmin().prepareRolloverIndex("test_alias")
-            .settings(settings)
+            .settings(indexSettings(1, 0).build())
             .alias(new Alias("extra_alias"))
             .get();
         assertThat(response.getOldIndex(), equalTo("test_index-2"));

@@ -1,5 +1,0 @@
-pr: 108522
-summary: Ensure we return non-negative scores when scoring scalar dot-products
-area: Vector Search
-type: bug
-issues: []

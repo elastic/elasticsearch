@@ -1,6 +1,0 @@
-pr: 108814
-summary: Deserialize publish requests on generic thread-pool
-area: Cluster Coordination
-type: bug
-issues:
- - 106352

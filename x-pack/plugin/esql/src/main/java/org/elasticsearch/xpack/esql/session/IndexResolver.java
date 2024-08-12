@@ -96,8 +96,9 @@ public class IndexResolver {
             return IndexResolution.notFound(Arrays.stream(indexPatterns).toList());
         }
 
-        // We allow no found indices in wildcards (if there's at least 1 found index), but indices with no wildcard need to be found.
+        // We allow no found indices in wildcards (if there's at least 1 found index), but indices with no wildcard need to be present.
         // TODO: for CCQ may need to strip `the_cluster_name:`.
+        // TODO: timeseries, aliased indices, rollovers
         List<String> nonWildcardIndices = Arrays.stream(indexPatterns).filter(pattern -> pattern.contains("*") == false).toList();
         if (nonWildcardIndices.isEmpty() == false) {
             Set<String> actuallyFoundIndices = fieldCapsResponse.getIndexResponses()

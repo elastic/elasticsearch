@@ -315,6 +315,7 @@ GET movies/_search
   }
 }
 ----
+// NOTCONSOLE
 
 [[text-similarity-reranker-retriever]]
 ==== Text Similarity Re-ranker Retriever

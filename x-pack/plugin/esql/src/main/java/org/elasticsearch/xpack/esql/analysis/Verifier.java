@@ -45,8 +45,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.stats.FeatureMetric;
+import org.elasticsearch.xpack.esql.stats.Metrics;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -65,13 +68,22 @@ import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.
  * step does type resolution and fails queries based on invalid type expressions.
  */
 public class Verifier {
+
+    private final Metrics metrics;
+
+    public Verifier(Metrics metrics) {
+        this.metrics = metrics;
+    }
+
     /**
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified
+     * @param partialMetrics a bitset indicating a certain command (or "telemetry feature") is present in the query
      * @return a collection of verification failures; empty if and only if the plan is valid
      */
-    Collection<Failure> verify(LogicalPlan plan) {
+    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
+        assert partialMetrics != null;
         Set<Failure> failures = new LinkedHashSet<>();
         // alias map, collected during the first iteration for better error messages
         AttributeMap<Expression> aliases = new AttributeMap<>();
@@ -177,6 +189,11 @@ public class Verifier {
             checkMatchCommand(p, failures);
         });
         checkRemoteEnrich(plan, failures);
+
+        // gather metrics
+        if (failures.isEmpty()) {
+            gatherMetrics(plan, partialMetrics);
+        }
 
         return failures;
     }
@@ -420,6 +437,13 @@ public class Verifier {
                 failures.add(f);
             }
         });
+    }
+
+    private void gatherMetrics(LogicalPlan plan, BitSet b) {
+        plan.forEachDown(p -> FeatureMetric.set(p, b));
+        for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
+            metrics.inc(FeatureMetric.values()[i]);
+        }
     }
 
     /**

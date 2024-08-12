@@ -78,11 +78,13 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -112,6 +114,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
 
 /**
  * This class is part of the planner. Resolves references (such as variable and index names) and performs implicit casting.
@@ -151,12 +154,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
-        LogicalPlan analyzed = execute(plan);
-        return verify(analyzed);
+        BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
+        return verify(execute(plan), gatherPreAnalysisMetrics(plan, partialMetrics));
     }
 
-    public LogicalPlan verify(LogicalPlan plan) {
-        Collection<Failure> failures = verifier.verify(plan);
+    public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
+        Collection<Failure> failures = verifier.verify(plan, partialMetrics);
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }
@@ -923,6 +926,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var source = logicalPlan.source();
             return new Limit(source, new Literal(source, limit, DataType.INTEGER), logicalPlan);
         }
+    }
+
+    private BitSet gatherPreAnalysisMetrics(LogicalPlan plan, BitSet b) {
+        // count only the explicit "limit" the user added, otherwise all queries will have a "limit" and telemetry won't reflect reality
+        if (plan.collectFirstChildren(Limit.class::isInstance).isEmpty() == false) {
+            b.set(LIMIT.ordinal());
+        }
+        plan.forEachDown(p -> FeatureMetric.set(p, b));
+        return b;
     }
 
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {

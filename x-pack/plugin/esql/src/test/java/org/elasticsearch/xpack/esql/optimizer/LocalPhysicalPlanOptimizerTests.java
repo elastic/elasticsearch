@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
@@ -141,7 +142,10 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         EsIndex test = new EsIndex("test", mapping, Set.of("test"));
         IndexResolution getIndexResult = IndexResolution.valid(test);
 
-        return new Analyzer(new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, enrichResolution), new Verifier());
+        return new Analyzer(
+            new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
+            new Verifier(new Metrics())
+        );
     }
 
     /**

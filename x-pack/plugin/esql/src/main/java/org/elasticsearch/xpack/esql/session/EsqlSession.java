@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
-import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
 import java.util.ArrayList;
@@ -85,7 +84,6 @@ public class EsqlSession {
 
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
-    private final Metrics metrics;
     private final PlanningMetrics planningMetrics;
 
     public EsqlSession(
@@ -98,7 +96,7 @@ public class EsqlSession {
         LogicalPlanOptimizer logicalPlanOptimizer,
         Mapper mapper,
         Verifier verifier,
-        Metrics metrics
+        PlanningMetrics planningMetrics
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -110,8 +108,7 @@ public class EsqlSession {
         this.mapper = mapper;
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
-        this.metrics = metrics;
-        this.planningMetrics = new PlanningMetrics();
+        this.planningMetrics = planningMetrics;
     }
 
     public String sessionId() {
@@ -390,7 +387,7 @@ public class EsqlSession {
 
     public PhysicalPlan optimizedPhysicalPlan(LogicalPlan logicalPlan) {
         var plan = physicalPlanOptimizer.optimize(physicalPlan(logicalPlan));
-        planningMetrics.publish(metrics);
+        planningMetrics.publish();
         LOGGER.debug("Optimized physical plan:\n{}", plan);
         return plan;
     }

@@ -87,7 +87,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
-import org.elasticsearch.xpack.esql.stats.Metrics;
+import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -414,7 +414,7 @@ public class CsvTests extends ESTestCase {
             new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration)),
             mapper,
             TEST_VERIFIER,
-            new Metrics(MeterRegistry.NOOP)
+            new PlanningMetrics(MeterRegistry.NOOP)
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(testDataset);
 

@@ -16,7 +16,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
-import org.elasticsearch.xpack.esql.stats.Metrics;
+import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
 import java.util.Collection;
 import java.util.List;
@@ -70,14 +70,14 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         client(dataNode.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
             try {
                 // test commands
-                final List<Measurement> metrics = Measurement.combine(plugin.getLongCounterMeasurement(Metrics.FEATURE_METRICS));
+                final List<Measurement> metrics = Measurement.combine(plugin.getLongCounterMeasurement(PlanningMetrics.FEATURE_METRICS));
                 Set<String> featuresFound = metrics.stream()
-                    .map(x -> x.attributes().get(Metrics.FEATURE_NAME))
+                    .map(x -> x.attributes().get(PlanningMetrics.FEATURE_NAME))
                     .map(String.class::cast)
                     .collect(Collectors.toSet());
                 assertThat(featuresFound, is(Set.of("from", "eval", "stats", "keep")));
                 for (Measurement metric : metrics) {
-                    if ("eval".equalsIgnoreCase((String) metric.attributes().get(Metrics.FEATURE_NAME))) {
+                    if ("eval".equalsIgnoreCase((String) metric.attributes().get(PlanningMetrics.FEATURE_NAME))) {
                         assertThat(metric.value(), is(2L));
                     } else {
                         assertThat(metric.value(), is(1L));
@@ -86,10 +86,10 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
 
                 // test functions
                 final List<Measurement> funcitonMeasurements = Measurement.combine(
-                    plugin.getLongCounterMeasurement(Metrics.FUNCTION_METRICS)
+                    plugin.getLongCounterMeasurement(PlanningMetrics.FUNCTION_METRICS)
                 );
                 Set<String> functionNames = funcitonMeasurements.stream()
-                    .map(x -> x.attributes().get(Metrics.FEATURE_NAME))
+                    .map(x -> x.attributes().get(PlanningMetrics.FEATURE_NAME))
                     .map(String.class::cast)
                     .collect(Collectors.toSet());
                 assertThat(functionNames, is(Set.of("to_string", "to_ip", "count")));

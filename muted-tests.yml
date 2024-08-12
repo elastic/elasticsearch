@@ -127,6 +127,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111721
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/111765
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSnapshotRestore {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111777
 
 # Examples:
 #

@@ -1,6 +1,0 @@
-pr: 109807
-summary: "ESQL: Fix LOOKUP attribute shadowing"
-area: ES|QL
-type: bug
-issues:
- - 109392

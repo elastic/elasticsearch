@@ -125,9 +125,8 @@ tests:
 - class: org.elasticsearch.tdigest.ComparisonTests
   method: testSparseGaussianDistribution
   issue: https://github.com/elastic/elasticsearch/issues/111721
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testUnsupportedAndMultiTypedFields
-  issue: https://github.com/elastic/elasticsearch/issues/111753
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/111765
 
 # Examples:
 #

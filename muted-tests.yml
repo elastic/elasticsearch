@@ -74,9 +74,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFileTests
   method: testCacheFileCreatedAsSparseFile
   issue: https://github.com/elastic/elasticsearch/issues/110801
-- class: org.elasticsearch.nativeaccess.PreallocateTests
-  method: testPreallocate
-  issue: https://github.com/elastic/elasticsearch/issues/110948
 - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
   method: testSystemPropertyDisabled
   issue: https://github.com/elastic/elasticsearch/issues/110949
@@ -97,9 +94,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
   method: testAuthenticateWithImplicitFlow
   issue: https://github.com/elastic/elasticsearch/issues/111191
-- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
-  method: testReadNonexistentBlobThrowsNoSuchFileException
-  issue: https://github.com/elastic/elasticsearch/issues/111233
 - class: org.elasticsearch.action.admin.indices.create.SplitIndexIT
   method: testSplitIndexPrimaryTerm
   issue: https://github.com/elastic/elasticsearch/issues/111282
@@ -114,26 +108,41 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
   method: testAuthenticateWithCodeFlowAndClientPost
   issue: https://github.com/elastic/elasticsearch/issues/111396
-- class: org.elasticsearch.xpack.searchablesnapshots.AzureSearchableSnapshotsIT
-  issue: https://github.com/elastic/elasticsearch/issues/111279
-- class: org.elasticsearch.repositories.azure.RepositoryAzureClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/111345
-- class: org.elasticsearch.repositories.blobstore.testkit.AzureSnapshotRepoTestKitIT
-  method: testRepositoryAnalysis
-  issue: https://github.com/elastic/elasticsearch/issues/111280
-- class: org.elasticsearch.xpack.repositories.metering.azure.AzureRepositoriesMeteringIT
-  issue: https://github.com/elastic/elasticsearch/issues/111307
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testSingleDoc {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111434
-- class: org.elasticsearch.xpack.snapshotbasedrecoveries.recovery.AzureSnapshotBasedRecoveryIT
-  method: testRecoveryUsingSnapshots
-  issue: https://github.com/elastic/elasticsearch/issues/111377
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testDataStreams {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111448
 - class: org.elasticsearch.search.SearchServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/111529
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=rollup/security_tests/Index-based access}
+  issue: https://github.com/elastic/elasticsearch/issues/111631
+- class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
+  method: testGetModel
+  issue: https://github.com/elastic/elasticsearch/issues/111570
+- class: org.elasticsearch.tdigest.ComparisonTests
+  method: testSparseGaussianDistribution
+  issue: https://github.com/elastic/elasticsearch/issues/111721
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSnapshotRestore {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111777
+- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
+  method: testSnapshotRestore {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111775
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSnapshotRestore {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111798
+- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
+  method: testSnapshotRestore {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111799
+- class: org.elasticsearch.indices.breaker.HierarchyCircuitBreakerTelemetryTests
+  method: testCircuitBreakerTripCountMetric
+  issue: https://github.com/elastic/elasticsearch/issues/111778
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {comparison.RangeVersion SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111814
 
 # Examples:
 #

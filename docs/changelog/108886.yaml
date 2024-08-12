@@ -1,5 +1,0 @@
-pr: 108886
-summary: Expose `?master_timeout` on get-shutdown API
-area: Infra/Node Lifecycle
-type: bug
-issues: []

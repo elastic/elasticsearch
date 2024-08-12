@@ -38,8 +38,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.action.support.UnsafePlainActionFuture;
-import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
@@ -82,7 +80,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
@@ -2002,40 +1999,21 @@ public abstract class Engine implements Closeable {
 
     /**
      * When called for the first time, puts the engine into a closing state in which further calls to {@link #acquireEnsureOpenRef()} will
-     * fail with an {@link AlreadyClosedException} and waits for all outstanding ensure-open refs to be released, before returning {@code
-     * true}. If called again, returns {@code false} without waiting.
+     * fail with an {@link AlreadyClosedException} and waits for all outstanding ensure-open refs to be released. If called again, returns
+     * without waiting.
      *
-     * @return a flag indicating whether this was the first call or not.
+     * @param listener the action to perform when all open refs are released
      */
-    private boolean drainForClose() {
+    private void drainForClose(ActionListener<Boolean> listener) {
         if (isClosing.compareAndSet(false, true) == false) {
             logger.trace("drainForClose(): already closing");
-            return false;
+            listener.onResponse(false);
+            return;
         }
 
         logger.debug("drainForClose(): draining ops");
         releaseEnsureOpenRef.close();
-        final var future = new UnsafePlainActionFuture<Void>(ThreadPool.Names.GENERIC) {
-            @Override
-            protected boolean blockingAllowed() {
-                // TODO remove this blocking, or at least do it elsewhere, see https://github.com/elastic/elasticsearch/issues/89821
-                return Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)
-                    || super.blockingAllowed();
-            }
-        };
-        drainOnCloseListener.addListener(future);
-        try {
-            future.get();
-            return true;
-        } catch (ExecutionException e) {
-            logger.error("failure while draining operations on close", e);
-            assert false : e;
-            throw new IllegalStateException(e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.error("interrupted while draining operations on close");
-            throw new IllegalStateException(e);
-        }
+        drainOnCloseListener.addListener(listener.map(unused -> true));
     }
 
     /**
@@ -2043,19 +2021,23 @@ public abstract class Engine implements Closeable {
      */
     public void flushAndClose() throws IOException {
         logger.trace("flushAndClose() maybe draining ops");
-        if (isClosed.get() == false && drainForClose()) {
-            logger.trace("flushAndClose drained ops");
-            try {
-                logger.debug("flushing shard on close - this might take some time to sync files to disk");
-                try {
-                    // TODO: We are not waiting for full durability here atm because we are on the cluster state update thread
-                    flushHoldingLock(false, false, ActionListener.noop());
-                } catch (AlreadyClosedException ex) {
-                    logger.debug("engine already closed - skipping flushAndClose");
+        if (isClosed.get() == false) {
+            drainForClose(ActionListener.wrap(drained -> {
+                if (drained) {
+                    logger.trace("flushAndClose drained ops");
+                    try {
+                        logger.debug("flushing shard on close - this might take some time to sync files to disk");
+                        try {
+                            // TODO: We are not waiting for full durability here atm because we are on the cluster state update thread
+                            flushHoldingLock(false, false, ActionListener.noop());
+                        } catch (AlreadyClosedException ex) {
+                            logger.debug("engine already closed - skipping flushAndClose");
+                        }
+                    } finally {
+                        closeNoLock("flushAndClose", closedLatch);
+                    }
                 }
-            } finally {
-                closeNoLock("flushAndClose", closedLatch);
-            }
+            }, e -> logger.error("failure while draining operations on close", e)));
         }
         awaitPendingClose();
     }
@@ -2063,9 +2045,13 @@ public abstract class Engine implements Closeable {
     @Override
     public void close() throws IOException {
         logger.debug("close() maybe draining ops");
-        if (isClosed.get() == false && drainForClose()) {
-            logger.debug("close drained ops");
-            closeNoLock("api", closedLatch);
+        if (isClosed.get() == false) {
+            drainForClose(ActionListener.wrap(drained -> {
+                if (drained) {
+                    logger.debug("close drained ops");
+                    closeNoLock("api", closedLatch);
+                }
+            }, e -> logger.error("failure while draining operations on close", e)));
         }
         awaitPendingClose();
     }

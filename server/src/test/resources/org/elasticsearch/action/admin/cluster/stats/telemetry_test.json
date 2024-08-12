@@ -4,19 +4,19 @@
     "success" : 20,
     "skipped" : 5,
     "took" : {
-      "max" : 1988,
+      "max" : 1991,
       "avg" : 1496,
-      "p90" : 1892
+      "p90" : 1895
     },
     "took_mrt_true" : {
-      "max" : 9952,
-      "avg" : 7466,
-      "p90" : 9440
+      "max" : 9983,
+      "avg" : 7476,
+      "p90" : 9471
     },
     "took_mrt_false" : {
-      "max" : 19904,
-      "avg" : 14932,
-      "p90" : 18880
+      "max" : 19967,
+      "avg" : 14952,
+      "p90" : 18943
     },
     "remotes_per_search_max" : 6,
     "remotes_per_search_avg" : 7.89,
@@ -40,18 +40,18 @@
         "total" : 100,
         "skipped" : 22,
         "took" : {
-          "max" : 3976,
+          "max" : 3983,
           "avg" : 2992,
-          "p90" : 3784
+          "p90" : 3791
         }
       },
       "remote2" : {
         "total" : 300,
         "skipped" : 42,
         "took" : {
-          "max" : 993280,
-          "avg" : 747480,
-          "p90" : 944128
+          "max" : 995327,
+          "avg" : 747531,
+          "p90" : 946175
         }
       }
     }

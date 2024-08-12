@@ -770,6 +770,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         // Create a few repositories and a few indices
         final var repositories = randomList(1, 4, ESTestCase::randomIdentifier);
         final var indices = randomList(1, 4, ESTestCase::randomIdentifier);
+        final var slmPolicies = randomList(1, 4, ESTestCase::randomIdentifier);
 
         safeAwait(l -> {
             try (var listeners = new RefCountingListener(l.map(v -> null))) {
@@ -806,7 +807,9 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                             i < repositories.size() ? repositories.get(i) : randomFrom(repositories),
                             randomIdentifier()
                         ).indices(randomNonEmptySubsetOf(indices))
-                            // TODO also specify SLM policy sometimes
+                            .userMetadata(
+                                randomBoolean() ? Map.of() : Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, randomFrom(slmPolicies))
+                            )
                             .waitForCompletion(true),
                         listeners.acquire(
                             createSnapshotResponse -> snapshotInfos.add(Objects.requireNonNull(createSnapshotResponse.getSnapshotInfo()))
@@ -844,6 +847,34 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .toArray(String[]::new);
         }
 
+        // ?slm_policy_filter parameter
+        final String[] requestedSlmPolicies;
+        switch (between(0, 3)) {
+            default -> requestedSlmPolicies = Strings.EMPTY_ARRAY;
+            case 1 -> {
+                requestedSlmPolicies = new String[] { "*" };
+                filterByNamePredicate = filterByNamePredicate.and(
+                    si -> si.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD) != null
+                );
+            }
+            case 2 -> {
+                requestedSlmPolicies = new String[] { "_none" };
+                filterByNamePredicate = filterByNamePredicate.and(
+                    si -> si.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD) == null
+                );
+            }
+            case 3 -> {
+                final var selectedPolicies = Set.copyOf(randomNonEmptySubsetOf(slmPolicies));
+                requestedSlmPolicies = selectedPolicies.stream()
+                    .map(policy -> randomBoolean() ? policy : policy + "*")
+                    .toArray(String[]::new);
+                filterByNamePredicate = filterByNamePredicate.and(
+                    si -> si.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD) instanceof String policy
+                        && selectedPolicies.contains(policy)
+                );
+            }
+        }
+
         // ?sort and ?order parameters
         final var sortKey = randomFrom(SnapshotSortKey.values());
         final var order = randomFrom(SortOrder.values());
@@ -858,7 +889,9 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .sorted(sortKey.getSnapshotInfoComparator(order))
             .toList();
 
-        final var getSnapshotsRequest = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, requestedRepositories, requestedSnapshots)
+        final var getSnapshotsRequest = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, requestedRepositories, requestedSnapshots).policies(
+            requestedSlmPolicies
+        )
             // apply sorting params
             .sort(sortKey)
             .order(order);
@@ -943,7 +976,8 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         while (nextRequestAfter != null) {
             final var nextSize = between(1, remaining);
             final var nextRequest = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, requestedRepositories, requestedSnapshots)
-                // same name filters, same ?sort and ?order params, new ?size, but no ?offset or ?from_sort_value because of ?after
+                // same name/policy filters, same ?sort and ?order params, new ?size, but no ?offset or ?from_sort_value because of ?after
+                .policies(requestedSlmPolicies)
                 .sort(sortKey)
                 .order(order)
                 .size(nextSize)

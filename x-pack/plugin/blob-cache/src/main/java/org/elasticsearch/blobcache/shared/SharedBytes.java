@@ -172,6 +172,7 @@ public class SharedBytes extends AbstractRefCounted {
      * @param buf bytebuffer to use for writing
      * @throws IOException on failure
      */
+    // TODO: Add CacheCopyMetricsConsumer when required
     public static void copyToCacheFileAligned(
         IO fc,
         InputStream input,

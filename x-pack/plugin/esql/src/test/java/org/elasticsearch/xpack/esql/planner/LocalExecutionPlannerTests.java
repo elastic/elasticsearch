@@ -33,16 +33,16 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.Order;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -135,8 +135,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
     }
 
-    private EsqlConfiguration config() {
-        return new EsqlConfiguration(
+    private Configuration config() {
+        return new Configuration(
             randomZone(),
             randomLocale(random()),
             "test_user",

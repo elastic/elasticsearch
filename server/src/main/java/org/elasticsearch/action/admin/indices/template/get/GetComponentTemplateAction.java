@@ -139,6 +139,10 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             }
         }
 
+        public Response(Map<String, ComponentTemplate> componentTemplates, RolloverConfiguration rolloverConfiguration) {
+            this(componentTemplates, rolloverConfiguration, null);
+        }
+
         public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable DataStreamGlobalRetention globalRetention) {
             this(componentTemplates, null, globalRetention);
         }

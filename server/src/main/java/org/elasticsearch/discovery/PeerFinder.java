@@ -496,6 +496,11 @@ public abstract class PeerFinder {
                             } // else this Peer has been superseded by a different instance which should be left in place
                         }
                     }
+
+                    @Override
+                    public String toString() {
+                        return "Peer#establishConnection[" + transportAddress + "]";
+                    }
                 })
             );
         }
@@ -584,6 +589,7 @@ public abstract class PeerFinder {
                 + Optional.ofNullable(probeConnectionResult.get())
                     .map(result -> result.getDiscoveryNode().descriptionWithoutAttributes())
                     .orElse("unknown")
+                + "]"
                 + (peersRequestInFlight ? " [request in flight]" : "");
         }
     }

@@ -75,11 +75,7 @@ public class FailureStoreDocumentConverter {
             .setWriteToFailureStore(true);
     }
 
-    private static XContentBuilder createSource(
-        IndexRequest source,
-        Exception exception,
-        Supplier<Long> timeSupplier
-    ) throws IOException {
+    private static XContentBuilder createSource(IndexRequest source, Exception exception, Supplier<Long> timeSupplier) throws IOException {
         Objects.requireNonNull(source, "source must not be null");
         Objects.requireNonNull(exception, "exception must not be null");
         Objects.requireNonNull(timeSupplier, "timeSupplier must not be null");

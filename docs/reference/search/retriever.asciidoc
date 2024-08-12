@@ -422,7 +422,7 @@ Follow these steps to load the model and create a semantic reranker.
 +
 [source,sh]
 ----
-python -m pip install eland
+python -m pip install eland[pytorch]
 ----
 +
 . Upload the model to {es} using Eland. This example assumes you have an Elastic Cloud deployment and an API key. Refer to the https://www.elastic.co/guide/en/elasticsearch/client/eland/current/machine-learning.html#ml-nlp-pytorch-auth[Eland documentation] for more authentication options.

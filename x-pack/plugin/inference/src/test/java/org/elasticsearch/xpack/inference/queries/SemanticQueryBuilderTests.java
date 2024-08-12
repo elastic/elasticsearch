@@ -296,6 +296,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         }
     }
 
+    // TODO: Update test
     public void testToXContent() throws IOException {
         QueryBuilder queryBuilder = new SemanticQueryBuilder("foo", "bar");
         checkGeneratedJson("""

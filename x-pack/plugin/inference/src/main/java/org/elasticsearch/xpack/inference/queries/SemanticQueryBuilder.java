@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -53,30 +52,31 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 // TODO: Disallow inner hits sort?
+// TODO: How to handle ignoreUnmapped?
 
 public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
     public static final String NAME = "semantic";
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField QUERY_FIELD = new ParseField("query");
-    private static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
+    private static final ParseField INNER_CHUNKS_FIELD = new ParseField("inner_chunks");
 
     private static final ConstructingObjectParser<SemanticQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         false,
-        args -> new SemanticQueryBuilder((String) args[0], (String) args[1], (InnerHitBuilder) args[2])
+        args -> new SemanticQueryBuilder((String) args[0], (String) args[1], (InnerChunkBuilder) args[2])
     );
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         PARSER.declareString(constructorArg(), QUERY_FIELD);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> InnerHitBuilder.fromXContent(p), INNER_HITS_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> InnerChunkBuilder.fromXContent(p), INNER_CHUNKS_FIELD);
         declareStandardFields(PARSER);
     }
 
     private final String fieldName;
     private final String query;
-    private final InnerHitBuilder innerHitBuilder;
+    private final InnerChunkBuilder innerChunkBuilder;
     private final SetOnce<InferenceServiceResults> inferenceResultsSupplier;
     private final InferenceResults inferenceResults;
     private final boolean noInferenceResults;
@@ -85,7 +85,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this(fieldName, query, null);
     }
 
-    public SemanticQueryBuilder(String fieldName, String query, @Nullable InnerHitBuilder innerHitBuilder) {
+    public SemanticQueryBuilder(String fieldName, String query, @Nullable InnerChunkBuilder innerChunkBuilder) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a " + FIELD_FIELD.getPreferredName() + " value");
         }
@@ -94,7 +94,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
         this.fieldName = fieldName;
         this.query = query;
-        this.innerHitBuilder = innerHitBuilder;
+        this.innerChunkBuilder = innerChunkBuilder;
         this.inferenceResults = null;
         this.inferenceResultsSupplier = null;
         this.noInferenceResults = false;
@@ -105,9 +105,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.fieldName = in.readString();
         this.query = in.readString();
         if (in.getTransportVersion().onOrAfter(SEMANTIC_QUERY_INNER_HITS)) {
-            this.innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
+            this.innerChunkBuilder = in.readOptionalWriteable(InnerChunkBuilder::new);
         } else {
-            this.innerHitBuilder = null;
+            this.innerChunkBuilder = null;
         }
         this.inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
         this.noInferenceResults = in.readBoolean();
@@ -122,7 +122,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         out.writeString(fieldName);
         out.writeString(query);
         if (out.getTransportVersion().onOrAfter(SEMANTIC_QUERY_INNER_HITS)) {
-            out.writeOptionalWriteable(innerHitBuilder);
+            out.writeOptionalWriteable(innerChunkBuilder);
         }
         out.writeOptionalNamedWriteable(inferenceResults);
         out.writeBoolean(noInferenceResults);
@@ -136,7 +136,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     ) {
         this.fieldName = other.fieldName;
         this.query = other.query;
-        this.innerHitBuilder = other.innerHitBuilder;
+        this.innerChunkBuilder = other.innerChunkBuilder;
         this.boost = other.boost;
         this.queryName = other.queryName;
         this.inferenceResultsSupplier = inferenceResultsSupplier;
@@ -163,8 +163,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         builder.startObject(NAME);
         builder.field(FIELD_FIELD.getPreferredName(), fieldName);
         builder.field(QUERY_FIELD.getPreferredName(), query);
-        if (innerHitBuilder != null) {
-            builder.field(INNER_HITS_FIELD.getPreferredName(), innerHitBuilder);
+        if (innerChunkBuilder != null) {
+            builder.field(INNER_CHUNKS_FIELD.getPreferredName(), innerChunkBuilder);
         }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
@@ -192,7 +192,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 );
             }
 
-            return semanticTextFieldType.semanticQuery(inferenceResults, boost(), queryName(), innerHitBuilder);
+            return semanticTextFieldType.semanticQuery(inferenceResults, boost(), queryName(), innerChunkBuilder);
         } else {
             throw new IllegalArgumentException(
                 "Field [" + fieldName + "] of type [" + fieldType.typeName() + "] does not support " + NAME + " queries"
@@ -326,12 +326,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     protected boolean doEquals(SemanticQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(query, other.query)
-            && Objects.equals(innerHitBuilder, other.innerHitBuilder)
+            && Objects.equals(innerChunkBuilder, other.innerChunkBuilder)
             && Objects.equals(inferenceResults, other.inferenceResults);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, query, innerHitBuilder, inferenceResults);
+        return Objects.hash(fieldName, query, innerChunkBuilder, inferenceResults);
     }
 }

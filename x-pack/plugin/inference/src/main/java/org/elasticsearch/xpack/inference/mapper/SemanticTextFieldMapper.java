@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
-import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -53,6 +52,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.inference.queries.InnerChunkBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -388,7 +388,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             InferenceResults inferenceResults,
             float boost,
             String queryName,
-            InnerHitBuilder innerHitBuilder
+            InnerChunkBuilder innerChunkBuilder
         ) {
             String nestedFieldPath = getChunksFieldName(name());
             String inferenceResultsFieldName = getEmbeddingsFieldName(name());
@@ -467,7 +467,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
             return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Max).boost(boost)
                 .queryName(queryName)
-                .innerHit(innerHitBuilder);
+                .innerHit(innerChunkBuilder);
         }
     }
 

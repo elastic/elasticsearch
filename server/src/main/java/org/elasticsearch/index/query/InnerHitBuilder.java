@@ -41,7 +41,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentParser.Token.END_OBJECT;
 
-public final class InnerHitBuilder implements Writeable, ToXContentObject {
+public class InnerHitBuilder implements Writeable, ToXContentObject {
 
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");

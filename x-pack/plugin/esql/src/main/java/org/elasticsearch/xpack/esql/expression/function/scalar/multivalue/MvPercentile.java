@@ -98,7 +98,7 @@ public class MvPercentile extends EsqlScalarFunction {
 
     @Override
     public boolean foldable() {
-        return field.foldable();
+        return field.foldable() && percentile.foldable();
     }
 
     public final Expression field() {

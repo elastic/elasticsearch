@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -417,8 +418,8 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
         var fieldTypeName = StringUtils.underscoreToLowerCamelCase(fieldDataType.name());
         var percentileTypeName = StringUtils.underscoreToLowerCamelCase(percentileDataType.name());
 
-        fieldTypeName = fieldTypeName.substring(0, 1).toUpperCase() + fieldTypeName.substring(1);
-        percentileTypeName = percentileTypeName.substring(0, 1).toUpperCase() + percentileTypeName.substring(1);
+        fieldTypeName = fieldTypeName.substring(0, 1).toUpperCase(Locale.ROOT) + fieldTypeName.substring(1);
+        percentileTypeName = percentileTypeName.substring(0, 1).toUpperCase(Locale.ROOT) + percentileTypeName.substring(1);
 
         return "MvPercentile"
             + fieldTypeName

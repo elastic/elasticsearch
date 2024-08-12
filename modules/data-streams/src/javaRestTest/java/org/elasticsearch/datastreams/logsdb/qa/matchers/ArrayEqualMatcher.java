@@ -14,7 +14,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.util.Arrays;
 import java.util.List;
 
-class ArrayEqualMatcher extends EqualMatcher<Object[]> {
+import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.formatErrorMessage;
+import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.prettyPrintArrays;
+
+class ArrayEqualMatcher extends GenericEqualsMatcher<Object[]> {
     ArrayEqualMatcher(
         final XContentBuilder actualMappings,
         final Settings.Builder actualSettings,

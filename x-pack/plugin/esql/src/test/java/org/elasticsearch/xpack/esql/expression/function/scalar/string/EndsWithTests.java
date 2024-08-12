@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -32,99 +33,66 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new LinkedList<>();
-        suppliers.add(new TestCaseSupplier("ends_with empty suffix", () -> {
-            String str = randomAlphaOfLength(5);
-            String suffix = "";
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataType.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataType.KEYWORD, "suffix")
-                ),
-                "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
-                DataType.BOOLEAN,
-                equalTo(str.endsWith(suffix))
-            );
-        }));
-        suppliers.add(new TestCaseSupplier("ends_with empty str", () -> {
-            String str = "";
-            String suffix = randomAlphaOfLength(5);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataType.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataType.KEYWORD, "suffix")
-                ),
-                "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
-                DataType.BOOLEAN,
-                equalTo(str.endsWith(suffix))
-            );
-        }));
-        suppliers.add(new TestCaseSupplier("ends_with one char suffix", () -> {
-            String str = randomAlphaOfLength(5);
-            String suffix = randomAlphaOfLength(1);
-            str = str + suffix;
-
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataType.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataType.KEYWORD, "suffix")
-                ),
-                "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
-                DataType.BOOLEAN,
-                equalTo(str.endsWith(suffix))
-            );
-        }));
-        suppliers.add(new TestCaseSupplier("ends_with no match suffix", () -> {
-            String str = randomAlphaOfLength(5);
-            String suffix = "no_match_suffix";
-            str = suffix + str;
-
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataType.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataType.KEYWORD, "suffix")
-                ),
-                "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
-                DataType.BOOLEAN,
-                equalTo(str.endsWith(suffix))
-            );
-        }));
-        suppliers.add(new TestCaseSupplier("ends_with randomized test", () -> {
-            String str = randomRealisticUnicodeOfLength(5);
-            String suffix = randomRealisticUnicodeOfLength(5);
-            str = str + suffix;
-
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataType.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataType.KEYWORD, "suffix")
-                ),
-                "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
-                DataType.BOOLEAN,
-                equalTo(str.endsWith(suffix))
-            );
-        }));
-        suppliers.add(new TestCaseSupplier("ends_with with text args", () -> {
-            String str = randomAlphaOfLength(5);
-            String suffix = randomAlphaOfLength(1);
-            str = str + suffix;
-
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataType.TEXT, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataType.TEXT, "suffix")
-                ),
-                "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
-                DataType.BOOLEAN,
-                equalTo(str.endsWith(suffix))
-            );
-        }));
-        return parameterSuppliersFromTypedData(suppliers);
+        for (DataType strType : Arrays.stream(DataType.values()).filter(DataType::isString).toList()) {
+            for (DataType suffixType : Arrays.stream(DataType.values()).filter(DataType::isString).toList()) {
+                suppliers.add(
+                    new TestCaseSupplier(
+                        "<" + strType + ">, empty <" + suffixType + ">",
+                        List.of(strType, suffixType),
+                        () -> testCase(strType, suffixType, randomAlphaOfLength(5), "", equalTo(true))
+                    )
+                );
+                suppliers.add(
+                    new TestCaseSupplier(
+                        "empty <" + strType + ">, <" + suffixType + ">",
+                        List.of(strType, suffixType),
+                        () -> testCase(strType, suffixType, "", randomAlphaOfLength(5), equalTo(false))
+                    )
+                );
+                suppliers.add(
+                    new TestCaseSupplier("<" + strType + ">, one char <" + suffixType + "> matches", List.of(strType, suffixType), () -> {
+                        String str = randomAlphaOfLength(5);
+                        String suffix = randomAlphaOfLength(1);
+                        str = str + suffix;
+                        return testCase(strType, suffixType, str, suffix, equalTo(true));
+                    })
+                );
+                suppliers.add(
+                    new TestCaseSupplier("<" + strType + ">, one char <" + suffixType + "> differs", List.of(strType, suffixType), () -> {
+                        String str = randomAlphaOfLength(5);
+                        String suffix = randomAlphaOfLength(1);
+                        str = str + randomValueOtherThan(suffix, () -> randomAlphaOfLength(1));
+                        return testCase(strType, suffixType, str, suffix, equalTo(false));
+                    })
+                );
+                suppliers.add(
+                    new TestCaseSupplier("random <" + strType + ">, random <" + suffixType + ">", List.of(strType, suffixType), () -> {
+                        String str = randomAlphaOfLength(5);
+                        String suffix = randomAlphaOfLength(3);
+                        return testCase(strType, suffixType, str, suffix, equalTo(str.endsWith(suffix)));
+                    })
+                );
+            }
+        }
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (valid, position) -> "string");
     }
 
-    private Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
-        String str = ((BytesRef) typedData.get(0).data()).utf8ToString();
-        String prefix = ((BytesRef) typedData.get(1).data()).utf8ToString();
-        return equalTo(str.endsWith(prefix));
+    private static TestCaseSupplier.TestCase testCase(
+        DataType strType,
+        DataType suffixType,
+        String str,
+        String suffix,
+        Matcher<Boolean> matcher
+    ) {
+        return new TestCaseSupplier.TestCase(
+            List.of(
+                new TestCaseSupplier.TypedData(new BytesRef(str), strType, "str"),
+                new TestCaseSupplier.TypedData(new BytesRef(suffix), suffixType, "suffix")
+            ),
+            "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
+            DataType.BOOLEAN,
+            matcher
+        );
     }
 
     @Override

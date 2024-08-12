@@ -1,6 +1,0 @@
-pr: 108421
-summary: "[ES|QL] Support Named and Positional Parameters in `EsqlQueryRequest`"
-area: ES|QL
-type: enhancement
-issues:
- - 107029

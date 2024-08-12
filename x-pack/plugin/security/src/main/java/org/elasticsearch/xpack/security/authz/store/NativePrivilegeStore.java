@@ -200,12 +200,11 @@ public class NativePrivilegeStore {
     private void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
         final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
-        innerGetPrivilegesWithRetry(applications, securityIndexManager, backoff, listener);
+        innerGetPrivilegesWithRetry(applications, backoff, listener);
     }
 
     private void innerGetPrivilegesWithRetry(
         Collection<String> applications,
-        SecurityIndexManager securityIndexManager,
         Iterator<TimeValue> backoff,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
     ) {
@@ -216,7 +215,7 @@ public class NativePrivilegeStore {
                 logger.debug("retrying privilege get request after [{}] back off", backoffTimeValue);
                 client.threadPool()
                     .schedule(
-                        () -> innerGetPrivilegesWithRetry(applications, securityIndexManager, backoff, listener),
+                        () -> innerGetPrivilegesWithRetry(applications, backoff, listener),
                         backoffTimeValue,
                         client.threadPool().generic()
                     );

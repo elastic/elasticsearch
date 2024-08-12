@@ -374,7 +374,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
         final long lastGapStart = rangeLength + randomLongBetween(0, 100);
         gaps.add(mockGap(lastGapStart, lastGapStart + randomLongBetween(1, 100)));
 
-        final byte[] input = randomByteArrayOfLength((int) rangeLength);
+        final byte[] input = randomByteArrayOfLength((int) (rangeLength - firstGapStart));
         class PosByteArrayInputStream extends ByteArrayInputStream {
             PosByteArrayInputStream(byte[] buf) {
                 super(buf);

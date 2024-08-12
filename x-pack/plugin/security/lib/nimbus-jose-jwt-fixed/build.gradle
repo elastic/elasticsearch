@@ -22,7 +22,7 @@ tasks.named('shadowJar').configure {
   }
 }
 
-['jarHell', 'thirdPartyAudit', 'forbiddenApisMain', 'splitPackagesAudit'].each {
+['jarHell', 'thirdPartyAudit', 'forbiddenApisMain', 'splitPackagesAudit', 'licenseHeaders'].each {
   tasks.named(it).configure {
     enabled = false
   }

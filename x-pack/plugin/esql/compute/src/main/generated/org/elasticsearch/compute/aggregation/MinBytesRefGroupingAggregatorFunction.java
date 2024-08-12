@@ -45,7 +45,7 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
 
   public static MinBytesRefGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new MinBytesRefGroupingAggregatorFunction(channels, MinBytesRefAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new MinBytesRefGroupingAggregatorFunction(channels, MinBytesRefAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

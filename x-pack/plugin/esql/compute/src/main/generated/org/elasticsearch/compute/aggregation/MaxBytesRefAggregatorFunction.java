@@ -43,7 +43,7 @@ public final class MaxBytesRefAggregatorFunction implements AggregatorFunction {
 
   public static MaxBytesRefAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new MaxBytesRefAggregatorFunction(driverContext, channels, MaxBytesRefAggregator.initSingle());
+    return new MaxBytesRefAggregatorFunction(driverContext, channels, MaxBytesRefAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

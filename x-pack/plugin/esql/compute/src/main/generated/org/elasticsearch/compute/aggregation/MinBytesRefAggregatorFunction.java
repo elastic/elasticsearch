@@ -43,7 +43,7 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
 
   public static MinBytesRefAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new MinBytesRefAggregatorFunction(driverContext, channels, MinBytesRefAggregator.initSingle());
+    return new MinBytesRefAggregatorFunction(driverContext, channels, MinBytesRefAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

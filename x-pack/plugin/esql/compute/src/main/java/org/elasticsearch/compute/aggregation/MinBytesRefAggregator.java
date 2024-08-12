@@ -7,14 +7,15 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -26,8 +27,8 @@ class MinBytesRefAggregator {
         return value.compareTo(otherValue) < 0;
     }
 
-    public static SingleState initSingle() {
-        return new SingleState();
+    public static SingleState initSingle(DriverContext driverContext) {
+        return new SingleState(driverContext.breaker());
     }
 
     public static void combine(SingleState state, BytesRef value) {
@@ -44,8 +45,8 @@ class MinBytesRefAggregator {
         return state.toBlock(driverContext);
     }
 
-    public static GroupingState initGrouping(BigArrays bigArrays) {
-        return new GroupingState(bigArrays);
+    public static GroupingState initGrouping(DriverContext driverContext) {
+        return new GroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
 
     public static void combine(GroupingState state, int groupId, BytesRef value) {
@@ -69,8 +70,8 @@ class MinBytesRefAggregator {
     public static class GroupingState implements Releasable {
         private final BytesRefArrayState internalState;
 
-        private GroupingState(BigArrays bigArrays) {
-            this.internalState = new BytesRefArrayState(bigArrays);
+        private GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
+            this.internalState = new BytesRefArrayState(bigArrays, breaker, "min_bytes_ref_grouping_aggregator");
         }
 
         public void add(int groupId, BytesRef value) {
@@ -104,28 +105,27 @@ class MinBytesRefAggregator {
     }
 
     public static class SingleState implements Releasable {
-        private final BytesRef internalState;
+        private final BreakingBytesRefBuilder internalState;
         private boolean seen;
 
-        private SingleState() {
-            this.internalState = new BytesRef();
+        private SingleState(CircuitBreaker breaker) {
+            this.internalState = new BreakingBytesRefBuilder(breaker, "min_bytes_ref_aggregator");
             this.seen = false;
         }
 
         public void add(BytesRef value) {
-            if (seen == false || isBetter(value, internalState)) {
+            if (seen == false || isBetter(value, internalState.bytesRefView())) {
                 seen = true;
 
-                // TODO: Use BigArrays instead?
-                internalState.bytes = ArrayUtil.growNoCopy(internalState.bytes, value.length);
-                internalState.length = value.length;
+                internalState.grow(value.length);
+                internalState.setLength(value.length);
 
-                System.arraycopy(value.bytes, value.offset, internalState.bytes, 0, value.length);
+                System.arraycopy(value.bytes, value.offset, internalState.bytes(), 0, value.length);
             }
         }
 
         void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-            blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(internalState, 1);
+            blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(internalState.bytesRefView(), 1);
             blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(seen, 1);
         }
 
@@ -134,12 +134,12 @@ class MinBytesRefAggregator {
                 return driverContext.blockFactory().newConstantNullBlock(1);
             }
 
-            return driverContext.blockFactory().newConstantBytesRefBlockWith(internalState, 1);
+            return driverContext.blockFactory().newConstantBytesRefBlockWith(internalState.bytesRefView(), 1);
         }
 
         @Override
         public void close() {
-            // Nothing to close
+            Releasables.close(internalState);
         }
     }
 }

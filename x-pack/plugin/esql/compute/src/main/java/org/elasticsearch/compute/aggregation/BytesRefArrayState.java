@@ -7,12 +7,13 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
@@ -32,28 +33,33 @@ import org.elasticsearch.core.Releasables;
  * </p>
  */
 public final class BytesRefArrayState extends AbstractArrayState implements GroupingAggregatorState {
-    private ObjectArray<BytesRef> values;
+    private final CircuitBreaker breaker;
+    private final String breakerLabel;
+    private ObjectArray<BreakingBytesRefBuilder> values;
 
-    BytesRefArrayState(BigArrays bigArrays) {
+    BytesRefArrayState(BigArrays bigArrays, CircuitBreaker breaker, String breakerLabel) {
         super(bigArrays);
+        this.breaker = breaker;
+        this.breakerLabel = breakerLabel;
         this.values = bigArrays.newObjectArray(0);
     }
 
     BytesRef get(int groupId) {
-        return values.get(groupId);
+        return values.get(groupId).bytesRefView();
     }
 
     void set(int groupId, BytesRef value) {
         ensureCapacity(groupId);
 
-        var currentBytesRef = values.get(groupId);
-        if (currentBytesRef == null) {
-            currentBytesRef = new BytesRef();
-            values.set(groupId, currentBytesRef);
+        var currentBuilder = values.get(groupId);
+        if (currentBuilder == null) {
+            currentBuilder = new BreakingBytesRefBuilder(breaker, breakerLabel, value.length);
+            values.set(groupId, currentBuilder);
+        } else {
+            currentBuilder.grow(value.length);
         }
-        currentBytesRef.bytes = ArrayUtil.grow(currentBytesRef.bytes, value.length);
-        currentBytesRef.length = value.length;
-        System.arraycopy(value.bytes, value.offset, currentBytesRef.bytes, 0, value.length);
+        currentBuilder.setLength(value.length);
+        System.arraycopy(value.bytes, value.offset, currentBuilder.bytes(), 0, value.length);
 
         trackGroupId(groupId);
     }
@@ -122,6 +128,10 @@ public final class BytesRefArrayState extends AbstractArrayState implements Grou
 
     @Override
     public void close() {
+        for (int i = 0; i < values.size(); i++) {
+            Releasables.closeWhileHandlingException(values.get(i));
+        }
+
         Releasables.close(values, super::close);
     }
 }

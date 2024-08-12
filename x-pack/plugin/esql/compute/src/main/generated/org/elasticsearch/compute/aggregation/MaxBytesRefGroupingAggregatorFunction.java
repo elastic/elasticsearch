@@ -45,7 +45,7 @@ public final class MaxBytesRefGroupingAggregatorFunction implements GroupingAggr
 
   public static MaxBytesRefGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new MaxBytesRefGroupingAggregatorFunction(channels, MaxBytesRefAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new MaxBytesRefGroupingAggregatorFunction(channels, MaxBytesRefAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

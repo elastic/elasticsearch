@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -37,7 +36,7 @@ public class AggregateSerializationTests extends AbstractLogicalPlanSerializatio
         return new Aggregate(source, child, aggregateType, groupings, aggregates);
     }
 
-    private static List<? extends NamedExpression> randomAggregates() {
+    public static List<? extends NamedExpression> randomAggregates() {
         int size = between(1, 5);
         List<NamedExpression> result = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -58,12 +57,6 @@ public class AggregateSerializationTests extends AbstractLogicalPlanSerializatio
             result.add(new Alias(randomSource(), randomAlphaOfLength(5), agg));
         }
         return result;
-    }
-
-    private static Dissect.Parser randomParser() {
-        String suffix = randomAlphaOfLength(5);
-        String pattern = "%{b} %{c}" + suffix;
-        return new Dissect.Parser(pattern, ",", new DissectParser(pattern, ","));
     }
 
     @Override

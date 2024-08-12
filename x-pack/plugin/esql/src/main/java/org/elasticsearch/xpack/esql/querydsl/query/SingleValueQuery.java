@@ -107,7 +107,15 @@ public class SingleValueQuery extends Query {
             this.next = in.readNamedWriteable(QueryBuilder.class);
             this.field = in.readString();
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SINGLE_VALUE_QUERY_SOURCE)) {
-                this.source = Source.readFrom((PlanStreamInput) in);
+                if (in instanceof PlanStreamInput psi) {
+                    this.source = Source.readFrom(psi);
+                } else {
+                    /*
+                     * For things like CanMatch we serialize without the Source. But we
+                     * don't use it, so that's ok.
+                     */
+                    this.source = Source.readEmpty(in);
+                }
             } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 this.source = readOldSource(in);
             } else {

@@ -10,6 +10,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -26,7 +27,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -38,6 +38,7 @@ import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.junit.Before;
 
@@ -51,15 +52,18 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC;
 import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.longFromBytes;
 import static org.elasticsearch.repositories.blobstore.testkit.RepositoryAnalysisFailureIT.isContendedRegisterKey;
+import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -83,9 +87,21 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         return List.of(TestPlugin.class, LocalStateCompositeXPackPlugin.class, SnapshotRepositoryTestKit.class);
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), ByteSizeValue.ZERO)
+            .build();
+    }
+
     public void testRepositoryAnalysis() {
 
-        final Settings.Builder settings = Settings.builder();
+        final Settings.Builder settings = Settings.builder()
+            // no throttling
+            .put(MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO)
+            .put(MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO);
+
         if (randomBoolean()) {
             settings.put(BASE_PATH_SETTING_KEY, randomAlphaOfLength(10));
         }
@@ -136,11 +152,22 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             blobStore.setMaxTotalBlobSize(request.getMaxTotalDataSize().getBytes());
         }
 
-        request.timeout(TimeValue.timeValueSeconds(20));
-
-        client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(30L, TimeUnit.SECONDS);
+        request.timeout(SAFE_AWAIT_TIMEOUT);
+        final RepositoryAnalyzeAction.Response response = safeAwait(l -> client().execute(RepositoryAnalyzeAction.INSTANCE, request, l));
 
         assertThat(blobStore.currentPath, nullValue());
+
+        assertNoThrottling(response);
+    }
+
+    static void assertNoThrottling(RepositoryAnalyzeAction.Response response) {
+        try {
+            final var responseMap = convertToMap(response);
+            assertEquals(Strings.toString(response), 0, (int) ObjectPath.eval("summary.write.total_throttled_nanos", responseMap));
+            assertEquals(Strings.toString(response), 0, (int) ObjectPath.eval("summary.read.total_throttled_nanos", responseMap));
+        } catch (IOException e) {
+            fail(e);
+        }
     }
 
     public static class TestPlugin extends Plugin implements RepositoryPlugin {

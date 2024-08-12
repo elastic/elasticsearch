@@ -1131,7 +1131,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         length,
                         progressUpdater,
                         completionListener.map(unused -> {
-                            var elapsedTime = TimeUnit.NANOSECONDS.toMicros(relativeTimeInNanosSupplier.getAsLong() - startTime);
+                            var elapsedTime = TimeUnit.NANOSECONDS.toMillis(relativeTimeInNanosSupplier.getAsLong() - startTime);
                             blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
                             blobCacheMetrics.getCacheMissCounter().increment();
                             return null;

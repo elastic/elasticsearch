@@ -8,18 +8,30 @@
 
 package org.elasticsearch.logsdb.datageneration;
 
-import org.elasticsearch.logsdb.datageneration.arbitrary.Arbitrary;
-import org.elasticsearch.logsdb.datageneration.arbitrary.RandomBasedArbitrary;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
+import org.elasticsearch.logsdb.datageneration.fields.PredefinedField;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * Allows configuring behavior of {@link  DataGenerator}.
- * @param arbitrary provides arbitrary values used during generation
+ * @param dataSource source of generated data
  * @param maxFieldCountPerLevel maximum number of fields that an individual object in mapping has.
  *                              Applies to subobjects.
  * @param maxObjectDepth maximum depth of nested objects
  * @param nestedFieldsLimit how many total nested fields can be present in a produced mapping
+ * @param predefinedFields predefined fields that must be present in mapping and documents. Only top level fields are supported.
  */
-public record DataGeneratorSpecification(Arbitrary arbitrary, int maxFieldCountPerLevel, int maxObjectDepth, int nestedFieldsLimit) {
+public record DataGeneratorSpecification(
+    DataSource dataSource,
+    int maxFieldCountPerLevel,
+    int maxObjectDepth,
+    int nestedFieldsLimit,
+    List<PredefinedField> predefinedFields
+) {
 
     public static Builder builder() {
         return new Builder();
@@ -30,22 +42,24 @@ public record DataGeneratorSpecification(Arbitrary arbitrary, int maxFieldCountP
     }
 
     public static class Builder {
-        private Arbitrary arbitrary;
+        private List<DataSourceHandler> dataSourceHandlers;
         private int maxFieldCountPerLevel;
         private int maxObjectDepth;
         private int nestedFieldsLimit;
+        private List<PredefinedField> predefinedFields;
 
         public Builder() {
+            this.dataSourceHandlers = new ArrayList<>();
             // Simply sufficiently big numbers to get some permutations
-            maxFieldCountPerLevel = 50;
-            maxObjectDepth = 3;
+            this.maxFieldCountPerLevel = 50;
+            this.maxObjectDepth = 2;
             // Default value of index.mapping.nested_fields.limit
-            nestedFieldsLimit = 50;
-            arbitrary = new RandomBasedArbitrary();
+            this.nestedFieldsLimit = 50;
+            this.predefinedFields = new ArrayList<>();
         }
 
-        public Builder withArbitrary(Arbitrary arbitrary) {
-            this.arbitrary = arbitrary;
+        public Builder withDataSourceHandlers(Collection<DataSourceHandler> handlers) {
+            this.dataSourceHandlers.addAll(handlers);
             return this;
         }
 
@@ -64,8 +78,19 @@ public record DataGeneratorSpecification(Arbitrary arbitrary, int maxFieldCountP
             return this;
         }
 
+        public Builder withPredefinedFields(List<PredefinedField> predefinedFields) {
+            this.predefinedFields = predefinedFields;
+            return this;
+        }
+
         public DataGeneratorSpecification build() {
-            return new DataGeneratorSpecification(arbitrary, maxFieldCountPerLevel, maxObjectDepth, nestedFieldsLimit);
+            return new DataGeneratorSpecification(
+                new DataSource(dataSourceHandlers),
+                maxFieldCountPerLevel,
+                maxObjectDepth,
+                nestedFieldsLimit,
+                predefinedFields
+            );
         }
     }
 }

@@ -16,10 +16,4 @@ under_privilged:
         - read
         - write
         - view_index_metadata
-manage_data_stream_global_retention:
-  cluster:
-    - manage_data_stream_global_retention
-monitor_data_stream_global_retention:
-  cluster:
-    - monitor_data_stream_global_retention
 no_privilege:

@@ -11,7 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
@@ -28,7 +28,7 @@ public class SourceToParse {
     private final XContentType xContentType;
 
     private final Map<String, String> dynamicTemplates;
-    private final DocumentSizeObserver documentSizeObserver;
+    private final XContentMeteringParserDecorator meteringParserDecorator;
 
     public SourceToParse(
         @Nullable String id,
@@ -36,7 +36,7 @@ public class SourceToParse {
         XContentType xContentType,
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
-        DocumentSizeObserver documentSizeObserver
+        XContentMeteringParserDecorator meteringParserDecorator
     ) {
         this.id = id;
         // we always convert back to byte array, since we store it and Field only supports bytes..
@@ -45,15 +45,15 @@ public class SourceToParse {
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
-        this.documentSizeObserver = documentSizeObserver;
+        this.meteringParserDecorator = meteringParserDecorator;
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
-        this(id, source, xContentType, null, Map.of(), DocumentSizeObserver.EMPTY_INSTANCE);
+        this(id, source, xContentType, null, Map.of(), XContentMeteringParserDecorator.NOOP);
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType, String routing) {
-        this(id, source, xContentType, routing, Map.of(), DocumentSizeObserver.EMPTY_INSTANCE);
+        this(id, source, xContentType, routing, Map.of(), XContentMeteringParserDecorator.NOOP);
     }
 
     public BytesReference source() {
@@ -90,7 +90,7 @@ public class SourceToParse {
         return this.xContentType;
     }
 
-    public DocumentSizeObserver getDocumentSizeObserver() {
-        return documentSizeObserver;
+    public XContentMeteringParserDecorator getDocumentSizeObserver() {
+        return meteringParserDecorator;
     }
 }

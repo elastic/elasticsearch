@@ -72,6 +72,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitWhereCommand(EsqlBaseParser.WhereCommandContext ctx);
   /**
+   * Enter a parse tree produced by the {@code matchExpression}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterMatchExpression(EsqlBaseParser.MatchExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code matchExpression}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitMatchExpression(EsqlBaseParser.MatchExpressionContext ctx);
+  /**
    * Enter a parse tree produced by the {@code logicalNot}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -153,6 +165,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx);
   /**
    * Enter a parse tree produced by the {@code valueExpressionDefault}
    * labeled alternative in {@link EsqlBaseParser#valueExpression}.
@@ -883,4 +905,24 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#matchCommand}.
+   * @param ctx the parse tree
+   */
+  void enterMatchCommand(EsqlBaseParser.MatchCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#matchCommand}.
+   * @param ctx the parse tree
+   */
+  void exitMatchCommand(EsqlBaseParser.MatchCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#matchQuery}.
+   * @param ctx the parse tree
+   */
+  void enterMatchQuery(EsqlBaseParser.MatchQueryContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#matchQuery}.
+   * @param ctx the parse tree
+   */
+  void exitMatchQuery(EsqlBaseParser.MatchQueryContext ctx);
 }

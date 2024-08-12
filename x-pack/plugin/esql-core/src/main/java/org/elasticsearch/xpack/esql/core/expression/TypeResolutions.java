@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.xpack.esql.core.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 
 import java.util.Locale;
 import java.util.StringJoiner;
@@ -176,19 +177,60 @@ public final class TypeResolutions {
         ParamOrdinal paramOrd,
         String... acceptedTypes
     ) {
-        return predicate.test(e.dataType()) || e.dataType() == NULL
-            ? TypeResolution.TYPE_RESOLVED
-            : new TypeResolution(
-                format(
-                    null,
-                    "{}argument of [{}] must be [{}], found value [{}] type [{}]",
-                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
-                    operationName,
-                    acceptedTypesForErrorMsg(acceptedTypes),
-                    name(e),
-                    e.dataType().typeName()
-                )
-            );
+        return isType(e, predicate, operationName, paramOrd, false, acceptedTypes);
+    }
+
+    public static TypeResolution isTypeOrUnionType(
+        Expression e,
+        Predicate<DataType> predicate,
+        String operationName,
+        ParamOrdinal paramOrd,
+        String... acceptedTypes
+    ) {
+        return isType(e, predicate, operationName, paramOrd, true, acceptedTypes);
+    }
+
+    public static TypeResolution isType(
+        Expression e,
+        Predicate<DataType> predicate,
+        String operationName,
+        ParamOrdinal paramOrd,
+        boolean allowUnionTypes,
+        String... acceptedTypes
+    ) {
+        if (predicate.test(e.dataType()) || e.dataType() == NULL) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+
+        // TODO: Shouldn't we perform widening of small numerical types here?
+        if (allowUnionTypes
+            && e instanceof FieldAttribute fa
+            && fa.field() instanceof InvalidMappedField imf
+            && imf.types().stream().allMatch(predicate)) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+
+        return new TypeResolution(
+            errorStringIncompatibleTypes(operationName, paramOrd, name(e), e.dataType(), acceptedTypesForErrorMsg(acceptedTypes))
+        );
+    }
+
+    private static String errorStringIncompatibleTypes(
+        String operationName,
+        ParamOrdinal paramOrd,
+        String argumentName,
+        DataType foundType,
+        String... acceptedTypes
+    ) {
+        return format(
+            null,
+            "{}argument of [{}] must be [{}], found value [{}] type [{}]",
+            paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+            operationName,
+            acceptedTypesForErrorMsg(acceptedTypes),
+            argumentName,
+            foundType.typeName()
+        );
     }
 
     private static String acceptedTypesForErrorMsg(String... acceptedTypes) {

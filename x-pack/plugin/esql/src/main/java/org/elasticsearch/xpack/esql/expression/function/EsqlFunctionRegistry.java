@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.ParsingException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.session.Configuration;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
@@ -95,6 +95,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPSeriesWeightedSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
@@ -124,6 +125,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
@@ -360,11 +362,13 @@ public class EsqlFunctionRegistry {
                 def(MvMax.class, MvMax::new, "mv_max"),
                 def(MvMedian.class, MvMedian::new, "mv_median"),
                 def(MvMin.class, MvMin::new, "mv_min"),
+                def(MvPSeriesWeightedSum.class, MvPSeriesWeightedSum::new, "mv_pseries_weighted_sum"),
                 def(MvSort.class, MvSort::new, "mv_sort"),
                 def(MvSlice.class, MvSlice::new, "mv_slice"),
                 def(MvZip.class, MvZip::new, "mv_zip"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
                 def(Split.class, Split::new, "split") } };
+
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {
@@ -476,6 +480,9 @@ public class EsqlFunctionRegistry {
         FunctionInfo functionInfo = functionInfo(def);
         String functionDescription = functionInfo == null ? "" : functionInfo.description().replace('\n', ' ');
         String[] returnType = functionInfo == null ? new String[] { "?" } : functionInfo.returnType();
+        if (EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG.isEnabled() == false) {
+            returnType = Arrays.stream(returnType).filter(t -> "date_nanos".equals(t) == false).toArray(String[]::new);
+        }
         var params = constructor.getParameters(); // no multiple c'tors supported
 
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
@@ -487,6 +494,9 @@ public class EsqlFunctionRegistry {
                 String name = paramInfo == null ? params[i].getName() : paramInfo.name();
                 variadic |= List.class.isAssignableFrom(params[i].getType());
                 String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
+                if (EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG.isEnabled() == false) {
+                    type = Arrays.stream(type).filter(t -> "date_nanos".equals(t) == false).toArray(String[]::new);
+                }
                 String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
                 boolean optional = paramInfo == null ? false : paramInfo.optional();
                 DataType targetDataType = getTargetType(type);

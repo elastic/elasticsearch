@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core;
+package org.elasticsearch.xpack.esql;
 
 import java.util.ArrayList;
 import java.util.List;

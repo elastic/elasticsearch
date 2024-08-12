@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core;
+package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.common.Strings;
 
@@ -18,7 +18,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.core.TestUtils.pathAndName;
 import static org.junit.Assert.assertNull;
 
 public final class SpecReader {
@@ -45,14 +44,14 @@ public final class SpecReader {
     }
 
     public static List<Object[]> readURLSpec(URL source, Parser parser) throws Exception {
-        String fileName = pathAndName(source.getFile()).v2();
+        String fileName = EsqlTestUtils.pathAndName(source.getFile()).v2();
         String groupName = fileName.substring(0, fileName.lastIndexOf('.'));
 
         Map<String, Integer> testNames = new LinkedHashMap<>();
         List<Object[]> testCases = new ArrayList<>();
 
         String testName = null;
-        try (BufferedReader reader = TestUtils.reader(source)) {
+        try (BufferedReader reader = EsqlTestUtils.reader(source)) {
             String line;
             int lineNumber = 1;
             while ((line = reader.readLine()) != null) {

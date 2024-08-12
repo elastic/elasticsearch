@@ -134,16 +134,19 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
                     Map.of("thenode", builder.setType(type).setGracePeriod(TimeValue.ONE_MINUTE).build())
                 );
                 assertThat(metadata.isNodeMarkedForRemoval("thenode"), is(true));
+                assertThat(metadata.isNodeMarkedForRemoval("anotherNode"), is(false));
             }
             case REMOVE -> {
                 var metadata = new NodesShutdownMetadata(Map.of("thenode", builder.setType(type).build()));
                 assertThat(metadata.isNodeMarkedForRemoval("thenode"), is(true));
+                assertThat(metadata.isNodeMarkedForRemoval("anotherNode"), is(false));
             }
             case REPLACE -> {
                 var metadata = new NodesShutdownMetadata(
                     Map.of("thenode", builder.setType(type).setTargetNodeName("newnodecoming").build())
                 );
                 assertThat(metadata.isNodeMarkedForRemoval("thenode"), is(true));
+                assertThat(metadata.isNodeMarkedForRemoval("anotherNode"), is(false));
             }
             case RESTART -> {
                 var metadata = new NodesShutdownMetadata(Map.of("thenode", builder.setType(type).build()));

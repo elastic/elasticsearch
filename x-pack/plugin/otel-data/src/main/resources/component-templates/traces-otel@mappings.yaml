@@ -5,6 +5,8 @@ _meta:
   managed: true
 template:
   mappings:
+    _source:
+      mode: synthetic
     properties:
       trace_id:
         type: keyword
@@ -37,6 +39,7 @@ template:
       dropped_events_count:
         type: long
       links:
+        store_array_source: true
         properties:
           trace_id:
             type: keyword

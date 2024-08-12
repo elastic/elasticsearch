@@ -452,6 +452,7 @@ PUT _inference/rerank/my-msmarco-minilm-model
   }
 }
 ----
+// NOTCONSOLE
 +
 . Define a `text_similarity_rerank` retriever.
 +

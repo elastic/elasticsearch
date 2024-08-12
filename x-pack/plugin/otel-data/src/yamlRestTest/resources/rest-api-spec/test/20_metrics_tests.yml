@@ -90,3 +90,20 @@ setup:
           fields: ["transaction.root"]
   - length: { hits.hits: 1 }
   - match: { hits.hits.0.fields.transaction\.root: [false] }
+---
+"Default data_stream.type must be metrics":
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"},"attributes":{"processor.event":"metric","transaction.root":false},"resource":{"attributes":{"service.name":"OtelSample","telemetry.sdk.language":"dotnet","telemetry.sdk.name":"opentelemetry"}}}'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.otel-default
+        body:
+          fields: ["data_stream.type"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.data_stream\.type: ["metrics"] }

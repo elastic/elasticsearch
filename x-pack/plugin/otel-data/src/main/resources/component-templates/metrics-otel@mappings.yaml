@@ -5,9 +5,6 @@ _meta:
 template:
   mappings:
     properties:
-      data_stream.type:
-        type: constant_keyword
-        value: metrics
       start_timestamp:
         type: date_nanos
       metrics:

@@ -19,3 +19,9 @@ composed_of:
 ignore_missing_component_templates:
   - traces@custom
   - traces-otel@custom
+template:
+  mappings:
+    properties:
+      data_stream.type:
+        type: constant_keyword
+        value: traces

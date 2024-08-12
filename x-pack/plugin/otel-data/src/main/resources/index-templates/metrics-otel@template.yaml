@@ -23,3 +23,8 @@ template:
   settings:
     index:
       mode: time_series
+  mappings:
+    properties:
+      data_stream.type:
+        type: constant_keyword
+        value: metrics

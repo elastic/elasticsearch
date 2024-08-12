@@ -19,3 +19,9 @@ composed_of:
 ignore_missing_component_templates:
   - logs@custom
   - logs-otel@custom
+template:
+  mappings:
+    properties:
+      data_stream.type:
+        type: constant_keyword
+        value: logs

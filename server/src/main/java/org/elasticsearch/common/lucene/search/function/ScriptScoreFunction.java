@@ -22,7 +22,7 @@ import java.util.Objects;
 
 public class ScriptScoreFunction extends ScoreFunction {
 
-    private static final ScoreScript.ExplanationHolder DUMMY_EXPLAN_HOLDER = new ScoreScript.ExplanationHolder();
+    private static final ScoreScript.ExplanationHolder DUMMY_EXPLAIN_HOLDER = new ScoreScript.ExplanationHolder();
 
     static final class CannedScorer extends Scorable {
         protected int docid;
@@ -87,7 +87,7 @@ public class ScriptScoreFunction extends ScoreFunction {
                     result = leafScript.execute(explanation);
                     customExplanation = explanation.get(0.0f, null).getDescription();
                 } else {
-                    result = leafScript.execute(DUMMY_EXPLAN_HOLDER);
+                    result = leafScript.execute(DUMMY_EXPLAIN_HOLDER);
                 }
 
                 if (result < 0f) {

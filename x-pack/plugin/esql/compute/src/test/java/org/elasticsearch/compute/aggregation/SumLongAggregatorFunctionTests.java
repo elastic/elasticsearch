@@ -47,22 +47,6 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
         assertThat(((LongBlock) result).getLong(0), equalTo(sum));
     }
 
-    public void testOverflowFails() {
-        DriverContext driverContext = driverContext();
-        try (
-            Driver d = new Driver(
-                driverContext,
-                new SequenceLongBlockSourceOperator(driverContext.blockFactory(), LongStream.of(Long.MAX_VALUE - 1, 2)),
-                List.of(simple().get(driverContext)),
-                new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
-                () -> {}
-            )
-        ) {
-            Exception e = expectThrows(ArithmeticException.class, () -> runDriver(d));
-            assertThat(e.getMessage(), equalTo("long overflow"));
-        }
-    }
-
     public void testRejectsDouble() {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();

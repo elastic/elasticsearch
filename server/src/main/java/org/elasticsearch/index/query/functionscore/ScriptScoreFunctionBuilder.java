@@ -92,7 +92,14 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
             ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
             SearchLookup lookup = context.lookup();
             ScoreScript.LeafFactory searchScript = factory.newFactory(script.getParams(), lookup);
-            return new ScriptScoreFunction(script, searchScript, lookup, context.index().getName(), context.getShardId());
+            return new ScriptScoreFunction(
+                script,
+                searchScript,
+                lookup,
+                context.index().getName(),
+                context.getShardId(),
+                context.explain()
+            );
         } catch (Exception e) {
             throw new QueryShardException(context, "script_score: the script could not be loaded", e);
         }

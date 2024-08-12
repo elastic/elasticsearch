@@ -22,6 +22,8 @@ import java.util.Objects;
 
 public class ScriptScoreFunction extends ScoreFunction {
 
+    private static final ScoreScript.ExplanationHolder DUMMY_EXPLAN_HOLDER = new ScoreScript.ExplanationHolder();
+
     static final class CannedScorer extends Scorable {
         protected int docid;
         protected float score;
@@ -45,13 +47,23 @@ public class ScriptScoreFunction extends ScoreFunction {
     private final int shardId;
     private final String indexName;
 
-    public ScriptScoreFunction(Script sScript, ScoreScript.LeafFactory script, SearchLookup lookup, String indexName, int shardId) {
+    private final boolean explain;
+
+    public ScriptScoreFunction(
+        Script sScript,
+        ScoreScript.LeafFactory script,
+        SearchLookup lookup,
+        String indexName,
+        int shardId,
+        boolean explain
+    ) {
         super(CombineFunction.REPLACE);
         this.sScript = sScript;
         this.script = script;
         this.lookup = lookup;
         this.indexName = indexName;
         this.shardId = shardId;
+        this.explain = explain;
     }
 
     @Override
@@ -62,14 +74,22 @@ public class ScriptScoreFunction extends ScoreFunction {
         leafScript._setIndexName(indexName);
         leafScript._setShard(shardId);
         return new LeafScoreFunction() {
-            ScoreScript.ExplanationHolder explanation = new ScoreScript.ExplanationHolder();
+            private String customExplanation = null;
 
             @Override
             public double score(int docId, float subQueryScore) throws IOException {
                 leafScript.setDocument(docId);
                 scorer.docid = docId;
                 scorer.score = subQueryScore;
-                double result = leafScript.execute(explanation);
+                double result;
+                if (explain) {
+                    ScoreScript.ExplanationHolder explanation = new ScoreScript.ExplanationHolder();
+                    result = leafScript.execute(explanation);
+                    customExplanation = explanation.get(0.0f, null).getDescription();
+                } else {
+                    result = leafScript.execute(DUMMY_EXPLAN_HOLDER);
+                }
+
                 if (result < 0f) {
                     throw new IllegalArgumentException("script score function must not produce negative scores, but got: [" + result + "]");
                 }
@@ -86,13 +106,12 @@ public class ScriptScoreFunction extends ScoreFunction {
                     exp = ((ExplainableScoreScript) leafScript).explain(subQueryScore);
                 } else {
                     double score = score(docId, subQueryScore.getValue().floatValue());
-                    Explanation customExplanation = explanation.get(subQueryScore.getValue().floatValue(), null);
                     // info about params already included in sScript
-                    String explanation = "script score function, computed with script:\"" + sScript + "\"";
+                    Explanation scoreExp = Explanation.match(subQueryScore.getValue(), "_score: ", subQueryScore);
                     if (customExplanation != null) {
-                        return Explanation.match((float) score, explanation, customExplanation);
+                        return Explanation.match((float) score, customExplanation, scoreExp);
                     } else {
-                        Explanation scoreExp = Explanation.match(subQueryScore.getValue(), "_score: ", subQueryScore);
+                        String explanation = "script score function, computed with script:\"" + sScript + "\"";
                         return Explanation.match((float) score, explanation, scoreExp);
                     }
                 }

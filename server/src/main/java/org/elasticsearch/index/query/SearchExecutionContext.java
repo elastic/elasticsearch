@@ -105,6 +105,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final Integer requestSize;
     private final MapperMetrics mapperMetrics;
 
+    private boolean explain = false;
+
     /**
      * Build a {@linkplain SearchExecutionContext}.
      */
@@ -721,5 +723,17 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public boolean rewriteToNamedQuery() {
         return rewriteToNamedQueries;
+    }
+
+    public void explain(boolean explain) {
+        this.explain = explain;
+    }
+
+    /**
+     * Returns true if this query should be explained downstream; part of optimizing downstream functions
+     * @return
+     */
+    public boolean explain() {
+        return explain;
     }
 }

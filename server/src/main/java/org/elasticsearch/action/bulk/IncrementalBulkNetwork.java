@@ -81,7 +81,7 @@ public class IncrementalBulkNetwork {
         public void accept(RestChannel restChannel) throws Exception {
             this.restChannel = restChannel;
         }
-        
+
         @Override
         public void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast) {
             assert channel == restChannel;

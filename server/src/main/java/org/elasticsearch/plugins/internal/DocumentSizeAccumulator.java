@@ -13,7 +13,7 @@ import org.apache.lucene.index.SegmentInfos;
 import java.util.Map;
 
 /**
- * An interface to allow accumulating results of document parsing (collected with {@link DocumentSizeObserver})
+ * An interface to allow accumulating results of document parsing (collected with {@link XContentParserDecorator})
  */
 public interface DocumentSizeAccumulator {
     DocumentSizeAccumulator EMPTY_INSTANCE = new DocumentSizeAccumulator() {

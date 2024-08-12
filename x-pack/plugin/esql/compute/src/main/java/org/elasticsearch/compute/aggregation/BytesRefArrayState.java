@@ -55,11 +55,9 @@ public final class BytesRefArrayState extends AbstractArrayState implements Grou
         if (currentBuilder == null) {
             currentBuilder = new BreakingBytesRefBuilder(breaker, breakerLabel, value.length);
             values.set(groupId, currentBuilder);
-        } else {
-            currentBuilder.grow(value.length);
         }
-        currentBuilder.setLength(value.length);
-        System.arraycopy(value.bytes, value.offset, currentBuilder.bytes(), 0, value.length);
+
+        currentBuilder.copyBytes(value);
 
         trackGroupId(groupId);
     }

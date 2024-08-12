@@ -20,6 +20,10 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+/**
+ * Aggregator for `Min`, that works with BytesRef values.
+ * Gets the smallest BytesRef value, based on its bytes natural order (Delegated to {@link BytesRef#compareTo}).
+ */
 @Aggregator({ @IntermediateState(name = "min", type = "BYTES_REF"), @IntermediateState(name = "seen", type = "BOOLEAN") })
 @GroupingAggregator
 class MinBytesRefAggregator {

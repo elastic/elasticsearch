@@ -432,7 +432,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
             final XContentType xContentType = request.getXContentType();
             // TODO consider refactoring to handler.supportsContentStream(xContentType). It is only used with JSON and SMILE
-            if (handler.supportsContentStream()
+            if (handler.supportsBulkContent()
                 && XContentType.JSON != xContentType.canonical()
                 && XContentType.SMILE != xContentType.canonical()) {
                 channel.sendResponse(
@@ -480,6 +480,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
             }
+
+            if (apiProtections.isEnabled()) {
+                // API protections are only enabled in serverless; therefore we can use this as an indicator to mark the
+                // request as a serverless mode request here, so downstream handlers can use the marker
+                request.markAsServerlessRequest();
+                logger.trace("Marked request for uri [{}] as serverless request", request.uri());
+            }
+
             final var finalChannel = responseChannel;
             this.interceptor.intercept(request, responseChannel, handler.getConcreteRestHandler(), new ActionListener<>() {
                 @Override

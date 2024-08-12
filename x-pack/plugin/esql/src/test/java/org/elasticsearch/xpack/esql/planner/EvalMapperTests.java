@@ -49,7 +49,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Duration;
 import java.time.ZoneOffset;
@@ -65,7 +65,7 @@ public class EvalMapperTests extends ESTestCase {
     private static final FieldAttribute LONG = field("long", DataType.LONG);
     private static final FieldAttribute DATE = field("date", DataType.DATETIME);
 
-    private static final EsqlConfiguration TEST_CONFIG = new EsqlConfiguration(
+    private static final Configuration TEST_CONFIG = new Configuration(
         ZoneOffset.UTC,
         Locale.US,
         "test",

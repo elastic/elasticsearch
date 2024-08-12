@@ -22,6 +22,9 @@ public class GradleTestPolicySetupPlugin implements Plugin<Project> {
             test.systemProperty("tests.gradle", true);
             test.systemProperty("tests.task", test.getPath());
 
+            // Flag is required for later Java versions since our tests use a custom security manager
+            test.jvmArgs("-Djava.security.manager=allow");
+
             SystemPropertyCommandLineArgumentProvider nonInputProperties = new SystemPropertyCommandLineArgumentProvider();
             // don't track these as inputs since they contain absolute paths and break cache relocatability
             nonInputProperties.systemProperty("gradle.dist.lib", gradle.getGradleHomeDir().getAbsolutePath() + "/lib");

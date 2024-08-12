@@ -21,7 +21,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -39,8 +41,12 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
+import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,6 +54,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -100,7 +108,6 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
         public <Request extends ActionRequest, Response extends ActionResponse> void apply(
             Task task,
             String action,
@@ -108,23 +115,59 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
             ActionListener<Response> listener,
             ActionFilterChain<Request, Response> chain
         ) {
-            // For any other action than inference, execute normally
-            if (action.equals(InferenceAction.INSTANCE.name()) == false) {
+            if (action.equals(GetInferenceModelAction.INSTANCE.name())) {
+                assert request instanceof GetInferenceModelAction.Request;
+                handleGetInferenceModelActionRequest((GetInferenceModelAction.Request) request, listener);
+            } else if (action.equals(InferenceAction.INSTANCE.name())) {
+                assert request instanceof InferenceAction.Request;
+                handleInferenceActionRequest((InferenceAction.Request) request, listener);
+            } else {
+                // For any other action than get model and inference, execute normally
                 chain.proceed(task, action, request, listener);
-                return;
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        private <Response extends ActionResponse> void handleGetInferenceModelActionRequest(
+            GetInferenceModelAction.Request request,
+            ActionListener<Response> listener
+        ) {
+            String inferenceEntityId = request.getInferenceEntityId();
+            Integer topN = null;
+            Matcher extractTopN = Pattern.compile(".*(task-settings-top-\\d+).*").matcher(inferenceEntityId);
+            if (extractTopN.find()) {
+                topN = Integer.parseInt(extractTopN.group(1).replaceAll("\\D", ""));
             }
 
-            assert request instanceof InferenceAction.Request;
-            boolean shouldThrow = (boolean) ((InferenceAction.Request) request).getTaskSettings().getOrDefault("throwing", false);
-            boolean hasInvalidInferenceResultCount = (boolean) ((InferenceAction.Request) request).getTaskSettings()
-                .getOrDefault("invalidInferenceResultCount", false);
+            ActionResponse response = new GetInferenceModelAction.Response(
+                List.of(
+                    new ModelConfigurations(
+                        request.getInferenceEntityId(),
+                        request.getTaskType(),
+                        CohereService.NAME,
+                        new CohereRerankServiceSettings("uri", "model", null),
+                        topN == null ? new EmptyTaskSettings() : new CohereRerankTaskSettings(topN, null, null)
+                    )
+                )
+            );
+            listener.onResponse((Response) response);
+        }
+
+        @SuppressWarnings("unchecked")
+        private <Response extends ActionResponse> void handleInferenceActionRequest(
+            InferenceAction.Request request,
+            ActionListener<Response> listener
+        ) {
+            Map<String, Object> taskSettings = request.getTaskSettings();
+            boolean shouldThrow = (boolean) taskSettings.getOrDefault("throwing", false);
+            Integer inferenceResultCount = (Integer) taskSettings.get("inferenceResultCount");
 
             if (shouldThrow) {
                 listener.onFailure(new UnsupportedOperationException("simulated failure"));
             } else {
                 List<RankedDocsResults.RankedDoc> rankedDocsResults = new ArrayList<>();
-                List<String> inputs = ((InferenceAction.Request) request).getInput();
-                int resultCount = hasInvalidInferenceResultCount ? inputs.size() - 1 : inputs.size();
+                List<String> inputs = request.getInput();
+                int resultCount = inferenceResultCount == null ? inputs.size() : inferenceResultCount;
                 for (int i = 0; i < resultCount; i++) {
                     rankedDocsResults.add(new RankedDocsResults.RankedDoc(i, Float.parseFloat(inputs.get(i)), inputs.get(i)));
                 }

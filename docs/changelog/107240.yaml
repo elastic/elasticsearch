@@ -1,6 +1,0 @@
-pr: 107240
-summary: Include doc size info in ingest stats
-area: Ingest Node
-type: enhancement
-issues:
- - 106386

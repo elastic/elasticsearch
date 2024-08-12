@@ -83,7 +83,14 @@ public abstract class BaseRestHandler implements RestHandler {
         // check if the query has any parameters that are not in the supported set (if declared)
         Set<String> supported = allSupportedParameters();
         if (supported != null) {
-            var allSupported = Sets.union(RestResponse.RESPONSE_PARAMS, ALWAYS_SUPPORTED, supported);
+            var allSupported = Sets.union(
+                RestResponse.RESPONSE_PARAMS,
+                ALWAYS_SUPPORTED,
+                // these internal parameters cannot be set by end-users, but are used by Elasticsearch internally.
+                // they must be accepted by all handlers
+                RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS,
+                supported
+            );
             if (allSupported.containsAll(request.params().keySet()) == false) {
                 Set<String> unsupported = Sets.difference(request.params().keySet(), allSupported);
                 throw new IllegalArgumentException(unrecognized(request, unsupported, allSupported, "parameter"));

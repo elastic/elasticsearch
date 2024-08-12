@@ -249,10 +249,9 @@ GET /restaurants/_search
             "num_candidates": 10
           }
         }
-      ]
-      ,
-            "rank_constant": 0.3, <5>
-            "rank_window_size": 50  <6>
+      ],
+      "rank_constant": 0.3, <5>
+      "rank_window_size": 50  <6>
     }
   }
 }
@@ -283,7 +282,7 @@ GET movies/_search
             "query": {
               "sparse_vector": {
                 "field": "plot_embedding",
-                "inference_id": ".elser_model_2",
+                "inference_id": "my-elser-model",
                 "query": "films that explore psychological depths"
               }
             }
@@ -382,22 +381,22 @@ This requires a <<infer-service-cohere,Cohere Rerank inference endpoint>> using 
 ----
 GET /index/_search
 {
-   "retriever":{
-      "text_similarity_reranker":{
-         "retriever":{
-            "standard":{
-               "query":{
-                  "match_phrase":{
-                     "text":"landmark in Paris"
+   "retriever": {
+      "text_similarity_reranker": {
+         "retriever": {
+            "standard": {
+               "query": {
+                  "match_phrase": {
+                     "text": "landmark in Paris"
                   }
                }
             }
          },
-         "field":"text",
-         "inference_id":"my-cohere-rerank-model",
-         "inference_text":"Most famous landmark in Paris",
-         "rank_window_size":100,
-         "min_score":0.5
+         "field": "text",
+         "inference_id": "my-cohere-rerank-model",
+         "inference_text": "Most famous landmark in Paris",
+         "rank_window_size": 100,
+         "min_score": 0.5
       }
    }
 }
@@ -433,7 +432,7 @@ eland_import_hub_model \
   --cloud-id $CLOUD_ID \
   --es-api-key $ES_API_KEY \
   --hub-model-id cross-encoder/ms-marco-MiniLM-L-6-v2 \
-  --task-type c \
+  --task-type text_similarity \
   --clear-previous \
   --start
 ----

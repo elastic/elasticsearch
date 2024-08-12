@@ -963,5 +963,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             nextExpectedOffset += nextSize;
             remaining -= nextSize;
         }
+
+        assertEquals(0, remaining);
     }
 }

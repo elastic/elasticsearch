@@ -209,27 +209,34 @@ public class NativePrivilegeStore {
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
     ) {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
-        final Consumer<Exception> maybeRetryOnFailure = ex -> {
-            if (backoff.hasNext()) {
-                final TimeValue backoffTimeValue = backoff.next();
-                logger.debug("retrying privilege get request after [{}] back off", backoffTimeValue);
-                client.threadPool()
-                    .schedule(
-                        () -> innerGetPrivilegesWithRetry(applications, backoff, listener),
-                        backoffTimeValue,
-                        client.threadPool().generic()
-                    );
-            } else {
-                logger.warn("failed to query privileges after all retries");
+        final Consumer<Exception> maybeRetryOnShardNotAvailableFailure = ex -> {
+            if (false == isShardNotAvailableException(ex)) {
+                logger.info("non-retryable exception encountered, won't retry privilege query request");
                 listener.onFailure(ex);
+                return;
             }
+
+            if (false == backoff.hasNext()) {
+                logger.info("failed to query privileges after all retries");
+                listener.onFailure(ex);
+                return;
+            }
+
+            final TimeValue backoffTimeValue = backoff.next();
+            logger.debug("retrying privilege query request after [{}] back off", backoffTimeValue);
+            client.threadPool()
+                .schedule(
+                    () -> innerGetPrivilegesWithRetry(applications, backoff, listener),
+                    backoffTimeValue,
+                    client.threadPool().generic()
+                );
         };
 
         final SecurityIndexManager frozenSecurityIndex = securityIndexManager.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            maybeRetryOnFailure.accept(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+            maybeRetryOnShardNotAvailableFailure.accept(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final TermQueryBuilder typeQuery = QueryBuilders.termQuery(
@@ -259,13 +266,10 @@ public class NativePrivilegeStore {
                     ScrollHelper.fetchAllByEntity(
                         client,
                         request,
-                        new ContextPreservingActionListener<>(supplier, listener.delegateResponse((delegate, ex) -> {
-                            if (isShardNotAvailableException(ex)) {
-                                maybeRetryOnFailure.accept(ex);
-                            } else {
-                                delegate.onFailure(ex);
-                            }
-                        })),
+                        new ContextPreservingActionListener<>(
+                            supplier,
+                            listener.delegateResponse((ignored, ex) -> maybeRetryOnShardNotAvailableFailure.accept(ex))
+                        ),
                         hit -> buildPrivilege(hit.getId(), hit.getSourceRef(), applicationNameQueryAndPredicate.v2())
                     );
                 }

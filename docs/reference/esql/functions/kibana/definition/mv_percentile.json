@@ -16,7 +16,7 @@
           "name" : "percentile",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "The percentile to calculate. Must be a number between 0 and 100. Numbers out of range will return a null instead."
         }
       ],
       "variadic" : false,
@@ -34,7 +34,7 @@
           "name" : "percentile",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "The percentile to calculate. Must be a number between 0 and 100. Numbers out of range will return a null instead."
         }
       ],
       "variadic" : false,
@@ -52,7 +52,7 @@
           "name" : "percentile",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "The percentile to calculate. Must be a number between 0 and 100. Numbers out of range will return a null instead."
         }
       ],
       "variadic" : false,
@@ -70,7 +70,7 @@
           "name" : "percentile",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "The percentile to calculate. Must be a number between 0 and 100. Numbers out of range will return a null instead."
         }
       ],
       "variadic" : false,
@@ -88,7 +88,7 @@
           "name" : "percentile",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "The percentile to calculate. Must be a number between 0 and 100. Numbers out of range will return a null instead."
         }
       ],
       "variadic" : false,
@@ -106,7 +106,7 @@
           "name" : "percentile",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "The percentile to calculate. Must be a number between 0 and 100. Numbers out of range will return a null instead."
         }
       ],
       "variadic" : false,
@@ -124,7 +124,7 @@
           "name" : "percentile",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "The percentile to calculate. Must be a number between 0 and 100. Numbers out of range will return a null instead."
         }
       ],
       "variadic" : false,
@@ -142,7 +142,7 @@
           "name" : "percentile",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "The percentile to calculate. Must be a number between 0 and 100. Numbers out of range will return a null instead."
         }
       ],
       "variadic" : false,
@@ -160,7 +160,7 @@
           "name" : "percentile",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "The percentile to calculate. Must be a number between 0 and 100. Numbers out of range will return a null instead."
         }
       ],
       "variadic" : false,

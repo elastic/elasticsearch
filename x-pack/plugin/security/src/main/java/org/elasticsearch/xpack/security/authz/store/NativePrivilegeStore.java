@@ -72,6 +72,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
@@ -112,7 +113,7 @@ public class NativePrivilegeStore {
     );
     private static final Logger logger = LogManager.getLogger(NativePrivilegeStore.class);
 
-    private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(50), 3);
+    private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(50), 5);
 
     private final Settings settings;
     private final Client client;
@@ -211,16 +212,16 @@ public class NativePrivilegeStore {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
         final Consumer<Exception> maybeRetryOnFailure = ex -> {
             if (backoff.hasNext()) {
-                final TimeValue backofTimeValue = backoff.next();
-                logger.debug("retrying after [{}] back off", backofTimeValue);
+                final TimeValue backoffTimeValue = backoff.next();
+                logger.debug("retrying privilege get request after [{}] back off", backoffTimeValue);
                 client.threadPool()
                     .schedule(
                         () -> innerGetPrivilegesWithRetry(applications, securityIndexManager, backoff, listener),
-                        backofTimeValue,
+                        backoffTimeValue,
                         client.threadPool().generic()
                     );
             } else {
-                logger.warn("failed to find token from refresh token after all retries");
+                logger.warn("failed to query privileges after all retries");
                 listener.onFailure(ex);
             }
         };
@@ -256,11 +257,16 @@ public class NativePrivilegeStore {
                         .setFetchSource(true)
                         .request();
                     logger.trace(() -> format("Searching for [%s] privileges with query [%s]", applications, Strings.toString(query)));
-                    request.indicesOptions().ignoreUnavailable();
                     ScrollHelper.fetchAllByEntity(
                         client,
                         request,
-                        new ContextPreservingActionListener<>(supplier, listener),
+                        new ContextPreservingActionListener<>(supplier, listener.delegateResponse((delegate, ex) -> {
+                            if (isShardNotAvailableException(ex)) {
+                                maybeRetryOnFailure.accept(ex);
+                            } else {
+                                delegate.onFailure(ex);
+                            }
+                        })),
                         hit -> buildPrivilege(hit.getId(), hit.getSourceRef(), applicationNameQueryAndPredicate.v2())
                     );
                 }

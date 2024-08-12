@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
@@ -23,18 +22,10 @@ public interface OperatorOnlyRegistry {
     OperatorPrivilegesViolation check(String action, TransportRequest request);
 
     /**
-     * Checks to see if a given {@link RestHandler} is subject to full restrictions for the REST API.
-     *
-     * A fully restricted REST API mandates that the implementation of this method throw an
-     * {@link org.elasticsearch.ElasticsearchStatusException} with an appropriate status code and error message.
-     *
-     * An API may also be partially restricted: available to all users but with request or response restrictions,
-     * (e.g., certain fields are not allowed in the request).
-     * Partial restrictions are handled by the REST handler itself, not by this method.
-     *
-     * @param restHandler The {@link RestHandler} to check for any full restrictions
-     * @param restRequest The {@link RestRequest} to provide context for restriction failures
-     * @throws ElasticsearchStatusException if the request should be denied due to a full restriction
+     * This method is only called if the user is not an operator.
+     * Implementations should fail the request if the {@link RestRequest} is not allowed to proceed by throwing an
+     * {@link org.elasticsearch.ElasticsearchException}. If the request should be handled by the associated {@link RestHandler},
+     * then this implementations should do nothing.
      */
     void checkRest(RestHandler restHandler, RestRequest restRequest) throws ElasticsearchException;
 

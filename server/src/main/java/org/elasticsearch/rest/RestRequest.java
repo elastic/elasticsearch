@@ -52,18 +52,18 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * Internal marker request parameter to indicate that a request was made in serverless mode. Use this parameter, together with
      * {@link #OPERATOR_REQUEST} if you need to toggle behavior for serverless, for example to enforce partial API restrictions
      * (prevent request fields, omit response fields) for an API.
-     *
      * Requests not made in serverless mode, will *not* have this parameter set.
-     *
      * Given a request instance, you can use {@link #isServerlessRequest()} to determine if the parameter is set or not.
+     * This is also available from {@code ToXContent.Params}. For example:
+     * {@code params.paramAsBoolean(RestRequest.SERVERLESS_REQUEST, false)}
      */
     public static final String SERVERLESS_REQUEST = "serverlessRequest";
     /**
      * Internal marker request parameter to indicate that a request was made by an operator user.
-     *
      * Requests made by regular users (users without operator privileges), will *not* have this parameter set.
-     *
      * Given a request instance, you can use {@link #isOperatorRequest()} to determine if the parameter is set or not.
+     * This is also available from {@code ToXContent.Params}. For example:
+     * {@code params.paramAsBoolean(RestRequest.OPERATOR_REQUEST, false)}
      */
     public static final String OPERATOR_REQUEST = "operatorRequest";
 

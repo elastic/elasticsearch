@@ -805,7 +805,9 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                             // at least one snapshot per repository to satisfy consistency checks
                             i < repositories.size() ? repositories.get(i) : randomFrom(repositories),
                             randomIdentifier()
-                        ).waitForCompletion(true).indices(randomNonEmptySubsetOf(indices)),
+                        ).indices(randomNonEmptySubsetOf(indices))
+                            // TODO also specify SLM policy sometimes
+                            .waitForCompletion(true),
                         listeners.acquire(
                             createSnapshotResponse -> snapshotInfos.add(Objects.requireNonNull(createSnapshotResponse.getSnapshotInfo()))
                         )

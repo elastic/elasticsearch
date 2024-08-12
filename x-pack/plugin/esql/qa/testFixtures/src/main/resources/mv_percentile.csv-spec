@@ -72,3 +72,51 @@ ROW a = [0., 10.]
 pInt:double | pLong:double | pDouble:double
 7.5         | 7.5          | 7.5
 ;
+
+singleValue
+required_capability: fn_mv_percentile
+
+ROW integer = 5, long = 5::long, double = 5.0
+| EVAL
+    integer = MV_PERCENTILE(integer, 75),
+    long = MV_PERCENTILE(long, 75),
+    double = MV_PERCENTILE(double, 75)
+;
+
+integer:integer | long:long | double:double
+5               | 5         | 5
+;
+
+fromIndex
+required_capability: fn_mv_percentile
+
+FROM employees
+| EVAL
+    integer = MV_PERCENTILE(salary_change.int, 75),
+    long = MV_PERCENTILE(salary_change.long, 75),
+    double = MV_PERCENTILE(salary_change, 75)
+| KEEP integer, long, double
+| SORT double
+| LIMIT 3
+;
+
+integer:integer | long:long | double:double
+-8              | -8        | -8.46
+-7              | -7        | -7.08
+-6              | -6        | -6.9
+;
+
+multipleExpressions
+required_capability: fn_mv_percentile
+
+ROW x = [0, 5, 10]
+| EVAL
+    MV_PERCENTILE(x, 75),
+    a = MV_PERCENTILE(x, 75),
+    b = MV_PERCENTILE(TO_DOUBLE([0, 5, 10]), 75),
+    c = MV_PERCENTILE(CASE(true, x, [0, 1]), 75)
+;
+
+x:integer  | MV_PERCENTILE(x, 75):integer | a:integer | b:double | c:integer
+[0, 5, 10] |7                             | 7         | 7.5      | 7
+;

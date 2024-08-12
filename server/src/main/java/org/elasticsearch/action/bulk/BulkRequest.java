@@ -276,7 +276,7 @@ public class BulkRequest extends ActionRequest
             defaultListExecutedPipelines,
             allowExplicitIndex,
             xContentType,
-            (indexRequest, type) -> internalAdd(indexRequest),
+            (indexRequest, type) -> add(indexRequest),
             this::internalAdd,
             this::add
         );

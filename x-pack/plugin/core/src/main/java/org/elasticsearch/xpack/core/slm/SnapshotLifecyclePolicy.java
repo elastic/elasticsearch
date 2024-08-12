@@ -291,6 +291,15 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         return err.validationErrors().size() == 0 ? null : err;
     }
 
+    public static boolean validIntervalSchedule(String schedule) {
+        try {
+            TimeValue.parseTimeValue(schedule, "schedule");
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
     private Map<String, Object> addPolicyNameToMetadata(final Map<String, Object> metadata) {
         Map<String, Object> newMetadata;
         if (metadata == null) {

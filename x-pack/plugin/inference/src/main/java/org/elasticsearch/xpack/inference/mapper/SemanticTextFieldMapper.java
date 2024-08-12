@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -383,7 +384,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
         }
 
-        public QueryBuilder semanticQuery(InferenceResults inferenceResults, float boost, String queryName) {
+        public QueryBuilder semanticQuery(
+            InferenceResults inferenceResults,
+            float boost,
+            String queryName,
+            InnerHitBuilder innerHitBuilder
+        ) {
             String nestedFieldPath = getChunksFieldName(name());
             String inferenceResultsFieldName = getEmbeddingsFieldName(name());
             QueryBuilder childQueryBuilder;
@@ -459,7 +465,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 };
             }
 
-            return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Max).boost(boost).queryName(queryName);
+            return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Max).boost(boost)
+                .queryName(queryName)
+                .innerHit(innerHitBuilder);
         }
     }
 

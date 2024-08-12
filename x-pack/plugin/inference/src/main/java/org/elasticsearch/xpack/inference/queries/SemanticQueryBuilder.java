@@ -52,6 +52,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
+// TODO: Disallow inner hits sort?
+
 public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
     public static final String NAME = "semantic";
 
@@ -190,7 +192,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 );
             }
 
-            return semanticTextFieldType.semanticQuery(inferenceResults, boost(), queryName());
+            return semanticTextFieldType.semanticQuery(inferenceResults, boost(), queryName(), innerHitBuilder);
         } else {
             throw new IllegalArgumentException(
                 "Field [" + fieldName + "] of type [" + fieldType.typeName() + "] does not support " + NAME + " queries"

@@ -229,7 +229,7 @@ public class CacheBlobReaderTests extends ESTestCase {
         @Override
         protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
             var originalCacheBlobReaderService = super.createCacheBlobReaderService(cacheService);
-            return new CacheBlobReaderService(nodeSettings, cacheService, client) {
+            return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
                 @Override
                 public CacheBlobReader getCacheBlobReader(
                     ShardId shardId,
@@ -252,7 +252,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                         location.getBatchedCompoundCommitTermAndGeneration(),
                         clusterService.localNode().getId(),
                         client,
-                        TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings)
+                        TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings),
+                        threadPool
                     ) {
                         @Override
                         public void getVirtualBatchedCompoundCommitChunk(
@@ -697,7 +698,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             @Override
             protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
                 var originalCacheBlobReaderService = super.createCacheBlobReaderService(cacheService);
-                return new CacheBlobReaderService(nodeSettings, cacheService, client) {
+                return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
                     @Override
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
@@ -722,11 +723,15 @@ public class CacheBlobReaderTests extends ESTestCase {
                             }
 
                             @Override
-                            public InputStream getRangeInputStream(long position, int length) throws IOException {
+                            public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
                                 assert length > 0;
-                                final var in = new CountingFilterInputStream(originalCacheBlobReader.getRangeInputStream(position, length));
-                                getRangeInputStreamCalls.add(new GetRangeInputStreamCall(position, length, in::getBytesRead));
-                                return in;
+                                originalCacheBlobReader.getRangeInputStream(position, length, listener.map(in -> {
+                                    var bytesCountingStream = new CountingFilterInputStream(in);
+                                    getRangeInputStreamCalls.add(
+                                        new GetRangeInputStreamCall(position, length, bytesCountingStream::getBytesRead)
+                                    );
+                                    return bytesCountingStream;
+                                }));
                             }
                         };
                     }
@@ -760,7 +765,7 @@ public class CacheBlobReaderTests extends ESTestCase {
 
                 @Override
                 protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
-                    return new CacheBlobReaderService(nodeSettings, cacheService, client) {
+                    return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
                         @Override
                         public CacheBlobReader getCacheBlobReader(
                             ShardId shardId,
@@ -789,7 +794,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                                 location.getBatchedCompoundCommitTermAndGeneration(),
                                 clusterService.localNode().getId(),
                                 client,
-                                TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings)
+                                TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings),
+                                threadPool
                             ) {
                                 @Override
                                 public void getVirtualBatchedCompoundCommitChunk(

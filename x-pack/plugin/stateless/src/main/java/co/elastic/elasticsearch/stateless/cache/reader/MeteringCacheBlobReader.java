@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 
 import java.io.FilterInputStream;
@@ -43,8 +44,8 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
     }
 
     @Override
-    public InputStream getRangeInputStream(long position, int length) throws IOException {
-        return new MeteringInputStream(delegate.getRangeInputStream(position, length));
+    public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+        delegate.getRangeInputStream(position, length, listener.map(MeteringInputStream::new));
     }
 
     private class MeteringInputStream extends FilterInputStream {

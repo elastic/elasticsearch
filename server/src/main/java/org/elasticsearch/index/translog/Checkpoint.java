@@ -164,17 +164,19 @@ final class Checkpoint {
     }
 
     public static Checkpoint read(Path path) throws IOException {
-        final byte[] bytes = Files.readAllBytes(path);
-        try (ByteArrayIndexInput indexInput = new ByteArrayIndexInput(path.toString(), bytes, 0, bytes.length)) {
-            // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
-            CodecUtil.checksumEntireFile(indexInput);
-            final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, VERSION_LUCENE_8, CURRENT_VERSION);
-            assert fileVersion == VERSION_LUCENE_8 || fileVersion == CURRENT_VERSION;
-            assert indexInput.length() == V4_FILE_SIZE : indexInput.length();
-            if (fileVersion == CURRENT_VERSION) {
-                return Checkpoint.readCheckpointV4(indexInput);
+        try {
+            final byte[] bytes = Files.readAllBytes(path);
+            try (ByteArrayIndexInput indexInput = new ByteArrayIndexInput(path.toString(), bytes, 0, bytes.length)) {
+                // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
+                CodecUtil.checksumEntireFile(indexInput);
+                final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, VERSION_LUCENE_8, CURRENT_VERSION);
+                assert fileVersion == VERSION_LUCENE_8 || fileVersion == CURRENT_VERSION;
+                assert indexInput.length() == V4_FILE_SIZE : indexInput.length();
+                if (fileVersion == CURRENT_VERSION) {
+                    return Checkpoint.readCheckpointV4(indexInput);
+                }
+                return readCheckpointV3(indexInput);
             }
-            return readCheckpointV3(indexInput);
         } catch (CorruptIndexException | NoSuchFileException | IndexFormatTooOldException | IndexFormatTooNewException e) {
             throw new TranslogCorruptedException(path.toString(), e);
         }

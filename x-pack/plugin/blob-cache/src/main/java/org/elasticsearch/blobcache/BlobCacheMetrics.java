@@ -133,9 +133,22 @@ public class BlobCacheMetrics {
             CACHE_POPULATION_REASON_ATTRIBUTE_KEY,
             cachePopulationReason
         );
-        cachePopulateReadThroughput.record(toBytesPerSecond(totalBytesRead, totalReadTimeNanos), metricAttributes);
-        cachePopulateWriteThroughput.record(toBytesPerSecond(totalBytesWritten, totalWriteTimeNanos), metricAttributes);
+        recordBytesPerSecondMetric(cachePopulateReadThroughput, totalBytesRead, totalReadTimeNanos, metricAttributes);
+        recordBytesPerSecondMetric(cachePopulateWriteThroughput, totalBytesWritten, totalWriteTimeNanos, metricAttributes);
         cachePopulationElapsedTime.record(TimeUnit.NANOSECONDS.toMillis(elapsedTimeNanoseconds), metricAttributes);
+    }
+
+    private void recordBytesPerSecondMetric(
+        LongHistogram histogram,
+        int totalBytes,
+        long totalTimeNanos,
+        Map<String, Object> metricAttributes
+    ) {
+        // Protect against divide-by-zero (nano timestamps can be very coarse on some platforms)
+        if (totalTimeNanos == 0) {
+            return;
+        }
+        histogram.record(toBytesPerSecond(totalBytes, totalTimeNanos), metricAttributes);
     }
 
     /**

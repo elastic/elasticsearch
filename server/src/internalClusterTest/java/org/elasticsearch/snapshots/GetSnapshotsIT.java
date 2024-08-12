@@ -837,7 +837,11 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .map(si -> si.snapshotId().getName())
                 .collect(Collectors.toSet());
             filterByNamePredicate = filterByNamePredicate.and(si -> selectedSnapshots.contains(si.snapshotId().getName()));
-            requestedSnapshots = selectedSnapshots.stream().map(n -> n + "*").toArray(String[]::new);
+            requestedSnapshots = selectedSnapshots.stream()
+                // if we have multiple repositories, add a trailing wildcard to each requested snapshot name, because if we specify exact
+                // names then there must be a snapshot with that name in every requested repository
+                .map(n -> repositories.size() == 1 && randomBoolean() ? n : n + "*")
+                .toArray(String[]::new);
         }
 
         // ?sort and ?order parameters

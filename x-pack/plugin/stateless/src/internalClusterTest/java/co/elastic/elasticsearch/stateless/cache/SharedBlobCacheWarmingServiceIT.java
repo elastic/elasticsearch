@@ -471,12 +471,21 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
                 if (flushed.compareAndExchange(false, true) == false) {
-                    flush(indexName);
-                    flushCountdown.countDown();
-                } else {
-                    // This point may block some transport threads.
-                    safeAwait(flushCountdown);
+                    // Spawn a new thread to avoid using flush with the prewarm thread pool which could trigger a false assertion
+                    // See https://github.com/elastic/elasticsearch-serverless/issues/2518
+                    final Thread thread = new Thread(() -> {
+                        flush(indexName);
+                        flushCountdown.countDown();
+                    });
+                    thread.start();
+                    try {
+                        thread.join();
+                    } catch (InterruptedException e) {
+                        fail(e, "interrupted while waiting for flush to complete");
+                    }
                 }
+                // This point may block some transport threads.
+                safeAwait(flushCountdown);
             }
             connection.sendRequest(requestId, action, request, options);
         });

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -165,7 +166,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     /**
      * Describes the location (and state) of all shards, used for routing actions such as searches to the relevant shards.
      */
-    private final RoutingTable routingTable;
+    private final GlobalRoutingTable routingTable;
 
     private final DiscoveryNodes nodes;
 
@@ -193,7 +194,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             version,
             stateUUID,
             state.metadata(),
-            state.routingTable(),
+            state.routingTable,
             state.nodes(),
             state.compatibilityVersions,
             state.clusterFeatures(),
@@ -209,7 +210,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         long version,
         String stateUUID,
         Metadata metadata,
-        RoutingTable routingTable,
+        GlobalRoutingTable routingTable,
         DiscoveryNodes nodes,
         Map<String, CompatibilityVersions> compatibilityVersions,
         ClusterFeatures clusterFeatures,
@@ -258,14 +259,14 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     }
 
     private static boolean assertConsistentRoutingNodes(
-        RoutingTable routingTable,
+        GlobalRoutingTable routingTable,
         DiscoveryNodes nodes,
         @Nullable RoutingNodes routingNodes
     ) {
         if (routingNodes == null) {
             return true;
         }
-        final RoutingNodes expected = RoutingNodes.immutable(routingTable, nodes);
+        final RoutingNodes expected = RoutingNodes.immutable(routingTable.getRoutingTable(), nodes);
         assert routingNodes.equals(expected)
             : "RoutingNodes [" + routingNodes + "] are not consistent with this cluster state [" + expected + "]";
         return true;
@@ -349,7 +350,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     }
 
     public RoutingTable routingTable() {
-        return routingTable;
+        return routingTable.getRoutingTable();
     }
 
     public RoutingTable getRoutingTable() {
@@ -415,7 +416,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         if (r != null) {
             return r;
         }
-        r = RoutingNodes.immutable(routingTable, nodes);
+        r = RoutingNodes.immutable(routingTable.getRoutingTable(), nodes);
         routingNodes = r;
         return r;
     }
@@ -431,7 +432,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
         // we don't have any routing nodes for this state, likely because it's a temporary state in the reroute logic, don't compute an
         // immutable copy that will never be used and instead directly build a mutable copy
-        return RoutingNodes.mutable(routingTable, this.nodes);
+        return RoutingNodes.mutable(routingTable.getRoutingTable(), this.nodes);
     }
 
     /**
@@ -807,7 +808,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         private long version = 0;
         private String uuid = UNKNOWN_UUID;
         private Metadata metadata = Metadata.EMPTY_METADATA;
-        private RoutingTable routingTable = RoutingTable.EMPTY_ROUTING_TABLE;
+        private GlobalRoutingTable routingTable = GlobalRoutingTable.EMPTY_ROUTING_TABLE;
         private DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
         private final Map<String, CompatibilityVersions> compatibilityVersions;
         private final Map<String, Set<String>> nodeFeatures;
@@ -823,7 +824,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             this.nodes = state.nodes();
             this.compatibilityVersions = new HashMap<>(state.compatibilityVersions);
             this.nodeFeatures = new HashMap<>(getNodeFeatures(state.clusterFeatures()));
-            this.routingTable = state.routingTable();
+            this.routingTable = state.routingTable;
             this.metadata = state.metadata();
             this.blocks = state.blocks();
             this.customs = ImmutableOpenMap.builder(state.customs());
@@ -913,6 +914,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
 
         public Builder routingTable(RoutingTable routingTable) {
+            return routingTable(new GlobalRoutingTable(routingTable.version(), routingTable));
+        }
+
+        public Builder routingTable(GlobalRoutingTable routingTable) {
             this.routingTable = routingTable;
             return this;
         }
@@ -979,7 +984,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 uuid = UUIDs.randomBase64UUID();
             }
             final RoutingNodes routingNodes;
-            if (previous != null && routingTable.indicesRouting() == previous.routingTable.indicesRouting() && nodes == previous.nodes) {
+            if (previous != null && this.routingTable.hasSameIndexRouting(previous.routingTable) && this.nodes == previous.nodes) {
                 // routing table contents and nodes haven't changed so we can try to reuse the previous state's routing nodes which are
                 // expensive to compute
                 routingNodes = previous.routingNodes;
@@ -1043,7 +1048,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         builder.version = in.readLong();
         builder.uuid = in.readString();
         builder.metadata = Metadata.readFrom(in);
-        builder.routingTable = RoutingTable.readFrom(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            builder.routingTable = GlobalRoutingTable.readFrom(in);
+        } else {
+            final RoutingTable rt = RoutingTable.readFrom(in);
+            builder.routingTable = new GlobalRoutingTable(rt.version(), rt);
+        }
         builder.nodes = DiscoveryNodes.readFrom(in, localNode);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             builder.nodeIdsToCompatibilityVersions(in.readMap(CompatibilityVersions::readVersion));
@@ -1097,7 +1107,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         out.writeLong(version);
         out.writeString(stateUUID);
         metadata.writeTo(out);
-        routingTable.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            routingTable.writeTo(out);
+        } else {
+            routingTable.getRoutingTable().writeTo(out);
+        }
         nodes.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeMap(compatibilityVersions, (streamOutput, versions) -> versions.writeTo(streamOutput));
@@ -1122,7 +1136,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         private final ClusterName clusterName;
 
-        private final Diff<RoutingTable> routingTable;
+        private final Diff<GlobalRoutingTable> routingTable;
 
         private final Diff<DiscoveryNodes> nodes;
 
@@ -1160,7 +1174,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             fromUuid = in.readString();
             toUuid = in.readString();
             toVersion = in.readLong();
-            routingTable = RoutingTable.readDiffFrom(in);
+            routingTable = GlobalRoutingTable.readDiffFrom(in);
             nodes = DiscoveryNodes.readDiffFrom(in, localNode);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && in.readBoolean()) {
                 versions = DiffableUtils.readJdkMapDiff(

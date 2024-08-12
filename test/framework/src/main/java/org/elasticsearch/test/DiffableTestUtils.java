@@ -10,6 +10,7 @@ package org.elasticsearch.test;
 
 import junit.framework.Assert;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.function.BiPredicate;
@@ -64,9 +66,27 @@ public final class DiffableTestUtils {
      */
     public static <T extends Writeable> T copyInstance(T diffs, NamedWriteableRegistry namedWriteableRegistry, Reader<T> reader)
         throws IOException {
+        return copyInstance(diffs, namedWriteableRegistry, reader, null);
+    }
+
+    /**
+     * Simulates sending diffs over the wire
+     */
+    public static <T extends Writeable> T copyInstance(
+        T diffs,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Reader<T> reader,
+        @Nullable TransportVersion transportVersion
+    ) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
+            if (transportVersion != null) {
+                output.setTransportVersion(transportVersion);
+            }
             diffs.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                if (transportVersion != null) {
+                    in.setTransportVersion(transportVersion);
+                }
                 return reader.read(in);
             }
         }
@@ -83,7 +103,7 @@ public final class DiffableTestUtils {
         Reader<T> reader,
         Reader<Diff<T>> diffReader
     ) throws IOException {
-        testDiffableSerialization(testInstance, modifier, namedWriteableRegistry, reader, diffReader, null);
+        testDiffableSerialization(testInstance, modifier, namedWriteableRegistry, reader, diffReader, null, null);
     }
 
     /**
@@ -96,14 +116,15 @@ public final class DiffableTestUtils {
         NamedWriteableRegistry namedWriteableRegistry,
         Reader<T> reader,
         Reader<Diff<T>> diffReader,
-        BiPredicate<? super T, ? super T> equals
+        @Nullable TransportVersion transportVersion,
+        @Nullable BiPredicate<? super T, ? super T> equals
     ) throws IOException {
         T remoteInstance = testInstance.get();
         T localInstance = assertSerialization(remoteInstance, namedWriteableRegistry, reader);
         for (int runs = 0; runs < NUMBER_OF_DIFF_TEST_RUNS; runs++) {
             T remoteChanges = modifier.apply(remoteInstance);
             Diff<T> remoteDiffs = remoteChanges.diff(remoteInstance);
-            Diff<T> localDiffs = copyInstance(remoteDiffs, namedWriteableRegistry, diffReader);
+            Diff<T> localDiffs = copyInstance(remoteDiffs, namedWriteableRegistry, diffReader, transportVersion);
             localInstance = assertDiffApplication(remoteChanges, localInstance, localDiffs, equals);
             remoteInstance = remoteChanges;
         }

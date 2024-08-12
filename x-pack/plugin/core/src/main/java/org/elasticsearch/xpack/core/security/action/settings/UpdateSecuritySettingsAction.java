@@ -14,6 +14,7 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
@@ -44,7 +45,8 @@ public class UpdateSecuritySettingsAction {
 
     public static final Set<String> ALLOWED_SETTING_KEYS = Set.of(
         IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-        IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS
+        IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS,
+        DataTier.TIER_PREFERENCE
     );
 
     private UpdateSecuritySettingsAction() {/* no instances */}

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.logging.LogManager;
@@ -640,7 +641,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             expectedEvaluatorToString,
             dateNanosCases(),
             expectedType,
-            n -> expectedValue.apply(Instant.ofEpochMilli(n.longValue())),
+            n -> expectedValue.apply(DateUtils.toInstant((long) n)),
             warnings
         );
     }
@@ -1052,24 +1053,25 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     /**
      * Generate cases for {@link DataType#DATE_NANOS}.
+     *
      */
     public static List<TypedDataSupplier> dateNanosCases() {
         return List.of(
             new TypedDataSupplier("<1970-01-01T00:00:00.000000000Z>", () -> 0L, DataType.DATE_NANOS),
             new TypedDataSupplier(
-                "<date>",
+                "<date nanos>",
                 () -> ESTestCase.randomLongBetween(0, 10 * (long) 10e11),
-                DataType.DATETIME
+                DataType.DATE_NANOS
             ),
             new TypedDataSupplier(
-                "<far future date>",
+                "<far future date nanos>",
                 () -> ESTestCase.randomLongBetween(10 * (long) 10e11, Long.MAX_VALUE),
-                DataType.DATETIME
+                DataType.DATE_NANOS
             ),
             new TypedDataSupplier(
-                "<near the end of time>",
+                "<nanos near the end of time>",
                 () -> ESTestCase.randomLongBetween(Long.MAX_VALUE / 100 * 99, Long.MAX_VALUE),
-                DataType.DATETIME
+                DataType.DATE_NANOS
             )
         );
     }

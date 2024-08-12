@@ -125,7 +125,7 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
     public void testIsNodeMarkedForRemoval() {
         SingleNodeShutdownMetadata.Type type;
         SingleNodeShutdownMetadata.Builder builder = SingleNodeShutdownMetadata.builder()
-            .setNodeId("myid")
+            .setNodeId("thenode")
             .setReason("myReason")
             .setStartedAtMillis(0L);
         switch (type = randomFrom(SingleNodeShutdownMetadata.Type.values())) {

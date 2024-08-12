@@ -819,7 +819,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        Predicate<SnapshotInfo> filterByNamePredicate = Predicates.always();
+        Predicate<SnapshotInfo> snapshotInfoPredicate = Predicates.always();
 
         // {repository} path parameter
         final String[] requestedRepositories;
@@ -827,7 +827,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             requestedRepositories = new String[] { randomFrom("_all", "*") };
         } else {
             final var selectedRepositories = Set.copyOf(randomNonEmptySubsetOf(repositories));
-            filterByNamePredicate = filterByNamePredicate.and(si -> selectedRepositories.contains(si.repository()));
+            snapshotInfoPredicate = snapshotInfoPredicate.and(si -> selectedRepositories.contains(si.repository()));
             requestedRepositories = selectedRepositories.toArray(new String[0]);
         }
 
@@ -839,7 +839,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             final var selectedSnapshots = randomNonEmptySubsetOf(snapshotInfos).stream()
                 .map(si -> si.snapshotId().getName())
                 .collect(Collectors.toSet());
-            filterByNamePredicate = filterByNamePredicate.and(si -> selectedSnapshots.contains(si.snapshotId().getName()));
+            snapshotInfoPredicate = snapshotInfoPredicate.and(si -> selectedSnapshots.contains(si.snapshotId().getName()));
             requestedSnapshots = selectedSnapshots.stream()
                 // if we have multiple repositories, add a trailing wildcard to each requested snapshot name, because if we specify exact
                 // names then there must be a snapshot with that name in every requested repository
@@ -853,13 +853,13 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             default -> requestedSlmPolicies = Strings.EMPTY_ARRAY;
             case 1 -> {
                 requestedSlmPolicies = new String[] { "*" };
-                filterByNamePredicate = filterByNamePredicate.and(
+                snapshotInfoPredicate = snapshotInfoPredicate.and(
                     si -> si.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD) != null
                 );
             }
             case 2 -> {
                 requestedSlmPolicies = new String[] { "_none" };
-                filterByNamePredicate = filterByNamePredicate.and(
+                snapshotInfoPredicate = snapshotInfoPredicate.and(
                     si -> si.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD) == null
                 );
             }
@@ -868,7 +868,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 requestedSlmPolicies = selectedPolicies.stream()
                     .map(policy -> randomBoolean() ? policy : policy + "*")
                     .toArray(String[]::new);
-                filterByNamePredicate = filterByNamePredicate.and(
+                snapshotInfoPredicate = snapshotInfoPredicate.and(
                     si -> si.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD) instanceof String policy
                         && selectedPolicies.contains(policy)
                 );
@@ -883,9 +883,9 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         // INDICES and by SHARDS. The actual sorting behaviour for these cases is tested elsewhere, here we're just checking that sorting
         // interacts correctly with the other parameters to the API.
 
-        // compute the ordered sequence of snapshots which match the repository/snapshot name filters
+        // compute the ordered sequence of snapshots which match the repository/snapshot name filters and SLM policy filter
         final var selectedSnapshots = snapshotInfos.stream()
-            .filter(filterByNamePredicate)
+            .filter(snapshotInfoPredicate)
             .sorted(sortKey.getSnapshotInfoComparator(order))
             .toList();
 

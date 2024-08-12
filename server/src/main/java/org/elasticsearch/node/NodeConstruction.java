@@ -213,6 +213,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -225,6 +226,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.newSetFromMap;
+import static java.util.function.Predicate.not;
 import static org.elasticsearch.core.Types.forciblyCast;
 
 /**
@@ -822,27 +825,6 @@ class NodeConstruction {
             metadataCreateIndexService
         );
 
-        record PluginServiceInstances(
-            Client client,
-            ClusterService clusterService,
-            RerouteService rerouteService,
-            ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService,
-            ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry,
-            Environment environment,
-            NodeEnvironment nodeEnvironment,
-            NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            RepositoriesService repositoriesService,
-            TelemetryProvider telemetryProvider,
-            AllocationService allocationService,
-            IndicesService indicesService,
-            FeatureService featureService,
-            SystemIndices systemIndices,
-            DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider,
-            DocumentParsingProvider documentParsingProvider
-        ) implements Plugin.PluginServices {}
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -865,7 +847,30 @@ class NodeConstruction {
             documentParsingProvider
         );
 
-        Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();
+        Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
+            Collection<?> allItems = plugin.createComponents(pluginServices);
+            List<?> componentObjects = allItems.stream().filter(not(x -> x instanceof Class<?>)).toList();
+            List<? extends Class<?>> classes = allItems.stream().filter(x -> x instanceof Class<?>).map(x -> (Class<?>) x).toList();
+
+            // Then, injection
+            Collection<?> componentsFromInjector;
+            if (classes.isEmpty()) {
+                componentsFromInjector = Set.of();
+            } else {
+                logger.debug("Using injector to instantiate classes for {}: {}", plugin.getClass().getSimpleName(), classes);
+                var injector = org.elasticsearch.injection.Injector.create();
+                injector.addInstances(componentObjects);
+                injector.addRecordContents(pluginServices);
+                var resultMap = injector.inject(classes);
+                // For now, assume we want all components added to the Guice injector
+                var distinctObjects = newSetFromMap(new IdentityHashMap<>());
+                resultMap.values().forEach(distinctObjects::addAll);
+                componentsFromInjector = distinctObjects;
+            }
+
+            // Return both
+            return Stream.of(componentObjects, componentsFromInjector).flatMap(Collection::stream).toList();
+        }).toList();
 
         var terminationHandlers = pluginsService.loadServiceProviders(TerminationHandlerProvider.class)
             .stream()
@@ -1585,4 +1590,5 @@ class NodeConstruction {
             b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
         };
     }
+
 }

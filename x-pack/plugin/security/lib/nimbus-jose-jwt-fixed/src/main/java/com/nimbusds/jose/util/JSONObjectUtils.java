@@ -28,8 +28,12 @@ public class JSONObjectUtils {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<Map<String, Object>>) () -> InnerJSONObjectUtils.parse(s));
         } catch (PrivilegedActionException e) {
-            handleException(e);
-            throw new RuntimeException("this should be unreachable");
+            if (e.getException() instanceof ParseException pe) {
+                throw pe;
+            } else if (e.getException() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -39,8 +43,12 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<Map<String, Object>>) () -> InnerJSONObjectUtils.parse(s, sizeLimit)
             );
         } catch (PrivilegedActionException e) {
-            handleException(e);
-            throw new RuntimeException("this should be unreachable");
+            if (e.getException() instanceof ParseException pe) {
+                throw pe;
+            } else if (e.getException() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -51,8 +59,12 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<Map<String, Object>>) () -> InnerJSONObjectUtils.parseJSONObject(s)
             );
         } catch (PrivilegedActionException e) {
-            handleException(e);
-            throw new RuntimeException("this should be unreachable");
+            if (e.getException() instanceof ParseException pe) {
+                throw pe;
+            } else if (e.getException() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -60,8 +72,12 @@ public class JSONObjectUtils {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> InnerJSONObjectUtils.getBoolean(o, key));
         } catch (PrivilegedActionException e) {
-            handleException(e);
-            throw new RuntimeException("this should be unreachable");
+            if (e.getException() instanceof ParseException pe) {
+                throw pe;
+            } else if (e.getException() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -69,8 +85,12 @@ public class JSONObjectUtils {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<Integer>) () -> InnerJSONObjectUtils.getInt(o, key));
         } catch (PrivilegedActionException e) {
-            handleException(e);
-            throw new RuntimeException("this should be unreachable");
+            if (e.getException() instanceof ParseException pe) {
+                throw pe;
+            } else if (e.getException() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -78,8 +98,12 @@ public class JSONObjectUtils {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<Long>) () -> InnerJSONObjectUtils.getLong(o, key));
         } catch (PrivilegedActionException e) {
-            handleException(e);
-            throw new RuntimeException("this should be unreachable");
+            if (e.getException() instanceof ParseException pe) {
+                throw pe;
+            } else if (e.getException() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -87,8 +111,12 @@ public class JSONObjectUtils {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<Float>) () -> InnerJSONObjectUtils.getFloat(o, key));
         } catch (PrivilegedActionException e) {
-            handleException(e);
-            throw new RuntimeException("this should be unreachable");
+            if (e.getException() instanceof ParseException pe) {
+                throw pe;
+            } else if (e.getException() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -96,8 +124,12 @@ public class JSONObjectUtils {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<Double>) () -> InnerJSONObjectUtils.getDouble(o, key));
         } catch (PrivilegedActionException e) {
-            handleException(e);
-            throw new RuntimeException("this should be unreachable");
+            if (e.getException() instanceof ParseException pe) {
+                throw pe;
+            } else if (e.getException() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -105,8 +137,12 @@ public class JSONObjectUtils {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<String>) () -> InnerJSONObjectUtils.getString(o, key));
         } catch (PrivilegedActionException e) {
-            handleException(e);
-            throw new RuntimeException("this should be unreachable");
+            if (e.getException() instanceof ParseException pe) {
+                throw pe;
+            } else if (e.getException() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -114,8 +150,12 @@ public class JSONObjectUtils {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<URI>) () -> InnerJSONObjectUtils.getURI(o, key));
         } catch (PrivilegedActionException e) {
-            handleException(e);
-            throw new RuntimeException("this should be unreachable");
+            if (e.getException() instanceof ParseException pe) {
+                throw pe;
+            } else if (e.getException() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -123,8 +163,12 @@ public class JSONObjectUtils {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<List<Object>>) () -> InnerJSONObjectUtils.getJSONArray(o, key));
         } catch (PrivilegedActionException e) {
-            handleException(e);
-            throw new RuntimeException("this should be unreachable");
+            if (e.getException() instanceof ParseException pe) {
+                throw pe;
+            } else if (e.getException() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -132,8 +176,12 @@ public class JSONObjectUtils {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<String[]>) () -> InnerJSONObjectUtils.getStringArray(o, key));
         } catch (PrivilegedActionException e) {
-            handleException(e);
-            throw new RuntimeException("this should be unreachable");
+            if (e.getException() instanceof ParseException pe) {
+                throw pe;
+            } else if (e.getException() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -143,8 +191,12 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<Map<String, Object>[]>) () -> InnerJSONObjectUtils.getJSONObjectArray(o, key)
             );
         } catch (PrivilegedActionException e) {
-            handleException(e);
-            throw new RuntimeException("this should be unreachable");
+            if (e.getException() instanceof ParseException pe) {
+                throw pe;
+            } else if (e.getException() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -154,8 +206,12 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<List<String>>) () -> InnerJSONObjectUtils.getStringList(o, key)
             );
         } catch (PrivilegedActionException e) {
-            handleException(e);
-            throw new RuntimeException("this should be unreachable");
+            if (e.getException() instanceof ParseException pe) {
+                throw pe;
+            } else if (e.getException() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -165,8 +221,12 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<Map<String, Object>>) () -> InnerJSONObjectUtils.getJSONObject(o, key)
             );
         } catch (PrivilegedActionException e) {
-            handleException(e);
-            throw new RuntimeException("this should be unreachable");
+            if (e.getException() instanceof ParseException pe) {
+                throw pe;
+            } else if (e.getException() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -174,8 +234,12 @@ public class JSONObjectUtils {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<Base64URL>) () -> InnerJSONObjectUtils.getBase64URL(o, key));
         } catch (PrivilegedActionException e) {
-            handleException(e);
-            throw new RuntimeException("this should be unreachable");
+            if (e.getException() instanceof ParseException pe) {
+                throw pe;
+            } else if (e.getException() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -185,15 +249,6 @@ public class JSONObjectUtils {
 
     public static Map<String, Object> newJSONObject() {
         return AccessController.doPrivileged((PrivilegedAction<Map<String, Object>>) InnerJSONObjectUtils::newJSONObject);
-    }
-
-    private static void handleException(final PrivilegedActionException e) throws ParseException {
-        if (e.getException() instanceof ParseException pe) {
-            throw pe;
-        } else if (e.getException() instanceof RuntimeException re) {
-            throw re;
-        }
-        throw new RuntimeException(e);
     }
 
     private JSONObjectUtils() {}

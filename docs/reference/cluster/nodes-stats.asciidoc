@@ -861,7 +861,7 @@ requested level is higher than `shards`):
 `state`::
 (string) State of the shard. Returned values are:
 +
-* `INITIALIZING`: The shard is recovering from a peer shard or gateway.
+* `INITIALIZING`: The shard is initializing/recovering.
 * `RELOCATING`: The shard is relocating.
 * `STARTED`: The shard has started.
 * `UNASSIGNED`: The shard is not assigned to any node.

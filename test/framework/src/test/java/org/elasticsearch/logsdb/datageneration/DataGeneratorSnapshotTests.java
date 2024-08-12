@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public class DataGeneratorSnapshotTests extends ESTestCase {
@@ -40,24 +41,31 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
               "_doc" : {
                 "properties" : {
                   "f1" : {
+                    "dynamic" : "false",
                     "properties" : {
                       "f2" : {
+                        "dynamic" : "false",
                         "properties" : {
                           "f3" : {
-                            "type" : "keyword"
+                            "type" : "keyword",
+                            "store" : "true"
                           },
                           "f4" : {
-                            "type" : "long"
+                            "type" : "long",
+                            "index" : "false"
                           }
                         }
                       },
                       "f5" : {
+                        "dynamic" : "false",
                         "properties" : {
                           "f6" : {
-                            "type" : "keyword"
+                            "type" : "keyword",
+                            "store" : "true"
                           },
                           "f7" : {
-                            "type" : "long"
+                            "type" : "long",
+                            "index" : "false"
                           }
                         }
                       }
@@ -65,20 +73,25 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
                   },
                   "f8" : {
                     "type" : "nested",
+                    "dynamic" : "false",
                     "properties" : {
                       "f9" : {
                         "type" : "nested",
+                        "dynamic" : "false",
                         "properties" : {
                           "f10" : {
-                            "type" : "keyword"
+                            "type" : "keyword",
+                            "store" : "true"
                           },
                           "f11" : {
-                            "type" : "long"
+                            "type" : "long",
+                            "index" : "false"
                           }
                         }
                       },
                       "f12" : {
-                        "type" : "keyword"
+                        "type" : "keyword",
+                        "store" : "true"
                       }
                     }
                   }
@@ -198,6 +211,24 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
                 fieldType = FieldType.KEYWORD;
                 return FieldType.LONG;
             });
+        }
+
+        @Override
+        public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
+            if (request.fieldType() == FieldType.KEYWORD) {
+                return new DataSourceResponse.LeafMappingParametersGenerator(() -> Map.of("store", "true"));
+            }
+
+            if (request.fieldType() == FieldType.LONG) {
+                return new DataSourceResponse.LeafMappingParametersGenerator(() -> Map.of("index", "false"));
+            }
+
+            return null;
+        }
+
+        @Override
+        public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
+            return new DataSourceResponse.ObjectMappingParametersGenerator(() -> Map.of("dynamic", "false"));
         }
     }
 

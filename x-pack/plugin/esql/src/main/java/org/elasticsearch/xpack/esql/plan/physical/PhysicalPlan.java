@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
@@ -21,6 +22,9 @@ import java.util.List;
  * PhysicalPlan = take Delta, DEN to SJC, then SJC to SFO
  */
 public abstract class PhysicalPlan extends QueryPlan<PhysicalPlan> {
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(AggregateExec.ENTRY, DissectExec.ENTRY, EsSourceExec.ENTRY);
+    }
 
     public PhysicalPlan(Source source, List<PhysicalPlan> children) {
         super(source, children);

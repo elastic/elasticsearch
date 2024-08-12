@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -73,19 +74,45 @@ public class IndexResolver {
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
-    public void resolveAsMergedMapping(String indexWildcard, Set<String> fieldNames, ActionListener<IndexResolution> listener) {
+    public void resolveAsMergedMapping(String indexWildcardList, Set<String> fieldNames, ActionListener<IndexResolution> listener) {
+        // No need to trim whitespaces; already done during parsing.
+        // TODO: what to do with escaped index patterns? These _can_ contain commas!
+        String[] indexPatterns = Strings.commaDelimitedListToStringArray(indexWildcardList);
         client.execute(
             EsqlResolveFieldsAction.TYPE,
-            createFieldCapsRequest(indexWildcard, fieldNames),
-            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
+            createFieldCapsRequest(indexPatterns, fieldNames),
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcardList, indexPatterns, response)))
         );
     }
 
     // public for testing only
-    public IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
+    public IndexResolution mergedMappings(
+        String originalIndexWildcardList,
+        String[] indexPatterns,
+        FieldCapabilitiesResponse fieldCapsResponse
+    ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
-            return IndexResolution.notFound(indexPattern);
+            return IndexResolution.notFound(Arrays.stream(indexPatterns).toList());
+        }
+
+        // We allow no found indices in wildcards (if there's at least 1 found index), but indices with no wildcard need to be found.
+        // TODO: for CCQ may need to strip `the_cluster_name:`.
+        List<String> nonWildcardIndices = Arrays.stream(indexPatterns).filter(pattern -> pattern.contains("*") == false).toList();
+        if (nonWildcardIndices.isEmpty() == false) {
+            Set<String> actuallyFoundIndices = fieldCapsResponse.getIndexResponses()
+                .stream()
+                .map(FieldCapabilitiesIndexResponse::getIndexName)
+                .collect(Collectors.toSet());
+            List<String> notFoundIndices = new ArrayList<>();
+            for (String nonWildcardIndex : nonWildcardIndices) {
+                if (actuallyFoundIndices.contains(nonWildcardIndex) == false) {
+                    notFoundIndices.add(nonWildcardIndex);
+                }
+            }
+            if (notFoundIndices.isEmpty() == false) {
+                return IndexResolution.notFound(notFoundIndices);
+            }
         }
 
         Map<String, List<IndexFieldCapabilities>> fieldsCaps = collectFieldCaps(fieldCapsResponse);
@@ -146,14 +173,14 @@ public class IndexResolver {
         }
         if (allEmpty) {
             // If all the mappings are empty we return an empty set of resolved indices to line up with QL
-            return IndexResolution.valid(new EsIndex(indexPattern, rootFields, Set.of()));
+            return IndexResolution.valid(new EsIndex(originalIndexWildcardList, rootFields, Set.of()));
         }
 
         Set<String> concreteIndices = new HashSet<>(fieldCapsResponse.getIndexResponses().size());
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             concreteIndices.add(ir.getIndexName());
         }
-        return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices));
+        return IndexResolution.valid(new EsIndex(originalIndexWildcardList, rootFields, concreteIndices));
     }
 
     private boolean allNested(List<IndexFieldCapabilities> caps) {
@@ -263,8 +290,8 @@ public class IndexResolver {
         return new InvalidMappedField(name, "mapped as different metric types in indices: " + indices);
     }
 
-    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, Set<String> fieldNames) {
-        FieldCapabilitiesRequest req = new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index));
+    private static FieldCapabilitiesRequest createFieldCapsRequest(String[] indexPatterns, Set<String> fieldNames) {
+        FieldCapabilitiesRequest req = new FieldCapabilitiesRequest().indices(indexPatterns);
         req.fields(fieldNames.toArray(String[]::new));
         req.includeUnmapped(true);
         // lenient because we throw our own errors looking at the response e.g. if something was not resolved

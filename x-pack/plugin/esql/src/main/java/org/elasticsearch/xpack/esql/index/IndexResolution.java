@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.esql.index;
 
 import org.elasticsearch.core.Nullable;
 
+import java.util.Collection;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public final class IndexResolution {
     public static IndexResolution valid(EsIndex index) {
@@ -21,9 +23,12 @@ public final class IndexResolution {
         return new IndexResolution(null, invalid);
     }
 
-    public static IndexResolution notFound(String name) {
-        Objects.requireNonNull(name, "name must not be null");
-        return invalid("Unknown index [" + name + "]");
+    public static IndexResolution notFound(Collection<String> missingNames) {
+        Objects.requireNonNull(missingNames, "missingNames must not be null");
+
+        String errorMessageStart = missingNames.size() == 1 ? "Unknown index [" : "Unknown indices [";
+        String missingNamesConcatenated = missingNames.stream().collect(Collectors.joining(", "));
+        return invalid(errorMessageStart + missingNamesConcatenated + "]");
     }
 
     private final EsIndex index;

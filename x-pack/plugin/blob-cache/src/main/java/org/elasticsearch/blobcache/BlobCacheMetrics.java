@@ -33,10 +33,6 @@ public class BlobCacheMetrics {
          */
         Warming,
         /**
-         * When fetching a new commit
-         */
-        LoadCommit,
-        /**
          * When the data we need is not in the cache
          */
         CacheMiss

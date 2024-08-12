@@ -70,7 +70,7 @@ public class FailureStoreDocumentConverter {
         Supplier<Long> timeSupplier
     ) throws IOException {
         return new IndexRequest().index(targetIndexName)
-            .source(createSource(source, exception, targetIndexName, timeSupplier))
+            .source(createSource(source, exception, timeSupplier))
             .opType(DocWriteRequest.OpType.CREATE)
             .setWriteToFailureStore(true);
     }
@@ -78,12 +78,10 @@ public class FailureStoreDocumentConverter {
     private static XContentBuilder createSource(
         IndexRequest source,
         Exception exception,
-        String targetIndexName,
         Supplier<Long> timeSupplier
     ) throws IOException {
         Objects.requireNonNull(source, "source must not be null");
         Objects.requireNonNull(exception, "exception must not be null");
-        Objects.requireNonNull(targetIndexName, "targetIndexName must not be null");
         Objects.requireNonNull(timeSupplier, "timeSupplier must not be null");
         Throwable unwrapped = ExceptionsHelper.unwrapCause(exception);
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -98,7 +96,9 @@ public class FailureStoreDocumentConverter {
                 if (source.routing() != null) {
                     builder.field("routing", source.routing());
                 }
-                builder.field("index", targetIndexName);
+                if (source.index() != null) {
+                    builder.field("index", source.index());
+                }
                 // Unmapped source field
                 builder.startObject("source");
                 {

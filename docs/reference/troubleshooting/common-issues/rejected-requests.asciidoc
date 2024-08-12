@@ -45,7 +45,7 @@ GET /_nodes/stats/breaker
 ----
 
 These statistics are cumulative from node start up. For more information, see
-<<circuit_breaker,circuit breaker errors>>.
+<<circuit-breaker,circuit breaker errors>>.
 
 [discrete]
 [[check-indexing-pressure]]

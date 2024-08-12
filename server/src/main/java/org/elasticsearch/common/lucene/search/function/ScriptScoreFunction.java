@@ -62,12 +62,14 @@ public class ScriptScoreFunction extends ScoreFunction {
         leafScript._setIndexName(indexName);
         leafScript._setShard(shardId);
         return new LeafScoreFunction() {
+            ScoreScript.ExplanationHolder explanation = new ScoreScript.ExplanationHolder();
+
             @Override
             public double score(int docId, float subQueryScore) throws IOException {
                 leafScript.setDocument(docId);
                 scorer.docid = docId;
                 scorer.score = subQueryScore;
-                double result = leafScript.execute(null);
+                double result = leafScript.execute(explanation);
                 if (result < 0f) {
                     throw new IllegalArgumentException("script score function must not produce negative scores, but got: [" + result + "]");
                 }
@@ -84,10 +86,15 @@ public class ScriptScoreFunction extends ScoreFunction {
                     exp = ((ExplainableScoreScript) leafScript).explain(subQueryScore);
                 } else {
                     double score = score(docId, subQueryScore.getValue().floatValue());
+                    Explanation customExplanation = explanation.get(subQueryScore.getValue().floatValue(), null);
                     // info about params already included in sScript
                     String explanation = "script score function, computed with script:\"" + sScript + "\"";
-                    Explanation scoreExp = Explanation.match(subQueryScore.getValue(), "_score: ", subQueryScore);
-                    return Explanation.match((float) score, explanation, scoreExp);
+                    if (customExplanation != null) {
+                        return Explanation.match((float) score, explanation, customExplanation);
+                    } else {
+                        Explanation scoreExp = Explanation.match(subQueryScore.getValue(), "_score: ", subQueryScore);
+                        return Explanation.match((float) score, explanation, scoreExp);
+                    }
                 }
                 return exp;
             }

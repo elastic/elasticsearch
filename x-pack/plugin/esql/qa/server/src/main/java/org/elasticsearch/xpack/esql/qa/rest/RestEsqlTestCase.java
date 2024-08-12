@@ -62,6 +62,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.ASYNC;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -437,6 +438,65 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 var values = as(result.get("values"), ArrayList.class);
                 assertThat(format(null, "Comparison [{}] should return no rows.", comparison), values.size(), is(0));
             }
+        }
+    }
+
+    // Test the Range created in PushFiltersToSource for qualified pushable filters on the same field
+    public void testInternalRange() throws IOException {
+        final int NUM_SINGLE_VALUE_ROWS = 100;
+        bulkLoadTestData(NUM_SINGLE_VALUE_ROWS);
+        bulkLoadTestData(10, NUM_SINGLE_VALUE_ROWS, false, RestEsqlTestCase::createDocumentWithMVs);
+        bulkLoadTestData(5, NUM_SINGLE_VALUE_ROWS + 10, false, RestEsqlTestCase::createDocumentWithNulls);
+
+        String upperBound = randomFrom(" < ", " <= ");
+        String lowerBound = randomFrom(" > ", " >= ");
+
+        String predicate = "{}" + upperBound + "{} and {}" + lowerBound + "{} and {} != {}";
+        int half = NUM_SINGLE_VALUE_ROWS / 2;
+        int halfPlusThree = half + 3;
+        List<String> predicates = List.of(
+            format(null, predicate, "integer", half, "integer", -1, "integer", half),
+            format(null, predicate, "short", half, "short", -1, "short", half),
+            format(null, predicate, "byte", half, "byte", -1, "byte", half),
+            format(null, predicate, "long", half, "long", -1, "long", half),
+            format(null, predicate, "double", half, "double", -1.0, "double", half),
+            format(null, predicate, "float", half, "float", -1.0, "float", half),
+            format(null, predicate, "half_float", half, "half_float", -1.0, "half_float", half),
+            format(null, predicate, "scaled_float", half, "scaled_float", -1.0, "scaled_float", half),
+            format(
+                null,
+                predicate,
+                "date",
+                "\"" + dateTimeToString(half) + "\"",
+                "date",
+                "\"1001-01-01\"",
+                "date",
+                "\"" + dateTimeToString(half) + "\""
+            ),
+            // keyword6-9 is greater than keyword53, [54,99] + [6, 9], 50 items in total
+            format(
+                null,
+                predicate,
+                "keyword",
+                "\"keyword999\"",
+                "keyword",
+                "\"keyword" + halfPlusThree + "\"",
+                "keyword",
+                "\"keyword" + halfPlusThree + "\""
+            ),
+            format(null, predicate, "ip", "\"127.0.0." + half + "\"", "ip", "\"126.0.0.0\"", "ip", "\"127.0.0." + half + "\""),
+            format(null, predicate, "version", "\"1.2." + half + "\"", "version", "\"1.2\"", "version", "\"1.2." + half + "\"")
+        );
+
+        for (String p : predicates) {
+            var query = requestObjectBuilder().query(format(null, "from {} | where {}", testIndexName(), p));
+            var result = runEsql(query, List.of(), NO_WARNINGS_REGEX, mode);
+            var values = as(result.get("values"), ArrayList.class);
+            assertThat(
+                format(null, "Comparison [{}] should return all rows with single values.", p),
+                values.size(),
+                is(NUM_SINGLE_VALUE_ROWS / 2)
+            );
         }
     }
 

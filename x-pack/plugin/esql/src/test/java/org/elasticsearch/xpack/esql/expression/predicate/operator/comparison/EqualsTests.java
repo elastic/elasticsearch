@@ -198,10 +198,14 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(
             errorsForCasesWithoutExamples(
                 anyNullIsNull(true, suppliers),
-                (o, v, t) -> AbstractScalarFunctionTestCase.errorMessageStringForBinaryOperators(o, v, t, (l, p) -> "")
+                (o, v, t) -> AbstractScalarFunctionTestCase.errorMessageStringForBinaryOperators(o, v, t, (l, p) -> typeErrorString)
             )
         );
     }
+
+    private static String typeErrorString =
+        "boolean, cartesian_point, cartesian_shape, datetime, double, geo_point, geo_shape, integer, ip, keyword, long, text, "
+            + "unsigned_long or version";
 
     @Override
     protected Expression build(Source source, List<Expression> args) {

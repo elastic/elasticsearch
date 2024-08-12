@@ -1082,9 +1082,7 @@ public class TopHitsIT extends ESIntegTestCase {
         try {
             assertAcked(
                 prepareCreate("cache_test_idx").setMapping("d", "type=long")
-                    .setSettings(
-                        Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1)
-                    )
+                    .setSettings(indexSettings(1, 1).put("requests.cache.enable", true))
             );
             indexRandom(
                 true,

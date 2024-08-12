@@ -112,12 +112,8 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
     public void testRolloverOnAutoShardCondition() throws Exception {
         final String dataStreamName = "logs-es";
 
-        putComposableIndexTemplate(
-            "my-template",
-            List.of("logs-*"),
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
-        final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        putComposableIndexTemplate("my-template", List.of("logs-*"), indexSettings(3, 0).build());
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
 
         indexDocs(dataStreamName, randomIntBetween(100, 200));
@@ -277,12 +273,8 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
         final String dataStreamName = "logs-es";
 
         // start with 3 shards
-        putComposableIndexTemplate(
-            "my-template",
-            List.of("logs-*"),
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
-        final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        putComposableIndexTemplate("my-template", List.of("logs-*"), indexSettings(3, 0).build());
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
 
         indexDocs(dataStreamName, randomIntBetween(100, 200));
@@ -391,12 +383,8 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
     public void testLazyRolloverKeepsPreviousAutoshardingDecision() throws IOException {
         final String dataStreamName = "logs-es";
 
-        putComposableIndexTemplate(
-            "my-template",
-            List.of("logs-*"),
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
-        final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        putComposableIndexTemplate("my-template", List.of("logs-*"), indexSettings(3, 0).build());
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
 
         indexDocs(dataStreamName, randomIntBetween(100, 200));

@@ -59,6 +59,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
@@ -99,6 +100,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -1136,12 +1138,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             if (lastKnownCount >= numDocs) {
                 try {
-                    long count = SearchResponseUtils.getTotalHitsValue(
-                        prepareSearch().setTrackTotalHits(true).setSize(0).setQuery(matchAllQuery())
-                    );
-                    if (count == lastKnownCount) {
-                        // no progress - try to refresh for the next time
+                    long count = getTotalHitsAllIndices();
+                    if (count < lastKnownCount) {
+                        // not caught up - try to refresh
                         indicesAdmin().prepareRefresh().get();
+                        count = getTotalHitsAllIndices();
                     }
                     lastKnownCount = count;
                 } catch (Exception e) { // count now acts like search and barfs if all shards failed...
@@ -1160,6 +1161,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
         }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
+    }
+
+    private static long getTotalHitsAllIndices() {
+        return SearchResponseUtils.getTotalHitsValue(prepareSearch().setTrackTotalHits(true).setSize(0).setQuery(matchAllQuery()));
     }
 
     public static SearchRequestBuilder prepareSearch(String... indices) {
@@ -1231,48 +1236,74 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
-            final NamedWriteableRegistry namedWriteableRegistry = cluster().getNamedWriteableRegistry();
-            final Client masterClient = client();
-            ClusterState masterClusterState = masterClient.admin().cluster().prepareState().all().get().getState();
-            byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
-            // remove local node reference
-            masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
-            Map<String, Object> masterStateMap = convertToMap(masterClusterState);
-            int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
-            String masterId = masterClusterState.nodes().getMasterNodeId();
-            for (Client client : cluster().getClients()) {
-                ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
-                byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
-                // remove local node reference
-                localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null, namedWriteableRegistry);
-                final Map<String, Object> localStateMap = convertToMap(localClusterState);
-                final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
-                // Check that the non-master node has the same version of the cluster state as the master and
-                // that the master node matches the master (otherwise there is no requirement for the cluster state to match)
-                if (masterClusterState.version() == localClusterState.version()
-                    && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
-                    try {
-                        assertEquals("cluster state UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
-                        // We cannot compare serialization bytes since serialization order of maps is not guaranteed
-                        // but we can compare serialization sizes - they should be the same
-                        assertEquals("cluster state size does not match", masterClusterStateSize, localClusterStateSize);
-                        // Compare JSON serialization
-                        assertNull(
-                            "cluster state JSON serialization does not match",
-                            differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap)
-                        );
-                    } catch (final AssertionError error) {
-                        logger.error(
-                            "Cluster state from master:\n{}\nLocal cluster state:\n{}",
-                            masterClusterState.toString(),
-                            localClusterState.toString()
-                        );
-                        throw error;
-                    }
-                }
-            }
+            doEnsureClusterStateConsistency(cluster().getNamedWriteableRegistry());
         }
+    }
 
+    protected final void doEnsureClusterStateConsistency(NamedWriteableRegistry namedWriteableRegistry) {
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        final List<SubscribableListener<ClusterStateResponse>> localStates = new ArrayList<>(cluster().size());
+        for (Client client : cluster().getClients()) {
+            localStates.add(SubscribableListener.newForked(l -> client.admin().cluster().prepareState().all().setLocal(true).execute(l)));
+        }
+        try (RefCountingListener refCountingListener = new RefCountingListener(future)) {
+            SubscribableListener.<ClusterStateResponse>newForked(l -> client().admin().cluster().prepareState().all().execute(l))
+                .andThenAccept(masterStateResponse -> {
+                    byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterStateResponse.getState());
+                    // remove local node reference
+                    final ClusterState masterClusterState = ClusterState.Builder.fromBytes(
+                        masterClusterStateBytes,
+                        null,
+                        namedWriteableRegistry
+                    );
+                    Map<String, Object> masterStateMap = convertToMap(masterClusterState);
+                    int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
+                    String masterId = masterClusterState.nodes().getMasterNodeId();
+                    for (SubscribableListener<ClusterStateResponse> localStateListener : localStates) {
+                        localStateListener.andThenAccept(localClusterStateResponse -> {
+                            byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterStateResponse.getState());
+                            // remove local node reference
+                            final ClusterState localClusterState = ClusterState.Builder.fromBytes(
+                                localClusterStateBytes,
+                                null,
+                                namedWriteableRegistry
+                            );
+                            final Map<String, Object> localStateMap = convertToMap(localClusterState);
+                            final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
+                            // Check that the non-master node has the same version of the cluster state as the master and
+                            // that the master node matches the master (otherwise there is no requirement for the cluster state to
+                            // match)
+                            if (masterClusterState.version() == localClusterState.version()
+                                && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
+                                try {
+                                    assertEquals(
+                                        "cluster state UUID does not match",
+                                        masterClusterState.stateUUID(),
+                                        localClusterState.stateUUID()
+                                    );
+                                    // We cannot compare serialization bytes since serialization order of maps is not guaranteed
+                                    // but we can compare serialization sizes - they should be the same
+                                    assertEquals("cluster state size does not match", masterClusterStateSize, localClusterStateSize);
+                                    // Compare JSON serialization
+                                    assertNull(
+                                        "cluster state JSON serialization does not match",
+                                        differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap)
+                                    );
+                                } catch (final AssertionError error) {
+                                    logger.error(
+                                        "Cluster state from master:\n{}\nLocal cluster state:\n{}",
+                                        masterClusterState.toString(),
+                                        localClusterState.toString()
+                                    );
+                                    throw error;
+                                }
+                            }
+                        }).addListener(refCountingListener.acquire());
+                    }
+                })
+                .addListener(refCountingListener.acquire());
+        }
+        safeGet(future);
     }
 
     protected void ensureClusterStateCanBeReadByNodeTool() throws IOException {
@@ -2356,6 +2387,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
+    @Override
+    protected boolean enableBigArraysReleasedCheck() {
+        // checking that all big arrays have been released makes little sense for a still-running cluster, see comments in
+        // #ensureAllArraysAreReleased for details
+        return isSuiteScopedTest(getTestClass()) == false;
+    }
+
     @AfterClass
     public static void afterClass() throws Exception {
         try {
@@ -2364,6 +2402,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             } else {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
+                MockBigArrays.ensureAllArraysAreReleased();
                 checkStaticState();
             }
         } finally {

@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -119,6 +120,39 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
         out = new BytesStreamOutput();
         metadata.writeTo(out);
         assertThat(new SingleNodeShutdownMetadata(out.bytes().streamInput()).getType(), equalTo(SingleNodeShutdownMetadata.Type.SIGTERM));
+    }
+
+    public void testIsNodeMarkedForRemoval() {
+        SingleNodeShutdownMetadata.Type type;
+        SingleNodeShutdownMetadata.Builder builder = SingleNodeShutdownMetadata.builder()
+            .setNodeId("thenode")
+            .setReason("myReason")
+            .setStartedAtMillis(0L);
+        switch (type = randomFrom(SingleNodeShutdownMetadata.Type.values())) {
+            case SIGTERM -> {
+                var metadata = new NodesShutdownMetadata(
+                    Map.of("thenode", builder.setType(type).setGracePeriod(TimeValue.ONE_MINUTE).build())
+                );
+                assertThat(metadata.isNodeMarkedForRemoval("thenode"), is(true));
+                assertThat(metadata.isNodeMarkedForRemoval("anotherNode"), is(false));
+            }
+            case REMOVE -> {
+                var metadata = new NodesShutdownMetadata(Map.of("thenode", builder.setType(type).build()));
+                assertThat(metadata.isNodeMarkedForRemoval("thenode"), is(true));
+                assertThat(metadata.isNodeMarkedForRemoval("anotherNode"), is(false));
+            }
+            case REPLACE -> {
+                var metadata = new NodesShutdownMetadata(
+                    Map.of("thenode", builder.setType(type).setTargetNodeName("newnodecoming").build())
+                );
+                assertThat(metadata.isNodeMarkedForRemoval("thenode"), is(true));
+                assertThat(metadata.isNodeMarkedForRemoval("anotherNode"), is(false));
+            }
+            case RESTART -> {
+                var metadata = new NodesShutdownMetadata(Map.of("thenode", builder.setType(type).build()));
+                assertThat(metadata.isNodeMarkedForRemoval("thenode"), is(false));
+            }
+        }
     }
 
     @Override

@@ -375,7 +375,7 @@ A text similarity re-ranker retriever is a compound retriever. Child retrievers 
 [[text-similarity-reranker-retriever-example-cohere]]
 ==== Example: Cohere Rerank
 
-This example enables out-of-the-box semantic search by reranking top documents using the Cohere Rerank inference endpoint. This approach eliminate the need to generate and store embeddings for all indexed documents.
+This example enables out-of-the-box semantic search by reranking top documents using the Cohere Rerank API. This approach eliminate the need to generate and store embeddings for all indexed documents.
 This requires a <<infer-service-cohere,Cohere Rerank inference endpoint>> using the `rerank` task type.
 
 [source,js]

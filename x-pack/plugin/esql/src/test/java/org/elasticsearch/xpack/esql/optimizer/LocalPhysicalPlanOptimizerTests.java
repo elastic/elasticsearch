@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.Build;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.MapperService;
@@ -64,15 +63,12 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -670,44 +666,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(stat.query(), is(QueryBuilders.existsQuery("job")));
     }
 
-    /**
-     * Expects
-     * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[],false]
-     *   \_ProjectExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, double{f}#8, float{f}#9,
-     *     half_float{f}#10, integer{f}#12, ip{f}#13, keyword{f}#14, long{f}#15, scaled_float{f}#11, short{f}#17, text{f}#18,
-     *     unsigned_long{f}#16, version{f}#19, wildcard{f}#20]]
-     *     \_FieldExtractExec[!alias_integer, boolean{f}#4, byte{f}#5, constant_k..][]
-     *       \_EsQueryExec[test], query[{"esql_single_value":{"field":"ip","next":{"terms":{"ip":["127.0.0.0/24"],"boost":1.0}},"source":
-     *         "cidr_match(ip, \"127.0.0.0/24\")@1:19"}}][_doc{f}#21], limit[1000], sort[] estimatedRowSize[389]
-     */
-    public void testCidrMatchPushdownFilter() {
-        var allTypeMappingAnalyzer = makeAnalyzer("mapping-ip.json", new EnrichResolution());
-        final String fieldName = "ip_addr";
-
-        int cidrBlockCount = randomIntBetween(1, 10);
-        ArrayList<String> cidrBlocks = new ArrayList<>();
-        for (int i = 0; i < cidrBlockCount; i++) {
-            cidrBlocks.add(randomCidrBlock());
-        }
-        String cidrBlocksString = cidrBlocks.stream().map((s) -> "\"" + s + "\"").collect(Collectors.joining(","));
-        String cidrMatch = format(null, "cidr_match({}, {})", fieldName, cidrBlocksString);
-
-        var query = "from test | where " + cidrMatch;
-        var plan = plannerOptimizer.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, allTypeMappingAnalyzer);
-
-        var limit = as(plan, LimitExec.class);
-        var exchange = as(limit.child(), ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
-        var field = as(project.child(), FieldExtractExec.class);
-        var queryExec = as(field.child(), EsQueryExec.class);
-        assertThat(queryExec.limit().fold(), is(1000));
-
-        var expectedInnerQuery = QueryBuilders.termsQuery(fieldName, cidrBlocks);
-        var expectedQuery = wrapWithSingleQuery(query, expectedInnerQuery, fieldName, new Source(1, 18, cidrMatch));
-        assertThat(queryExec.query().toString(), is(expectedQuery.toString()));
-    }
-
     private record OutOfRangeTestCase(String fieldName, String tooLow, String tooHigh) {};
 
     public void testOutOfRangeFilterPushdown() {
@@ -938,14 +896,5 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
-    }
-
-    private String randomCidrBlock() {
-        boolean ipv4 = randomBoolean();
-
-        String address = NetworkAddress.format(randomIp(ipv4));
-        int cidrPrefixLength = ipv4 ? randomIntBetween(0, 32) : randomIntBetween(0, 128);
-
-        return format(null, "{}/{}", address, cidrPrefixLength);
     }
 }

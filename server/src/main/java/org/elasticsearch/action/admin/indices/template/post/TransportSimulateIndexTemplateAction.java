@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionProvider;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -74,7 +74,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final ClusterSettings clusterSettings;
     private final boolean isDslOnlyMode;
-    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
+    private final DataStreamGlobalRetentionProvider globalRetentionResolver;
 
     @Inject
     public TransportSimulateIndexTemplateAction(
@@ -88,7 +88,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         IndicesService indicesService,
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
-        DataStreamGlobalRetentionResolver globalRetentionResolver
+        DataStreamGlobalRetentionProvider globalRetentionResolver
     ) {
         super(
             SimulateIndexTemplateAction.NAME,
@@ -118,7 +118,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         ClusterState state,
         ActionListener<SimulateIndexTemplateResponse> listener
     ) throws Exception {
-        final DataStreamGlobalRetention globalRetention = globalRetentionResolver.resolve(state);
+        final DataStreamGlobalRetention globalRetention = globalRetentionResolver.provide();
         final ClusterState stateWithTemplate;
         if (request.getIndexTemplateRequest() != null) {
             // we'll "locally" add the template defined by the user in the cluster state (as if it existed in the system)

@@ -290,13 +290,13 @@ public class BulkRequestTests extends ESTestCase {
                 builder.endObject();
                 builder.endObject();
             }
-            out.write(xContentType.xContent().streamSeparator());
+            out.write(xContentType.xContent().bulkSeparator());
             try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.field("field", "value");
                 builder.endObject();
             }
-            out.write(xContentType.xContent().streamSeparator());
+            out.write(xContentType.xContent().bulkSeparator());
             data = out.bytes();
         }
 
@@ -327,7 +327,7 @@ public class BulkRequestTests extends ESTestCase {
                 builder.endObject();
                 builder.endObject();
             }
-            out.write(xContentType.xContent().streamSeparator());
+            out.write(xContentType.xContent().bulkSeparator());
             try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.startObject("doc").endObject();
@@ -338,7 +338,7 @@ public class BulkRequestTests extends ESTestCase {
                 builder.field("upsert", values);
                 builder.endObject();
             }
-            out.write(xContentType.xContent().streamSeparator());
+            out.write(xContentType.xContent().bulkSeparator());
             data = out.bytes();
         }
         BulkRequest bulkRequest = new BulkRequest();

@@ -230,9 +230,17 @@ public class PublicationTransportHandler {
     private void acceptState(ClusterState incomingState, ActionListener<PublishWithJoinResponse> actionListener) {
         assert incomingState.nodes().isLocalNodeElectedMaster() == false
             : "should handle local publications locally, but got " + incomingState;
-        clusterCoordinationExecutor.execute(
-            ActionRunnable.supply(actionListener, () -> handlePublishRequest.apply(new PublishRequest(incomingState)))
-        );
+        clusterCoordinationExecutor.execute(ActionRunnable.supply(actionListener, new CheckedSupplier<>() {
+            @Override
+            public PublishWithJoinResponse get() {
+                return handlePublishRequest.apply(new PublishRequest(incomingState));
+            }
+
+            @Override
+            public String toString() {
+                return "acceptState[term=" + incomingState.term() + ",version=" + incomingState.version() + "]";
+            }
+        }));
     }
 
     public PublicationContext newPublicationContext(ClusterStatePublicationEvent clusterStatePublicationEvent) {

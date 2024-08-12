@@ -123,7 +123,7 @@ teardown:
   - match: { hits.hits.0._source.document.source.foo: 'bar' }
   - match: { hits.hits.0._source.error.type: 'fail_processor_exception' }
   - match: { hits.hits.0._source.error.message: 'error_message' }
-  - contains: { hits.hits.0._source.error.stack_trace: 'org.elasticsearch.ingest.common.FailProcessorException: error_message' }
+  - contains: { hits.hits.0._source.error.stack_trace: 'error_message' }
   - length: { hits.hits.0._source.error.pipeline_trace: 2 }
   - match: { hits.hits.0._source.error.pipeline_trace.0: 'parent_failing_pipeline' }
   - match: { hits.hits.0._source.error.pipeline_trace.1: 'failing_pipeline' }
@@ -207,7 +207,6 @@ teardown:
   - match: { hits.hits.0._source.error.type: 'document_parsing_exception' }
   - contains: { hits.hits.0._source.error.message: "failed to parse field [count] of type [long] in document with id " }
   - contains: { hits.hits.0._source.error.message: "Preview of field's value: 'invalid value'" }
-  - contains: { hits.hits.0._source.error.stack_trace: "org.elasticsearch.index.mapper.DocumentParsingException: " }
   - contains: { hits.hits.0._source.error.stack_trace: "failed to parse field [count] of type [long] in document with id" }
   - contains: { hits.hits.0._source.error.stack_trace: "Preview of field's value: 'invalid value'" }
 

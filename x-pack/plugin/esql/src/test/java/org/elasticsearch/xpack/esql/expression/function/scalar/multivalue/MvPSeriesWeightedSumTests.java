@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
     public MvPSeriesWeightedSumTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -30,10 +32,21 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
-
         doubles(cases);
 
-        // TODO use parameterSuppliersFromTypedDataWithDefaultChecks instead of parameterSuppliersFromTypedData and fix errors
+        cases = randomizeBytesRefsOffset(cases);
+        cases = anyNullIsNull(
+            cases,
+            (nullPosition, nullValueDataType, original) -> nullValueDataType == DataType.NULL ? DataType.NULL : original.expectedType(),
+            (nullPosition, nullData, original) -> {
+                if (nullData.isForceLiteral()) {
+                    return equalTo("LiteralsEvaluator[lit=null]");
+                }
+                return nullData.type() == DataType.NULL ? equalTo("LiteralsEvaluator[lit=null]") : original;
+            }
+        );
+        cases = errorsForCasesWithoutExamples(cases, (valid, position) -> "double");
+
         return parameterSuppliersFromTypedData(cases);
     }
 
@@ -43,21 +56,54 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
     }
 
     private static void doubles(List<TestCaseSupplier> cases) {
-
-        cases.add(new TestCaseSupplier(List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
-            List<Double> field = randomList(1, 10, () -> randomDouble());
-            double p = randomDoubleBetween(-100.0, 100.0, true);
-
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(field, DataType.DOUBLE, "field"),
-                    new TestCaseSupplier.TypedData(p, DataType.DOUBLE, "p").forceLiteral()
-                ),
-                "MvPSeriesWeightedSumDoubleEvaluator[block=Attribute[channel=0], p=" + p + "]",
-                DataType.DOUBLE,
-                closeTo(calcPSeriesWeightedSum(field, p), 0.00000001)
-            );
+        cases.add(new TestCaseSupplier("most common scenario", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+            List<Double> field = randomList(1, 10, () -> randomDoubleBetween(1, 10, false));
+            double p = randomDoubleBetween(-10, 10, true);
+            return testCase(field, p);
         }));
+
+        cases.add(new TestCaseSupplier("values between 0 and 1", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+            List<Double> field = randomList(1, 10, () -> randomDoubleBetween(0, 1, true));
+            double p = randomDoubleBetween(-10, 10, true);
+            return testCase(field, p);
+        }));
+
+        cases.add(new TestCaseSupplier("values between -1 and 0", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+            List<Double> field = randomList(1, 10, () -> randomDoubleBetween(-1, 0, true));
+            double p = randomDoubleBetween(-10, 10, true);
+            return testCase(field, p);
+        }));
+
+        cases.add(new TestCaseSupplier("values between 1 and Double.MAX_VALUE", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+            List<Double> field = randomList(1, 10, () -> randomDoubleBetween(1, Double.MAX_VALUE, true));
+            double p = randomDoubleBetween(-10, 10, true);
+            return testCase(field, p);
+        }));
+
+        cases.add(new TestCaseSupplier("values between -Double.MAX_VALUE and 1", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+            List<Double> field = randomList(1, 10, () -> randomDoubleBetween(-Double.MAX_VALUE, 1, true));
+            double p = randomDoubleBetween(-10, 10, true);
+            return testCase(field, p);
+        }));
+    }
+
+    private static TestCaseSupplier.TestCase testCase(List<Double> field, double p) {
+        double expectedResult = calcPSeriesWeightedSum(field, p);
+
+        TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
+            List.of(
+                new TestCaseSupplier.TypedData(field, DataType.DOUBLE, "field"),
+                new TestCaseSupplier.TypedData(p, DataType.DOUBLE, "p").forceLiteral()
+            ),
+            "MvPSeriesWeightedSumDoubleEvaluator[block=Attribute[channel=0], p=" + p + "]",
+            DataType.DOUBLE,
+            Double.isFinite(expectedResult) ? closeTo(expectedResult, Math.abs(expectedResult * .00000001)) : nullValue()
+        );
+        if (Double.isFinite(expectedResult) == false) {
+            return testCase.withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line -1:-1: java.lang.ArithmeticException: double overflow");
+        }
+        return testCase;
     }
 
     private static double calcPSeriesWeightedSum(List<Double> field, double p) {

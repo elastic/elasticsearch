@@ -23,7 +23,6 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.StatelessLiveVersionMapArchive;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -39,7 +38,6 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -58,9 +56,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
@@ -279,7 +275,6 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         assertThat(shardRefreshActionsSent.get(), equalTo(distinctShards));
     }
 
-    @TestLogging(value = "org.elasticsearch.index.engine:DEBUG", reason = "https://github.com/elastic/elasticsearch-serverless/pull/2068")
     public void testLiveVersionMapArchive() throws Exception {
         final int numberOfShards = 1;
         var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
@@ -318,31 +313,19 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         final long lastUnsafeGenerationForGets = indexEngine.getLastUnsafeSegmentGenerationForGets();
         // Create a new commit explicitly where once ack'ed by the unpronmotables we are sure the docs that were
         // in the archive are visible on the unpromotable shards.
-        var newCommitSeen = new CountDownLatch(1);
-        AtomicLong newCommitGen = new AtomicLong();
-        MockTransportService.getInstance(searchNode)
-            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
-                final var compoundCommit = ((NewCommitNotificationRequest) request).getCompoundCommit();
-                assertEquals(compoundCommit.shardId().getIndexName(), indexName);
-                handler.messageReceived(
-                    request,
-                    new TestTransportChannel(ActionListener.runAfter(new ChannelActionListener<>(channel), () -> {
-                        if (compoundCommit.generation() == newCommitGen.get()) {
-                            newCommitSeen.countDown();
-                        }
-                    })),
-                    task
-                );
-            });
         indexDocs(indexName, randomIntBetween(1, 10));
-        newCommitGen.set(indexEngine.getLastCommittedSegmentInfos().getGeneration() + 1);
-        client().admin().indices().refresh(new RefreshRequest(indexName)).get();
-        safeAwait(newCommitSeen);
-        var getFromTranslogResponse = getFromTranslog(indexShard, "1");
-        logger.info("Verifying index request is not in translog: {}", getFromTranslogResponse);
-        assertNull(get(map, "1"));
-        assertNull(getFromTranslogResponse.getResult());
-        assertEquals(getFromTranslogResponse.segmentGeneration(), lastUnsafeGenerationForGets);
+        safeGet(client().admin().indices().refresh(new RefreshRequest(indexName)));
+        // Refresh waits for the generation to be available on the search nodes. Trimming of
+        // liveMapArchive happens asynchronously after the refresh request is returned from the
+        // search nodes. Hence, it may not have happened when above refresh call is completed.
+        // As such, we need to wait for a bit for the obsolete entries to be cleared out.
+        assertBusy(() -> {
+            var getFromTranslogResponse = getFromTranslog(indexShard, "1");
+            logger.info("Verifying index request is not in translog: {}", getFromTranslogResponse);
+            assertNull(get(map, "1"));
+            assertNull(getFromTranslogResponse.getResult());
+            assertEquals(getFromTranslogResponse.segmentGeneration(), lastUnsafeGenerationForGets);
+        });
     }
 
     private TransportGetFromTranslogAction.Response getFromTranslog(IndexShard indexShard, String id) throws Exception {

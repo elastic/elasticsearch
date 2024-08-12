@@ -144,6 +144,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.noInferenceResults = noInferenceResults;
     }
 
+    public InnerChunkBuilder innerChunk() {
+        return innerChunkBuilder;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;

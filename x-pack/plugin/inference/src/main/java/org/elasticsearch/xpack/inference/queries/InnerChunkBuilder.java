@@ -7,31 +7,119 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
-public class InnerChunkBuilder extends InnerHitBuilder {
+import static org.elasticsearch.index.query.InnerHitBuilder.DEFAULT_FROM;
+import static org.elasticsearch.index.query.InnerHitBuilder.DEFAULT_SIZE;
+import static org.elasticsearch.index.query.InnerHitBuilder.NAME_FIELD;
+
+public class InnerChunkBuilder implements Writeable, ToXContentObject {
     private static final ObjectParser<InnerChunkBuilder, Void> PARSER = new ObjectParser<>("inner_chunks", InnerChunkBuilder::new);
 
     static {
+        PARSER.declareString(InnerChunkBuilder::setName, NAME_FIELD);
         PARSER.declareInt(InnerChunkBuilder::setFrom, SearchSourceBuilder.FROM_FIELD);
         PARSER.declareInt(InnerChunkBuilder::setSize, SearchSourceBuilder.SIZE_FIELD);
     }
 
+    private String name;
+    private int from = DEFAULT_FROM;
+    private int size = DEFAULT_SIZE;
+
     public InnerChunkBuilder() {
-        super("chunks");
+        this.name = null;
     }
 
     public InnerChunkBuilder(StreamInput in) throws IOException {
-        super(in);
+        name = in.readOptionalString();
+        from = in.readVInt();
+        size = in.readVInt();
+    }
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(name);
+        out.writeVInt(from);
+        out.writeVInt(size);
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public InnerChunkBuilder setName(String name) {
+        this.name = name;
+        return this;
+    }
+
+    public int getFrom() {
+        return from;
+    }
+
+    public InnerChunkBuilder setFrom(int from) {
+        this.from = from;
+        return this;
+    }
+
+    public int getSize() {
+        return size;
+    }
+
+    public InnerChunkBuilder setSize(int size) {
+        this.size = size;
+        return this;
+    }
+
+    public InnerHitBuilder toInnerHitBuilder() {
+        return new InnerHitBuilder(name).setFrom(from).setSize(size);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        if (name != null) {
+            builder.field(NAME_FIELD.getPreferredName(), name);
+        }
+        if (from != DEFAULT_FROM) {
+            builder.field(SearchSourceBuilder.FROM_FIELD.getPreferredName(), from);
+        }
+        if (size != DEFAULT_SIZE) {
+            builder.field(SearchSourceBuilder.SIZE_FIELD.getPreferredName(), size);
+        }
+        builder.endObject();
+        return builder;
     }
 
     public static InnerChunkBuilder fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, new InnerChunkBuilder(), null);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        InnerChunkBuilder that = (InnerChunkBuilder) o;
+        return from == that.from && size == that.size && Objects.equals(name, that.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, from, size);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

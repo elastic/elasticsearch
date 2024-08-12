@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -465,9 +466,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 };
             }
 
+            InnerHitBuilder innerHitBuilder = innerChunkBuilder != null ? innerChunkBuilder.toInnerHitBuilder() : null;
             return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Max).boost(boost)
                 .queryName(queryName)
-                .innerHit(innerChunkBuilder);
+                .innerHit(innerHitBuilder);
         }
     }
 

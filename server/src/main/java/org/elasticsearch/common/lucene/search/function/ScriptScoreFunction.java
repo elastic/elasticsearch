@@ -83,9 +83,12 @@ public class ScriptScoreFunction extends ScoreFunction {
                 scorer.score = subQueryScore;
                 double result;
                 if (explain) {
-                    ScoreScript.ExplanationHolder explanation = new ScoreScript.ExplanationHolder();
-                    result = leafScript.execute(explanation);
-                    customExplanation = explanation.get(0.0f, null).getDescription();
+                    ScoreScript.ExplanationHolder explanationHolder = new ScoreScript.ExplanationHolder();
+                    result = leafScript.execute(explanationHolder);
+                    Explanation explanation = explanationHolder.get(0.0f, null);
+                    if (explanation != null) {
+                        customExplanation = explanation.getDescription();
+                    }
                 } else {
                     result = leafScript.execute(DUMMY_EXPLAIN_HOLDER);
                 }

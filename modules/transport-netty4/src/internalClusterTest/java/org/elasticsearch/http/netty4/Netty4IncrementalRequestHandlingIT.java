@@ -187,7 +187,10 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             for (int i = 0; i < 5; i++) {
                 ctx.clientChannel.writeAndFlush(randomContent(MBytes(10), false));
             }
-            ctx.clientChannel.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+            assertFalse(
+                "should not flush last content immediately",
+                ctx.clientChannel.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT).isDone()
+            );
 
             var handler = ctx.awaitRestChannelAccepted(opaqueId);
 
@@ -199,6 +202,9 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             for (int mb = 0; mb <= 50; mb += 10) {
                 var minBufSize = payloadSize - MBytes(10 + mb);
                 var maxBufSize = payloadSize - MBytes(mb);
+                // it is hard to tell that client's channel is no logger flushing data
+                // it might take a few busy-iterations before channel buffer flush to kernel
+                // and bytesBeforeWritable will stop changing
                 assertBusy(() -> {
                     var bufSize = ctx.clientChannel.bytesBeforeWritable();
                     assertTrue(
@@ -226,6 +232,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             assertNotNull("queue is empty", t);
             return t;
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new AssertionError(e);
         }
     }

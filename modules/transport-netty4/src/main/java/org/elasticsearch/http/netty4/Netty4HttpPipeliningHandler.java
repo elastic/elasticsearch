@@ -131,8 +131,10 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                     }
                     netty4HttpRequest = new Netty4HttpRequest(readSequence++, (FullHttpRequest) request, nonError);
                 } else {
+                    assert currentRequestStream == null : "current stream must be null for new request";
                     if (request instanceof FullHttpRequest fullHttpRequest) {
                         netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
+                        currentRequestStream = null;
                     } else {
                         var contentStream = new Netty4HttpRequestBodyStream(ctx.channel());
                         currentRequestStream = contentStream;

@@ -103,10 +103,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     public void testAutoFollow() throws Exception {
-        Settings leaderIndexSettings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
+        Settings leaderIndexSettings = indexSettings(1, 0).build();
 
         createLeaderIndex("logs-201812", leaderIndexSettings);
 
@@ -139,10 +136,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         // Trigger system index creation
         leaderClient().prepareIndex(FakeSystemIndex.SYSTEM_INDEX_NAME).setSource(Map.of("a", "b")).get();
 
-        Settings leaderIndexSettings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
+        Settings leaderIndexSettings = indexSettings(1, 0).build();
         createLeaderIndex("logs-201901", leaderIndexSettings);
         assertLongBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
@@ -153,10 +147,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     public void testCleanFollowedLeaderIndexUUIDs() throws Exception {
-        Settings leaderIndexSettings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
+        Settings leaderIndexSettings = indexSettings(1, 0).build();
 
         putAutoFollowPatterns("my-pattern", new String[] { "logs-*" });
         createLeaderIndex("logs-201901", leaderIndexSettings);
@@ -194,10 +185,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     public void testAutoFollowManyIndices() throws Exception {
-        Settings leaderIndexSettings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
+        Settings leaderIndexSettings = indexSettings(1, 0).build();
 
         putAutoFollowPatterns("my-pattern", new String[] { "logs-*" });
         long numIndices = randomIntBetween(4, 8);
@@ -269,10 +257,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     public void testAutoFollowParameterAreDelegated() throws Exception {
-        Settings leaderIndexSettings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
+        Settings leaderIndexSettings = indexSettings(1, 0).build();
 
         // Enabling auto following:
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
@@ -379,10 +364,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     public void testConflictingPatterns() throws Exception {
-        Settings leaderIndexSettings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
+        Settings leaderIndexSettings = indexSettings(1, 0).build();
 
         // Enabling auto following:
         putAutoFollowPatterns("my-pattern1", new String[] { "logs-*" });
@@ -424,10 +406,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     public void testPauseAndResumeAutoFollowPattern() throws Exception {
-        final Settings leaderIndexSettings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
+        final Settings leaderIndexSettings = indexSettings(1, 0).build();
 
         // index created in the remote cluster before the auto follow pattern exists won't be auto followed
         createLeaderIndex("test-existing-index-is-ignored", leaderIndexSettings);
@@ -507,10 +486,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     public void testPauseAndResumeWithMultipleAutoFollowPatterns() throws Exception {
-        final Settings leaderIndexSettings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
+        final Settings leaderIndexSettings = indexSettings(1, 0).build();
 
         final String[] prefixes = { "logs-", "users-", "docs-", "monitoring-", "data-", "system-", "events-", "files-" };
 
@@ -612,10 +588,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     public void testAutoFollowExclusion() throws Exception {
-        Settings leaderIndexSettings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
+        Settings leaderIndexSettings = indexSettings(1, 0).build();
 
         putAutoFollowPatterns("my-pattern1", new String[] { "logs-*" }, Collections.singletonList("logs-2018*"));
 
@@ -658,7 +631,11 @@ public class AutoFollowIT extends CcrIntegTestCase {
         );
         assertAcked(leaderClient().execute(TransportPutComposableIndexTemplateAction.TYPE, request).get());
 
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(datastream);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            datastream
+        );
         assertAcked(leaderClient().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get());
         leaderClient().prepareIndex(datastream)
             .setCreate(true)
@@ -704,7 +681,11 @@ public class AutoFollowIT extends CcrIntegTestCase {
             .get();
         leaderClient().execute(
             ModifyDataStreamsAction.INSTANCE,
-            new ModifyDataStreamsAction.Request(List.of(DataStreamAction.addBackingIndex(datastream, indexInDatastream)))
+            new ModifyDataStreamsAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                List.of(DataStreamAction.addBackingIndex(datastream, indexInDatastream))
+            )
         ).get();
 
         assertLongBusy(() -> {

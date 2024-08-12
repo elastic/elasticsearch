@@ -441,13 +441,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             .indices()
             .prepareCreate("test")
             .setSettings(
-                Settings.builder()
-                    .put("number_of_shards", 1)
-                    .put("number_of_replicas", 1)
-
+                indexSettings(1, 1)
                     // disable merges to keep segments the same
                     .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-
                     // expire retention leases quickly
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
             )

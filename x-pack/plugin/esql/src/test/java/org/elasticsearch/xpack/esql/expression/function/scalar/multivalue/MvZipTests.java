@@ -140,9 +140,4 @@ public class MvZipTests extends AbstractScalarFunctionTestCase {
         }
         return expected;
     }
-
-    @Override
-    public void testSimpleWithNulls() {
-        assumeFalse("mv_zip returns null only if both left and right inputs are nulls", false);
-    }
 }

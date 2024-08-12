@@ -2501,7 +2501,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry,
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            new DataStreamGlobalRetentionResolver(DataStreamFactoryRetention.emptyFactoryRetention())
+            new DataStreamGlobalRetentionProvider(DataStreamFactoryRetention.emptyFactoryRetention())
         );
 
         final List<Throwable> throwables = new ArrayList<>();
@@ -2543,7 +2543,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     private MetadataIndexTemplateService getMetadataIndexTemplateService() {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = new DataStreamGlobalRetentionResolver(
+        DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider = new DataStreamGlobalRetentionProvider(
             DataStreamFactoryRetention.emptyFactoryRetention()
         );
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
@@ -2568,7 +2568,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            dataStreamGlobalRetentionResolver
+            dataStreamGlobalRetentionProvider
         );
     }
 

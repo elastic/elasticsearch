@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionProvider;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -57,7 +57,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
     private static final Logger LOGGER = LogManager.getLogger(GetDataStreamsTransportAction.class);
     private final SystemIndices systemIndices;
     private final ClusterSettings clusterSettings;
-    private final DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver;
+    private final DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider;
 
     @Inject
     public GetDataStreamsTransportAction(
@@ -67,7 +67,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices,
-        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver
+        DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider
     ) {
         super(
             GetDataStreamAction.NAME,
@@ -81,7 +81,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.systemIndices = systemIndices;
-        this.dataStreamGlobalRetentionResolver = dataStreamGlobalRetentionResolver;
+        this.dataStreamGlobalRetentionProvider = dataStreamGlobalRetentionProvider;
         clusterSettings = clusterService.getClusterSettings();
     }
 
@@ -93,7 +93,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         ActionListener<GetDataStreamAction.Response> listener
     ) throws Exception {
         listener.onResponse(
-            innerOperation(state, request, indexNameExpressionResolver, systemIndices, clusterSettings, dataStreamGlobalRetentionResolver)
+            innerOperation(state, request, indexNameExpressionResolver, systemIndices, clusterSettings, dataStreamGlobalRetentionProvider)
         );
     }
 
@@ -103,7 +103,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices,
         ClusterSettings clusterSettings,
-        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver
+        DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider
     ) {
         List<DataStream> dataStreams = getDataStreams(state, indexNameExpressionResolver, request);
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
@@ -223,7 +223,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         return new GetDataStreamAction.Response(
             dataStreamInfos,
             request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
-            dataStreamGlobalRetentionResolver.resolve(state)
+            dataStreamGlobalRetentionProvider.provide()
         );
     }
 

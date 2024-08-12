@@ -277,7 +277,10 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
     }
 
     private void assertDataStreamBackingIndicesModes(final String dataStreamName, final List<IndexMode> modes) {
-        final GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        final GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamName }
+        );
         final GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
             .actionGet();
         final DataStream dataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
@@ -362,7 +365,11 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
     }
 
     private void createDataStream(final Client client, final String dataStreamName) throws InterruptedException, ExecutionException {
-        final CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        final CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
         final AcknowledgedResponse createDataStreamResponse = client.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest)
             .get();
         assertThat(createDataStreamResponse.isAcknowledged(), is(true));

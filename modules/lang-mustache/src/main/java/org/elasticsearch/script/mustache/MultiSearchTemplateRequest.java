@@ -142,12 +142,12 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
                 MultiSearchRequest.writeSearchRequestParams(searchRequest, xContentBuilder);
                 BytesReference.bytes(xContentBuilder).writeTo(output);
             }
-            output.write(xContent.streamSeparator());
+            output.write(xContent.bulkSeparator());
             try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {
                 templateRequest.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
                 BytesReference.bytes(xContentBuilder).writeTo(output);
             }
-            output.write(xContent.streamSeparator());
+            output.write(xContent.bulkSeparator());
         }
         return output.toByteArray();
     }

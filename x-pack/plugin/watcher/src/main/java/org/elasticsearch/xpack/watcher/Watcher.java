@@ -613,6 +613,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         settings.add(SETTING_BULK_CONCURRENT_REQUESTS);
         settings.add(SETTING_BULK_FLUSH_INTERVAL);
         settings.add(SETTING_BULK_SIZE);
+        settings.add(HistoryStore.MAX_HISTORY_SIZE_SETTING);
 
         // notification services
         settings.addAll(SlackService.getSettings());

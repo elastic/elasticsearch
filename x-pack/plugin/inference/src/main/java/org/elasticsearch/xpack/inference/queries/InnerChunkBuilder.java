@@ -23,44 +23,40 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.InnerHitBuilder.DEFAULT_FROM;
 import static org.elasticsearch.index.query.InnerHitBuilder.DEFAULT_SIZE;
-import static org.elasticsearch.index.query.InnerHitBuilder.NAME_FIELD;
 
 public class InnerChunkBuilder implements Writeable, ToXContentObject {
     private static final ObjectParser<InnerChunkBuilder, Void> PARSER = new ObjectParser<>("inner_chunks", InnerChunkBuilder::new);
 
     static {
-        PARSER.declareString(InnerChunkBuilder::setName, NAME_FIELD);
         PARSER.declareInt(InnerChunkBuilder::setFrom, SearchSourceBuilder.FROM_FIELD);
         PARSER.declareInt(InnerChunkBuilder::setSize, SearchSourceBuilder.SIZE_FIELD);
     }
 
-    private String name;
+    private final String name;
     private int from = DEFAULT_FROM;
     private int size = DEFAULT_SIZE;
 
     public InnerChunkBuilder() {
-        this.name = null;
+        // Set hard-coded name value here so that if we change it in the future, the updated value is serialized/deserialized and propagated
+        // across nodes
+        this.name = "chunks";
     }
 
     public InnerChunkBuilder(StreamInput in) throws IOException {
-        name = in.readOptionalString();
+        name = in.readString();
         from = in.readVInt();
         size = in.readVInt();
     }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(name);
+        out.writeString(name);
         out.writeVInt(from);
         out.writeVInt(size);
     }
 
     public String getName() {
         return name;
-    }
-
-    public InnerChunkBuilder setName(String name) {
-        this.name = name;
-        return this;
     }
 
     public int getFrom() {
@@ -87,10 +83,8 @@ public class InnerChunkBuilder implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        // Don't include name in XContent because it is hard-coded
         builder.startObject();
-        if (name != null) {
-            builder.field(NAME_FIELD.getPreferredName(), name);
-        }
         if (from != DEFAULT_FROM) {
             builder.field(SearchSourceBuilder.FROM_FIELD.getPreferredName(), from);
         }

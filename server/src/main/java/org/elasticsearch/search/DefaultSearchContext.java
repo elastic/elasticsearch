@@ -220,8 +220,13 @@ final class DefaultSearchContext extends SearchContext {
             );
             queryBoost = request.indexBoost();
             this.lowLevelCancellation = lowLevelCancellation;
-            Boolean requestExplain = request.source().explain();
-            explain = requestExplain != null ? requestExplain : false;
+            SearchSourceBuilder builder = request.source();
+            if (builder != null) {
+                Boolean requestExplain = request.source().explain();
+                explain = requestExplain != null ? requestExplain : false;
+            } else {
+                explain = false;
+            }
             success = true;
         } finally {
             if (success == false) {

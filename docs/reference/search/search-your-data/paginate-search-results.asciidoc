@@ -362,7 +362,7 @@ Perl::
 
 Python::
 
-    See https://elasticsearch-py.readthedocs.io/en/[elasticsearch.helpers.*]
+    See https://elasticsearch-py.readthedocs.io/en/stable/helpers.html[elasticsearch.helpers.*]
 
 JavaScript::
 

@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 import org.elasticsearch.client.internal.Client;
 
 public interface CreateApiKeyRequestBuilderFactory {
-    CreateApiKeyRequestBuilder create(Client client, boolean restrictRequest);
+    CreateApiKeyRequestBuilder create(Client client);
 
     class Default implements CreateApiKeyRequestBuilderFactory {
         @Override
-        public CreateApiKeyRequestBuilder create(Client client, boolean restrictRequest) {
-            assert false == restrictRequest;
+        public CreateApiKeyRequestBuilder create(Client client) {
             return new CreateApiKeyRequestBuilder(client);
         }
     }

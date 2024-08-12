@@ -174,12 +174,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             return Tuple.tuple(dataStreamRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
         }
         if (dataStreamRetention == null) {
-            return globalRetention.getDefaultRetention() != null
-                ? Tuple.tuple(globalRetention.getDefaultRetention(), RetentionSource.DEFAULT_GLOBAL_RETENTION)
-                : Tuple.tuple(globalRetention.getMaxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
+            return globalRetention.defaultRetention() != null
+                ? Tuple.tuple(globalRetention.defaultRetention(), RetentionSource.DEFAULT_GLOBAL_RETENTION)
+                : Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
         }
-        if (globalRetention.getMaxRetention() != null && globalRetention.getMaxRetention().getMillis() < dataStreamRetention.getMillis()) {
-            return Tuple.tuple(globalRetention.getMaxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
+        if (globalRetention.maxRetention() != null && globalRetention.maxRetention().getMillis() < dataStreamRetention.getMillis()) {
+            return Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
         } else {
             return Tuple.tuple(dataStreamRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
         }
@@ -370,7 +370,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * Adds a retention param to signal that this serialisation should include the effective retention metadata
      */
     public static ToXContent.Params maybeAddEffectiveRetentionParams(ToXContent.Params params) {
-        boolean shouldAddEffectiveRetention = Objects.equals(params.param(RestRequest.PATH_RESTRICTED), "serverless");
+        boolean shouldAddEffectiveRetention = params.paramAsBoolean(RestRequest.SERVERLESS_REQUEST, false);
         return new DelegatingMapParams(
             Map.of(INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, Boolean.toString(shouldAddEffectiveRetention)),
             params

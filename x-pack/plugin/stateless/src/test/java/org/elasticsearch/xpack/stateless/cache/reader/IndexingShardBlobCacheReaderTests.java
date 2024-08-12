@@ -24,9 +24,20 @@ import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
+import org.junit.After;
 
 public class IndexingShardBlobCacheReaderTests extends ESTestCase {
+
+    private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
+
+    @After
+    public void stop() throws Exception {
+        threadPool.shutdown();
+    }
+
     public void testChunkRounding() {
         ByteSizeValue chunkSizeValue = ByteSizeValue.ofMb(128);
         int chunkSize = (int) chunkSizeValue.getBytes();
@@ -35,7 +46,8 @@ public class IndexingShardBlobCacheReaderTests extends ESTestCase {
             new PrimaryTermAndGeneration(between(0, 10), between(1, 10)),
             "_na_",
             null,
-            chunkSizeValue
+            chunkSizeValue,
+            threadPool
         );
 
         int small = between(1, SharedBytes.PAGE_SIZE);

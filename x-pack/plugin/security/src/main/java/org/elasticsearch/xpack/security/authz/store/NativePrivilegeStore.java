@@ -199,25 +199,23 @@ public class NativePrivilegeStore {
     private void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
         final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
-        final SecurityIndexManager frozenSecurityIndex = securityIndexManager.defensiveCopy();
-        innerGetPrivilegesWithRetry(applications, frozenSecurityIndex, backoff, listener);
+        innerGetPrivilegesWithRetry(applications, securityIndexManager, backoff, listener);
     }
 
     private void innerGetPrivilegesWithRetry(
         Collection<String> applications,
-        SecurityIndexManager frozenSecurityIndex,
+        SecurityIndexManager securityIndexManager,
         Iterator<TimeValue> backoff,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
     ) {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
-
         final Consumer<Exception> maybeRetryOnFailure = ex -> {
             if (backoff.hasNext()) {
                 final TimeValue backofTimeValue = backoff.next();
                 logger.debug("retrying after [{}] back off", backofTimeValue);
                 client.threadPool()
                     .schedule(
-                        () -> innerGetPrivilegesWithRetry(applications, frozenSecurityIndex, backoff, listener),
+                        () -> innerGetPrivilegesWithRetry(applications, securityIndexManager, backoff, listener),
                         backofTimeValue,
                         client.threadPool().generic()
                     );
@@ -227,6 +225,7 @@ public class NativePrivilegeStore {
             }
         };
 
+        final SecurityIndexManager frozenSecurityIndex = securityIndexManager.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {

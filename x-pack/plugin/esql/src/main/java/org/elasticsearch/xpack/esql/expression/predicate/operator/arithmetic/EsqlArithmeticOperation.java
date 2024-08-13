@@ -26,11 +26,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.formatIncompatibleTypesMessage;
 
 public abstract class EsqlArithmeticOperation extends ArithmeticOperation implements EvaluatorMapper {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -164,10 +164,6 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
 
         // at this point, left should be null, and right should be null or numeric.
         return TypeResolution.TYPE_RESOLVED;
-    }
-
-    public static String formatIncompatibleTypesMessage(String symbol, DataType leftType, DataType rightType) {
-        return format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol, leftType.typeName(), rightType.typeName());
     }
 
     @Override

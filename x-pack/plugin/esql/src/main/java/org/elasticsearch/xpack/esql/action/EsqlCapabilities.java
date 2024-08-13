@@ -224,7 +224,12 @@ public class EsqlCapabilities {
         /**
          * Support CIDRMatch in CombineDisjunctions rule.
          */
-        COMBINE_DISJUNCTIVE_CIDRMATCHES;
+        COMBINE_DISJUNCTIVE_CIDRMATCHES,
+
+        /**
+         * Allow mixed numeric types in coalesce
+         */
+        MIXED_NUMERIC_TYPES_IN_COALESCE;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

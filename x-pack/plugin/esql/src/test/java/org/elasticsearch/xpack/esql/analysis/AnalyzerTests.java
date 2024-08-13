@@ -2065,6 +2065,16 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    public void testCoalesceWithMixedNumericTypes() {
+        LogicalPlan plan = analyze("""
+            from test
+            | eval x = coalesce(salary_change, null, 0), y = coalesce(languages, null, 0.0), z = coalesce(languages.long, null, 0.0)
+            | keep x, y
+            """, "mapping-default.json");
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }

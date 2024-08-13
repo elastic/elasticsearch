@@ -30,16 +30,21 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.formatIncompatibleTypesMessage;
 
 /**
  * Function returning the first non-null value.
@@ -141,18 +146,33 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
+        DataType newType;
+        TypeResolution resolution = TypeResolution.TYPE_RESOLVED;
         for (int position = 0; position < children().size(); position++) {
+            newType = children().get(position).dataType();
             if (dataType == null || dataType == NULL) {
-                dataType = children().get(position).dataType();
+                dataType = newType;
                 continue;
             }
-            TypeResolution resolution = TypeResolutions.isType(
-                children().get(position),
-                t -> t == dataType,
-                sourceText(),
-                TypeResolutions.ParamOrdinal.fromIndex(position),
-                dataType.typeName()
-            );
+            if (dataType.isNumeric()) { // allow mixed numeric inputs
+                if ((newType == UNSIGNED_LONG && (false == (dataType == UNSIGNED_LONG || dataType == DataType.NULL)))
+                    || (dataType == UNSIGNED_LONG && (false == (newType == UNSIGNED_LONG || newType == DataType.NULL)))) {
+                    resolution = new TypeResolution(formatIncompatibleTypesMessage(sourceText(), dataType, newType));
+                }
+                dataType = EsqlDataTypeConverter.commonType(dataType, newType);
+                if (dataType == null || dataType == NULL) { // there is no common data type
+                    resolution = new TypeResolution(formatIncompatibleTypesMessage(sourceText(), dataType, newType));
+                }
+            } else { // enforce the same data type on non-numeric inputs
+                resolution = TypeResolutions.isType(
+                    children().get(position),
+                    t -> t == dataType,
+                    sourceText(),
+                    TypeResolutions.ParamOrdinal.fromIndex(position),
+                    dataType.typeName()
+                );
+            }
+
             if (resolution.unresolved()) {
                 return resolution;
             }
@@ -193,7 +213,15 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        List<ExpressionEvaluator.Factory> childEvaluators = children().stream().map(toEvaluator).toList();
+        List<ExpressionEvaluator.Factory> childEvaluators = new ArrayList<>(children().size());
+        for (Expression value : children()) {
+            if (value.dataType() != dataType() && value.dataType().isNumeric()) { // cast to the common numeric data type
+                var valueEval = Cast.cast(source(), value.dataType(), dataType(), toEvaluator.apply(value));
+                childEvaluators.add(valueEval);
+            } else {
+                childEvaluators.add(toEvaluator.apply(value));
+            }
+        }
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {

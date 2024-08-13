@@ -54,6 +54,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
@@ -489,5 +490,9 @@ public class EsqlDataTypeConverter {
 
     public static BiFunction<Source, Expression, AbstractConvertFunction> converterFunctionFactory(DataType toType) {
         return TYPE_TO_CONVERTER_FUNCTION.get(toType);
+    }
+
+    public static String formatIncompatibleTypesMessage(String symbol, DataType leftType, DataType rightType) {
+        return format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol, leftType.typeName(), rightType.typeName());
     }
 }

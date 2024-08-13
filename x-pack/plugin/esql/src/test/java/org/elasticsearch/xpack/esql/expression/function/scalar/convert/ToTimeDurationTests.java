@@ -17,16 +17,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 @FunctionName("to_timeduration")
 public class ToTimeDurationTests extends AbstractFunctionTestCase {
@@ -58,15 +53,6 @@ public class ToTimeDurationTests extends AbstractFunctionTestCase {
                 bytesRef -> EsqlDataTypeConverter.parseTemporalAmount(((BytesRef) bytesRef).utf8ToString(), DataType.TIME_DURATION),
                 List.of()
             );
-            suppliers.add(new TestCaseSupplier(List.of(inputType), () -> {
-                BytesRef l = (BytesRef) randomLiteral(inputType).value();
-                return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(l, inputType, "invalid time_duration")),
-                    read,
-                    DataType.TIME_DURATION,
-                    is(nullValue())
-                ).withFoldingException(ParsingException.class, "line -1:0: Cannot parse [" + l.utf8ToString() + "] to TIME_DURATION");
-            }));
         }
 
         return parameterSuppliersFromTypedData(

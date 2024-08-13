@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
@@ -40,6 +42,29 @@ public class ToDatePeriod extends AbstractConvertFunction {
         Map.entry(KEYWORD, (fieldEval, source) -> fieldEval),
         Map.entry(TEXT, (fieldEval, source) -> fieldEval)
     );
+
+    private static final List<String> intervals = List.of(
+        "day",
+        "days",
+        "d",
+        "week",
+        "weeks",
+        "w",
+        "month",
+        "months",
+        "mo",
+        "quarter",
+        "quarters",
+        "q",
+        "year",
+        "years",
+        "yr",
+        "y"
+    );
+
+    private static final String INVALID_INTERVAL_ERROR = "Invalid interval value in [{}], expected integer followed by one of "
+        + intervals
+        + " but got [{}]";
 
     @FunctionInfo(
         returnType = "date_period",
@@ -68,6 +93,16 @@ public class ToDatePeriod extends AbstractConvertFunction {
     }
 
     @Override
+    protected final TypeResolution resolveType() {
+        if (field().foldable()) {
+            if (isValidInterval(field().fold().toString()) == false) {
+                return new TypeResolution(LoggerMessageFormat.format(null, INVALID_INTERVAL_ERROR, sourceText(), field().fold()));
+            }
+        }
+        return super.resolveType();
+    }
+
+    @Override
     public DataType dataType() {
         return DATE_PERIOD;
     }
@@ -84,12 +119,30 @@ public class ToDatePeriod extends AbstractConvertFunction {
 
     @Override
     public final Object fold() {
-        if (field instanceof Literal l) {
+        if (field() instanceof Literal l) {
             Object v = l.value();
             if (v instanceof BytesRef b) {
+                if (isValidInterval(b.utf8ToString()) == false) {
+                    throw new IllegalArgumentException(
+                        LoggerMessageFormat.format(null, INVALID_INTERVAL_ERROR, sourceText(), b.utf8ToString())
+                    );
+                }
                 return EsqlDataTypeConverter.parseTemporalAmount(b.utf8ToString(), DATE_PERIOD);
             }
         }
         return null;
+    }
+
+    private boolean isValidInterval(String interval) {
+        String[] input = interval.toLowerCase(Locale.ROOT).stripLeading().stripTrailing().split("\\s+");
+        if (input.length != 2 || intervals.contains(input[1]) == false) {
+            return false;
+        }
+        try {
+            Integer.parseInt(input[0].toString());
+        } catch (NumberFormatException e) {
+            return false;
+        }
+        return true;
     }
 }

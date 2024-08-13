@@ -558,7 +558,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
 
         String error = EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("Cannot parse [3 days] to TIME_DURATION, did you mean DATE_PERIOD?"));
+        assertThat(error, containsString("Invalid interval value in [?n2::time_duration], expected integer followed by one of " +
+            "[millisecond, milliseconds, ms, second, seconds, sec, s, minute, minutes, min, hour, hours, h] but got [3 days]"));
 
         re = expectThrows(
             ResponseException.class,
@@ -568,7 +569,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             )
         );
         error = EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("Cannot parse [3 hours] to DATE_PERIOD, did you mean TIME_DURATION?"));
+        assertThat(error, containsString("Invalid interval value in [?n2::date_period], expected integer followed by one of " +
+            "[day, days, d, week, weeks, w, month, months, mo, quarter, quarters, q, year, years, yr, y] but got [3 hours]"));
     }
 
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {

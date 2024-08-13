@@ -5775,6 +5775,48 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals("Invalid order value in [mv_sort(v, o)], expected one of [ASC, DESC] but got [dsc]", iae.getMessage());
     }
 
+    public void testToDatePeriodTimeDurationInvalidIntervals() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            from types | EVAL interval = "3 dys", x = date + interval::date_period"""));
+        assertEquals(
+            "Invalid interval value in [interval::date_period], expected integer followed by one of "
+                + "[day, days, d, week, weeks, w, month, months, mo, quarter, quarters, q, year, years, yr, y] but got [3 dys]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            from types  | EVAL interval = "3 dys", x = date - to_dateperiod(interval)"""));
+        assertEquals(
+            "Invalid interval value in [to_dateperiod(interval)], expected integer followed by one of "
+                + "[day, days, d, week, weeks, w, month, months, mo, quarter, quarters, q, year, years, yr, y] but got [3 dys]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            from types  | EVAL interval = "3 ours", x = date + interval::time_duration"""));
+        assertEquals(
+            "Invalid interval value in [interval::time_duration], expected integer followed by one of "
+                + "[millisecond, milliseconds, ms, second, seconds, sec, s, minute, minutes, min, hour, hours, h] but got [3 ours]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            from types  | EVAL interval = "3 ours", x = date - to_timeduration(interval)"""));
+        assertEquals(
+            "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
+                + "[millisecond, milliseconds, ms, second, seconds, sec, s, minute, minutes, min, hour, hours, h] but got [3 ours]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            from types  | EVAL interval = "3.5 hours", x = date - to_timeduration(interval)"""));
+        assertEquals(
+            "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
+                + "[millisecond, milliseconds, ms, second, seconds, sec, s, minute, minutes, min, hour, hours, h] but got [3.5 hours]",
+            e.getMessage()
+        );
+    }
+
     private Literal nullOf(DataType dataType) {
         return new Literal(Source.EMPTY, null, dataType);
     }

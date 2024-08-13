@@ -867,6 +867,89 @@ public class VerifierTests extends ESTestCase {
         // TODO Keep adding tests for all unsupported commands
     }
 
+    public void testToDatePeriodTimeDurationInvalidIntervals() {
+        assertEquals(
+            "1:47: Invalid interval value in [\"3 dys\"::date_period], expected integer followed by one of "
+                + "[day, days, d, week, weeks, w, month, months, mo, quarter, quarters, q, year, years, yr, y] but got [3 dys]",
+            error("row x = \"2024-01-01\"::datetime | eval y = x + \"3 dys\"::date_period")
+        );
+
+        assertEquals(
+            "1:47: Invalid interval value in [to_dateperiod(\"3 dys\")], expected integer followed by one of "
+                + "[day, days, d, week, weeks, w, month, months, mo, quarter, quarters, q, year, years, yr, y] but got [3 dys]",
+            error("row x = \"2024-01-01\"::datetime | eval y = x - to_dateperiod(\"3 dys\")")
+        );
+
+        assertEquals(
+            "1:47: Invalid interval value in [\"3 ours\"::time_duration], expected integer followed by one of "
+                + "[millisecond, milliseconds, ms, second, seconds, sec, s, minute, minutes, min, hour, hours, h] but got [3 ours]",
+            error("row x = \"2024-01-01\"::datetime | eval y = x + \"3 ours\"::time_duration")
+        );
+
+        assertEquals(
+            "1:47: Invalid interval value in [to_timeduration(\"3 ours\")], expected integer followed by one of "
+                + "[millisecond, milliseconds, ms, second, seconds, sec, s, minute, minutes, min, hour, hours, h] but got [3 ours]",
+            error("row x = \"2024-01-01\"::datetime | eval y = x - to_timeduration(\"3 ours\")")
+        );
+
+        assertEquals(
+            "1:47: Invalid interval value in [to_timeduration(\"3.5 hours\")], expected integer followed by one of "
+                + "[millisecond, milliseconds, ms, second, seconds, sec, s, minute, minutes, min, hour, hours, h] but got [3.5 hours]",
+            error("row x = \"2024-01-01\"::datetime | eval y = x - to_timeduration(\"3.5 hours\")")
+        );
+    }
+
+    public void testIntervalInInvalidPosition() {
+        assertEquals("1:5: cannot use [3 days] directly in a row assignment", error("row x = 3 days | eval y = x + now()"));
+
+        assertEquals(
+            "1:5: cannot use [\"3 days\"::date_period] directly in a row assignment",
+            error("row x = \"3 days\"::date_period | eval y = x + now()")
+        );
+
+        assertEquals("1:5: cannot use [3 hours] directly in a row assignment", error("row x = 3 hours | eval y = x + now()"));
+
+        assertEquals(
+            "1:5: cannot use [\"3 hours\"::time_duration] directly in a row assignment",
+            error("row x = \"3 hours\"::time_duration | eval y = x + now()")
+        );
+
+        assertEquals(
+            "1:39: EVAL does not support type [date_period] in expression [3 months + 5 days]",
+            error("row x = \"2024-01-01\"::datetime | eval y = 3 months + 5 days")
+        );
+
+        assertEquals(
+            "1:39: EVAL does not support type [date_period] in expression [\"3 months\"::date_period + \"5 days\"::date_period]",
+            error("row x = \"2024-01-01\"::datetime | eval y = \"3 months\"::date_period + \"5 days\"::date_period")
+        );
+
+        assertEquals(
+            "1:39: EVAL does not support type [time_duration] in expression [3 hours + 5 minutes]",
+            error("row x = \"2024-01-01\"::datetime | eval y = 3 hours + 5 minutes")
+        );
+
+        assertEquals(
+            "1:39: EVAL does not support type [time_duration] in expression "
+                + "[\"3 hours\"::time_duration + \"5 minutes\"::time_duration]",
+            error("row x = \"2024-01-01\"::datetime | eval y = \"3 hours\"::time_duration + \"5 minutes\"::time_duration")
+        );
+
+        assertEquals(
+            "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
+                + "[boolean, cartesian_point, cartesian_shape, datetime, double, geo_point, geo_shape, integer, ip, keyword, long, "
+                + "text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]",
+            error("row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")")
+        );
+
+        assertEquals(
+            "1:26: first argument of [\"3 hours\"::time_duration <= to_timeduration(\"3 hours\")] must be "
+                + "[datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
+                + "found value [\"3 hours\"::time_duration] type [time_duration]",
+            error("row x = \"3 days\" | where \"3 hours\"::time_duration <= to_timeduration(\"3 hours\")")
+        );
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
     }

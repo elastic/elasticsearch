@@ -18,11 +18,11 @@ import org.elasticsearch.core.TimeValue;
 import java.util.ArrayList;
 import java.util.List;
 
-public class IncrementalBulkApplication {
+public class IncrementalBulkHandler {
 
     private final Client client;
 
-    public IncrementalBulkApplication(Client client) {
+    public IncrementalBulkHandler(Client client) {
         this.client = client;
     }
 

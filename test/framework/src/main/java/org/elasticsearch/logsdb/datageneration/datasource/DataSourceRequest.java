@@ -9,6 +9,7 @@
 package org.elasticsearch.logsdb.datageneration.datasource;
 
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
+import org.elasticsearch.logsdb.datageneration.FieldType;
 
 public interface DataSourceRequest<TResponse extends DataSourceResponse> {
     TResponse accept(DataSourceHandler handler);
@@ -45,14 +46,6 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
 
     record DoubleGenerator() implements DataSourceRequest<DataSourceResponse.DoubleGenerator> {
         public DataSourceResponse.DoubleGenerator accept(DataSourceHandler handler) {
-            return handler.handle(this);
-        }
-    }
-
-    record DoubleInRangeGenerator(double minExclusive, double maxExclusive)
-        implements
-            DataSourceRequest<DataSourceResponse.DoubleInRangeGenerator> {
-        public DataSourceResponse.DoubleInRangeGenerator accept(DataSourceHandler handler) {
             return handler.handle(this);
         }
     }
@@ -103,6 +96,22 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
 
     record ObjectArrayGenerator() implements DataSourceRequest<DataSourceResponse.ObjectArrayGenerator> {
         public DataSourceResponse.ObjectArrayGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record LeafMappingParametersGenerator(String fieldName, FieldType fieldType)
+        implements
+            DataSourceRequest<DataSourceResponse.LeafMappingParametersGenerator> {
+        public DataSourceResponse.LeafMappingParametersGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record ObjectMappingParametersGenerator(boolean isNested)
+        implements
+            DataSourceRequest<DataSourceResponse.ObjectMappingParametersGenerator> {
+        public DataSourceResponse.ObjectMappingParametersGenerator accept(DataSourceHandler handler) {
             return handler.handle(this);
         }
     }

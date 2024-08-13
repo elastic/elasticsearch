@@ -15,17 +15,15 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
@@ -166,8 +164,9 @@ final class Checkpoint {
     }
 
     public static Checkpoint read(Path path) throws IOException {
-        try (Directory dir = new NIOFSDirectory(path.getParent())) {
-            try (IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.DEFAULT)) {
+        try {
+            final byte[] bytes = Files.readAllBytes(path);
+            try (ByteArrayIndexInput indexInput = new ByteArrayIndexInput(path.toString(), bytes, 0, bytes.length)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
                 final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, VERSION_LUCENE_8, CURRENT_VERSION);
@@ -177,9 +176,9 @@ final class Checkpoint {
                     return Checkpoint.readCheckpointV4(indexInput);
                 }
                 return readCheckpointV3(indexInput);
-            } catch (CorruptIndexException | NoSuchFileException | IndexFormatTooOldException | IndexFormatTooNewException e) {
-                throw new TranslogCorruptedException(path.toString(), e);
             }
+        } catch (CorruptIndexException | NoSuchFileException | IndexFormatTooOldException | IndexFormatTooNewException e) {
+            throw new TranslogCorruptedException(path.toString(), e);
         }
     }
 

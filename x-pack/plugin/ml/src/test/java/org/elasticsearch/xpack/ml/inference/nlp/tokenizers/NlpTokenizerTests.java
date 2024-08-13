@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertJapaneseTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DebertaV2Tokenization;
@@ -47,7 +46,11 @@ public class NlpTokenizerTests extends ESTestCase {
         RobertaTokenizer.MASK_TOKEN
     );
     public static final List<String> DEBERTA_REQUIRED_VOCAB = List.of(
-        // TODO
+        DebertaV2Tokenizer.UNKNOWN_TOKEN,
+        DebertaV2Tokenizer.SEPARATOR_TOKEN,
+        DebertaV2Tokenizer.PAD_TOKEN,
+        DebertaV2Tokenizer.CLASS_TOKEN,
+        DebertaV2Tokenizer.MASK_TOKEN
     );
 
     void validateBuilder(List<String> vocab, Tokenization tokenization, Class<?> expectedClass) throws IOException {

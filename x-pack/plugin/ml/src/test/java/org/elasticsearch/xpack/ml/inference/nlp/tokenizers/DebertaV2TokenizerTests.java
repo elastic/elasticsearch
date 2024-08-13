@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DebertaV2Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;

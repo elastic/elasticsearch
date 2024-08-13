@@ -27,7 +27,7 @@ public class DissectSerializationTests extends AbstractLogicalPlanSerializationT
         return new Dissect(source, child, input, parser, extracted);
     }
 
-    private static Dissect.Parser randomParser() {
+    public static Dissect.Parser randomParser() {
         String suffix = randomAlphaOfLength(5);
         String pattern = "%{b} %{c}" + suffix;
         return new Dissect.Parser(pattern, ",", new DissectParser(pattern, ","));

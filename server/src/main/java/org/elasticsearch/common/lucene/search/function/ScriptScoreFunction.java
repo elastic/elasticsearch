@@ -63,7 +63,7 @@ public class ScriptScoreFunction extends ScoreFunction {
         leafScript._setShard(shardId);
         return new LeafScoreFunction() {
 
-            public double score(int docId, float subQueryScore, ScoreScript.ExplanationHolder holder) throws IOException {
+            private double score(int docId, float subQueryScore, ScoreScript.ExplanationHolder holder) throws IOException {
                 leafScript.setDocument(docId);
                 scorer.docid = docId;
                 scorer.score = subQueryScore;

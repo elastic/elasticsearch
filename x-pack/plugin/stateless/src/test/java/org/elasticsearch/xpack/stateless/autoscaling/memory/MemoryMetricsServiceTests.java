@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
+import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
 import org.apache.logging.log4j.Level;
@@ -87,7 +88,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
     @Before
     public void init() {
-        service = new MemoryMetricsService(System::nanoTime, CLUSTER_SETTINGS);
+        service = new MemoryMetricsService(System::nanoTime, CLUSTER_SETTINGS, ProjectType.ELASTICSEARCH_GENERAL_PURPOSE);
     }
 
     public void testReduceFinalIndexMappingSize() {
@@ -185,7 +186,11 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
     public void testReportNonExactMetricsInTotalIndicesMappingSize() throws Exception {
         long currentTime = System.nanoTime();
-        MemoryMetricsService customService = new MemoryMetricsService(() -> currentTime, CLUSTER_SETTINGS);
+        MemoryMetricsService customService = new MemoryMetricsService(
+            () -> currentTime,
+            CLUSTER_SETTINGS,
+            ProjectType.ELASTICSEARCH_GENERAL_PURPOSE
+        );
 
         long updateTime = currentTime - TimeUnit.MINUTES.toNanos(5) - TimeUnit.SECONDS.toNanos(1);
         for (int i = 0; i < 100; i++) {
@@ -380,7 +385,10 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             memoryMetrics.nodeMemoryInBytes(),
             equalTo((MemoryMetricsService.INDEX_MEMORY_OVERHEAD + MemoryMetricsService.WORKLOAD_MEMORY_OVERHEAD) * 2)
         );
-        assertThat(memoryMetrics.totalMemoryInBytes(), equalTo(HeapToSystemMemory.tier(size + service.shardMemoryOverhead.getBytes())));
+        assertThat(
+            memoryMetrics.totalMemoryInBytes(),
+            equalTo(HeapToSystemMemory.tier(size + service.shardMemoryOverhead.getBytes(), ProjectType.ELASTICSEARCH_GENERAL_PURPOSE))
+        );
 
         // a relatively high starting point, coming from 500MB heap work * 2 (for memory)
         assertThat(memoryMetrics.nodeMemoryInBytes(), lessThan(ByteSizeUnit.MB.toBytes(1200)));

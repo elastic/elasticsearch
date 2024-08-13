@@ -122,7 +122,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
                 .calculateTotalIndicesMappingSize();
 
             final long sizeAfterIndexCreate = totalIndexMappingSizeAfterUpdate.sizeInBytes();
-            final long expectedMemoryOverhead = 1024 * mappingFieldsCount;
+            final long expectedMemoryOverhead = 1024L * mappingFieldsCount;
             // Note that strict comparison is not possible here (and tests below) because of presence of metadata mapping fields e.g.
             // _index, _source, etc
             // those fields are implementation specific and some of them can be added by plugins, thus it is not possible to rely on its
@@ -170,7 +170,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             final var totalIndexMappingSizeAfterUpdate = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
                 .calculateTotalIndicesMappingSize();
             final long sizeAfterMappingUpdate = totalIndexMappingSizeAfterUpdate.sizeInBytes();
-            final long expectedMemoryOverhead = 1024 * mappingFieldsCount;
+            final long expectedMemoryOverhead = 1024L * mappingFieldsCount;
             assertThat(sizeAfterMappingUpdate, greaterThan(sizeBeforeMappingUpdate + expectedMemoryOverhead));
             assertThat(totalIndexMappingSizeAfterUpdate.metricQuality(), equalTo(MetricQuality.EXACT));
         });
@@ -332,7 +332,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             final int mappingFieldsCount = randomIntBetween(10, 100);
 
             // accumulate index mapping size overhead for all indices
-            minimalEstimatedOverhead.add(1024 * mappingFieldsCount);
+            minimalEstimatedOverhead.add(1024L * mappingFieldsCount);
 
             final XContentBuilder indexMapping = createIndexMapping(mappingFieldsCount);
             int shardsCount = randomIntBetween(1, indexNodes);
@@ -377,7 +377,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
 
             final int mappingFieldsCount = randomIntBetween(10, 100);
 
-            minimalEstimatedOverhead.add(1024 * mappingFieldsCount);
+            minimalEstimatedOverhead.add(1024L * mappingFieldsCount);
 
             final XContentBuilder indexMapping = createIndexMapping(mappingFieldsCount);
             assertAcked(prepareCreate(indexName).setMapping(indexMapping).setSettings(indexSettings(1, 0).build()).get());
@@ -793,8 +793,15 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         assertThat(
             totalMemoryWithDefaultShardOverhead,
             allOf(
-                greaterThan(HeapToSystemMemory.tier(noOfIndices * defaultNoOfShards * SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes())),
-                lessThan(HeapToSystemMemory.tier((noOfIndices * defaultNoOfShards + 1) * SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes()))
+                greaterThan(
+                    HeapToSystemMemory.tier(noOfIndices * defaultNoOfShards * SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes(), projectType)
+                ),
+                lessThan(
+                    HeapToSystemMemory.tier(
+                        ((long) noOfIndices * defaultNoOfShards + 1) * SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes(),
+                        projectType
+                    )
+                )
             )
         );
 
@@ -816,8 +823,15 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         assertThat(
             totalMemoryWithNewShardOverhead,
             allOf(
-                greaterThan(HeapToSystemMemory.tier(noOfIndices * defaultNoOfShards * increasedShardMemoryOverhead.getBytes())),
-                lessThan(HeapToSystemMemory.tier((noOfIndices * defaultNoOfShards + 1) * increasedShardMemoryOverhead.getBytes()))
+                greaterThan(
+                    HeapToSystemMemory.tier(noOfIndices * defaultNoOfShards * increasedShardMemoryOverhead.getBytes(), projectType)
+                ),
+                lessThan(
+                    HeapToSystemMemory.tier(
+                        ((long) noOfIndices * defaultNoOfShards + 1) * increasedShardMemoryOverhead.getBytes(),
+                        projectType
+                    )
+                )
             )
         );
     }

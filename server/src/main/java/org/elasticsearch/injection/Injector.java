@@ -108,10 +108,10 @@ public final class Injector {
     /**
      * Equivalent to {@link #addInstance addInstance(object.getClass(), object)}.
      */
-    public <T> Injector addInstance(T object) {
+    public <T> Injector addInstance(Object object) {
         @SuppressWarnings("unchecked")
-        Class<? super T> aClass = (Class<? super T>) object.getClass();
-        return addInstance(aClass, object);
+        Class<T> actualClass = (Class<T>) object.getClass(); // Whatever the runtime type is, it's represented by T
+        return addInstance(actualClass, actualClass.cast(object));
     }
 
     /**
@@ -139,6 +139,7 @@ public final class Injector {
      * The given object is treated as though it had been instantiated by the injector.
      */
     public <T> Injector addInstance(Class<? super T> type, T object) {
+        assert type.isInstance(object); // No unchecked casting shenanigans allowed
         var existing = seedSpecs.put(type, new ExistingInstanceSpec(type, object));
         if (existing != null) {
             throw new IllegalStateException("There's already an object for " + type);
@@ -271,13 +272,7 @@ public final class Injector {
         }
 
         if (logger.isTraceEnabled()) {
-            logger.trace(
-                "Specs: {}",
-                result.values()
-                    .stream()
-                    .map(Object::toString)
-                    .collect(joining("\n\t", "\n\t", ""))
-            );
+            logger.trace("Specs: {}", result.values().stream().map(Object::toString).collect(joining("\n\t", "\n\t", "")));
         }
         return result;
     }

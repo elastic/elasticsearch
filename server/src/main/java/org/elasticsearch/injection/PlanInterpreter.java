@@ -59,7 +59,7 @@ final class PlanInterpreter {
                 numConstructorCalls.incrementAndGet();
             } else {
                 // TODO: switch patterns would make this unnecessary
-                assert false: "Unexpected step type: " + step.getClass().getSimpleName();
+                assert false : "Unexpected step type: " + step.getClass().getSimpleName();
                 throw new IllegalStateException("Unexpected step type: " + step.getClass().getSimpleName());
             }
         });

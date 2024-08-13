@@ -385,7 +385,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
 
         @Override
-        public final boolean fieldHasValue(FieldInfos fieldInfos) {
+        public boolean fieldHasValue(FieldInfos fieldInfos) {
             return fieldInfos.fieldInfo(getEmbeddingsFieldName(name())) != null;
         }
 

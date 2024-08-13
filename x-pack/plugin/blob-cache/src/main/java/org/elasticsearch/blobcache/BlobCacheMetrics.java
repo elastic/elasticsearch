@@ -62,12 +62,12 @@ public class BlobCacheMetrics {
                 "MB/second"
             ),
             meterRegistry.registerLongCounter(
-                "es.blob_cache.populate_bytes.counter",
+                "es.blob_cache.populate_bytes.total",
                 "The number of bytes that have been loaded into the cache",
                 "bytes"
             ),
             meterRegistry.registerLongCounter(
-                "es.blob_cache.populate_time.counter",
+                "es.blob_cache.populate_time.total",
                 "The time spent copying data into the cache",
                 "milliseconds"
             )

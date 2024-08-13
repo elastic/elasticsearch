@@ -14,8 +14,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.slm.SnapshotInvocationRecordTests.randomSnapshotInvocationRecord;
@@ -130,9 +130,21 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
     }
 
     public static String randomTimeValueString() {
-        // minimum valid time value for schedule is 1ms
-        List<String> units = List.of("ms", "s", "m", "h", "d");
-        return randomIntBetween(1, 1000) + randomFrom(units);
+        // restrict to intervals greater than slm.minimum_interval value of 15 minutes
+        Duration minInterval = Duration.ofMinutes(15);
+        Map<String, Long> unitMinVal = Map.of(
+            "nanos", minInterval.toNanos(),
+            "micros",minInterval.toNanos() * 1000,
+            "ms", minInterval.toMillis(),
+            "s", minInterval.toSeconds(),
+            "m", minInterval.toMinutes(),
+            "h", minInterval.toHours(),
+            "d", minInterval.toDays()
+        );
+        var unit = randomFrom(unitMinVal.keySet());
+        long minVal = Math.max(1, unitMinVal.get(unit));
+        long value = randomLongBetween(minVal, 1000 * minVal);
+        return value + unit;
     }
 
     public static String randomSchedule() {

@@ -28,17 +28,6 @@ setup:
                   type: hnsw
                   m: 16
                   ef_construction: 200
-
-  - do:
-      indices.create:
-        index: test_empty
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-
-
   - do:
       index:
         index: test
@@ -530,8 +519,16 @@ setup:
 ---
 "kNN search on empty index should return 0 results and not an error":
   - requires:
-      cluster_features: "gte_v8.16.0"
-      reason: 'Error fixed in 8.16.0'
+      cluster_features: "gte_v8.15.1"
+      reason: 'Error fixed in 8.15.1'
+  - do:
+      indices.create:
+        index: test_empty
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
   - do:
       search:
         index: test_empty

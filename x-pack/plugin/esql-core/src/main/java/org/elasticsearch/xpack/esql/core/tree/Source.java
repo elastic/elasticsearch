@@ -51,6 +51,21 @@ public final class Source implements Writeable {
         return new Source(new Location(line, charPositionInLine), text);
     }
 
+    /**
+     * Read the components of a {@link Source} and throw it away, returning
+     * {@link Source#EMPTY}. Use this when you will never use the {@link Source}
+     * and there is no chance of getting a {@link PlanStreamInput}.
+     */
+    public static Source readEmpty(StreamInput in) throws IOException {
+        if (in.readBoolean() == false) {
+            return EMPTY;
+        }
+        in.readInt();
+        in.readInt();
+        in.readInt();
+        return Source.EMPTY;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (this == EMPTY) {

@@ -133,13 +133,20 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
         // restrict to intervals greater than slm.minimum_interval value of 15 minutes
         Duration minInterval = Duration.ofMinutes(15);
         Map<String, Long> unitMinVal = Map.of(
-            "nanos", minInterval.toNanos(),
-            "micros",minInterval.toNanos() * 1000,
-            "ms", minInterval.toMillis(),
-            "s", minInterval.toSeconds(),
-            "m", minInterval.toMinutes(),
-            "h", minInterval.toHours(),
-            "d", minInterval.toDays()
+            "nanos",
+            minInterval.toNanos(),
+            "micros",
+            minInterval.toNanos() * 1000,
+            "ms",
+            minInterval.toMillis(),
+            "s",
+            minInterval.toSeconds(),
+            "m",
+            minInterval.toMinutes(),
+            "h",
+            minInterval.toHours(),
+            "d",
+            minInterval.toDays()
         );
         var unit = randomFrom(unitMinVal.keySet());
         long minVal = Math.max(1, unitMinVal.get(unit));

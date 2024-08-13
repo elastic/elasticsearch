@@ -324,7 +324,6 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("[database_file] Unsupported database type [null] for file [GeoLite2-City.mmdb]"));
     }
 
-    @SuppressWarnings("HiddenField")
     public void testLazyLoading() throws Exception {
         final Path configDir = createTempDir();
         final Path geoIpConfigDir = configDir.resolve("ingest-geoip");
@@ -387,7 +386,6 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertNotNull(databaseNodeService.getDatabaseReaderLazyLoader("GeoLite2-ASN.mmdb").databaseReader.get());
     }
 
-    @SuppressWarnings("HiddenField")
     public void testLoadingCustomDatabase() throws IOException {
         final Path configDir = createTempDir();
         final Path geoIpConfigDir = configDir.resolve("ingest-geoip");

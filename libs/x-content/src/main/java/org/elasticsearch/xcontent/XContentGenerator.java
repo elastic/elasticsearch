@@ -148,6 +148,9 @@ public interface XContentGenerator extends Closeable, Flushable {
                     case LONG -> writeNumber(parser.longValue());
                     case FLOAT -> writeNumber(parser.floatValue());
                     case DOUBLE -> writeNumber(parser.doubleValue());
+                    default -> {
+                        assert false : "missing xcontent number handling for type [" + parser.numberType() + "]";
+                    }
                 }
                 break;
             case VALUE_BOOLEAN:
@@ -158,6 +161,9 @@ public interface XContentGenerator extends Closeable, Flushable {
                 break;
             case VALUE_EMBEDDED_OBJECT:
                 writeBinary(parser.binaryValue());
+                break;
+            default:
+                assert false : "missing xcontent token handling for token [" + parser.text() + "]";
         }
     }
 

@@ -54,6 +54,7 @@ public class JsonXContentImpl implements XContent {
         jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         jsonFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
+        jsonFactory.configure(JsonParser.Feature.USE_FAST_BIG_NUMBER_PARSER, true);
         jsonXContent = new JsonXContentImpl();
     }
 

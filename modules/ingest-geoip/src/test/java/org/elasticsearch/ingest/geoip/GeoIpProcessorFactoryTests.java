@@ -25,18 +25,15 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.geoip.Database.Property;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,6 +42,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.DEFAULT_DATABASES;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -56,8 +56,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class GeoIpProcessorFactoryTests extends ESTestCase {
-
-    private static final Set<String> DEFAULT_DATABASES = Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb");
 
     private Path geoipTmpDir;
     private Path geoIpConfigDir;
@@ -74,7 +72,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Client client = mock(Client.class);
         GeoIpCache cache = new GeoIpCache(1000);
         configDatabases = new ConfigDatabases(geoIpConfigDir, new GeoIpCache(1000));
-        copyDatabaseFiles(geoIpConfigDir, configDatabases);
+        copyDefaultDatabases(geoIpConfigDir, configDatabases);
         geoipTmpDir = createTempDir();
         clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
@@ -218,10 +216,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuildNonExistingDbFile() throws Exception {
-        Files.copy(
-            GeoIpProcessorFactoryTests.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
-            geoipTmpDir.resolve("GeoLite2-City.mmdb")
-        );
+        copyDatabase("GeoLite2-City-Test.mmdb", geoipTmpDir.resolve("GeoLite2-City.mmdb"));
         databaseNodeService.updateDatabase("GeoLite2-City.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City.mmdb"));
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
 
@@ -234,7 +229,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     public void testBuildBuiltinDatabaseMissing() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
-        cleanDatabaseFiles(geoIpConfigDir, configDatabases);
+        cleanDatabases(geoIpConfigDir, configDatabases);
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -330,7 +325,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Files.createDirectories(geoIpConfigDir);
         GeoIpCache cache = new GeoIpCache(1000);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
-        copyDatabaseFiles(geoIpConfigDir, configDatabases);
+        copyDefaultDatabases(geoIpConfigDir, configDatabases);
 
         // Loading another database reader instances, because otherwise we can't test lazy loading as the
         // database readers used at class level are reused between tests. (we want to keep that otherwise running this
@@ -391,9 +386,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         final Path geoIpConfigDir = configDir.resolve("ingest-geoip");
         Files.createDirectories(geoIpConfigDir);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, new GeoIpCache(1000));
-        copyDatabaseFiles(geoIpConfigDir, configDatabases);
+        copyDefaultDatabases(geoIpConfigDir, configDatabases);
         // fake the GeoIP2-City database
-        copyDatabaseFile(geoIpConfigDir, "GeoLite2-City.mmdb");
+        copyDatabase("GeoLite2-City.mmdb", geoIpConfigDir);
         Files.move(geoIpConfigDir.resolve("GeoLite2-City.mmdb"), geoIpConfigDir.resolve("GeoIP2-City.mmdb"));
 
         /*
@@ -488,7 +483,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertThat(geoData.get("city_name"), equalTo("Tumba"));
         }
         {
-            copyDatabaseFile(geoipTmpDir, "GeoLite2-City-Test.mmdb");
+            copyDatabase("GeoLite2-City-Test.mmdb", geoipTmpDir);
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
             databaseNodeService.updateDatabase("GeoLite2-City.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City-Test.mmdb"));
             processor.execute(ingestDocument);
@@ -515,7 +510,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     public void testDatabaseNotReadyYet() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
-        cleanDatabaseFiles(geoIpConfigDir, configDatabases);
+        cleanDatabases(geoIpConfigDir, configDatabases);
 
         {
             Map<String, Object> config = new HashMap<>();
@@ -540,7 +535,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             );
         }
 
-        copyDatabaseFile(geoipTmpDir, "GeoLite2-City-Test.mmdb");
+        copyDatabase("GeoLite2-City-Test.mmdb", geoipTmpDir);
         databaseNodeService.updateDatabase("GeoLite2-City.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City-Test.mmdb"));
 
         {
@@ -560,25 +555,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         }
     }
 
-    private static void copyDatabaseFile(final Path path, final String databaseFilename) throws IOException {
-        Files.copy(
-            new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/" + databaseFilename)),
-            path.resolve(databaseFilename),
-            StandardCopyOption.REPLACE_EXISTING
-        );
-    }
-
-    static void copyDatabaseFiles(final Path path, ConfigDatabases configDatabases) throws IOException {
-        for (final String databaseFilename : DEFAULT_DATABASES) {
-            copyDatabaseFile(path, databaseFilename);
-            configDatabases.updateDatabase(path.resolve(databaseFilename), true);
+    private static void cleanDatabases(final Path directory, ConfigDatabases configDatabases) {
+        for (final String database : DEFAULT_DATABASES) {
+            configDatabases.updateDatabase(directory.resolve(database), false);
         }
     }
-
-    static void cleanDatabaseFiles(final Path path, ConfigDatabases configDatabases) {
-        for (final String databaseFilename : DEFAULT_DATABASES) {
-            configDatabases.updateDatabase(path.resolve(databaseFilename), false);
-        }
-    }
-
 }

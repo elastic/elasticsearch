@@ -1058,11 +1058,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     public static List<TypedDataSupplier> dateNanosCases() {
         return List.of(
             new TypedDataSupplier("<1970-01-01T00:00:00.000000000Z>", () -> 0L, DataType.DATE_NANOS),
-            new TypedDataSupplier(
-                "<date nanos>",
-                () -> ESTestCase.randomLongBetween(0, 10 * (long) 10e11),
-                DataType.DATE_NANOS
-            ),
+            new TypedDataSupplier("<date nanos>", () -> ESTestCase.randomLongBetween(0, 10 * (long) 10e11), DataType.DATE_NANOS),
             new TypedDataSupplier(
                 "<far future date nanos>",
                 () -> ESTestCase.randomLongBetween(10 * (long) 10e11, Long.MAX_VALUE),

@@ -289,12 +289,11 @@ public class CacheBlobReaderTests extends ESTestCase {
             assertEquals(virtualBatchedCompoundCommit.getPrimaryTermAndGeneration(), virtualBccTermAndGen);
             int finalLength = Math.min(length, Math.toIntExact(virtualBatchedCompoundCommit.getTotalSizeInBytes() - offset));
             var bytesStreamOutput = new BytesStreamOutput(finalLength);
-            threadPool.executor(Stateless.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL).execute(() -> {
-                ActionListener.run(listener, l -> {
+            threadPool.executor(Stateless.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL)
+                .execute(ActionRunnable.supply(listener, () -> {
                     virtualBatchedCompoundCommit.getBytesByRange(offset, finalLength, bytesStreamOutput);
-                    l.onResponse(new ReleasableBytesReference(bytesStreamOutput.bytes(), bytesStreamOutput::close));
-                });
-            });
+                    return new ReleasableBytesReference(bytesStreamOutput.bytes(), bytesStreamOutput::close);
+                }));
         }
 
         public void readVirtualBatchedCompoundCommitByte(long offset) {

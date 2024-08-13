@@ -57,7 +57,7 @@ import static org.mockito.Mockito.when;
 
 public class GeoIpProcessorFactoryTests extends ESTestCase {
 
-    static Set<String> DEFAULT_DATABASE_FILENAMES = Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb");
+    private static final Set<String> DEFAULT_DATABASES = Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb");
 
     private Path geoipTmpDir;
     private Path geoIpConfigDir;
@@ -238,7 +238,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("database_file", randomFrom(DEFAULT_DATABASE_FILENAMES));
+        config.put("database_file", randomFrom(DEFAULT_DATABASES));
         Processor processor = factory.create(null, null, null, config);
         assertThat(processor, instanceOf(GeoIpProcessor.DatabaseUnavailableProcessor.class));
     }
@@ -571,14 +571,14 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     static void copyDatabaseFiles(final Path path, ConfigDatabases configDatabases) throws IOException {
-        for (final String databaseFilename : DEFAULT_DATABASE_FILENAMES) {
+        for (final String databaseFilename : DEFAULT_DATABASES) {
             copyDatabaseFile(path, databaseFilename);
             configDatabases.updateDatabase(path.resolve(databaseFilename), true);
         }
     }
 
     static void cleanDatabaseFiles(final Path path, ConfigDatabases configDatabases) throws IOException {
-        for (final String databaseFilename : DEFAULT_DATABASE_FILENAMES) {
+        for (final String databaseFilename : DEFAULT_DATABASES) {
             configDatabases.updateDatabase(path.resolve(databaseFilename), false);
         }
     }

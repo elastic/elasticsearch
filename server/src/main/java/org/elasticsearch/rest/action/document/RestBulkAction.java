@@ -105,7 +105,7 @@ public class RestBulkAction extends BaseRestHandler {
 
         private volatile RestChannel restChannel;
         private final ArrayDeque<ReleasableBytesReference> unParsedChunks = new ArrayDeque<>(4);
-        private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
+        private ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
 
         private ChunkHandler(RestRequest request) {
             this.request = request;
@@ -177,9 +177,11 @@ public class RestBulkAction extends BaseRestHandler {
             if (isLast) {
                 assert unParsedChunks.isEmpty();
                 assert channel != null;
-                handler.lastItems(items, data, new RestRefCountedChunkedToXContentListener<>(channel));
-            } else {
-                handler.addItems(items, data, () -> request.contentStream().next());
+                handler.lastItems(new ArrayList<>(items), data, new RestRefCountedChunkedToXContentListener<>(channel));
+                items.clear();
+            } else if (items.isEmpty() == false) {
+                handler.addItems(new ArrayList<>(items), data, () -> request.contentStream().next());
+                items.clear();
             }
         }
 

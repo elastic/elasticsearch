@@ -26,6 +26,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.reindex.ReindexMetrics;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -207,7 +208,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             new EnrichCoordinatorProxyAction.Coordinator(services.client(), settings),
             enrichPolicyMaintenanceService,
             enrichPolicyExecutor,
-            enrichCache
+            enrichCache,
+            new ReindexMetrics(services.telemetryProvider().getMeterRegistry())
         );
     }
 

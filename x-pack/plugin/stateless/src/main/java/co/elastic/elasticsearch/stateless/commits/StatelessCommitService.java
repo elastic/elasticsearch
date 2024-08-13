@@ -159,7 +159,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     public static final Setting<Boolean> STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED = Setting.boolSetting(
         "stateless.lucene.generational_files_tracking.enabled",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 

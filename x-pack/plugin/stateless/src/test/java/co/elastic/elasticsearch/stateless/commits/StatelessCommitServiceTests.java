@@ -147,7 +147,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         final long primaryTerm = randomLongBetween(1L, 1000L);
         final boolean generationalFilesTrackingEnabled = randomBoolean();
         // Randomly leave the setting un-configured for its default value
-        final boolean explicitConfiguration = generationalFilesTrackingEnabled || randomBoolean();
+        final boolean explicitConfiguration = generationalFilesTrackingEnabled == false || randomBoolean();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected Settings nodeSettings() {
@@ -732,6 +732,15 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
+                    .build();
+            }
+
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -816,6 +825,15 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
+                    .build();
+            }
+
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -896,6 +914,15 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
+                    .build();
+            }
+
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -972,6 +999,15 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
+                    .build();
+            }
+
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -1074,6 +1110,15 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
+                    .build();
+            }
+
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -1155,6 +1200,15 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
+                    .build();
+            }
+
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -1236,6 +1290,15 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
+                    .build();
+            }
+
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
@@ -1479,6 +1542,15 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
+                    .build();
+            }
+
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
@@ -1680,6 +1752,15 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
+                    .build();
+            }
+
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
@@ -2122,6 +2203,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 return Settings.builder()
                     .put(super.nodeSettings())
                     .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), commitsPerBCC)
+                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
                     .build();
             }
 

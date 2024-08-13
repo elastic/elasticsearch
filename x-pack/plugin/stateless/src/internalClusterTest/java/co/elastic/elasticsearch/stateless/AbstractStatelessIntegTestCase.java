@@ -115,7 +115,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
     public static final boolean STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED = Boolean.parseBoolean(
-        System.getProperty("es.test.stateless.generational_files_tracking.enabled", "false")
+        System.getProperty("es.test.stateless.generational_files_tracking.enabled", "true")
     );
 
     private int uploadMaxCommits;

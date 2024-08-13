@@ -125,10 +125,10 @@ setup:
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
-  - match: { hits.hits.0.inner_hits.chunks.hits.total.value: 2 }
-  - length: { hits.hits.0.inner_hits.chunks.hits.hits: 2 }
-  - match: { hits.hits.0.inner_hits.chunks.hits.hits.0._source.text: "another inference test" }
-  - match: { hits.hits.0.inner_hits.chunks.hits.hits.1._source.text: "inference test" }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 2 }
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "another inference test" }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.1._source.text: "inference test" }
 
   - do:
       headers:
@@ -149,9 +149,9 @@ setup:
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
-  - match: { hits.hits.0.inner_hits.chunks.hits.total.value: 2 }
-  - length: { hits.hits.0.inner_hits.chunks.hits.hits: 1 }
-  - match: { hits.hits.0.inner_hits.chunks.hits.hits.0._source.text: "another inference test" }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 2 }
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "another inference test" }
 
   - do:
       headers:
@@ -172,9 +172,9 @@ setup:
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
-  - match: { hits.hits.0.inner_hits.chunks.hits.total.value: 2 }
-  - length: { hits.hits.0.inner_hits.chunks.hits.hits: 1 }
-  - match: { hits.hits.0.inner_hits.chunks.hits.hits.0._source.text: "inference test" }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 2 }
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "inference test" }
 
   - do:
       headers:
@@ -195,8 +195,8 @@ setup:
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
-  - match: { hits.hits.0.inner_hits.chunks.hits.total.value: 0 }  # Hits total drops to zero when you page off the end
-  - length: { hits.hits.0.inner_hits.chunks.hits.hits: 0 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 0 }  # Hits total drops to zero when you page off the end
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 0 }
 
 ---
 "Numeric query using a sparse embedding model":
@@ -316,10 +316,10 @@ setup:
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
-  - match: { hits.hits.0.inner_hits.chunks.hits.total.value: 2 }
-  - length: { hits.hits.0.inner_hits.chunks.hits.hits: 2 }
-  - match: { hits.hits.0.inner_hits.chunks.hits.hits.0._source.text: "inference test" }
-  - match: { hits.hits.0.inner_hits.chunks.hits.hits.1._source.text: "another inference test" }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 2 }
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "inference test" }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.1._source.text: "another inference test" }
 
   - do:
       headers:
@@ -340,9 +340,9 @@ setup:
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
-  - match: { hits.hits.0.inner_hits.chunks.hits.total.value: 2 }
-  - length: { hits.hits.0.inner_hits.chunks.hits.hits: 1 }
-  - match: { hits.hits.0.inner_hits.chunks.hits.hits.0._source.text: "inference test" }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 2 }
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "inference test" }
 
   - do:
       headers:
@@ -363,9 +363,9 @@ setup:
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
-  - match: { hits.hits.0.inner_hits.chunks.hits.total.value: 2 }
-  - length: { hits.hits.0.inner_hits.chunks.hits.hits: 1 }
-  - match: { hits.hits.0.inner_hits.chunks.hits.hits.0._source.text: "another inference test" }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 2 }
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "another inference test" }
 
   - do:
       headers:
@@ -386,8 +386,8 @@ setup:
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
-  - match: { hits.hits.0.inner_hits.chunks.hits.total.value: 0 }  # Hits total drops to zero when you page off the end
-  - length: { hits.hits.0.inner_hits.chunks.hits.hits: 0 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 0 }  # Hits total drops to zero when you page off the end
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 0 }
 
 ---
 "Numeric query using a dense embedding model":

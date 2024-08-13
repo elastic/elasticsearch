@@ -87,24 +87,6 @@
               "ignore_malformed": true
             }
           }
-        },
-        {
-          "summary_gauge": {
-            "mapping": {
-              "type": "aggregate_metric_double",
-              "time_series_metric": "gauge",
-              "ignore_malformed": true
-            }
-          }
-        },
-        {
-          "summary_counter": {
-            "mapping": {
-              "type": "aggregate_metric_double",
-              "time_series_metric": "counter",
-              "ignore_malformed": true
-            }
-          }
         }
       ],
       "properties": {

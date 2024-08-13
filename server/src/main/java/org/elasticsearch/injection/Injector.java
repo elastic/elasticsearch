@@ -11,7 +11,6 @@ package org.elasticsearch.injection;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.injection.api.Inject;
 import org.elasticsearch.injection.exceptions.InjectionConfigurationException;
-import org.elasticsearch.injection.spec.AliasSpec;
 import org.elasticsearch.injection.spec.AmbiguousSpec;
 import org.elasticsearch.injection.spec.ExistingInstanceSpec;
 import org.elasticsearch.injection.spec.InjectionSpec;
@@ -26,7 +25,6 @@ import org.elasticsearch.logging.Logger;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collection;
@@ -272,15 +270,6 @@ public final class Injector {
             }
 
             registerSpec(spec, result);
-            aliasSuperinterfaces(c, c, result);
-            for (Class<?> superclass = c.getSuperclass(); superclass != Object.class; superclass = superclass.getSuperclass()) {
-                if (Modifier.isAbstract(superclass.getModifiers())) {
-                    registerSpec(new AliasSpec(superclass, c), result);
-                } else {
-                    LOGGER.trace("Not aliasing {} to concrete superclass {}", c.getSimpleName(), superclass.getSimpleName());
-                }
-                aliasSuperinterfaces(superclass, c, result);
-            }
         }
 
         if (LOGGER.isTraceEnabled()) {
@@ -339,20 +328,6 @@ public final class Injector {
         }
         LOGGER.trace("No suitable constructor for {}", type);
         return null;
-    }
-
-    /**
-     * When creating <code>specsByClass</code>, we compute a kind of "inheritance closure"
-     * in the sense that, for each class <code>C</code>, we not only add an entry for <code>C</code>,
-     * but we also add {@link AliasSpec} entries for all abstract supertypes.
-     * <p>
-     * This method is part of the recursion that achieves this.
-     */
-    private static void aliasSuperinterfaces(Class<?> classToScan, Class<?> classToAlias, Map<Class<?>, InjectionSpec> specsByClass) {
-        for (var i : classToScan.getInterfaces()) {
-            registerSpec(new AliasSpec(i, classToAlias), specsByClass);
-            aliasSuperinterfaces(i, classToAlias, specsByClass);
-        }
     }
 
     private static void registerSpec(InjectionSpec spec, Map<Class<?>, InjectionSpec> specsByClass) {

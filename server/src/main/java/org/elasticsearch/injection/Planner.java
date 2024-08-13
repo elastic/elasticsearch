@@ -9,14 +9,12 @@
 package org.elasticsearch.injection;
 
 import org.elasticsearch.injection.exceptions.InjectionConfigurationException;
-import org.elasticsearch.injection.spec.AliasSpec;
 import org.elasticsearch.injection.spec.AmbiguousSpec;
 import org.elasticsearch.injection.spec.ExistingInstanceSpec;
 import org.elasticsearch.injection.spec.InjectionSpec;
 import org.elasticsearch.injection.spec.MethodHandleSpec;
 import org.elasticsearch.injection.step.InjectionStep;
 import org.elasticsearch.injection.step.InstantiateStep;
-import org.elasticsearch.injection.step.RollUpStep;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -124,32 +122,11 @@ final class Planner {
                 planForClass(p.injectableType(), depth + 1);
             }
             addStep(new InstantiateStep(m), indent);
-        } else if (spec instanceof AliasSpec a) {
-            LOGGER.trace("{}- Recursing into subtype for {}", indent, a);
-            planForClass(a.subtype(), depth + 1);
-            if (allParameterTypes.contains(a.requestedType()) == false) {
-                // Could be an opportunity for optimization here.
-                // The _only_ reason we need these unused aliases is in case
-                // somebody asks for one directly from the injector; they are
-                // not needed otherwise.
-                // If we change the injector setup so the user must specify
-                // which types they'll pull directly, we could skip these.
-                LOGGER.trace("{}- Planning unused {}", indent, a);
-            }
-            addStep(new RollUpStep(a.requestedType(), a.subtype()), indent);
         } else if (spec instanceof ExistingInstanceSpec e) {
             LOGGER.trace("{}- Plan {}", indent, e);
             // Nothing to do. The injector will already have the required object.
         } else if (spec instanceof AmbiguousSpec a) {
-            if (requiredTypes.contains(a.requestedType())) {
-                throw new InjectionConfigurationException("Ambiguous injection spec for required type: " + a);
-            } else {
-                // Nobody could validly ask for an instance of an ambiguous class, so
-                // this must be a class we encountered as a List.
-                // Ensure we generate the necessary rollups to ensure the list has all the right objects.
-                LOGGER.trace("{}- Processing candidates for {}", indent, a.requestedType());
-                a.candidates().forEach(candidate -> planForSpec(candidate, depth + 1));
-            }
+            throw new InjectionConfigurationException("Ambiguous injection spec for required type: " + a);
         } else {
             throw new AssertionError("Unexpected injection spec: " + spec);
         }

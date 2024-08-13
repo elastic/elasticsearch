@@ -15,12 +15,10 @@ import org.elasticsearch.injection.spec.MethodHandleSpec;
 import org.elasticsearch.injection.spec.ParameterSpec;
 import org.elasticsearch.injection.step.InjectionStep;
 import org.elasticsearch.injection.step.InstantiateStep;
-import org.elasticsearch.injection.step.RollUpStep;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,11 +61,6 @@ final class PlanInterpreter {
                 LOGGER.trace("Instantiating {}", spec.requestedType().getSimpleName());
                 addInstance(spec.requestedType(), instantiate(spec));
                 numConstructorCalls.incrementAndGet();
-            } else if (step instanceof RollUpStep r) {
-                var requestedType = r.requestedType();
-                var subtype = r.subtype();
-                LOGGER.trace("Rolling up {} into {}", subtype.getSimpleName(), requestedType.getSimpleName());
-                addInstances(requestedType, instances.getOrDefault(subtype, emptyList()));
             } else {
                 // TODO: switch patterns would make this unnecessary
                 throw new InjectionExecutionException("Unexpected step type: " + step.getClass().getSimpleName());
@@ -94,8 +87,6 @@ final class PlanInterpreter {
 
     /**
      * @return The objects currently associated with <code>type</code>.
-     * Note that this is not <em>necessarily</em> all the instances of <code>type</code> that were ever instantiated,
-     * unless the appropriate {@link RollUpStep}s have run.
      * It can also include objects that we didn't instantiate, but were included in the <code>existingInstances</code>
      * passed in this object's constructor.
      */
@@ -105,10 +96,6 @@ final class PlanInterpreter {
 
     private void addInstance(Class<?> requestedType, Object instance) {
         instances.computeIfAbsent(requestedType, __ -> new ArrayList<>()).add(requestedType.cast(instance));
-    }
-
-    private void addInstances(Class<?> requestedType, Collection<?> c) {
-        instances.computeIfAbsent(requestedType, __ -> new ArrayList<>()).addAll(c);
     }
 
     /**

@@ -8,4 +8,4 @@
 
 package org.elasticsearch.injection.spec;
 
-public sealed interface UnambiguousSpec extends InjectionSpec permits SeedSpec, AliasSpec {}
+public sealed interface UnambiguousSpec extends InjectionSpec permits SeedSpec {}

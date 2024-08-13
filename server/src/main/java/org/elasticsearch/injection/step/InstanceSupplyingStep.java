@@ -12,7 +12,7 @@ package org.elasticsearch.injection.step;
  * An {@link InjectionStep} that causes an object to be available
  * for subsequent steps to look up by a particular requested type.
  */
-public sealed interface InstanceSupplyingStep extends InjectionStep permits InstantiateStep, RollUpStep {
+public sealed interface InstanceSupplyingStep extends InjectionStep permits InstantiateStep {
     /**
      * Subsequent steps can find the object by looking it up under this type.
      */

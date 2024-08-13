@@ -8,7 +8,6 @@
 
 package org.elasticsearch.injection;
 
-import org.elasticsearch.injection.api.Actual;
 import org.elasticsearch.injection.exceptions.InjectionConfigurationException;
 import org.elasticsearch.test.ESTestCase;
 
@@ -145,12 +144,6 @@ public class InjectorTests extends ESTestCase {
     public record BadService(List<Component1> components) {
         public BadService {
             // Shouldn't be using the component list here!
-            assert components.isEmpty() == false;
-        }
-    }
-
-    public record ActualService(@Actual List<Component1> components) {
-        public ActualService {
             assert components.isEmpty() == false;
         }
     }

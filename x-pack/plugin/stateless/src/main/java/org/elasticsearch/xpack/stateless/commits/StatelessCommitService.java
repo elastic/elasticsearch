@@ -20,8 +20,6 @@
 package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.Stateless;
-import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
@@ -172,12 +170,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final Supplier<String> ephemeralNodeIdSupplier;
     private final Function<ShardId, Optional<IndexShardRoutingTable>> shardRoutingFinder;
     private final ThreadPool threadPool;
+    private final StatelessCommitNotificationPublisher statelessCommitNotificationPublisher;
     // We don't do null checks when reading from this sub-map because we hold a commit reference while files are being uploaded. This will
     // prevent commit deletion in the interim.
     private final ConcurrentHashMap<ShardId, ShardCommitState> shardsCommitsStates = new ConcurrentHashMap<>();
     private final ConcurrentMap<ShardId, Consumer<Long>> commitNotificationSuccessListeners = new ConcurrentHashMap<>();
     private final StatelessCommitCleaner commitCleaner;
-    private final Client client;
 
     private final WaitForVersion waitForClusterStateVersion = new WaitForVersion();
 
@@ -236,7 +234,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.ephemeralNodeIdSupplier = ephemeralNodeIdSupplier;
         this.shardRoutingFinder = shardRouting;
         this.threadPool = threadPool;
-        this.client = client;
+        this.statelessCommitNotificationPublisher = new StatelessCommitNotificationPublisher(client);
         this.commitCleaner = commitCleaner;
         this.shardInactivityDuration = SHARD_INACTIVITY_DURATION_TIME_SETTING.get(settings);
         this.shardInactivityMonitorInterval = SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.get(settings);
@@ -471,18 +469,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // however, except for peer recovery, we can safely assume no search shards.
                 commitState.notifyCommitSuccessListeners(generation);
             } else {
-                final var request = new NewCommitNotificationRequest(
-                    shardRoutingTable.get(),
-                    virtualBcc.lastCompoundCommit(),
-                    virtualBcc.getPrimaryTermAndGeneration().generation(),
-                    commitState.getMaxUploadedBccTermAndGen(),
-                    clusterService.state().version(),
-                    clusterService.localNode().getId()
-                );
-                // Another thread may freeze, upload the current VBCC and update latestUploadedBcc concurrently.
-                // In that case, we skip the notification since it will be handled by the other thread.
-                if (request.isUploaded() == false) {
-                    commitState.sendNewCommitNotification(request);
+                // Fetch these values up front for consistent relative values: `virtualBcc` and `commitState` may be modified later in
+                // parallel with the network request handling.
+                var lastCompoundCommit = virtualBcc.lastCompoundCommit();
+                var batchedCompoundCommitGeneration = virtualBcc.getPrimaryTermAndGeneration().generation();
+                var maxUploadedBccTermAndGen = commitState.getMaxUploadedBccTermAndGen();
+
+                // A concurrent flush may have already uploaded this commit and sent out a notification. In that case, there is no need
+                // to send out another notification, and notification will be skipped here.
+                if (shouldNotifyOfCommit(maxUploadedBccTermAndGen, batchedCompoundCommitGeneration)) {
+                    commitState.sendNewCommitNotification(
+                        shardRoutingTable.get(),
+                        lastCompoundCommit,
+                        batchedCompoundCommitGeneration,
+                        maxUploadedBccTermAndGen
+                    );
                 }
             }
 
@@ -498,6 +499,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 IOUtils.closeWhileHandlingException(reference);
             }
         }
+    }
+
+    /**
+     * Checks whether the notification has already been sent for a shard. If the {@code maxUploadedBccTermAndGen} matches the shard's
+     * latest commit upload generation, then the commit has already been uploaded by a parallel thread and there is no need to resend a
+     * notification.
+     */
+    private boolean shouldNotifyOfCommit(PrimaryTermAndGeneration maxUploadedBccTermAndGen, long commitGeneration) {
+        return maxUploadedBccTermAndGen == null || maxUploadedBccTermAndGen.generation() != commitGeneration;
     }
 
     private void createAndRunCommitUpload(
@@ -1677,24 +1687,35 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
-        // TODO: merge this method with sendNewCommitNotification
-        private void sendNewCommitNotification(NewCommitNotificationRequest request) {
-            assert request.isUploaded() == false;
-            assert isRelocating() == false || request.getGeneration() <= maxGenerationToUpload
-                : "Request generation=" + request.getGeneration() + " maxGenerationToUpload=" + maxGenerationToUpload + " state=" + state;
+        private void sendNewCommitNotification(
+            IndexShardRoutingTable shardRoutingTable,
+            StatelessCompoundCommit lastCompoundCommit,
+            long batchedCompoundCommitGeneration,
+            PrimaryTermAndGeneration maxUploadedBccTermAndGen
+        ) {
+            assert isRelocating() == false || lastCompoundCommit.generation() <= maxGenerationToUpload
+                : "Request generation="
+                    + lastCompoundCommit.generation()
+                    + " maxGenerationToUpload="
+                    + maxGenerationToUpload
+                    + " state="
+                    + state;
+
             lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
-            client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
-                // Do NOT update uploadedGenerationNotified since it is used for file deleting tracking
-                // TODO: Process the response for old commits that are no-longer-in-use similar to how it is done on upload notification
-                notifyCommitSuccessListeners(request.getCompoundCommit().generation());
-            },
-                e -> logNotificationException(
-                    request.getCompoundCommit().generation(),
-                    request.getBatchedCompoundCommitGeneration(),
-                    "create",
-                    e
-                )
-            ));
+            statelessCommitNotificationPublisher.sendNewCommitNotification(
+                shardRoutingTable,
+                lastCompoundCommit,
+                batchedCompoundCommitGeneration,
+                maxUploadedBccTermAndGen,
+                clusterService.state().version(),
+                clusterService.localNode().getId(),
+                ActionListener.wrap(response -> {
+                    // Do NOT update uploadedGenerationNotified since it is used for file deleting tracking
+                    // TODO: Process the response for old commits that are no-longer-in-use similar to how it is done on upload
+                    // notification
+                    notifyCommitSuccessListeners(lastCompoundCommit.generation());
+                }, e -> logNotificationException(lastCompoundCommit.generation(), batchedCompoundCommitGeneration, "create", e))
+            );
         }
 
         private void notifyCommitSuccessListeners(long compoundCommitGeneration) {
@@ -1743,31 +1764,28 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             trackOutstandingUnpromotableShardCommitRef(nodesWithAssignedSearchShards.get(), blobReference);
             lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
 
-            NewCommitNotificationRequest request = new NewCommitNotificationRequest(
+            statelessCommitNotificationPublisher.sendNewUploadedCommitNotification(
                 shardRoutingTable.get(),
-                uploadedBcc.last(),
-                uploadedBcc.primaryTermAndGeneration().generation(),
-                uploadedBcc.primaryTermAndGeneration(),
+                uploadedBcc,
                 clusterService.state().version(),
-                clusterService.localNode().getId()
-            );
-            assert request.isUploaded();
-            client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
-                onNewUploadedCommitNotificationResponse(
-                    nodesWithAssignedSearchShards.get(),
-                    uploadedBcc.primaryTermAndGeneration().generation(),
-                    notificationCommitGeneration,
-                    notificationCommitBCCDependencies,
-                    response.getPrimaryTermAndGenerationsInUse()
-                );
-            },
-                e -> logNotificationException(
-                    notificationCommitGeneration,
-                    uploadedBcc.primaryTermAndGeneration().generation(),
-                    "upload",
-                    e
+                clusterService.localNode().getId(),
+                ActionListener.wrap(primaryTermAndGenerationsInUseResponse -> {
+                    onNewUploadedCommitNotificationResponse(
+                        nodesWithAssignedSearchShards.get(),
+                        uploadedBcc.primaryTermAndGeneration().generation(),
+                        notificationCommitGeneration,
+                        notificationCommitBCCDependencies,
+                        primaryTermAndGenerationsInUseResponse
+                    );
+                },
+                    e -> logNotificationException(
+                        notificationCommitGeneration,
+                        uploadedBcc.primaryTermAndGeneration().generation(),
+                        "upload",
+                        e
+                    )
                 )
-            ));
+            );
         }
 
         private void logNotificationException(long generation, long bccGeneration, String verb, Exception e) {

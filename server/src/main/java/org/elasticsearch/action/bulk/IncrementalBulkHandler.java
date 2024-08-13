@@ -49,7 +49,7 @@ public class IncrementalBulkHandler {
         }
 
         public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
-            if (failure != null) {
+            if (failure == null) {
                 // TODO: Memory accounting
                 bulkRequest.add(items);
                 releasables.add(releasable);

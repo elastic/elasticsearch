@@ -33,7 +33,7 @@ manual deployment and apply it to your data at ingestion time through
 Choose a model from your provider or use ELSER – a retrieval model trained by 
 Elastic –, then create an {infer} endpoint by the <<put-inference-api>>.
 Now use <<semantic-search-semantic-text, semantic text>> to perform
-<<emantic-search, semantic search>> on your data.
+<<semantic-search, semantic search>> on your data.
 
 include::delete-inference.asciidoc[]
 include::get-inference.asciidoc[]

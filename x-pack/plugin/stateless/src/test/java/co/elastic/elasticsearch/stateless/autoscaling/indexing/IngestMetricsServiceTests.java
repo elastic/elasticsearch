@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
 
@@ -76,7 +77,8 @@ public class IngestMetricsServiceTests extends ESTestCase {
                     MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
                     MemoryMetricsService.SHARD_MEMORY_OVERHEAD_SETTING
                 )
-            )
+            ),
+            ProjectType.ELASTICSEARCH_GENERAL_PURPOSE
         );
     }
 

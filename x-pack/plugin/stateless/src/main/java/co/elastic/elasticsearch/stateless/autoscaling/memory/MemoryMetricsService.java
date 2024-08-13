@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
+import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -80,6 +81,7 @@ public class MemoryMetricsService implements ClusterStateListener {
     private volatile int totalIndices;
 
     private final LongSupplier relativeTimeInNanosSupplier;
+    private final ProjectType projectType;
     private volatile TimeValue staleMetricsCheckDuration;
 
     private volatile long lastStaleMetricsCheckTimeNs = Long.MIN_VALUE;
@@ -87,8 +89,9 @@ public class MemoryMetricsService implements ClusterStateListener {
     // visible for testing
     volatile ByteSizeValue shardMemoryOverhead;
 
-    public MemoryMetricsService(LongSupplier relativeTimeInNanosSupplier, ClusterSettings clusterSettings) {
+    public MemoryMetricsService(LongSupplier relativeTimeInNanosSupplier, ClusterSettings clusterSettings, ProjectType projectType) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.projectType = projectType;
         clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_DURATION_SETTING, value -> staleMetricsCheckDuration = value);
         clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_INTERVAL_SETTING, value -> staleMetricsCheckInterval = value);
         clusterSettings.initializeAndWatch(SHARD_MEMORY_OVERHEAD_SETTING, value -> shardMemoryOverhead = value);
@@ -98,7 +101,7 @@ public class MemoryMetricsService implements ClusterStateListener {
         final var totalIndicesMappingSize = calculateTotalIndicesMappingSize();
 
         final long nodeMemoryInBytes = Math.min(
-            HeapToSystemMemory.dataNode(INDEX_MEMORY_OVERHEAD * totalIndices + WORKLOAD_MEMORY_OVERHEAD),
+            HeapToSystemMemory.dataNode(INDEX_MEMORY_OVERHEAD * totalIndices + WORKLOAD_MEMORY_OVERHEAD, projectType),
             MAX_NODE_MEMORY
         );
 
@@ -117,7 +120,8 @@ public class MemoryMetricsService implements ClusterStateListener {
         // https://github.com/elastic/elasticsearch-autoscaler/blob/72ac2692f900dc8fe5220b53b1ab20b88008ef7e/internal/autoscaler/
         // elasticsearch/autoscaling/recommender/search.go#L142
         final long tierMemoryInBytes = HeapToSystemMemory.tier(
-            totalIndicesMappingSize.sizeInBytes + shardMemoryOverhead.getBytes() * shardMemoryMetrics.size()
+            totalIndicesMappingSize.sizeInBytes + shardMemoryOverhead.getBytes() * shardMemoryMetrics.size(),
+            projectType
         );
 
         return new MemoryMetrics(nodeMemoryInBytes, tierMemoryInBytes, totalIndicesMappingSize.metricQuality);

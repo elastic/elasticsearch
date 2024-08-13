@@ -10,6 +10,7 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -202,7 +203,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                     BooleanSupplier supersedeIfStale,
                     ActionListener<Integer> listener
                 ) {
-                    threadPool.generic().execute(() -> ActionListener.completeWith(listener, () -> {
+                    threadPool.generic().execute(ActionRunnable.supply(listener, () -> {
                         ensureNotCancelled.run();
                         if (s.equals("FAIL")) {
                             throw new ElasticsearchException("simulated");

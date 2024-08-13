@@ -558,8 +558,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
 
         String error = EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("Invalid interval value in [?n2::time_duration], expected integer followed by one of " +
-            "[millisecond, milliseconds, ms, second, seconds, sec, s, minute, minutes, min, hour, hours, h] but got [3 days]"));
+        assertThat(
+            error,
+            containsString(
+                "Invalid interval value in [?n2::time_duration], expected integer followed by one of "
+                    + "[millisecond, milliseconds, ms, second, seconds, sec, s, minute, minutes, min, hour, hours, h] but got [3 days]"
+            )
+        );
 
         re = expectThrows(
             ResponseException.class,
@@ -569,8 +574,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             )
         );
         error = EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("Invalid interval value in [?n2::date_period], expected integer followed by one of " +
-            "[day, days, d, week, weeks, w, month, months, mo, quarter, quarters, q, year, years, yr, y] but got [3 hours]"));
+        assertThat(
+            error,
+            containsString(
+                "Invalid interval value in [?n2::date_period], expected integer followed by one of "
+                    + "[day, days, d, week, weeks, w, month, months, mo, quarter, quarters, q, year, years, yr, y] but got [3 hours]"
+            )
+        );
     }
 
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {

@@ -1,0 +1,5 @@
+pr: 111853
+summary: "[ES|QL] allow mixed numeric types as inputs to coalesce"
+area: ES|QL
+type: enhancement
+issues: []

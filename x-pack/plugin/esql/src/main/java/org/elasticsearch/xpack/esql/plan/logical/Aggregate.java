@@ -127,7 +127,7 @@ public class Aggregate extends UnaryPlan implements Stats {
     @Override
     public String commandName() {
         return switch (aggregateType) {
-            case STANDARD -> "FROM";
+            case STANDARD -> "STATS";
             case METRICS -> "METRICS";
         };
     }

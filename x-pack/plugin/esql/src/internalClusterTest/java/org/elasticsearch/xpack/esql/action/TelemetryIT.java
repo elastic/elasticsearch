@@ -75,9 +75,9 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                     .map(x -> x.attributes().get(PlanningMetrics.FEATURE_NAME))
                     .map(String.class::cast)
                     .collect(Collectors.toSet());
-                assertThat(featuresFound, is(Set.of("from", "eval", "stats", "keep")));
+                assertThat(featuresFound, is(Set.of("FROM", "EVAL", "STATS", "KEEP")));
                 for (Measurement metric : metrics) {
-                    if ("eval".equalsIgnoreCase((String) metric.attributes().get(PlanningMetrics.FEATURE_NAME))) {
+                    if ("EVAL".equalsIgnoreCase((String) metric.attributes().get(PlanningMetrics.FEATURE_NAME))) {
                         assertThat(metric.value(), is(2L));
                     } else {
                         assertThat(metric.value(), is(1L));
@@ -92,7 +92,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                     .map(x -> x.attributes().get(PlanningMetrics.FEATURE_NAME))
                     .map(String.class::cast)
                     .collect(Collectors.toSet());
-                assertThat(functionNames, is(Set.of("to_string", "to_ip", "count")));
+                assertThat(functionNames, is(Set.of("TO_STRING", "TO_IP", "COUNT")));
                 for (Measurement measurement : funcitonMeasurements) {
                     assertThat(measurement.value(), is(1L));
                 }

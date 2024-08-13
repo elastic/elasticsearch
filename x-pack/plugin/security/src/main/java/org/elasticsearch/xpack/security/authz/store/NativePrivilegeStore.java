@@ -211,25 +211,20 @@ public class NativePrivilegeStore {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
         final Consumer<Exception> maybeRetryOnShardNotAvailableFailure = ex -> {
             if (false == isShardNotAvailableException(ex)) {
-                logger.info("non-retryable exception encountered, won't retry privilege query request");
+                logger.trace("non-retryable exception encountered, won't retry privilege query request");
                 listener.onFailure(ex);
                 return;
             }
 
             if (false == backoff.hasNext()) {
-                logger.info("failed to query privileges after all retries");
+                logger.debug("failed to query privileges after all retries");
                 listener.onFailure(ex);
                 return;
             }
 
-            final TimeValue backoffTimeValue = backoff.next();
-            logger.debug("retrying privilege query request after [{}] back off", backoffTimeValue);
-            client.threadPool()
-                .schedule(
-                    () -> innerGetPrivilegesWithRetry(applications, backoff, listener),
-                    backoffTimeValue,
-                    client.threadPool().generic()
-                );
+            final TimeValue nextBackoffTime = backoff.next();
+            logger.trace("retrying privilege query request after [{}] backoff", nextBackoffTime);
+            safeScheduleRetry(() -> innerGetPrivilegesWithRetry(applications, backoff, listener), nextBackoffTime, listener::onFailure);
         };
 
         final SecurityIndexManager frozenSecurityIndex = securityIndexManager.defensiveCopy();
@@ -274,6 +269,15 @@ public class NativePrivilegeStore {
                     );
                 }
             });
+        }
+    }
+
+    private void safeScheduleRetry(Runnable task, TimeValue nextBackoffTime, Consumer<Exception> onScheduleFailure) {
+        try {
+            client.threadPool().schedule(task, nextBackoffTime, client.threadPool().generic());
+        } catch (Exception schedulingEx) {
+            logger.warn("encountered exception during retry scheduling", schedulingEx);
+            onScheduleFailure.accept(schedulingEx);
         }
     }
 

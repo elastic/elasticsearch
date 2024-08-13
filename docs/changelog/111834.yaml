@@ -1,0 +1,5 @@
+pr: 111834
+summary: Add inner hits support to semantic query - WIP
+area: "Vector Search, Relevance, Search"
+type: enhancement
+issues: []

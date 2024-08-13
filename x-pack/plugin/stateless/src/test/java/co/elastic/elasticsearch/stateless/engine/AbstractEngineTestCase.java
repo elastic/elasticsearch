@@ -352,12 +352,13 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             nodeEnvironment,
             indexSettings.getSettings(),
             threadPool,
+            SHARD_READ_THREAD_POOL,
             BlobCacheMetrics.NOOP,
             System::nanoTime
         );
         var directory = new SearchDirectory(
             cache,
-            new CacheBlobReaderService(indexSettings.getSettings(), cache, mock(Client.class), threadPool),
+            new CacheBlobReaderService(indexSettings.getSettings(), cache, mock(Client.class)),
             MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
             randomBoolean(),
             shardId
@@ -430,7 +431,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         );
         var directory = new SearchDirectory(
             sharedBlobCacheService,
-            new CacheBlobReaderService(indexSettings.getSettings(), sharedBlobCacheService, mock(Client.class), threadPool),
+            new CacheBlobReaderService(indexSettings.getSettings(), sharedBlobCacheService, mock(Client.class)),
             objectStoreUploadTracker,
             randomBoolean(),
             shardId

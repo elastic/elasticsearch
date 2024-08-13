@@ -25,11 +25,8 @@ import co.elastic.elasticsearch.stateless.autoscaling.search.SearchShardSizeColl
 import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizesPublisher;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
-import co.elastic.elasticsearch.stateless.cache.reader.MeteringCacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
@@ -58,7 +55,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -70,7 +66,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -325,28 +320,6 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         @Override
         protected IndexInput doOpenInput(String name, IOContext context, BlobLocation blobLocation) {
             return generationalFilesTracker.trackIfIsGenerationalFile(super.doOpenInput(name, context, blobLocation), name, blobLocation);
-        }
-
-        @Override
-        protected CacheBlobReader getCacheBlobReader(BlobLocation location) {
-            // Use the direct executor so we can use the thread name in testBackgroundMergeCanRetainDeletedGenerationalFile
-            return new MeteringCacheBlobReader(
-                new ObjectStoreCacheBlobReader(
-                    getBlobContainer(location.primaryTerm()),
-                    location.blobName(),
-                    getCacheService().getRangeSize(),
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE
-                ) {
-                    @Override
-                    public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
-                        ActionListener.run(listener, l -> {
-                            InputStream stream = getRangeInputStream(position, length);
-                            getCacheService().getShardReadThreadPoolExecutor().execute(ActionRunnable.supply(l, () -> stream));
-                        });
-                    }
-                },
-                totalBytesReadFromObjectStore::add
-            );
         }
 
         public GenerationalFilesTracker getGenerationalFilesTracker() {

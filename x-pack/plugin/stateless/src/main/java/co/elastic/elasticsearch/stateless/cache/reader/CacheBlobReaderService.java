@@ -30,9 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.concurrent.Executor;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
@@ -65,15 +63,13 @@ public class CacheBlobReaderService {
     private final StatelessSharedBlobCacheService cacheService;
     private final Client client;
     private final ByteSizeValue indexingShardCacheBlobReaderChunkSize;
-    private final ThreadPool threadPool;
 
     // TODO consider specializing the CacheBlobReaderService for the indexing node to always consider blobs as uploaded (ES-8248)
     // TODO refactor CacheBlobReaderService to keep track of shard's upload info itself (ES-8248)
-    public CacheBlobReaderService(Settings settings, StatelessSharedBlobCacheService cacheService, Client client, ThreadPool threadPool) {
+    public CacheBlobReaderService(Settings settings, StatelessSharedBlobCacheService cacheService, Client client) {
         this.cacheService = cacheService;
         this.client = client;
         this.indexingShardCacheBlobReaderChunkSize = TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(settings);
-        this.threadPool = threadPool;
     }
 
     /**
@@ -93,18 +89,12 @@ public class CacheBlobReaderService {
         BlobLocation location,
         MutableObjectStoreUploadTracker tracker,
         LongConsumer totalBytesReadFromObjectStore,
-        LongConsumer totalBytesReadFromIndexing,
-        Executor objectStoreFetchExecutor
+        LongConsumer totalBytesReadFromIndexing
     ) {
         final var locationPrimaryTermAndGeneration = location.getBatchedCompoundCommitTermAndGeneration();
         final long rangeSize = cacheService.getRangeSize();
         var objectStoreCacheBlobReader = new MeteringCacheBlobReader(
-            new ObjectStoreCacheBlobReader(
-                blobContainer.apply(location.primaryTerm()),
-                location.blobName(),
-                rangeSize,
-                objectStoreFetchExecutor
-            ),
+            new ObjectStoreCacheBlobReader(blobContainer.apply(location.primaryTerm()), location.blobName(), rangeSize),
             totalBytesReadFromObjectStore
         );
         var latestUploadInfo = tracker.getLatestUploadInfo(locationPrimaryTermAndGeneration);
@@ -117,8 +107,7 @@ public class CacheBlobReaderService {
                     locationPrimaryTermAndGeneration,
                     latestUploadInfo.preferredNodeId(),
                     client,
-                    indexingShardCacheBlobReaderChunkSize,
-                    threadPool
+                    indexingShardCacheBlobReaderChunkSize
                 ),
                 totalBytesReadFromIndexing
             );

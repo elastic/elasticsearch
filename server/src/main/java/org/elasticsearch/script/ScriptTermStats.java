@@ -59,10 +59,11 @@ public class ScriptTermStats {
      * @return the number of matched terms
      */
     public long matchedTermsCount() {
+        int docId = docIdSupplier.get();
+
         return terms.stream().filter(term -> {
             try {
                 PostingsEnum postingsEnum = termStatsReader.postings(term);
-                int docId = docIdSupplier.get();
                 return postingsEnum != null && postingsEnum.advance(docId) == docId && postingsEnum.freq() > 0;
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -109,11 +110,11 @@ public class ScriptTermStats {
      */
     public DoubleSummaryStatistics termFreq() {
         DoubleSummaryStatistics termFreqStatistics = new DoubleSummaryStatistics();
+        int docId = docIdSupplier.get();
 
         for (Term term : terms) {
             try {
                 PostingsEnum postingsEnum = termStatsReader.postings(term);
-                int docId = docIdSupplier.get();
                 if (postingsEnum == null || postingsEnum.advance(docId) != docId) {
                     termFreqStatistics.accept(0);
                 } else {
@@ -134,11 +135,11 @@ public class ScriptTermStats {
      */
     public DoubleSummaryStatistics termPositions() {
         DoubleSummaryStatistics termPositionsStatistics = new DoubleSummaryStatistics();
+        int docId = docIdSupplier.get();
 
         for (Term term : terms) {
             try {
                 PostingsEnum postingsEnum = termStatsReader.postings(term);
-                int docId = docIdSupplier.get();
                 if (postingsEnum == null || postingsEnum.advance(docId) != docId) {
                     continue;
                 }

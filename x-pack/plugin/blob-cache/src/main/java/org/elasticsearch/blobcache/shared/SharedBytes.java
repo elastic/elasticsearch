@@ -235,8 +235,10 @@ public class SharedBytes extends AbstractRefCounted {
             bytesCopied += copyBufferToCacheFileAligned(fc, fileChannelPos + bytesCopied, buffer);
             progressUpdater.accept(bytesCopied);
         }
-        long elapsedTimeNanos = System.nanoTime() - copyStartTime;
-        populationListener.onCachePopulation(bytesCopied, elapsedTimeNanos);
+        if (bytesCopied > 0) {
+            long elapsedTimeNanos = System.nanoTime() - copyStartTime;
+            populationListener.onCachePopulation(bytesCopied, elapsedTimeNanos);
+        }
         return bytesCopied;
     }
 

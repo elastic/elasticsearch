@@ -16,6 +16,8 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.template.YamlTemplateRegistry;
 
+import static org.elasticsearch.xpack.oteldata.OTelPlugin.OTEL_DATA_REGISTRY_ENABLED;
+
 public class OTelIndexTemplateRegistry extends YamlTemplateRegistry {
 
     public static final String OTEL_TEMPLATE_VERSION_VARIABLE = "xpack.oteldata.template.version";
@@ -29,6 +31,14 @@ public class OTelIndexTemplateRegistry extends YamlTemplateRegistry {
         FeatureService featureService
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService);
+    }
+
+    @Override
+    public void initialize() {
+        super.initialize();
+        if(isEnabled()){
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(OTEL_DATA_REGISTRY_ENABLED, this::setEnabled);
+        }
     }
 
     @Override

@@ -62,7 +62,6 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
         if (enabled) {
             OTelIndexTemplateRegistry registryInstance = registry.get();
             registryInstance.setEnabled(OTEL_DATA_REGISTRY_ENABLED.get(settings));
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(OTEL_DATA_REGISTRY_ENABLED, registryInstance::setEnabled);
             registryInstance.initialize();
         }
         return Collections.emptyList();

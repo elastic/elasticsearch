@@ -16,6 +16,8 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.template.YamlTemplateRegistry;
 
+import static org.elasticsearch.xpack.apmdata.APMPlugin.APM_DATA_REGISTRY_ENABLED;
+
 /**
  * Creates all index templates and ingest pipelines that are required for using Elastic APM.
  */
@@ -37,6 +39,14 @@ public class APMIndexTemplateRegistry extends YamlTemplateRegistry {
     @Override
     public String getName() {
         return "apm";
+    }
+
+    @Override
+    public void initialize() {
+        super.initialize();
+        if(isEnabled()){
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_DATA_REGISTRY_ENABLED, this::setEnabled);
+        }
     }
 
     @Override

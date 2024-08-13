@@ -907,13 +907,16 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             // no id returned from an async call, must have completed immediately and without keep_on_completion
             assertThat(requestObject.keepOnCompletion(), either(nullValue()).or(is(false)));
             assertThat((boolean) json.get("is_running"), is(false));
+            assertThat(response.getHeader("X-Async-Id"), nullValue());
+            assertThat(response.getHeader("X-Async-Is-Running"), is("false"));
             assertWarnings(response, expectedWarnings, expectedWarningsRegex);
             json.remove("is_running"); // remove this to not mess up later map assertions
             return Collections.unmodifiableMap(json);
         } else {
             // async may not return results immediately, so may need an async get
             assertThat(id, is(not(emptyOrNullString())));
-            if ((boolean) json.get("is_running") == false) {
+            boolean isRunning = (boolean) json.get("is_running");
+            if (isRunning == false) {
                 // must have completed immediately so keep_on_completion must be true
                 assertThat(requestObject.keepOnCompletion(), is(true));
                 assertWarnings(response, expectedWarnings, expectedWarningsRegex);
@@ -925,6 +928,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 assertThat(json.get("columns"), is(equalTo(List.<Map<String, String>>of()))); // no partial results
                 assertThat(json.get("pages"), nullValue());
             }
+            assertThat(response.getHeader("X-Async-Id"), is(id));
+            assertThat(response.getHeader("X-Async-Is-Running"), is(isRunning ? "true" : "false"));
             // issue a second request to "async get" the results
             Request getRequest = prepareAsyncGetRequest(id);
             getRequest.setOptions(options);

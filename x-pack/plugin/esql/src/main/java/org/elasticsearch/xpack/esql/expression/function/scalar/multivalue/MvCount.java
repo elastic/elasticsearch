@@ -46,6 +46,7 @@ public class MvCount extends AbstractMultivalueFunction {
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
                 "geo_shape",

@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
 import static org.elasticsearch.test.ESTestCase.indexSettings;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
@@ -78,7 +79,10 @@ public class DataStreamLifecycleDriver {
     }
 
     public static List<String> getBackingIndices(Client client, String dataStreamName) {
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamName }
+        );
         GetDataStreamAction.Response getDataStreamResponse = client.execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
         assertThat(getDataStreamResponse.getDataStreams().isEmpty(), is(false));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), is(dataStreamName));

@@ -8,4 +8,4 @@
 
 package org.elasticsearch.injection.step;
 
-public sealed interface InjectionStep permits InstanceSupplyingStep {}
+public sealed interface InjectionStep permits InstantiateStep {}

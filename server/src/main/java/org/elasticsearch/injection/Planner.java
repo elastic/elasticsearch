@@ -8,8 +8,6 @@
 
 package org.elasticsearch.injection;
 
-import org.elasticsearch.injection.exceptions.InjectionConfigurationException;
-import org.elasticsearch.injection.spec.AmbiguousSpec;
 import org.elasticsearch.injection.spec.ExistingInstanceSpec;
 import org.elasticsearch.injection.spec.InjectionSpec;
 import org.elasticsearch.injection.spec.MethodHandleSpec;
@@ -94,7 +92,7 @@ final class Planner {
     private void planForClass(Class<?> requestedClass, int depth) {
         InjectionSpec spec = specsByClass.get(requestedClass);
         if (spec == null) {
-            throw new InjectionConfigurationException("Cannot instantiate " + requestedClass);
+            throw new IllegalStateException("Cannot instantiate " + requestedClass + ": no specification provided");
         }
         planForSpec(spec, depth);
     }
@@ -115,7 +113,7 @@ final class Planner {
         logger.trace("{}Planning for {}", indent, spec);
         if (startedPlanning.add(spec) == false) {
             // TODO: Better cycle detection and reporting. Use SCCs
-            throw new InjectionConfigurationException("Cyclic dependency involving " + spec);
+            throw new IllegalStateException("Cyclic dependency involving " + spec);
         }
 
         if (spec instanceof MethodHandleSpec m) {
@@ -127,8 +125,6 @@ final class Planner {
         } else if (spec instanceof ExistingInstanceSpec e) {
             logger.trace("{}- Plan {}", indent, e);
             // Nothing to do. The injector will already have the required object.
-        } else if (spec instanceof AmbiguousSpec a) {
-            throw new InjectionConfigurationException("Ambiguous injection spec for required type: " + a);
         } else {
             throw new AssertionError("Unexpected injection spec: " + spec);
         }

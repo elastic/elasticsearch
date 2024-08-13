@@ -9,8 +9,6 @@
 package org.elasticsearch.injection;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.injection.exceptions.InjectionConfigurationException;
-import org.elasticsearch.injection.exceptions.InjectionExecutionException;
 import org.elasticsearch.injection.spec.MethodHandleSpec;
 import org.elasticsearch.injection.spec.ParameterSpec;
 import org.elasticsearch.injection.step.InjectionStep;
@@ -64,7 +62,8 @@ final class PlanInterpreter {
                 numConstructorCalls.incrementAndGet();
             } else {
                 // TODO: switch patterns would make this unnecessary
-                throw new InjectionExecutionException("Unexpected step type: " + step.getClass().getSimpleName());
+                assert false;
+                throw new IllegalStateException("Unexpected step type: " + step.getClass().getSimpleName());
             }
         });
         logger.debug("Instantiated {} objects", numConstructorCalls.get());
@@ -73,7 +72,7 @@ final class PlanInterpreter {
     /**
      * @return the list element corresponding to instances.get(type).get(0),
      * assuming that instances.get(type) has exactly one element.
-     * @throws InjectionExecutionException if instances.get(type) does not have exactly one element
+     * @throws IllegalStateException if instances.get(type) does not have exactly one element
      */
     public <T> T theOnlyInstance(Class<T> type) {
         List<Object> candidates = getInstances(type);
@@ -81,7 +80,7 @@ final class PlanInterpreter {
             return type.cast(candidates.get(0));
         }
 
-        throw new InjectionConfigurationException(
+        throw new IllegalStateException(
             "No unique object of type " + type.getSimpleName() + ": " + candidates.stream().map(x -> x.getClass().getSimpleName()).toList()
         );
     }
@@ -101,7 +100,6 @@ final class PlanInterpreter {
 
     /**
      * @throws IllegalStateException if the <code>MethodHandle</code> throws.
-     * This isn't a {@link InjectionExecutionException} because it's not an injector bug.
      */
     @SuppressForbidden(reason = "Can't call invokeExact because we don't know the method argument types statically")
     private Object instantiate(MethodHandleSpec spec) {

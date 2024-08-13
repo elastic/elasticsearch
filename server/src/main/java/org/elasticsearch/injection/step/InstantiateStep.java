@@ -14,9 +14,5 @@ import org.elasticsearch.injection.spec.MethodHandleSpec;
  * Constructs a new object by invoking a {@link java.lang.invoke.MethodHandle}
  * as specified by a given {@link MethodHandleSpec}.
  */
-public record InstantiateStep(MethodHandleSpec spec) implements InstanceSupplyingStep {
-    @Override
-    public Class<?> requestedType() {
-        return spec.requestedType();
-    }
+public record InstantiateStep(MethodHandleSpec spec) implements InjectionStep {
 }

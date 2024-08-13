@@ -8,7 +8,6 @@
 
 package org.elasticsearch.injection;
 
-import org.elasticsearch.injection.exceptions.InjectionConfigurationException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.invoke.MethodHandles;
@@ -82,7 +81,7 @@ public class InjectorTests extends ESTestCase {
     //
 
     public void testBadInterfaceClass() {
-        assertThrows(InjectionConfigurationException.class, () -> {
+        assertThrows(IllegalStateException.class, () -> {
             MethodHandles.lookup();
             Injector.create().addClass(Listener.class).inject();
         });
@@ -97,7 +96,7 @@ public class InjectorTests extends ESTestCase {
     }
 
     public void testBadCircularDependency() {
-        assertThrows(InjectionConfigurationException.class, () -> {
+        assertThrows(IllegalStateException.class, () -> {
             MethodHandles.lookup();
             Injector.create().addClasses(Circular1.class, Circular2.class).inject();
         });
@@ -109,7 +108,7 @@ public class InjectorTests extends ESTestCase {
      */
     public void testBadCircularDependencyViaParameter() {
         record UsesCircular1(Circular1 circular1) {}
-        assertThrows(InjectionConfigurationException.class, () -> {
+        assertThrows(IllegalStateException.class, () -> {
             MethodHandles.lookup();
             Injector.create().addClass(UsesCircular1.class).inject();
         });
@@ -119,7 +118,7 @@ public class InjectorTests extends ESTestCase {
         interface Service1 {}
         record Service2(Service1 service1) {}
         record Service3(Service2 service2) implements Service1 {}
-        assertThrows(InjectionConfigurationException.class, () -> {
+        assertThrows(IllegalStateException.class, () -> {
             MethodHandles.lookup();
             Injector.create().addClasses(Service2.class, Service3.class).inject();
         });

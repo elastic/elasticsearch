@@ -19,7 +19,7 @@ import java.util.Objects;
  * and no additional reflection logic is required to determine how the object should be injected.
  * Roughly speaking: all the reflection should be finished, and the results should be stored in this object.
  */
-public record MethodHandleSpec(Class<?> requestedType, MethodHandle methodHandle, List<ParameterSpec> parameters) implements SeedSpec {
+public record MethodHandleSpec(Class<?> requestedType, MethodHandle methodHandle, List<ParameterSpec> parameters) implements InjectionSpec {
     public MethodHandleSpec {
         assert Objects.equals(methodHandle.type().parameterList(), parameters.stream().map(ParameterSpec::formalType).toList())
             : "MethodHandle parameter types must match the supplied parameter info; "

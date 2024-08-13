@@ -10,14 +10,10 @@ package org.elasticsearch.injection;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.injection.api.Inject;
-import org.elasticsearch.injection.exceptions.InjectionConfigurationException;
-import org.elasticsearch.injection.spec.AmbiguousSpec;
 import org.elasticsearch.injection.spec.ExistingInstanceSpec;
 import org.elasticsearch.injection.spec.InjectionSpec;
 import org.elasticsearch.injection.spec.MethodHandleSpec;
 import org.elasticsearch.injection.spec.ParameterSpec;
-import org.elasticsearch.injection.spec.SeedSpec;
-import org.elasticsearch.injection.spec.UnambiguousSpec;
 import org.elasticsearch.injection.step.InjectionStep;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -55,9 +51,9 @@ public final class Injector {
     /**
      * The specifications supplied by the user, as opposed to those inferred by the injector.
      */
-    private final Map<Class<?>, SeedSpec> seedSpecs;
+    private final Map<Class<?>, InjectionSpec> seedSpecs;
 
-    Injector(Map<Class<?>, SeedSpec> seedSpecs) {
+    Injector(Map<Class<?>, InjectionSpec> seedSpecs) {
         this.seedSpecs = seedSpecs;
     }
 
@@ -162,7 +158,7 @@ public final class Injector {
                 Class<T> type = (Class<T>) c.getType();
                 addInstance(type, type.cast(lookup().unreflect(c.getAccessor()).invoke(r)));
             } catch (Throwable e) {
-                throw new InjectionConfigurationException("Unable to read record component " + c, e);
+                throw new IllegalStateException("Unable to read record component " + c, e);
             }
         }
         return this;
@@ -224,7 +220,7 @@ public final class Injector {
      * @param seedMap the injections the user explicitly asked for
      * @return an {@link InjectionSpec} for every class the injector is capable of injecting.
      */
-    private static Map<Class<?>, InjectionSpec> specClosure(Map<Class<?>, SeedSpec> seedMap) {
+    private static Map<Class<?>, InjectionSpec> specClosure(Map<Class<?>, InjectionSpec> seedMap) {
         assertSeedMapIsValid(seedMap);
 
         // For convenience, we pretend there's a gigantic method out there that takes
@@ -247,7 +243,7 @@ public final class Injector {
                 continue;
             }
 
-            SeedSpec spec = seedMap.get(c);
+            InjectionSpec spec = seedMap.get(c);
             if (spec instanceof ExistingInstanceSpec) {
                 // simple!
                 result.put(c, spec);
@@ -279,7 +275,6 @@ public final class Injector {
                 "Specs: {}",
                 result.values()
                     .stream()
-                    .filter(s -> s instanceof UnambiguousSpec)
                     .map(Object::toString)
                     .collect(joining("\n\t", "\n\t", ""))
             );
@@ -290,14 +285,14 @@ public final class Injector {
     private static MethodHandleSpec methodHandleSpecFor(Class<?> c) {
         Constructor<?> constructor = getSuitableConstructorIfAny(c);
         if (constructor == null) {
-            throw new InjectionConfigurationException("No suitable constructor for " + c);
+            throw new IllegalStateException("No suitable constructor for " + c);
         }
 
         MethodHandle ctorHandle;
         try {
             ctorHandle = lookup().unreflectConstructor(constructor);
         } catch (IllegalAccessException e) {
-            throw new InjectionConfigurationException(e);
+            throw new IllegalStateException(e);
         }
 
         List<ParameterSpec> parameters = Stream.of(constructor.getParameters()).map(ParameterSpec::from).toList();
@@ -305,7 +300,7 @@ public final class Injector {
         return new MethodHandleSpec(c, ctorHandle, parameters);
     }
 
-    private static void assertSeedMapIsValid(Map<Class<?>, SeedSpec> seed) {
+    private static void assertSeedMapIsValid(Map<Class<?>, InjectionSpec> seed) {
         seed.forEach(
             (c, s) -> { assert s.requestedType().equals(c) : "Spec must be associated with its requestedType, not " + c + ": " + s; }
         );
@@ -338,9 +333,7 @@ public final class Injector {
         if (existing == null || existing.equals(spec)) {
             logger.trace("Register spec: {}", spec);
         } else {
-            AmbiguousSpec ambiguousSpec = new AmbiguousSpec(requestedType, spec, existing);
-            logger.trace("Ambiguity discovered for {}", requestedType);
-            specsByClass.put(requestedType, ambiguousSpec);
+            throw new IllegalStateException("Ambiguous specifications for " + requestedType + ": " + existing + " and " + spec);
         }
     }
 

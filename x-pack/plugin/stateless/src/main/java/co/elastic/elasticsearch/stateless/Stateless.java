@@ -20,6 +20,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
+import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.allocation.StatelessAllocationDecider;
@@ -529,7 +530,13 @@ public class Stateless extends Plugin
             services.telemetryProvider().getMeterRegistry()
         );
         components.add(vbccChunksPressure);
-        var memoryMetricsService = new MemoryMetricsService(threadPool::relativeTimeInNanos, clusterService.getClusterSettings());
+
+        ProjectType projectType = ServerlessSharedSettings.PROJECT_TYPE.get(settings);
+        var memoryMetricsService = new MemoryMetricsService(
+            threadPool::relativeTimeInNanos,
+            clusterService.getClusterSettings(),
+            projectType
+        );
         clusterService.addListener(memoryMetricsService);
         components.add(memoryMetricsService);
 

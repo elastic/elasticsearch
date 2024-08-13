@@ -181,7 +181,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertFalse(processor.isIgnoreMissing());
     }
 
-    public void testBuildWithCountryDbAndAsnFields() throws Exception {
+    public void testBuildWithCountryDbAndAsnFields() {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -201,7 +201,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         );
     }
 
-    public void testBuildWithAsnDbAndCityFields() throws Exception {
+    public void testBuildWithAsnDbAndCityFields() {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -267,7 +267,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertFalse(processor.isIgnoreMissing());
     }
 
-    public void testBuildIllegalFieldOption() throws Exception {
+    public void testBuildIllegalFieldOption() {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
 
         Map<String, Object> config1 = new HashMap<>();
@@ -577,7 +577,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         }
     }
 
-    static void cleanDatabaseFiles(final Path path, ConfigDatabases configDatabases) throws IOException {
+    static void cleanDatabaseFiles(final Path path, ConfigDatabases configDatabases) {
         for (final String databaseFilename : DEFAULT_DATABASES) {
             configDatabases.updateDatabase(path.resolve(databaseFilename), false);
         }

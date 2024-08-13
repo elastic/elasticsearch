@@ -1285,7 +1285,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             QueryBuilder rewrittenForInnerHits = Rewriteable.rewrite(query, innerHitsRewriteContext, true);
             InnerHitContextBuilder.extractInnerHits(rewrittenForInnerHits, innerHitBuilders);
             searchExecutionContext.setAliasFilter(context.request().getAliasFilter().getQueryBuilder());
-            searchExecutionContext.explain(context.explain());
             context.parsedQuery(searchExecutionContext.toQuery(query));
         }
         if (source.postFilter() != null) {

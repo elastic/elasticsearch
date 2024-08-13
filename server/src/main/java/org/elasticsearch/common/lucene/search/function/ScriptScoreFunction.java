@@ -22,8 +22,6 @@ import java.util.Objects;
 
 public class ScriptScoreFunction extends ScoreFunction {
 
-    private static final ScoreScript.ExplanationHolder DUMMY_EXPLAIN_HOLDER = new ScoreScript.ExplanationHolder();
-
     static final class CannedScorer extends Scorable {
         protected int docid;
         protected float score;
@@ -47,23 +45,13 @@ public class ScriptScoreFunction extends ScoreFunction {
     private final int shardId;
     private final String indexName;
 
-    private final boolean explain;
-
-    public ScriptScoreFunction(
-        Script sScript,
-        ScoreScript.LeafFactory script,
-        SearchLookup lookup,
-        String indexName,
-        int shardId,
-        boolean explain
-    ) {
+    public ScriptScoreFunction(Script sScript, ScoreScript.LeafFactory script, SearchLookup lookup, String indexName, int shardId) {
         super(CombineFunction.REPLACE);
         this.sScript = sScript;
         this.script = script;
         this.lookup = lookup;
         this.indexName = indexName;
         this.shardId = shardId;
-        this.explain = explain;
     }
 
     @Override
@@ -74,24 +62,12 @@ public class ScriptScoreFunction extends ScoreFunction {
         leafScript._setIndexName(indexName);
         leafScript._setShard(shardId);
         return new LeafScoreFunction() {
-            private String customExplanation = null;
 
-            @Override
-            public double score(int docId, float subQueryScore) throws IOException {
+            public double score(int docId, float subQueryScore, ScoreScript.ExplanationHolder holder) throws IOException {
                 leafScript.setDocument(docId);
                 scorer.docid = docId;
                 scorer.score = subQueryScore;
-                double result;
-                if (explain) {
-                    ScoreScript.ExplanationHolder explanationHolder = new ScoreScript.ExplanationHolder();
-                    result = leafScript.execute(explanationHolder);
-                    Explanation explanation = explanationHolder.get(0.0f, null);
-                    if (explanation != null) {
-                        customExplanation = explanation.getDescription();
-                    }
-                } else {
-                    result = leafScript.execute(DUMMY_EXPLAIN_HOLDER);
-                }
+                double result = leafScript.execute(holder);
 
                 if (result < 0f) {
                     throw new IllegalArgumentException("script score function must not produce negative scores, but got: [" + result + "]");
@@ -100,19 +76,23 @@ public class ScriptScoreFunction extends ScoreFunction {
             }
 
             @Override
+            public double score(int docId, float subQueryScore) throws IOException {
+                return score(docId, subQueryScore, null);
+            }
+
+            @Override
             public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 Explanation exp;
                 if (leafScript instanceof ExplainableScoreScript) {
-                    leafScript.setDocument(docId);
-                    scorer.docid = docId;
-                    scorer.score = subQueryScore.getValue().floatValue();
                     exp = ((ExplainableScoreScript) leafScript).explain(subQueryScore);
                 } else {
-                    double score = score(docId, subQueryScore.getValue().floatValue());
+                    ScoreScript.ExplanationHolder holder = new ScoreScript.ExplanationHolder();
+                    double score = score(docId, subQueryScore.getValue().floatValue(), holder);
                     // info about params already included in sScript
                     Explanation scoreExp = Explanation.match(subQueryScore.getValue(), "_score: ", subQueryScore);
+                    Explanation customExplanation = holder.get(score, null);
                     if (customExplanation != null) {
-                        return Explanation.match((float) score, customExplanation, scoreExp);
+                        return Explanation.match((float) score, customExplanation.getDescription(), scoreExp);
                     } else {
                         String explanation = "script score function, computed with script:\"" + sScript + "\"";
                         return Explanation.match((float) score, explanation, scoreExp);

@@ -140,7 +140,9 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                         public double execute(
                             ExplanationHolder explanation
                         ) {
-                            explanation.set("An example optional custom description to explain details for this script's execution; we'll provide a default one if you leave this out.");
+                            if(explanation != null) {
+                                explanation.set("An example optional custom description to explain details for this script's execution; we'll provide a default one if you leave this out.");
+                            }
                             return 0.0d;
                         }
                     };
@@ -164,7 +166,9 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                     }
                     @Override
                     public double execute(ExplanationHolder explanation) {
-                        explanation.set("An example optional custom description to explain details for this script's execution; we'll provide a default one if you leave this out.");
+                        if(explanation != null) {
+                            explanation.set("An example optional custom description to explain details for this script's execution; we'll provide a default one if you leave this out.");
+                        }
                         if (postings.docID() != currentDocid) {
                             /*
                              * advance moved past the current doc, so this

@@ -53,7 +53,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         AutoCreateIndex autoCreateIndex,
         Client client,
         TransportService transportService,
-        ReindexSslConfig sslConfig
+        ReindexSslConfig sslConfig,
+        ReindexMetrics reindexMetrics
     ) {
         this(
             ReindexAction.NAME,
@@ -66,7 +67,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             autoCreateIndex,
             client,
             transportService,
-            sslConfig
+            sslConfig,
+            reindexMetrics
         );
     }
 
@@ -81,12 +83,13 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         AutoCreateIndex autoCreateIndex,
         Client client,
         TransportService transportService,
-        ReindexSslConfig sslConfig
+        ReindexSslConfig sslConfig,
+        ReindexMetrics reindexMetrics
     ) {
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
-        this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig);
+        this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig, reindexMetrics);
     }
 
     @Override

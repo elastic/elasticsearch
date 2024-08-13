@@ -34,7 +34,6 @@ import org.elasticsearch.tasks.Task;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -85,9 +84,15 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        final Collection<Object> components = new ArrayList<>();
+        components.add(new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService()));
+        components.add(new ReindexMetrics(services.telemetryProvider().getMeterRegistry()));
+        return (components);
+        /*
         return Collections.singletonList(
             new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService())
         );
+         */
     }
 
     @Override

@@ -65,6 +65,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
@@ -82,19 +83,22 @@ public class Reindexer {
     private final ThreadPool threadPool;
     private final ScriptService scriptService;
     private final ReindexSslConfig reindexSslConfig;
+    private final ReindexMetrics reindexMetrics;
 
     Reindexer(
         ClusterService clusterService,
         Client client,
         ThreadPool threadPool,
         ScriptService scriptService,
-        ReindexSslConfig reindexSslConfig
+        ReindexSslConfig reindexSslConfig,
+        ReindexMetrics reindexMetrics
     ) {
         this.clusterService = clusterService;
         this.client = client;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
         this.reindexSslConfig = reindexSslConfig;
+        this.reindexMetrics = reindexMetrics;
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -102,6 +106,8 @@ public class Reindexer {
     }
 
     public void execute(BulkByScrollTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
+        long startTime = System.nanoTime();
+
         BulkByScrollParallelizationHelper.executeSlicedAction(
             task,
             request,
@@ -122,7 +128,10 @@ public class Reindexer {
                     clusterService.state(),
                     reindexSslConfig,
                     request,
-                    listener
+                    ActionListener.runAfter(listener, () -> {
+                        long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
+                        reindexMetrics.recordTookTime(elapsedTime);
+                    })
                 );
                 searchAction.start();
             }

@@ -339,7 +339,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
               "semantic": {
                 "field": "foo",
                 "query": "bar",
-                "inner_chunks": {
+                "chunks": {
                   "from": 1,
                   "size": 2
                 }

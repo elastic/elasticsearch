@@ -56,7 +56,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField QUERY_FIELD = new ParseField("query");
-    private static final ParseField INNER_CHUNKS_FIELD = new ParseField("inner_chunks");
+    private static final ParseField CHUNKS_FIELD = new ParseField("chunks");
 
     private static final ConstructingObjectParser<SemanticQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -67,7 +67,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         PARSER.declareString(constructorArg(), QUERY_FIELD);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> InnerChunkBuilder.fromXContent(p), INNER_CHUNKS_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> InnerChunkBuilder.fromXContent(p), CHUNKS_FIELD);
         declareStandardFields(PARSER);
     }
 
@@ -169,7 +169,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         builder.field(FIELD_FIELD.getPreferredName(), fieldName);
         builder.field(QUERY_FIELD.getPreferredName(), query);
         if (innerChunkBuilder != null) {
-            builder.field(INNER_CHUNKS_FIELD.getPreferredName(), innerChunkBuilder);
+            builder.field(CHUNKS_FIELD.getPreferredName(), innerChunkBuilder);
         }
         boostAndQueryNameToXContent(builder);
         builder.endObject();

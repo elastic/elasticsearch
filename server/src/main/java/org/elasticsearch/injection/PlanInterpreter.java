@@ -16,13 +16,10 @@ import org.elasticsearch.injection.step.InstantiateStep;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static java.util.Collections.emptyList;
 
 /**
  * Performs the actual injection operations by running the {@link InjectionStep}s.
@@ -35,7 +32,7 @@ import static java.util.Collections.emptyList;
  *
  * <p>
  * <strong>Execution model</strong>:
- * The state of the injector during injection comprises a map from classes to lists of objects.
+ * The state of the injector during injection comprises a map from classes to objects.
  * Before any steps execute, the map is pre-populated by object instances added via
  * {@link Injector#addInstance(Class, Object) Injector.addInstance},
  * and then the steps begin to execute, reading and writing from this map.
@@ -43,7 +40,7 @@ import static java.util.Collections.emptyList;
  */
 final class PlanInterpreter {
     private static final Logger logger = LogManager.getLogger(PlanInterpreter.class);
-    private final Map<Class<?>, List<Object>> instances = new LinkedHashMap<>();
+    private final Map<Class<?>, Object> instances = new LinkedHashMap<>();
 
     PlanInterpreter(Map<Class<?>, Object> existingInstances) {
         existingInstances.forEach(this::addInstance);
@@ -62,7 +59,7 @@ final class PlanInterpreter {
                 numConstructorCalls.incrementAndGet();
             } else {
                 // TODO: switch patterns would make this unnecessary
-                assert false;
+                assert false: "Unexpected step type: " + step.getClass().getSimpleName();
                 throw new IllegalStateException("Unexpected step type: " + step.getClass().getSimpleName());
             }
         });
@@ -74,28 +71,19 @@ final class PlanInterpreter {
      * assuming that instances.get(type) has exactly one element.
      * @throws IllegalStateException if instances.get(type) does not have exactly one element
      */
-    public <T> T theOnlyInstance(Class<T> type) {
-        List<Object> candidates = getInstances(type);
-        if (candidates.size() == 1) {
-            return type.cast(candidates.get(0));
+    public <T> T theInstanceOf(Class<T> type) {
+        Object instance = instances.get(type);
+        if (instance == null) {
+            throw new IllegalStateException("No object of type " + type.getSimpleName());
         }
-
-        throw new IllegalStateException(
-            "No unique object of type " + type.getSimpleName() + ": " + candidates.stream().map(x -> x.getClass().getSimpleName()).toList()
-        );
-    }
-
-    /**
-     * @return The objects currently associated with <code>type</code>.
-     * It can also include objects that we didn't instantiate, but were included in the <code>existingInstances</code>
-     * passed in this object's constructor.
-     */
-    public <T> List<Object> getInstances(Class<T> type) {
-        return instances.getOrDefault(type, emptyList());
+        return type.cast(instance);
     }
 
     private void addInstance(Class<?> requestedType, Object instance) {
-        instances.computeIfAbsent(requestedType, __ -> new ArrayList<>()).add(requestedType.cast(instance));
+        Object old = instances.put(requestedType, instance);
+        if (old != null) {
+            throw new IllegalStateException("Multiple objects for " + requestedType);
+        }
     }
 
     /**
@@ -112,7 +100,7 @@ final class PlanInterpreter {
     }
 
     private Object parameterValue(ParameterSpec parameterSpec) {
-        return theOnlyInstance(parameterSpec.formalType());
+        return theInstanceOf(parameterSpec.formalType());
     }
 
 }

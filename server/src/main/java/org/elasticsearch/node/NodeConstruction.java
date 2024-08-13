@@ -864,7 +864,7 @@ class NodeConstruction {
                 var resultMap = injector.inject(classes);
                 // For now, assume we want all components added to the Guice injector
                 var distinctObjects = newSetFromMap(new IdentityHashMap<>());
-                resultMap.values().forEach(distinctObjects::addAll);
+                distinctObjects.addAll(resultMap.values());
                 componentsFromInjector = distinctObjects;
             }
 

@@ -8,7 +8,6 @@
 
 /**
  * Our dependency injection technologies: our bespoke injector, plus our legacy vendored version of Google Guice.
- * <p>
  * <h2>Usage</h2>
  * The new injector is {@link org.elasticsearch.injection.Injector}.
  * You create an instance using {@link org.elasticsearch.injection.Injector#create()},

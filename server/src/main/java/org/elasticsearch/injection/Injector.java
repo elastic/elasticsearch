@@ -174,17 +174,17 @@ public final class Injector {
      */
     public <T> T inject(Class<T> resultType) {
         ensureClassIsSpecified(resultType);
-        return doInjection().theOnlyInstance(resultType);
+        return doInjection().theInstanceOf(resultType);
     }
 
     /**
      * Like {@link #inject(Class)} but can return multiple result objects
      * @return {@link Map} whose keys are all the requested <code>resultTypes</code> and whose values are all the instances of those types.
      */
-    public Map<Class<?>, List<?>> inject(Collection<? extends Class<?>> resultTypes) {
+    public Map<Class<?>, Object> inject(Collection<? extends Class<?>> resultTypes) {
         resultTypes.forEach(this::ensureClassIsSpecified);
         PlanInterpreter i = doInjection();
-        return resultTypes.stream().collect(toMap(c -> c, i::getInstances));
+        return resultTypes.stream().collect(toMap(c -> c, i::theInstanceOf));
     }
 
     private <T> void ensureClassIsSpecified(Class<T> resultType) {

@@ -37,10 +37,8 @@ public class InjectorTests extends ESTestCase {
         Injector injector = Injector.create().addClasses(Service1.class, Component3.class);
         var resultMap = injector.inject(List.of(Service1.class, Component3.class));
         assertEquals(Set.of(Service1.class, Component3.class), resultMap.keySet());
-        assertEquals(1, resultMap.get(Service1.class).size());
-        assertEquals(1, resultMap.get(Component3.class).size());
-        Service1 service1 = (Service1) resultMap.get(Service1.class).get(0);
-        Component3 component3 = (Component3) resultMap.get(Component3.class).get(0);
+        Service1 service1 = (Service1) resultMap.get(Service1.class);
+        Component3 component3 = (Component3) resultMap.get(Component3.class);
         assertSame(service1, component3.service1());
     }
 
@@ -49,7 +47,7 @@ public class InjectorTests extends ESTestCase {
      * However, if a concrete (non-abstract) superclass is configured directly, that is not ambiguous:
      * the instance of that superclass takes precedence over any instances of any subclasses.
      */
-    public void testOverrideAlias() {
+    public void testConcreteSubclass() {
         MethodHandles.lookup();
         assertEquals(
             Superclass.class,

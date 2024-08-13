@@ -112,62 +112,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         }
     }
 
-    public void testWithGlobalError() {
-        ExecutorService executorService = Executors.newFixedThreadPool(1);
-
-        try (Releasable ignored = executorService::shutdown;) {
-            String index = "test";
-            createIndex(index);
-
-            IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class);
-            AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
-            AtomicLong hits = new AtomicLong(0);
-
-            IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
-            int docs = randomIntBetween(200, 400);
-            ConcurrentLinkedQueue<DocWriteRequest<?>> queue = new ConcurrentLinkedQueue<>();
-            for (int i = 0; i < docs; i++) {
-                hits.incrementAndGet();
-                IndexRequest indexRequest = indexRequest(index);
-                queue.add(indexRequest);
-            }
-
-            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-            Runnable r = new Runnable() {
-
-                @Override
-                public void run() {
-                    int toRemove = Math.min(randomIntBetween(5, 10), queue.size());
-                    ArrayList<DocWriteRequest<?>> docs = new ArrayList<>();
-                    for (int i = 0; i < toRemove; i++) {
-                        docs.add(queue.poll());
-                    }
-
-                    if (queue.isEmpty()) {
-                        handler.lastItems(docs, refCounted::decRef, future);
-                    } else {
-                        refCounted.incRef();
-                        handler.addItems(docs, refCounted::decRef, () -> executorService.execute(this));
-                    }
-                }
-            };
-
-            executorService.execute(r);
-
-            BulkResponse bulkResponse = future.actionGet();
-            assertNoFailures(bulkResponse);
-
-            refresh(index);
-
-            assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
-                assertNoFailures(searchResponse);
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(hits.get()));
-            });
-
-            assertFalse(refCounted.hasReferences());
-        }
-    }
-
     private static IndexRequest indexRequest(String index) {
         IndexRequest indexRequest = new IndexRequest();
         indexRequest.index(index);

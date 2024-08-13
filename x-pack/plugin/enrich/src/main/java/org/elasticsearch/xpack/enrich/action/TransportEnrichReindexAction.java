@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.injection.guice.Inject;
@@ -50,7 +51,7 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
         TransportService transportService,
         Environment environment,
         ResourceWatcherService watcherService,
-        ReindexMetrics reindexMetrics
+        @Nullable ReindexMetrics reindexMetrics
     ) {
         super(
             EnrichReindexAction.NAME,
@@ -64,7 +65,7 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
             client,
             transportService,
             new ReindexSslConfig(settings, environment, watcherService),
-            reindexMetrics
+            null
         );
         this.bulkClient = new OriginSettingClient(client, ENRICH_ORIGIN);
     }

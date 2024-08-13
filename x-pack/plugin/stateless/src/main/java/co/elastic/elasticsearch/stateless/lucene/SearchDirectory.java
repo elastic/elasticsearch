@@ -19,7 +19,6 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
-import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
@@ -40,7 +39,6 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
@@ -48,7 +46,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -301,22 +298,19 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             blobLocation,
             objectStoreUploadTracker,
             totalBytesReadFromObjectStore::add,
-            totalBytesReadFromIndexing::add,
-            cacheService.getShardReadThreadPoolExecutor()
+            totalBytesReadFromIndexing::add
         );
     }
 
     @Override
     public CacheBlobReader getCacheBlobReaderForWarming(BlobLocation blobLocation) {
-        assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL, ThreadPool.Names.GENERIC);
         return cacheBlobReaderService.getCacheBlobReader(
             shardId,
             this::getBlobContainer,
             blobLocation,
             objectStoreUploadTracker,
             totalBytesWarmedFromObjectStore::add,
-            totalBytesWarmedFromIndexing::add,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            totalBytesWarmedFromIndexing::add
         );
     }
 
@@ -359,40 +353,36 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 cacheService.maybeFetchFullEntry(
                     key,
                     blobLength,
-                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> ActionListener
-                        .completeWith(completionListener, () -> {
-                            assert streamFactory == null : streamFactory;
-                            final ByteRange rangeToWrite = BlobCacheUtils.computeRange(
-                                cacheService.getRangeSize(),
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
+                        assert streamFactory == null : streamFactory;
+                        final ByteRange rangeToWrite = BlobCacheUtils.computeRange(
+                            cacheService.getRangeSize(),
+                            relativePos,
+                            length,
+                            blobLength
+                        );
+                        final long streamStartPosition = rangeToWrite.start() + relativePos;
+                        try (InputStream in = container.readBlob(OperationPurpose.INDICES, key.fileName(), streamStartPosition, length)) {
+                            // assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+                            logger.trace(
+                                "{}: writing channel {} pos {} length {} (details: {})",
+                                key.fileName(),
+                                channelPos,
                                 relativePos,
                                 length,
-                                blobLength
+                                key
                             );
-                            final long streamStartPosition = rangeToWrite.start() + relativePos;
-                            try (
-                                InputStream in = container.readBlob(OperationPurpose.INDICES, key.fileName(), streamStartPosition, length)
-                            ) {
-                                // assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
-                                logger.trace(
-                                    "{}: writing channel {} pos {} length {} (details: {})",
-                                    key.fileName(),
-                                    channelPos,
-                                    relativePos,
-                                    length,
-                                    key
-                                );
-                                SharedBytes.copyToCacheFileAligned(
-                                    channel,
-                                    in,
-                                    channelPos,
-                                    relativePos,
-                                    length,
-                                    progressUpdater,
-                                    writeBuffer.get().clear()
-                                );
-                                return null;
-                            }
-                        }),
+                            SharedBytes.copyToCacheFileAligned(
+                                channel,
+                                in,
+                                channelPos,
+                                relativePos,
+                                length,
+                                progressUpdater,
+                                writeBuffer.get().clear()
+                            );
+                        }
+                    },
                     fetchExecutor,
                     refCountingListener.acquire()
                 );

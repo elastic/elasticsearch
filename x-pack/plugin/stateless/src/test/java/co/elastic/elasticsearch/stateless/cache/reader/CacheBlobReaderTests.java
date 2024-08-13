@@ -59,7 +59,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -73,7 +72,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -231,7 +229,7 @@ public class CacheBlobReaderTests extends ESTestCase {
         @Override
         protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
             var originalCacheBlobReaderService = super.createCacheBlobReaderService(cacheService);
-            return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+            return new CacheBlobReaderService(nodeSettings, cacheService, client) {
                 @Override
                 public CacheBlobReader getCacheBlobReader(
                     ShardId shardId,
@@ -239,8 +237,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                     BlobLocation location,
                     MutableObjectStoreUploadTracker objectStoreUploadTracker,
                     LongConsumer totalBytesReadFromObjectStore,
-                    LongConsumer totalBytesReadFromIndexing,
-                    Executor objectStoreFetchExecutor
+                    LongConsumer totalBytesReadFromIndexing
                 ) {
                     var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                         shardId,
@@ -248,16 +245,14 @@ public class CacheBlobReaderTests extends ESTestCase {
                         location,
                         objectStoreUploadTracker,
                         totalBytesReadFromObjectStore,
-                        totalBytesReadFromIndexing,
-                        objectStoreFetchExecutor
+                        totalBytesReadFromIndexing
                     );
                     var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
                         shardId,
                         location.getBatchedCompoundCommitTermAndGeneration(),
                         clusterService.localNode().getId(),
                         client,
-                        TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings),
-                        threadPool
+                        TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings)
                     ) {
                         @Override
                         public void getVirtualBatchedCompoundCommitChunk(
@@ -289,11 +284,12 @@ public class CacheBlobReaderTests extends ESTestCase {
             assertEquals(virtualBatchedCompoundCommit.getPrimaryTermAndGeneration(), virtualBccTermAndGen);
             int finalLength = Math.min(length, Math.toIntExact(virtualBatchedCompoundCommit.getTotalSizeInBytes() - offset));
             var bytesStreamOutput = new BytesStreamOutput(finalLength);
-            threadPool.executor(Stateless.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL)
-                .execute(ActionRunnable.supply(listener, () -> {
+            threadPool.executor(Stateless.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL).execute(() -> {
+                ActionListener.run(listener, l -> {
                     virtualBatchedCompoundCommit.getBytesByRange(offset, finalLength, bytesStreamOutput);
-                    return new ReleasableBytesReference(bytesStreamOutput.bytes(), bytesStreamOutput::close);
-                }));
+                    l.onResponse(new ReleasableBytesReference(bytesStreamOutput.bytes(), bytesStreamOutput::close));
+                });
+            });
         }
 
         public void readVirtualBatchedCompoundCommitByte(long offset) {
@@ -336,8 +332,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                             }
                         },
                         bytesReadFromObjectStore -> {},
-                        bytesReadFromIndexing -> {},
-                        threadPool.executor(SHARD_READ_THREAD_POOL)
+                        bytesReadFromIndexing -> {}
                     ),
                     null,
                     1,
@@ -361,9 +356,6 @@ public class CacheBlobReaderTests extends ESTestCase {
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     blobReads.incrementAndGet();
-                    if (blobName.contains(StatelessCompoundCommit.PREFIX)) {
-                        assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
-                    }
                     logger.debug("reading {} from blob store", blobName);
                     return super.readBlob(purpose, blobName);
                 }
@@ -371,9 +363,6 @@ public class CacheBlobReaderTests extends ESTestCase {
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
                     blobReads.incrementAndGet();
-                    if (blobName.contains(StatelessCompoundCommit.PREFIX)) {
-                        assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
-                    }
                     logger.debug("reading {} from blob store, position: {} length: {}", blobName, position, length);
                     return super.readBlob(purpose, blobName, position, length);
                 }
@@ -708,7 +697,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             @Override
             protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
                 var originalCacheBlobReaderService = super.createCacheBlobReaderService(cacheService);
-                return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+                return new CacheBlobReaderService(nodeSettings, cacheService, client) {
                     @Override
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
@@ -716,8 +705,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         BlobLocation location,
                         MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer totalBytesReadFromObjectStore,
-                        LongConsumer totalBytesReadFromIndexing,
-                        Executor objectStoreFetchExecutor
+                        LongConsumer totalBytesReadFromIndexing
                     ) {
                         var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                             shardId,
@@ -725,8 +713,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                             location,
                             objectStoreUploadTracker,
                             totalBytesReadFromObjectStore,
-                            totalBytesReadFromIndexing,
-                            objectStoreFetchExecutor
+                            totalBytesReadFromIndexing
                         );
                         return new CacheBlobReader() {
                             @Override
@@ -735,15 +722,11 @@ public class CacheBlobReaderTests extends ESTestCase {
                             }
 
                             @Override
-                            public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                            public InputStream getRangeInputStream(long position, int length) throws IOException {
                                 assert length > 0;
-                                originalCacheBlobReader.getRangeInputStream(position, length, listener.map(in -> {
-                                    var bytesCountingStream = new CountingFilterInputStream(in);
-                                    getRangeInputStreamCalls.add(
-                                        new GetRangeInputStreamCall(position, length, bytesCountingStream::getBytesRead)
-                                    );
-                                    return bytesCountingStream;
-                                }));
+                                final var in = new CountingFilterInputStream(originalCacheBlobReader.getRangeInputStream(position, length));
+                                getRangeInputStreamCalls.add(new GetRangeInputStreamCall(position, length, in::getBytesRead));
+                                return in;
                             }
                         };
                     }
@@ -777,7 +760,7 @@ public class CacheBlobReaderTests extends ESTestCase {
 
                 @Override
                 protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
-                    return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+                    return new CacheBlobReaderService(nodeSettings, cacheService, client) {
                         @Override
                         public CacheBlobReader getCacheBlobReader(
                             ShardId shardId,
@@ -785,14 +768,12 @@ public class CacheBlobReaderTests extends ESTestCase {
                             BlobLocation location,
                             MutableObjectStoreUploadTracker objectStoreUploadTracker,
                             LongConsumer totalBytesReadFromObjectStore,
-                            LongConsumer totalBytesReadFromIndexing,
-                            Executor objectStoreFetchExecutor
+                            LongConsumer totalBytesReadFromIndexing
                         ) {
                             var writerFromObjectStore = new ObjectStoreCacheBlobReader(
                                 blobContainer.apply(location.primaryTerm()),
                                 location.blobName(),
-                                rangeSize.getBytes(),
-                                objectStoreFetchExecutor
+                                rangeSize.getBytes()
                             ) {
                                 @Override
                                 public ByteRange getRange(long position, int length, long remainingFileLength) {
@@ -808,8 +789,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                                 location.getBatchedCompoundCommitTermAndGeneration(),
                                 clusterService.localNode().getId(),
                                 client,
-                                TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings),
-                                threadPool
+                                TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings)
                             ) {
                                 @Override
                                 public void getVirtualBatchedCompoundCommitChunk(
@@ -842,15 +822,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                                 location.getBatchedCompoundCommitTermAndGeneration(),
                                 writerFromObjectStore,
                                 writerFromPrimary
-                            ) {
-                                @Override
-                                public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
-                                    // Assert that it's the test thread trying to fetch and not some executor thread.
-                                    String threadName = Thread.currentThread().getName();
-                                    assert (threadName.startsWith("TEST-") || threadName.startsWith("LuceneTestCase")) : threadName;
-                                    super.getRangeInputStream(position, length, listener);
-                                }
-                            };
+                            );
                         }
                     };
                 }

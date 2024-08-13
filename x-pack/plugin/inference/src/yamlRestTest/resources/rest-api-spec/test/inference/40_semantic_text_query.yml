@@ -573,6 +573,59 @@ setup:
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
+"Query multiple semantic text fields with inner chunks":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: semantic_text inner hits support added in 8.16.0
+
+  - do:
+      indices.create:
+        index: test-multi-semantic-text-field-index
+        body:
+          mappings:
+            properties:
+              inference_field_1:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              inference_field_2:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      index:
+        index: test-multi-semantic-text-field-index
+        id: doc_1
+        body:
+          inference_field_1: [ "inference test 1", "another inference test 1" ]
+          inference_field_2: [ "inference test 2", "another inference test 2", "yet another inference test 2" ]
+        refresh: true
+
+  - do:
+      search:
+        index: test-multi-semantic-text-field-index
+        body:
+          query:
+            bool:
+              must:
+                - semantic:
+                    field: "inference_field_1"
+                    query: "inference test"
+                    inner_chunks: { }
+                - semantic:
+                    field: "inference_field_2"
+                    query: "inference test"
+                    inner_chunks: { }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0._source.inference_field_1.inference.chunks: 2 }
+  - length: { hits.hits.0._source.inference_field_2.inference.chunks: 3 }
+  - match: { hits.hits.0.inner_hits.inference_field_1.hits.total.value: 2 }
+  - length: { hits.hits.0.inner_hits.inference_field_1.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inference_field_2.hits.total.value: 3 }
+  - length: { hits.hits.0.inner_hits.inference_field_2.hits.hits: 3 }
+
+---
 "Query the wrong field type":
   - do:
       index:

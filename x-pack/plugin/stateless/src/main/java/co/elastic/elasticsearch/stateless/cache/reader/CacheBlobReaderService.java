@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.Executor;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
@@ -92,12 +93,18 @@ public class CacheBlobReaderService {
         BlobLocation location,
         MutableObjectStoreUploadTracker tracker,
         LongConsumer totalBytesReadFromObjectStore,
-        LongConsumer totalBytesReadFromIndexing
+        LongConsumer totalBytesReadFromIndexing,
+        Executor objectStoreFetchExecutor
     ) {
         final var locationPrimaryTermAndGeneration = location.getBatchedCompoundCommitTermAndGeneration();
         final long rangeSize = cacheService.getRangeSize();
         var objectStoreCacheBlobReader = new MeteringCacheBlobReader(
-            new ObjectStoreCacheBlobReader(blobContainer.apply(location.primaryTerm()), location.blobName(), rangeSize),
+            new ObjectStoreCacheBlobReader(
+                blobContainer.apply(location.primaryTerm()),
+                location.blobName(),
+                rangeSize,
+                objectStoreFetchExecutor
+            ),
             totalBytesReadFromObjectStore
         );
         var latestUploadInfo = tracker.getLatestUploadInfo(locationPrimaryTermAndGeneration);

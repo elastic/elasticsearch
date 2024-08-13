@@ -158,6 +158,12 @@ public class EsqlCapabilities {
         UNION_TYPES_REMOVE_FIELDS,
 
         /**
+         * Fix for union-types when renaming unrelated columns.
+         * https://github.com/elastic/elasticsearch/issues/111452
+         */
+        UNION_TYPES_FIX_RENAME_RESOLUTION,
+
+        /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */

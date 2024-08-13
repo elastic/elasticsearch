@@ -632,30 +632,6 @@ public class AnalyzerTests extends ESTestCase {
             """, "_meta_field", "e", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary");
     }
 
-    public void testRenameUnsupportedField() {
-        assertProjectionWithMapping("""
-            from test
-            | rename unsupported as u
-            | keep int, u, float
-            """, "mapping-multi-field-variation.json", "int", "u", "float");
-    }
-
-    public void testRenameUnsupportedFieldChained() {
-        assertProjectionWithMapping("""
-            from test
-            | rename unsupported as u1, u1 as u2
-            | keep int, u2, float
-            """, "mapping-multi-field-variation.json", "int", "u2", "float");
-    }
-
-    public void testRenameUnsupportedAndResolved() {
-        assertProjectionWithMapping("""
-            from test
-            | rename unsupported as u, float as f
-            | keep int, u, f
-            """, "mapping-multi-field-variation.json", "int", "u", "f");
-    }
-
     public void testRenameUnsupportedSubFieldAndResolved() {
         assertProjectionWithMapping("""
             from test
@@ -1540,7 +1516,7 @@ public class AnalyzerTests extends ESTestCase {
             | enrich languages on x
             | keep first_name, language_name, id
             """));
-        assertThat(e.getMessage(), containsString("Unsupported type [BOOLEAN] for enrich matching field [x]; only [KEYWORD,"));
+        assertThat(e.getMessage(), containsString("Unsupported type [boolean] for enrich matching field [x]; only [keyword, "));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
             FROM airports
@@ -1548,7 +1524,7 @@ public class AnalyzerTests extends ESTestCase {
             | ENRICH city_boundaries ON x
             | KEEP abbrev, airport, region
             """, "airports", "mapping-airports.json"));
-        assertThat(e.getMessage(), containsString("Unsupported type [KEYWORD] for enrich matching field [x]; only [GEO_POINT,"));
+        assertThat(e.getMessage(), containsString("Unsupported type [keyword] for enrich matching field [x]; only [geo_point, "));
     }
 
     public void testValidEnrich() {

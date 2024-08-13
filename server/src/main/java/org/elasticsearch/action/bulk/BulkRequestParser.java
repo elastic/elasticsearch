@@ -176,7 +176,7 @@ public final class BulkRequestParser {
         Map<String, String> stringDeduplicator
     ) throws IOException {
         XContent xContent = xContentType.xContent();
-        byte marker = xContent.streamSeparator();
+        byte marker = xContent.bulkSeparator();
         boolean typesDeprecationLogged = false;
 
         int line = 0;

@@ -50,6 +50,8 @@ import static java.util.stream.Collectors.toMap;
  * the actual injection operations are performed in other classes like {@link Planner} and {@link PlanInterpreter},
  */
 public final class Injector {
+    private static final Logger logger = LogManager.getLogger(Injector.class);
+
     /**
      * The specifications supplied by the user, as opposed to those inferred by the injector.
      */
@@ -196,7 +198,7 @@ public final class Injector {
     }
 
     private PlanInterpreter doInjection() {
-        LOGGER.debug("Starting injection");
+        logger.debug("Starting injection");
         Map<Class<?>, InjectionSpec> specMap = specClosure(seedSpecs);
         Map<Class<?>, Object> existingInstances = new LinkedHashMap<>();
         specMap.values().forEach((spec) -> {
@@ -206,7 +208,7 @@ public final class Injector {
         });
         PlanInterpreter interpreter = new PlanInterpreter(existingInstances);
         interpreter.executePlan(injectionPlan(seedSpecs.keySet(), specMap));
-        LOGGER.debug("Done injection");
+        logger.debug("Done injection");
         return interpreter;
     }
 
@@ -241,7 +243,7 @@ public final class Injector {
             Class<?> c = p.injectableType();
             InjectionSpec existingResult = result.get(c);
             if (existingResult != null) {
-                LOGGER.trace("Spec for {} already exists", c.getSimpleName());
+                logger.trace("Spec for {} already exists", c.getSimpleName());
                 continue;
             }
 
@@ -263,17 +265,17 @@ public final class Injector {
                 throw new AssertionError("Unexpected spec: " + spec);
             }
 
-            LOGGER.trace("Inspecting parameters for constructor of {}", c);
+            logger.trace("Inspecting parameters for constructor of {}", c);
             for (var ps : methodHandleSpec.parameters()) {
-                LOGGER.trace("Enqueue {}", ps);
+                logger.trace("Enqueue {}", ps);
                 queue.add(ps);
             }
 
             registerSpec(spec, result);
         }
 
-        if (LOGGER.isTraceEnabled()) {
-            LOGGER.trace(
+        if (logger.isTraceEnabled()) {
+            logger.trace(
                 "Specs: {}",
                 result.values()
                     .stream()
@@ -326,7 +328,7 @@ public final class Injector {
         if (injectConstructors.size() == 1) {
             return injectConstructors.get(0);
         }
-        LOGGER.trace("No suitable constructor for {}", type);
+        logger.trace("No suitable constructor for {}", type);
         return null;
     }
 
@@ -334,16 +336,16 @@ public final class Injector {
         Class<?> requestedType = spec.requestedType();
         var existing = specsByClass.put(requestedType, spec);
         if (existing == null || existing.equals(spec)) {
-            LOGGER.trace("Register spec: {}", spec);
+            logger.trace("Register spec: {}", spec);
         } else {
             AmbiguousSpec ambiguousSpec = new AmbiguousSpec(requestedType, spec, existing);
-            LOGGER.trace("Ambiguity discovered for {}", requestedType);
+            logger.trace("Ambiguity discovered for {}", requestedType);
             specsByClass.put(requestedType, ambiguousSpec);
         }
     }
 
     private List<InjectionStep> injectionPlan(Set<Class<?>> requiredClasses, Map<Class<?>, InjectionSpec> specsByClass) {
-        LOGGER.trace("Constructing instantiation plan");
+        logger.trace("Constructing instantiation plan");
         Set<Class<?>> allParameterTypes = new HashSet<>();
         specsByClass.values().forEach(spec -> {
             if (spec instanceof MethodHandleSpec m) {
@@ -352,8 +354,8 @@ public final class Injector {
         });
 
         var plan = new Planner(specsByClass, requiredClasses, allParameterTypes).injectionPlan();
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("Injection plan: {}", plan.stream().map(Object::toString).collect(joining("\n\t", "\n\t", "")));
+        if (logger.isDebugEnabled()) {
+            logger.debug("Injection plan: {}", plan.stream().map(Object::toString).collect(joining("\n\t", "\n\t", "")));
         }
         return plan;
     }
@@ -367,5 +369,4 @@ public final class Injector {
         return MethodHandles.publicLookup();
     }
 
-    private static final Logger LOGGER = LogManager.getLogger(Injector.class);
 }

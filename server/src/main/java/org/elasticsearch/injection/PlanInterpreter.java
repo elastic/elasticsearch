@@ -44,6 +44,7 @@ import static java.util.Collections.emptyList;
  * Some steps create objects and add them to this map; others manipulate the map itself.
  */
 final class PlanInterpreter {
+    private static final Logger logger = LogManager.getLogger(PlanInterpreter.class);
     private final Map<Class<?>, List<Object>> instances = new LinkedHashMap<>();
 
     PlanInterpreter(Map<Class<?>, Object> existingInstances) {
@@ -58,7 +59,7 @@ final class PlanInterpreter {
         plan.forEach(step -> {
             if (step instanceof InstantiateStep i) {
                 MethodHandleSpec spec = i.spec();
-                LOGGER.trace("Instantiating {}", spec.requestedType().getSimpleName());
+                logger.trace("Instantiating {}", spec.requestedType().getSimpleName());
                 addInstance(spec.requestedType(), instantiate(spec));
                 numConstructorCalls.incrementAndGet();
             } else {
@@ -66,7 +67,7 @@ final class PlanInterpreter {
                 throw new InjectionExecutionException("Unexpected step type: " + step.getClass().getSimpleName());
             }
         });
-        LOGGER.debug("Instantiated {} objects", numConstructorCalls.get());
+        logger.debug("Instantiated {} objects", numConstructorCalls.get());
     }
 
     /**
@@ -116,5 +117,4 @@ final class PlanInterpreter {
         return theOnlyInstance(parameterSpec.formalType());
     }
 
-    private static final Logger LOGGER = LogManager.getLogger(PlanInterpreter.class);
 }

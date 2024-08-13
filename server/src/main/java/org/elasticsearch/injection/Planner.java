@@ -33,6 +33,8 @@ import static java.util.Collections.unmodifiableSet;
  * <em>Evolution note</em>: the intent is to plan one domain/subsystem at a time.
  */
 final class Planner {
+    private static final Logger logger = LogManager.getLogger(Planner.class);
+
     final List<InjectionStep> plan;
     final Queue<Class<?>> queue;
     final Map<Class<?>, InjectionSpec> specsByClass;
@@ -99,18 +101,18 @@ final class Planner {
 
     private void planForSpec(InjectionSpec spec, int depth) {
         String indent;
-        if (LOGGER.isTraceEnabled()) {
+        if (logger.isTraceEnabled()) {
             indent = "\t".repeat(depth);
         } else {
             indent = null;
         }
 
         if (finishedPlanning.contains(spec)) {
-            LOGGER.trace("{}Already planned {}", indent, spec);
+            logger.trace("{}Already planned {}", indent, spec);
             return;
         }
 
-        LOGGER.trace("{}Planning for {}", indent, spec);
+        logger.trace("{}Planning for {}", indent, spec);
         if (startedPlanning.add(spec) == false) {
             // TODO: Better cycle detection and reporting. Use SCCs
             throw new InjectionConfigurationException("Cyclic dependency involving " + spec);
@@ -118,12 +120,12 @@ final class Planner {
 
         if (spec instanceof MethodHandleSpec m) {
             for (var p : m.parameters()) {
-                LOGGER.trace("{}- Recursing into {} for actual parameter {}", indent, p.injectableType(), p);
+                logger.trace("{}- Recursing into {} for actual parameter {}", indent, p.injectableType(), p);
                 planForClass(p.injectableType(), depth + 1);
             }
             addStep(new InstantiateStep(m), indent);
         } else if (spec instanceof ExistingInstanceSpec e) {
-            LOGGER.trace("{}- Plan {}", indent, e);
+            logger.trace("{}- Plan {}", indent, e);
             // Nothing to do. The injector will already have the required object.
         } else if (spec instanceof AmbiguousSpec a) {
             throw new InjectionConfigurationException("Ambiguous injection spec for required type: " + a);
@@ -135,9 +137,8 @@ final class Planner {
     }
 
     private void addStep(InjectionStep newStep, String indent) {
-        LOGGER.trace("{}- Add step {}", indent, newStep);
+        logger.trace("{}- Add step {}", indent, newStep);
         plan.add(newStep);
     }
 
-    private static final Logger LOGGER = LogManager.getLogger(Planner.class);
 }

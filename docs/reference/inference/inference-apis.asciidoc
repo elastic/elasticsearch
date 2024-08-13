@@ -14,7 +14,7 @@ models or if you want to use non-NLP models, use the
 
 The {infer} APIs enable you to create {infer} endpoints and use {ml} models of
 different providers - such as Amazon Bedrock, Anthropic, Azure AI Studio,
-Cohere, Google AI, MIstral, OpenAI, or HuggingFace - as a service. Use
+Cohere, Google AI, Mistral, OpenAI, or HuggingFace - as a service. Use
 the following APIs to manage {infer} models and perform {infer}:
 
 * <<delete-inference-api>>

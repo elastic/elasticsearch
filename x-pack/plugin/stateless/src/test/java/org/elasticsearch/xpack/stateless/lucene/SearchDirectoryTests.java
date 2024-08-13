@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
@@ -28,7 +29,6 @@ import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
@@ -56,7 +56,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.Executor;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
@@ -104,7 +103,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 MutableObjectStoreUploadTracker objectStoreUploadTracker,
                 boolean trackGenerationalFiles
             ) {
-                var customCacheBlobReaderService = new CacheBlobReaderService(nodeSettings, sharedCacheService, client, threadPool) {
+                var customCacheBlobReaderService = new CacheBlobReaderService(nodeSettings, sharedCacheService, client) {
                     @Override
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
@@ -112,8 +111,7 @@ public class SearchDirectoryTests extends ESTestCase {
                         BlobLocation location,
                         MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer bytesReadFromObjectStore,
-                        LongConsumer bytesReadFromIndexing,
-                        Executor objectStoreFetchExecutor
+                        LongConsumer bytesReadFromIndexing
                     ) {
                         var originalCacheBlobReader = cacheBlobReaderService.getCacheBlobReader(
                             shardId,
@@ -122,8 +120,7 @@ public class SearchDirectoryTests extends ESTestCase {
                             // The test expects to go through the blob store always
                             MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                             bytesReadFromObjectStore,
-                            bytesReadFromIndexing,
-                            objectStoreFetchExecutor
+                            bytesReadFromIndexing
                         );
                         return new CacheBlobReader() {
                             @Override
@@ -134,8 +131,8 @@ public class SearchDirectoryTests extends ESTestCase {
                             }
 
                             @Override
-                            public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
-                                originalCacheBlobReader.getRangeInputStream(position, length, listener);
+                            public InputStream getRangeInputStream(long position, int length) throws IOException {
+                                return originalCacheBlobReader.getRangeInputStream(position, length);
                             }
                         };
                     }
@@ -155,7 +152,13 @@ public class SearchDirectoryTests extends ESTestCase {
                 Settings settings,
                 ThreadPool threadPool
             ) {
-                return new StatelessSharedBlobCacheService(nodeEnvironment, settings, threadPool, BlobCacheMetrics.NOOP) {
+                return new StatelessSharedBlobCacheService(
+                    nodeEnvironment,
+                    settings,
+                    threadPool,
+                    Stateless.SHARD_READ_THREAD_POOL,
+                    BlobCacheMetrics.NOOP
+                ) {
                     @Override
                     protected boolean assertOffsetsWithinFileLength(long offset, long length, long fileLength) {
                         // this test tries to read beyond the file length

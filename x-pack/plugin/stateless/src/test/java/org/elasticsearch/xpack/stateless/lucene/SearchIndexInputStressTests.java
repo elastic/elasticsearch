@@ -30,7 +30,6 @@ import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -99,7 +98,7 @@ public class SearchIndexInputStressTests extends ESIndexInputTestCase {
             );
 
             final CyclicBarrier cyclicBarrier = new CyclicBarrier(numberOfReaders + 1);
-            final List<Thread> threads = IntStream.range(0, numberOfReaders).mapToObj(threadNumber -> {
+            final List<Thread> threads = IntStream.range(0, numberOfReaders).mapToObj(ignore -> {
                 final Thread thread = new Thread(() -> {
                     safeAwait(cyclicBarrier);
                     for (int i = 0; i < readsPerReader; i++) {
@@ -116,7 +115,6 @@ public class SearchIndexInputStressTests extends ESIndexInputTestCase {
                         assertThat("checksum mismatch for " + searchIndexInput, calculatedChecksum, equalTo(entry.getValue()));
                     }
                 });
-                thread.setName("TEST-stress-T#" + threadNumber);
                 thread.start();
                 return thread;
             }).toList();
@@ -169,8 +167,7 @@ public class SearchIndexInputStressTests extends ESIndexInputTestCase {
                     new ObjectStoreCacheBlobReader(
                         TestUtils.singleBlobContainer(fileName, allBytes),
                         fileName,
-                        sharedBlobCacheService.getRangeSize(),
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE
+                        sharedBlobCacheService.getRangeSize()
                     ),
                     null,
                     checksumAndLength.length,

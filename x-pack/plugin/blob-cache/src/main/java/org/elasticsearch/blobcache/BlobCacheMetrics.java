@@ -14,7 +14,6 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 public class BlobCacheMetrics {
     private static final String CACHE_POPULATION_REASON_ATTRIBUTE_KEY = "cachePopulationReason";
@@ -23,9 +22,7 @@ public class BlobCacheMetrics {
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
     private final LongHistogram cacheMissLoadTimes;
-    private final LongHistogram cachePopulateReadThroughput;
-    private final LongHistogram cachePopulateWriteThroughput;
-    private final LongHistogram cachePopulationElapsedTime;
+    private final LongHistogram cachePopulateThroughput;
 
     public enum CachePopulationReason {
         /**
@@ -56,19 +53,9 @@ public class BlobCacheMetrics {
                 "ms"
             ),
             meterRegistry.registerLongHistogram(
-                "es.blob_cache.populate_read_throughput.histogram",
-                "The read throughput when reading from the blob store to populate the cache",
+                "es.blob_cache.populate_throughput.histogram",
+                "The throughput when populating the blob store from the cache",
                 "bytes/second"
-            ),
-            meterRegistry.registerLongHistogram(
-                "es.blob_cache.populate_write_throughput.histogram",
-                "The write throughput when writing data from the blobstore to the cache",
-                "bytes/second"
-            ),
-            meterRegistry.registerLongHistogram(
-                "es.blob_cache.populate_elapsed_time.histogram",
-                "The time taken to copy a chunk from the blob store to the cache",
-                "ms"
             )
         );
     }
@@ -77,16 +64,12 @@ public class BlobCacheMetrics {
         LongCounter cacheMissCounter,
         LongCounter evictedCountNonZeroFrequency,
         LongHistogram cacheMissLoadTimes,
-        LongHistogram cachePopulateReadThroughput,
-        LongHistogram cachePopulateWriteThroughput,
-        LongHistogram cachePopulationElapsedTime
+        LongHistogram cachePopulateThroughput
     ) {
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
         this.cacheMissLoadTimes = cacheMissLoadTimes;
-        this.cachePopulateReadThroughput = cachePopulateReadThroughput;
-        this.cachePopulateWriteThroughput = cachePopulateWriteThroughput;
-        this.cachePopulationElapsedTime = cachePopulationElapsedTime;
+        this.cachePopulateThroughput = cachePopulateThroughput;
     }
 
     public static BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
@@ -106,20 +89,14 @@ public class BlobCacheMetrics {
     /**
      * Record the various cache population metrics after a chunk is copied to the cache
      *
-     * @param totalBytesRead The total number of bytes read
-     * @param totalReadTimeNanos The time taken to read the bytes in nanoseconds
-     * @param totalBytesWritten The total number of bytes written
-     * @param totalWriteTimeNanos The time taken to write the bytes in nanoseconds
-     * @param elapsedTimeNanoseconds The time taken to copy the entire chunk in nanoseconds
+     * @param totalBytesCopied The total number of bytes read
+     * @param totalCopyTimeNanos The time taken to read the bytes in nanoseconds
      * @param shardId The shard ID to which the chunk belonged
      * @param cachePopulationReason The reason for the cache being populated
      */
     public void recordCachePopulationMetrics(
-        int totalBytesRead,
-        long totalReadTimeNanos,
-        int totalBytesWritten,
-        long totalWriteTimeNanos,
-        long elapsedTimeNanoseconds,
+        int totalBytesCopied,
+        long totalCopyTimeNanos,
         ShardId shardId,
         CachePopulationReason cachePopulationReason
     ) {
@@ -129,22 +106,7 @@ public class BlobCacheMetrics {
             CACHE_POPULATION_REASON_ATTRIBUTE_KEY,
             cachePopulationReason
         );
-        recordBytesPerSecondMetric(cachePopulateReadThroughput, totalBytesRead, totalReadTimeNanos, metricAttributes);
-        recordBytesPerSecondMetric(cachePopulateWriteThroughput, totalBytesWritten, totalWriteTimeNanos, metricAttributes);
-        cachePopulationElapsedTime.record(TimeUnit.NANOSECONDS.toMillis(elapsedTimeNanoseconds), metricAttributes);
-    }
-
-    private void recordBytesPerSecondMetric(
-        LongHistogram histogram,
-        int totalBytes,
-        long totalTimeNanos,
-        Map<String, Object> metricAttributes
-    ) {
-        // Protect against divide-by-zero (nano timestamps can be very coarse on some platforms)
-        if (totalTimeNanos == 0) {
-            return;
-        }
-        histogram.record(toBytesPerSecond(totalBytes, totalTimeNanos), metricAttributes);
+        cachePopulateThroughput.record(toBytesPerSecond(totalBytesCopied, totalCopyTimeNanos), metricAttributes);
     }
 
     /**

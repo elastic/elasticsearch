@@ -172,7 +172,7 @@ public class SharedBytes extends AbstractRefCounted {
      * @param buf bytebuffer to use for writing
      * @throws IOException on failure
      */
-    // TODO: Add CacheCopyMetricsConsumer when required
+    // TODO: Support BlobCachePopulationListener when required
     public static void copyToCacheFileAligned(
         IO fc,
         InputStream input,
@@ -205,25 +205,6 @@ public class SharedBytes extends AbstractRefCounted {
         }
     }
 
-    public interface CacheCopyMetricsConsumer {
-
-        CacheCopyMetricsConsumer NOOP = (br, rtn, bw, wtn, et) -> {};
-
-        /**
-         * Notify the times taken to read from the input stream and write to the destination
-         *
-         * Note that <code>bytesRead</code> will often differ from <code>bytesWritten</code> because we write
-         * in {@link #PAGE_SIZE} chunks
-         *
-         * @param bytesRead The number of bytes read
-         * @param readTimeNanos The time in nanoseconds taken to read those bytes
-         * @param bytesWritten The number of bytes written
-         * @param writeTimeNanos The time in nanoseconds taken to write those bytes
-         * @param elapsedTimeNanos The time in nanoseconds taken to copy the entire stream
-         */
-        void handleCopyMetrics(int bytesRead, long readTimeNanos, int bytesWritten, long writeTimeNanos, long elapsedTimeNanos);
-    }
-
     /**
      * Copy all bytes from {@code input} to {@code fc}, only doing writes aligned along {@link #PAGE_SIZE}.
      *
@@ -232,7 +213,7 @@ public class SharedBytes extends AbstractRefCounted {
      * @param fileChannelPos position in {@code fc} to write to
      * @param progressUpdater callback to invoke with the number of copied bytes as they are copied
      * @param buffer bytebuffer to use for writing
-     * @param metricsConsumer a consumer that will be provided with the read/write metrics upon completion of the copy
+     * @param populationListener a listener that will be notified upon completion of the copy
      * @return the number of bytes copied
      * @throws IOException on failure
      */
@@ -242,27 +223,20 @@ public class SharedBytes extends AbstractRefCounted {
         int fileChannelPos,
         IntConsumer progressUpdater,
         ByteBuffer buffer,
-        CacheCopyMetricsConsumer metricsConsumer
+        BlobCachePopulationListener populationListener
     ) throws IOException {
         final long copyStartTime = System.nanoTime();
         int bytesCopied = 0;
-        int totalBytesRead = 0;
-        long totalReadTimeNanos = 0L;
-        long totalWriteTimeNanos = 0L;
         while (true) {
-            long readStartTimeNanos = System.nanoTime();
             final int bytesRead = Streams.read(input, buffer, buffer.remaining());
-            totalReadTimeNanos += System.nanoTime() - readStartTimeNanos;
             if (bytesRead <= 0) {
                 break;
             }
-            long writeStartTimeNanos = System.nanoTime();
             bytesCopied += copyBufferToCacheFileAligned(fc, fileChannelPos + bytesCopied, buffer);
-            totalWriteTimeNanos += System.nanoTime() - writeStartTimeNanos;
             progressUpdater.accept(bytesCopied);
         }
         long elapsedTimeNanos = System.nanoTime() - copyStartTime;
-        metricsConsumer.handleCopyMetrics(totalBytesRead, totalReadTimeNanos, bytesCopied, totalWriteTimeNanos, elapsedTimeNanos);
+        populationListener.onCachePopulation(bytesCopied, elapsedTimeNanos);
         return bytesCopied;
     }
 

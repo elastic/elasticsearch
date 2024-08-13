@@ -83,6 +83,8 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)) {
             out.writeBoolean(allowPartialSearchResults);
+        } else if (allowPartialSearchResults) {
+            throw new IOException("[allow_partial_search_results] is not supported on nodes with version " + out.getTransportVersion());
         }
     }
 

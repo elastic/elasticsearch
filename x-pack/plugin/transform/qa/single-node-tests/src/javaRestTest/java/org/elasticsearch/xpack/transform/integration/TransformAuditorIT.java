@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
@@ -95,9 +94,7 @@ public class TransformAuditorIT extends TransformRestTestCase {
     }
 
     public void testAliasCreatedforBWCIndexes() throws Exception {
-        Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+        Settings.Builder settings = indexSettings(1, 0);
 
         // These indices should only exist if created in previous versions, ignore the deprecation warning for this test
         RequestOptions options = expectWarnings(

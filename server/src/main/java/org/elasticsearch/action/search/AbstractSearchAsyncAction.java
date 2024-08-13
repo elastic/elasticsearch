@@ -319,7 +319,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             Runnable r = () -> {
                 final Thread thread = Thread.currentThread();
                 try {
-                    executePhaseOnShard(shardIt, shard, new SearchActionListener<Result>(shard, shardIndex) {
+                    executePhaseOnShard(shardIt, shard, new SearchActionListener<>(shard, shardIndex) {
                         @Override
                         public void innerOnResponse(Result result) {
                             try {
@@ -709,7 +709,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (buildPointInTimeFromSearchResults()) {
                 searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minTransportVersion);
             } else {
-                if (request.source() != null && request.source().pointInTimeBuilder() != null) {
+                if (request.source() != null
+                    && request.source().pointInTimeBuilder() != null
+                    && request.source().pointInTimeBuilder().singleSession() == false) {
                     searchContextId = request.source().pointInTimeBuilder().getEncodedId();
                 } else {
                     searchContextId = null;

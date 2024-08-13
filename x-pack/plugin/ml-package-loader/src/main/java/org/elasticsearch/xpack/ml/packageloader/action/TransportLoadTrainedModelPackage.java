@@ -22,8 +22,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
@@ -180,27 +180,37 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
     }
 
     private ModelDownloadTask createDownloadTask(Request request) {
-        return (ModelDownloadTask) taskManager.register(MODEL_IMPORT_TASK_TYPE, MODEL_IMPORT_TASK_ACTION, new TaskAwareRequest() {
-            @Override
-            public void setParentTask(TaskId taskId) {
-                request.setParentTask(taskId);
-            }
+        // Loading the model is done by a separate task, so needs a new trace context
+        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            return (ModelDownloadTask) taskManager.register(MODEL_IMPORT_TASK_TYPE, MODEL_IMPORT_TASK_ACTION, new TaskAwareRequest() {
+                @Override
+                public void setParentTask(TaskId taskId) {
+                    request.setParentTask(taskId);
+                }
 
-            @Override
-            public void setRequestId(long requestId) {
-                request.setRequestId(requestId);
-            }
+                @Override
+                public void setRequestId(long requestId) {
+                    request.setRequestId(requestId);
+                }
 
-            @Override
-            public TaskId getParentTask() {
-                return request.getParentTask();
-            }
+                @Override
+                public TaskId getParentTask() {
+                    return request.getParentTask();
+                }
 
-            @Override
-            public ModelDownloadTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                return new ModelDownloadTask(id, type, action, downloadModelTaskDescription(request.getModelId()), parentTaskId, headers);
-            }
-        }, false);
+                @Override
+                public ModelDownloadTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                    return new ModelDownloadTask(
+                        id,
+                        type,
+                        action,
+                        downloadModelTaskDescription(request.getModelId()),
+                        parentTaskId,
+                        headers
+                    );
+                }
+            }, false);
+        }
     }
 
     private static void recordError(

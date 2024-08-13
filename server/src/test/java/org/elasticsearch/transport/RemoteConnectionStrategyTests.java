@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EnumSerializationTestUtils;
 
 import static org.mockito.Mockito.mock;
 
@@ -154,6 +155,14 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                 profile.getTransportProfile()
             );
         }
+    }
+
+    public void testConnectionStrategySerialization() {
+        EnumSerializationTestUtils.assertEnumSerialization(
+            RemoteConnectionStrategy.ConnectionStrategy.class,
+            RemoteConnectionStrategy.ConnectionStrategy.SNIFF,
+            RemoteConnectionStrategy.ConnectionStrategy.PROXY
+        );
     }
 
     private static class FakeConnectionStrategy extends RemoteConnectionStrategy {

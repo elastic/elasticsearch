@@ -42,11 +42,15 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -115,6 +119,7 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -154,6 +159,7 @@ import java.lang.annotation.Target;
 import java.lang.invoke.MethodHandles;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.net.URI;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
@@ -577,8 +583,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         return true;
     }
 
+    protected boolean enableBigArraysReleasedCheck() {
+        return true;
+    }
+
     @After
     public final void after() throws Exception {
+        if (enableBigArraysReleasedCheck()) {
+            MockBigArrays.ensureAllArraysAreReleased();
+        }
         checkStaticState();
         // We check threadContext != null rather than enableWarningsCheck()
         // because after methods are still called in the event that before
@@ -765,8 +778,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
     protected static void checkStaticState() throws Exception {
-        MockBigArrays.ensureAllArraysAreReleased();
-
         // ensure no one changed the status logger level on us
         assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
         synchronized (statusData) {
@@ -1476,10 +1487,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         // we override LTC behavior here: wrap even resources with mockfilesystems,
         // because some code is buggy when it comes to multiple nio.2 filesystems
         // (e.g. FileSystemUtils, and likely some tests)
+        return getResourceDataPath(getClass(), relativePath);
+    }
+
+    public static Path getResourceDataPath(Class<?> clazz, String relativePath) {
+        final var resource = Objects.requireNonNullElseGet(
+            clazz.getResource(relativePath),
+            () -> fail(null, "resource not found: [%s][%s]", clazz.getCanonicalName(), relativePath)
+        );
+        final URI uri;
         try {
-            return PathUtils.get(getClass().getResource(relativePath).toURI()).toAbsolutePath().normalize();
+            uri = resource.toURI();
         } catch (Exception e) {
-            throw new RuntimeException("resource not found: " + relativePath, e);
+            return fail(null, "resource URI not found: [%s][%s]", clazz.getCanonicalName(), relativePath);
+        }
+        try {
+            return PathUtils.get(uri).toAbsolutePath().normalize();
+        } catch (Exception e) {
+            return fail(e, "resource path not found: %s", uri);
         }
     }
 
@@ -2304,6 +2329,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Execute the given {@link ActionRequest} using the given {@link ActionType} and the given {@link ElasticsearchClient}, wait for
+     * it to complete with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, and then return the result. An exceptional response, timeout or
+     * interrupt triggers a test failure.
+     */
+    public static <T extends ActionResponse> T safeExecute(ElasticsearchClient client, ActionType<T> action, ActionRequest request) {
+        return safeAwait(l -> client.execute(action, request, l));
+    }
+
+    /**
      * Wait for the successful completion of the given {@link Future}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the
      * thread's interrupt status flag and converting all exceptions into an {@link AssertionError} to trigger a test failure.
      *
@@ -2513,6 +2547,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         if (e != null) {
             throw new AssertionError(e);
+        }
+    }
+
+    public static void ensureAllContextsReleased(SearchService searchService) {
+        try {
+            assertBusy(() -> {
+                assertThat(searchService.getActiveContexts(), equalTo(0));
+                assertThat(searchService.getOpenScrollContexts(), equalTo(0));
+            });
+        } catch (Exception e) {
+            throw new AssertionError("Failed to verify search contexts", e);
         }
     }
 }

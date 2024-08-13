@@ -32,8 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -42,7 +41,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isString;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 
 /**
  * This test was originally based on the tests for sub-classes of EsField, like InvalidMappedFieldTests.
@@ -59,11 +59,11 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isString;
  */
 public class MultiTypeEsFieldTests extends AbstractNamedWriteableTestCase<MultiTypeEsField> {
 
-    private EsqlConfiguration config;
+    private Configuration config;
 
     @Before
     public void initConfig() {
-        config = EsqlConfigurationSerializationTests.randomConfiguration();
+        config = randomConfiguration();
     }
 
     @Override

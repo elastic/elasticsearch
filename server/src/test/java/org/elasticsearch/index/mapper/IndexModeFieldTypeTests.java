@@ -44,15 +44,15 @@ public class IndexModeFieldTypeTests extends ConstantFieldTypeTestCase {
 
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("stand*", null, createContext(IndexMode.STANDARD)));
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("stand*", null, createContext(IndexMode.TIME_SERIES)));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("stand*", null, createContext(IndexMode.LOGS)));
+        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("stand*", null, createContext(IndexMode.LOGSDB)));
 
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("time*", null, createContext(IndexMode.STANDARD)));
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("time*", null, createContext(IndexMode.TIME_SERIES)));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("time*", null, createContext(IndexMode.LOGS)));
+        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("time*", null, createContext(IndexMode.LOGSDB)));
 
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("logs*", null, createContext(IndexMode.STANDARD)));
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("logs*", null, createContext(IndexMode.TIME_SERIES)));
-        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("logs*", null, createContext(IndexMode.LOGS)));
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("logs*", null, createContext(IndexMode.LOGSDB)));
     }
 
     @Override

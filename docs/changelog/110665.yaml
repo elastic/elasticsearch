@@ -1,6 +1,0 @@
-pr: 110665
-summary: "[ESQL] Fix parsing of large magnitude negative numbers"
-area: ES|QL
-type: bug
-issues:
- - 104323

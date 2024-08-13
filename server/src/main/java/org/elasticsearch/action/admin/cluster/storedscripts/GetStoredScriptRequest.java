@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -21,13 +22,12 @@ public class GetStoredScriptRequest extends MasterNodeReadRequest<GetStoredScrip
 
     protected String id;
 
-    GetStoredScriptRequest() {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    GetStoredScriptRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
     }
 
-    public GetStoredScriptRequest(String id) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-
+    public GetStoredScriptRequest(TimeValue masterNodeTimeout, String id) {
+        super(masterNodeTimeout);
         this.id = id;
     }
 

@@ -67,7 +67,7 @@ public final class SpatialDisjointGeoPointDocValuesAndConstantEvaluator implemen
           continue position;
         }
         try {
-          result.appendBoolean(SpatialDisjoint.processGeoPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValue));
+          result.appendBoolean(SpatialDisjoint.processGeoPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), this.rightValue));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -81,7 +81,7 @@ public final class SpatialDisjointGeoPointDocValuesAndConstantEvaluator implemen
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(SpatialDisjoint.processGeoPointDocValuesAndConstant(leftValueVector.getLong(p), rightValue));
+          result.appendBoolean(SpatialDisjoint.processGeoPointDocValuesAndConstant(leftValueVector.getLong(p), this.rightValue));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();

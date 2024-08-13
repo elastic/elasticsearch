@@ -76,7 +76,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         int max = between(1, 100);
         testCase(
             new SingleValueQuery.Builder(new RangeQueryBuilder("i").lt(max), "foo", Source.EMPTY),
-            (fieldValues, count) -> runCase(fieldValues, count, null, max, false)
+            (fieldValues, count) -> runCase(fieldValues, count, null, max)
         );
     }
 
@@ -116,7 +116,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         int max = between(1, 100);
         testCase(
             new SingleValueQuery(new RangeQuery(Source.EMPTY, "i", null, false, max, false, null), "foo").negate(Source.EMPTY).asBuilder(),
-            (fieldValues, count) -> runCase(fieldValues, count, max, 100, true)
+            (fieldValues, count) -> runCase(fieldValues, count, max, 100)
         );
     }
 
@@ -132,10 +132,8 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
      * @param count The count of the docs the query matched.
      * @param docsStart The start of the slice in fieldValues we want to consider. If `null`, the start will be 0.
      * @param docsStop The end of the slice in fieldValues we want to consider. If `null`, the end will be the fieldValues size.
-     * @param scanForMVs Should the check for Warnings scan the entire fieldValues? This will override the docsStart:docsStop interval,
-     *                   which is needed for some cases.
      */
-    private void runCase(List<List<Object>> fieldValues, int count, Integer docsStart, Integer docsStop, boolean scanForMVs) {
+    private void runCase(List<List<Object>> fieldValues, int count, Integer docsStart, Integer docsStop) {
         int expected = 0;
         int min = docsStart != null ? docsStart : 0;
         int max = docsStop != null ? docsStop : fieldValues.size();
@@ -150,9 +148,8 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         }
         assertThat(count, equalTo(expected));
 
-        // the SingleValueQuery.TwoPhaseIteratorForSortedNumericsAndTwoPhaseQueries can scan all docs - and generate warnings - even if
-        // inner query matches none, so warn if MVs have been encountered within given range, OR if a full scan is required
-        if (mvCountInRange > 0 || (scanForMVs && fieldValues.stream().anyMatch(x -> x.size() > 1))) {
+        // we should only have warnings if we have matched a multi-value
+        if (mvCountInRange > 0) {
             assertWarnings(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
@@ -161,7 +158,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     }
 
     private void runCase(List<List<Object>> fieldValues, int count) {
-        runCase(fieldValues, count, null, null, false);
+        runCase(fieldValues, count, null, null);
     }
 
     private void testCase(SingleValueQuery.Builder builder, TestCase testCase) throws IOException {

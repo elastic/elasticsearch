@@ -103,11 +103,11 @@ public class RestNodesAction extends AbstractCatAction {
         nodesStatsRequest.clear()
             .indices(true)
             .addMetrics(
-                NodesStatsRequestParameters.Metric.JVM.metricName(),
-                NodesStatsRequestParameters.Metric.OS.metricName(),
-                NodesStatsRequestParameters.Metric.FS.metricName(),
-                NodesStatsRequestParameters.Metric.PROCESS.metricName(),
-                NodesStatsRequestParameters.Metric.SCRIPT.metricName()
+                NodesStatsRequestParameters.Metric.JVM,
+                NodesStatsRequestParameters.Metric.OS,
+                NodesStatsRequestParameters.Metric.FS,
+                NodesStatsRequestParameters.Metric.PROCESS,
+                NodesStatsRequestParameters.Metric.SCRIPT
             );
         nodesStatsRequest.indices().includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
 

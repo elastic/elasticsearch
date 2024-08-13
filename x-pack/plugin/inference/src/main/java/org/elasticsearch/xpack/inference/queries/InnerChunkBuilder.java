@@ -32,14 +32,12 @@ public class InnerChunkBuilder implements Writeable, ToXContentObject {
         PARSER.declareInt(InnerChunkBuilder::setSize, SearchSourceBuilder.SIZE_FIELD);
     }
 
-    private final String name;
+    private String name;
     private int from = DEFAULT_FROM;
     private int size = DEFAULT_SIZE;
 
     public InnerChunkBuilder() {
-        // Set hard-coded name value here so that if we change it in the future, the updated value is serialized/deserialized and propagated
-        // across nodes
-        this.name = "chunks";
+        this.name = null;
     }
 
     public InnerChunkBuilder(StreamInput in) throws IOException {
@@ -57,6 +55,10 @@ public class InnerChunkBuilder implements Writeable, ToXContentObject {
 
     public String getName() {
         return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     public int getFrom() {
@@ -78,6 +80,9 @@ public class InnerChunkBuilder implements Writeable, ToXContentObject {
     }
 
     public InnerHitBuilder toInnerHitBuilder() {
+        if (name == null) {
+            throw new IllegalStateException("name must have a value");
+        }
         return new InnerHitBuilder(name).setFrom(from).setSize(size);
     }
 

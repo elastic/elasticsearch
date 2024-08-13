@@ -36,7 +36,7 @@ public class OTelIndexTemplateRegistry extends YamlTemplateRegistry {
     @Override
     public void initialize() {
         super.initialize();
-        if(isEnabled()){
+        if (isEnabled()) {
             clusterService.getClusterSettings().addSettingsUpdateConsumer(OTEL_DATA_REGISTRY_ENABLED, this::setEnabled);
         }
     }

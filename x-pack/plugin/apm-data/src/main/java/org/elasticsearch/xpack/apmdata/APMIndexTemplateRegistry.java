@@ -44,7 +44,7 @@ public class APMIndexTemplateRegistry extends YamlTemplateRegistry {
     @Override
     public void initialize() {
         super.initialize();
-        if(isEnabled()){
+        if (isEnabled()) {
             clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_DATA_REGISTRY_ENABLED, this::setEnabled);
         }
     }

@@ -107,3 +107,43 @@ setup:
           fields: ["data_stream.type"]
   - length: { hits.hits: 1 }
   - match: { hits.hits.0.fields.data_stream\.type: ["metrics"] }
+
+---
+"Custom dynamic template":
+  - do:
+      cluster.put_component_template:
+        name: metrics-otel@custom
+        body:
+          template:
+            settings:
+              index:
+                routing_path: [unit, attributes.*, resource.attributes.*]
+                mode: time_series
+                time_series:
+                  start_time: 2024-07-01T13:03:08.138Z
+            mappings:
+              dynamic_templates:
+                - ip_fields:
+                    mapping:
+                      type: ip
+                    match_mapping_type: string
+                    path_match: "*.ip"
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"},"attributes":{"host.ip":"127.0.0.1","foo":"bar"}}'
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: metrics-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.attributes.properties.host\.ip.type: 'ip' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.foo.type: "keyword" }

@@ -358,7 +358,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("database_file", "GeoLite2-City.mmdb");
         final GeoIpProcessor city = (GeoIpProcessor) factory.create(null, "_tag", null, config);
 
-        // these are lazy loaded until first use so we expect null here
+        // these are lazy loaded until first use, so we expect null here
         assertNull(databaseNodeService.getDatabaseReaderLazyLoader("GeoLite2-City.mmdb").databaseReader.get());
         city.execute(document);
         // the first ingest should trigger a database load
@@ -369,7 +369,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("database_file", "GeoLite2-Country.mmdb");
         final GeoIpProcessor country = (GeoIpProcessor) factory.create(null, "_tag", null, config);
 
-        // these are lazy loaded until first use so we expect null here
+        // these are lazy loaded until first use, so we expect null here
         assertNull(databaseNodeService.getDatabaseReaderLazyLoader("GeoLite2-Country.mmdb").databaseReader.get());
         country.execute(document);
         // the first ingest should trigger a database load
@@ -380,7 +380,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("database_file", "GeoLite2-ASN.mmdb");
         final GeoIpProcessor asn = (GeoIpProcessor) factory.create(null, "_tag", null, config);
 
-        // these are lazy loaded until first use so we expect null here
+        // these are lazy loaded until first use, so we expect null here
         assertNull(databaseNodeService.getDatabaseReaderLazyLoader("GeoLite2-ASN.mmdb").databaseReader.get());
         asn.execute(document);
         // the first ingest should trigger a database load
@@ -428,7 +428,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("database_file", "GeoIP2-City.mmdb");
         final GeoIpProcessor city = (GeoIpProcessor) factory.create(null, "_tag", null, config);
 
-        // these are lazy loaded until first use so we expect null here
+        // these are lazy loaded until first use, so we expect null here
         assertNull(databaseNodeService.getDatabaseReaderLazyLoader("GeoIP2-City.mmdb").databaseReader.get());
         city.execute(document);
         // the first ingest should trigger a database load

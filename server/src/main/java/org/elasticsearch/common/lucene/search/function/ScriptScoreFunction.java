@@ -84,6 +84,9 @@ public class ScriptScoreFunction extends ScoreFunction {
             public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 Explanation exp;
                 if (leafScript instanceof ExplainableScoreScript) {
+                    leafScript.setDocument(docId);
+                    scorer.docid = docId;
+                    scorer.score = subQueryScore.getValue().floatValue();
                     exp = ((ExplainableScoreScript) leafScript).explain(subQueryScore);
                 } else {
                     ScoreScript.ExplanationHolder holder = new ScoreScript.ExplanationHolder();

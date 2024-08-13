@@ -754,7 +754,38 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   },
                   "repositories": {}
                 },
-                "repositories": {}
+                "repositories": {},
+                "ccs_telemetry": {
+                    "total": 0,
+                    "success": 0,
+                    "skipped": 0,
+                    "took": {
+                        "max": 0,
+                        "avg": 0,
+                        "p90": 0
+                    },
+                    "took_mrt_true": {
+                        "max": 0,
+                        "avg": 0,
+                        "p90": 0
+                    },
+                    "took_mrt_false": {
+                        "max": 0,
+                        "avg": 0,
+                        "p90": 0
+                    },
+                    "remotes_per_search_max": 0,
+                    "remotes_per_search_avg": 0.0,
+                    "failure_reasons": {
+                    },
+                    "features": {
+                    },
+                    "clients": {
+                    },
+                    "clusters": {
+                        "count": 0
+                    }
+                }
               },
               "cluster_state": {
                 "nodes_hash": 1314980060,

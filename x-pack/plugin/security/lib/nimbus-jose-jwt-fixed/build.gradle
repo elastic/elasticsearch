@@ -9,13 +9,27 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'com.github.johnrengelman.shadow'
 
+// This build deserves an explanation. Nimbus-jose-jwt uses gson internally, which is unfriendly
+// to our usage of the security manager, to a degree that it makes the library extremely difficult
+// to work with safely. The purpose of this build is to create a version of nimbus-jose-jwt with
+// a couple classes replaced with wrappers which work with the security manager, the source files
+// in this directory.
+
+// Because we want to include the original class files so that we can reference them without
+// modification, there are a couple intermediate steps:
+// 1) Create a version of the JAR in which the relevant class files are moved to a different package.
+//      This is not immediately usable as this process rewrites the rest of the JAR to "correctly"
+//      reference the new classes. So, we need to...
+// 2) Create a JAR from the result of step 1 which contains *only* the relevant class files.
+// 3) Use the result of step 2 here, combined with the original library, so that we can use our
+//      replacement classes which wrap the original class files.
+
 dependencies {
   implementation "com.nimbusds:nimbus-jose-jwt:9.37.3"
+  implementation project(path: xpackModule('security:lib:njj-moved-utils-only'), configuration: 'shadow')
 }
 
 tasks.named('shadowJar').configure {
-  exclude 'com/nimbusds/jose/util/JSONObjectUtils$*.class'
-  exclude 'com/nimbusds/jose/util/JSONStringUtils$*.class'
   manifest {
     // The original library uses this and it gets stripped by shadowJar
     attributes 'Automatic-Module-Name': 'com.nimbusds.jose.jwt'

@@ -11,7 +11,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 
 /**
- * This class wraps {@link InnerJSONStringUtils}, which is copied directly from the source library, and delegates to
+ * This class wraps {@link JSONStringUtils}, which is copied directly from the source library, and delegates to
  * that class as quickly as possible. This layer is only here to provide a point at which we can insert
  * {@link java.security.AccessController#doPrivileged(PrivilegedAction)} calls as necessary. We don't do anything here
  * other than ensure gson has the proper security manager permissions.
@@ -19,7 +19,7 @@ import java.security.PrivilegedAction;
 public class JSONStringUtils {
 
     public static String toJSONString(final String string) {
-        return AccessController.doPrivileged((PrivilegedAction<String>) () -> InnerJSONStringUtils.toJSONString(string));
+        return AccessController.doPrivileged((PrivilegedAction<String>) () -> JSONStringUtils.toJSONString(string));
     }
 
     private JSONStringUtils() {}

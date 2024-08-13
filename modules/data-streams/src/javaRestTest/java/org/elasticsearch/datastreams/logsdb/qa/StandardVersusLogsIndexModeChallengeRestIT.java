@@ -12,6 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
@@ -36,6 +37,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -180,8 +182,9 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     public void testMatchAllQuery() throws IOException {
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        var timestampStart = Instant.now();
         for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
+            documents.add(generateDocument(timestampStart.plus(i, ChronoUnit.SECONDS)));
         }
 
         assertDocumentIndexing(documents);
@@ -301,7 +304,10 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final List<Map<String, Object>> hitsList = (List<Map<String, Object>>) hitsMap.get("hits");
         assertThat(hitsList.size(), greaterThan(0));
 
-        return hitsList.stream().map(hit -> (Map<String, Object>) hit.get("_source")).toList();
+        return hitsList.stream()
+            .sorted(Comparator.comparingInt((Map<String, Object> hit) -> Integer.parseInt((String) hit.get("_id"))))
+            .map(hit -> (Map<String, Object>) hit.get("_source"))
+            .toList();
     }
 
     @SuppressWarnings("unchecked")

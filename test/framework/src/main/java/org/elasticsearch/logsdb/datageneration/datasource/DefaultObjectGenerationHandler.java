@@ -12,6 +12,8 @@ import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
@@ -28,15 +30,21 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
             }
 
             @Override
+            public boolean generateDynamicSubObject() {
+                // Using a static 5% change, this is just a chosen value that can be tweaked.
+                return randomDouble() <= 0.05;
+            }
+
+            @Override
             public boolean generateNestedSubObject() {
-                // Using a static 10% change, this is just a chosen value that can be tweaked.
-                return randomDouble() <= 0.1;
+                // Using a static 5% change, this is just a chosen value that can be tweaked.
+                return randomDouble() <= 0.05;
             }
 
             @Override
             public boolean generateRegularSubObject() {
-                // Using a static 10% change, this is just a chosen value that can be tweaked.
-                return randomDouble() <= 0.1;
+                // Using a static 5% change, this is just a chosen value that can be tweaked.
+                return randomDouble() <= 0.05;
             }
 
             @Override
@@ -46,9 +54,33 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
         };
     }
 
+    // UNSIGNED_LONG is excluded because it is mapped as long
+    // and values larger than long fail to parse.
+    private static final Set<FieldType> EXCLUDED_FROM_DYNAMIC_MAPPING = Set.of(FieldType.UNSIGNED_LONG);
+
     @Override
     public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-        return new DataSourceResponse.FieldTypeGenerator(() -> randomFrom(FieldType.values()));
+        Supplier<DataSourceResponse.FieldTypeGenerator.FieldTypeInfo> generator = switch (request.dynamicMapping()) {
+            case FORBIDDEN -> () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(randomFrom(FieldType.values()), false);
+            case FORCED -> () -> {
+                var fieldType = ESTestCase.randomValueOtherThanMany(
+                    EXCLUDED_FROM_DYNAMIC_MAPPING::contains,
+                    () -> ESTestCase.randomFrom(FieldType.values())
+                );
+
+                return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(fieldType, true);
+            };
+            case SUPPORTED -> () -> {
+                boolean isDynamic = ESTestCase.randomBoolean();
+
+                var excluded = isDynamic ? EXCLUDED_FROM_DYNAMIC_MAPPING : Set.of();
+                var fieldType = ESTestCase.randomValueOtherThanMany(excluded::contains, () -> ESTestCase.randomFrom(FieldType.values()));
+
+                return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(fieldType, isDynamic);
+            };
+        };
+
+        return new DataSourceResponse.FieldTypeGenerator(generator);
     }
 
     @Override

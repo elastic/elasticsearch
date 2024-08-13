@@ -42,6 +42,7 @@ public class DataGeneratorTests extends ESTestCase {
     public void testDataGeneratorProducesValidMappingAndDocument() throws IOException {
         // Make sure objects, nested objects and all field types are covered.
         var testChildFieldGenerator = new DataSourceResponse.ChildFieldGenerator() {
+            private boolean dynamicSubObjectCovered = false;
             private boolean subObjectCovered = false;
             private boolean nestedCovered = false;
             private int generatedFields = 0;
@@ -50,6 +51,16 @@ public class DataGeneratorTests extends ESTestCase {
             public int generateChildFieldCount() {
                 // Make sure to generate enough fields to go through all field types.
                 return 20;
+            }
+
+            @Override
+            public boolean generateDynamicSubObject() {
+                if (dynamicSubObjectCovered == false) {
+                    dynamicSubObjectCovered = true;
+                    return true;
+                }
+
+                return false;
             }
 
             @Override
@@ -88,7 +99,12 @@ public class DataGeneratorTests extends ESTestCase {
 
             @Override
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-                return new DataSourceResponse.FieldTypeGenerator(() -> FieldType.values()[generatedFields++ % FieldType.values().length]);
+                return new DataSourceResponse.FieldTypeGenerator(
+                    () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(
+                        FieldType.values()[generatedFields++ % FieldType.values().length],
+                        false
+                    )
+                );
             }
         };
 
@@ -120,6 +136,11 @@ public class DataGeneratorTests extends ESTestCase {
             @Override
             public int generateChildFieldCount() {
                 return 100;
+            }
+
+            @Override
+            public boolean generateDynamicSubObject() {
+                return false;
             }
 
             @Override

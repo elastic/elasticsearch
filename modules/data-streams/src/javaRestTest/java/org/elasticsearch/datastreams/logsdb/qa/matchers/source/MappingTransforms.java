@@ -8,10 +8,20 @@
 
 package org.elasticsearch.datastreams.logsdb.qa.matchers.source;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 class MappingTransforms {
+    /**
+     * Container for mapping of a field. Contain field mapping parameters and mapping parameters of parent fields (if present)
+     * in order of increasing distance (direct parent first).
+     * @param mappingParameters
+     * @param parentMappingParameters
+     */
+    record FieldMapping(Map<String, Object> mappingParameters, List<Map<String, Object>> parentMappingParameters) {}
+
     /**
      * Normalize mapping to have the same structure as normalized source and enable field mapping lookup.
      * Similar to {@link SourceTransforms#normalize(Map)} but needs to get rid of intermediate nodes
@@ -20,30 +30,56 @@ class MappingTransforms {
      * @param map raw mapping document converted to map
      * @return map from normalized field name (like a.b.c) to a map of mapping parameters (like type)
      */
-    public static Map<String, Map<String, Object>> normalizeMapping(Map<String, Object> map) {
-        var flattened = new HashMap<String, Map<String, Object>>();
+    public static Map<String, FieldMapping> normalizeMapping(Map<String, Object> map) {
+        var flattened = new HashMap<String, FieldMapping>();
 
         descend(null, map, flattened);
 
         return flattened;
     }
 
+    /**
+     * Given a field name provides the name of the parent field (if present) that can be used to perform mapping lookup
+     * in normalized mapping.
+     * @param normalizedFieldName
+     * @return
+     */
+    public static String parentField(String normalizedFieldName) {
+        var splitPoint = normalizedFieldName.lastIndexOf('.');
+        return splitPoint > -1 ? normalizedFieldName.substring(0, splitPoint) : "_doc";
+    }
+
     @SuppressWarnings("unchecked")
-    private static void descend(String pathFromRoot, Map<String, Object> currentLevel, Map<String, Map<String, Object>> flattened) {
+    private static void descend(String pathFromRoot, Map<String, Object> currentLevel, Map<String, FieldMapping> flattened) {
         for (var entry : currentLevel.entrySet()) {
             if (entry.getKey().equals("_doc") || entry.getKey().equals("properties")) {
                 descend(pathFromRoot, (Map<String, Object>) entry.getValue(), flattened);
             } else {
                 if (entry.getValue() instanceof Map<?, ?> map) {
                     var pathToField = pathFromRoot == null ? entry.getKey() : pathFromRoot + "." + entry.getKey();
-                    descend(pathToField, (Map<String, Object>) map, flattened);
-                } else {
-                    if (pathFromRoot == null) {
-                        // Ignore top level mapping parameters for now
-                        continue;
+
+                    // Descending to subobject, we need to remember parent mapping
+                    if (pathFromRoot != null) {
+                        var parentMapping = flattened.computeIfAbsent(
+                            pathFromRoot,
+                            k -> new FieldMapping(new HashMap<>(), new ArrayList<>())
+                        );
+                        var childMapping = flattened.computeIfAbsent(
+                            pathToField,
+                            k -> new FieldMapping(new HashMap<>(), new ArrayList<>())
+                        );
+                        childMapping.parentMappingParameters.add(parentMapping.mappingParameters);
+                        childMapping.parentMappingParameters.addAll(parentMapping.parentMappingParameters);
                     }
 
-                    flattened.computeIfAbsent(pathFromRoot, k -> new HashMap<>()).put(entry.getKey(), entry.getValue());
+                    descend(pathToField, (Map<String, Object>) map, flattened);
+                } else {
+                    var pathToField = pathFromRoot == null ? "_doc" : pathFromRoot;
+                    // We are either at the lowest level of mapping or it's a leaf field of top level object
+                    flattened.computeIfAbsent(pathToField, k -> new FieldMapping(new HashMap<>(), new ArrayList<>())).mappingParameters.put(
+                        entry.getKey(),
+                        entry.getValue()
+                    );
                 }
             }
         }

@@ -124,9 +124,14 @@ public class BlobCacheMetrics {
             CACHE_POPULATION_REASON_ATTRIBUTE_KEY,
             cachePopulationReason
         );
-        cachePopulateThroughput.record(toMegabytesPerSecond(totalBytesCopied, totalCopyTimeNanos), metricAttributes);
+        assert totalBytesCopied > 0 : "We shouldn't be recording zero-sized copies";
         cachePopulationBytes.incrementBy(totalBytesCopied, metricAttributes);
-        cachePopulationTime.incrementBy(TimeUnit.NANOSECONDS.toMillis(totalCopyTimeNanos), metricAttributes);
+
+        // This is almost certainly paranoid, but if we had a very fast/small copy with a very coarse nanosecond timer it might happen?
+        if (totalCopyTimeNanos > 0) {
+            cachePopulateThroughput.record(toMegabytesPerSecond(totalBytesCopied, totalCopyTimeNanos), metricAttributes);
+            cachePopulationTime.incrementBy(TimeUnit.NANOSECONDS.toMillis(totalCopyTimeNanos), metricAttributes);
+        }
     }
 
     /**

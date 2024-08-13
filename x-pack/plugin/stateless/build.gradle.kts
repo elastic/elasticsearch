@@ -75,18 +75,18 @@ tasks {
     }
 
     /**
-     * Same as internalClusterTest but with tracking of generational file setting enabled
+     * Same as internalClusterTest but with tracking of generational file setting disabled
      */
-    val internalClusterTestWithGenFiles = register<Test>("internalClusterTestWithGenFiles") {
+    val internalClusterTestWithoutGenFiles = register<Test>("internalClusterTestWithoutGenFiles") {
         val sourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
         setTestClassesDirs(sourceSet.getOutput().getClassesDirs())
         setClasspath(sourceSet.getRuntimeClasspath())
         jvmArgs("-XX:+UseG1GC", "--add-opens=java.base/java.io=ALL-UNNAMED")
-        systemProperty("es.test.stateless.generational_files_tracking.enabled", "true")
+        systemProperty("es.test.stateless.generational_files_tracking.enabled", "false")
     }
 
     check {
-        dependsOn(internalClusterTestWithGenFiles)
+        dependsOn(internalClusterTestWithoutGenFiles)
     }
 
     yamlRestTest {

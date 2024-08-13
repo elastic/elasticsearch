@@ -69,6 +69,31 @@ improves query and merge speed significantly when compared to raw vectors.
 {es-pull}109317[#109317]
 
 [discrete]
+[[esql_inlinestats]]
+=== ESQL: INLINESTATS
+This adds the `INLINESTATS` command to ESQL which performs a STATS and
+then enriches the results into the output stream. So, this query:
+
+[source,esql]
+----
+FROM test
+| INLINESTATS m=MAX(a * b) BY b
+| WHERE m == a * b
+| SORT a DESC, b DESC
+| LIMIT 3
+----
+
+Produces output like:
+
+|  a  |  b  |   m   |
+| --- | --- | ----- |
+|  99 | 999 | 98901 |
+|  99 | 998 | 98802 |
+|  99 | 997 | 98703 |
+
+{es-pull}109583[#109583]
+
+[discrete]
 [[mark_query_rules_as_ga]]
 === Mark Query Rules as GA
 This PR marks query rules as Generally Available. All APIs are no longer
@@ -111,6 +136,18 @@ the vectors.
 The Redact processor uses the Grok rules engine to obscure text in the input document matching the given Grok patterns. The Redact processor was initially released as Technical Preview in `8.7.0`, and is now released as Generally Available.
 
 {es-pull}110395[#110395]
+
+[discrete]
+[[always_allow_rebalancing_by_default]]
+=== Always allow rebalancing by default
+In earlier versions of {es} the `cluster.routing.allocation.allow_rebalance` setting defaults to
+`indices_all_active` which blocks all rebalancing moves while the cluster is in `yellow` or `red` health. This was
+appropriate for the legacy allocator which might do too many rebalancing moves otherwise. Today's allocator has
+better support for rebalancing a cluster that is not in `green` health, and expects to be able to rebalance some
+shards away from over-full nodes to avoid allocating shards to undesirable locations in the first place. From
+version 8.16 `allow_rebalance` setting defaults to `always` unless the legacy allocator is explicitly enabled.
+
+{es-pull}111015[#111015]
 
 // end::notable-highlights[]
 

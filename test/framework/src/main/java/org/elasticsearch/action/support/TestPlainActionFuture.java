@@ -13,7 +13,7 @@ package org.elasticsearch.action.support;
  */
 public class TestPlainActionFuture<T> extends PlainActionFuture<T> {
     @Override
-    boolean allowedExecutors(Thread thread1, Thread thread2) {
+    boolean allowedExecutors(Thread blockedThread, Thread completingThread) {
         return true;
     }
 }

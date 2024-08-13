@@ -204,7 +204,7 @@ for health status set `verbose` to `false` to disable the more expensive analysi
     `help_url` field.
 
 `affected_resources`::
-    (Optional, object) This field contains an object where the keys represent resource types (e.g., indices, shards), 
+    (Optional, object) An object where the keys represent resource types (for example, indices, shards), 
     and the values are lists of the specific resources affected by the issue.
 
 `help_url`::

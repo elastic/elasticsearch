@@ -124,6 +124,18 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         out.writeString(query);
         if (out.getTransportVersion().onOrAfter(SEMANTIC_QUERY_INNER_HITS)) {
             out.writeOptionalWriteable(innerChunkBuilder);
+        } else if (innerChunkBuilder != null) {
+            throw new IllegalStateException(
+                "Transport version must be at least ["
+                    + SEMANTIC_QUERY_INNER_HITS
+                    + "] to use [ "
+                    + CHUNKS_FIELD.getPreferredName()
+                    + "] in ["
+                    + NAME
+                    + "], current transport version is ["
+                    + out.getTransportVersion()
+                    + "]. Are you running a mixed-version cluster?"
+            );
         }
         out.writeOptionalNamedWriteable(inferenceResults);
         out.writeBoolean(noInferenceResults);

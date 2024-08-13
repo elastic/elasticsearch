@@ -198,9 +198,7 @@ public class NativePrivilegeStore {
     }
 
     private void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
-        assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
-        final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
-        innerGetPrivilegesWithRetry(applications, backoff, listener);
+        innerGetPrivilegesWithRetry(applications, DEFAULT_BACKOFF.iterator(), listener);
     }
 
     private void innerGetPrivilegesWithRetry(
@@ -272,12 +270,12 @@ public class NativePrivilegeStore {
         }
     }
 
-    private void safeScheduleRetry(Runnable task, TimeValue nextBackoffTime, Consumer<Exception> onScheduleFailure) {
+    private void safeScheduleRetry(Runnable task, TimeValue delay, Consumer<Exception> onScheduleFailure) {
         try {
-            client.threadPool().schedule(task, nextBackoffTime, client.threadPool().generic());
-        } catch (Exception schedulingEx) {
-            logger.warn("encountered exception during retry scheduling", schedulingEx);
-            onScheduleFailure.accept(schedulingEx);
+            client.threadPool().schedule(task, delay, client.threadPool().generic());
+        } catch (Exception ex) {
+            logger.warn("encountered exception during retry scheduling", ex);
+            onScheduleFailure.accept(ex);
         }
     }
 

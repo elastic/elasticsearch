@@ -107,8 +107,8 @@ public class BlobCacheMetrics {
     /**
      * Record the various cache population metrics after a chunk is copied to the cache
      *
-     * @param totalBytesCopied The total number of bytes read
-     * @param totalCopyTimeNanos The time taken to read the bytes in nanoseconds
+     * @param totalBytesCopied The total number of bytes copied
+     * @param totalCopyTimeNanos The time taken to copy the bytes in nanoseconds
      * @param shardId The shard ID to which the chunk belonged
      * @param cachePopulationReason The reason for the cache being populated
      */
@@ -130,11 +130,11 @@ public class BlobCacheMetrics {
     }
 
     /**
-     * Calculate throughput as bytes/second
+     * Calculate throughput as megabytes/second
      *
      * @param totalBytes The total number of bytes transferred
      * @param totalNanoseconds The time to transfer in nanoseconds
-     * @return The throughput as bytes/second
+     * @return The throughput as megabytes/second
      */
     private double toMegabytesPerSecond(int totalBytes, long totalNanoseconds) {
         double totalSeconds = totalNanoseconds / 1_000_000_000.0;

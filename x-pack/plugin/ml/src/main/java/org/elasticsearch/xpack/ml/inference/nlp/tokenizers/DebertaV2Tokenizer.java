@@ -42,10 +42,7 @@ public class DebertaV2Tokenizer extends NlpTokenizer {
     public static final String CLASS_TOKEN = "[CLS]";
     public static final String MASK_TOKEN = "[MASK]";
 
-    private static final Set<String> NEVER_SPLIT = Set.of(UNKNOWN_TOKEN, SEPARATOR_TOKEN, PAD_TOKEN, CLASS_TOKEN, MASK_TOKEN);// TODO verify
-                                                                                                                              // these all
-                                                                                                                              // need to be
-                                                                                                                              // never split
+    private static final Set<String> NEVER_SPLIT = Set.of(UNKNOWN_TOKEN, SEPARATOR_TOKEN, PAD_TOKEN, CLASS_TOKEN, MASK_TOKEN);
 
     private final DebertaAnalyzer debertaAnalyzer;
     protected final List<String> originalVocab;
@@ -116,20 +113,22 @@ public class DebertaV2Tokenizer extends NlpTokenizer {
 
     @Override
     int numExtraTokensForSingleSequence() {
-        assert false;
-        return -1; // TODO what is this?
+        // https://github.com/huggingface/transformers/blob/v4.44.0/src/transformers/models/deberta_v2/tokenization_deberta_v2.py#L164
+        // single sequence: [CLS] X [SEP]
+        return 2;
     }
 
     @Override
     int getNumExtraTokensForSeqPair() {
-        assert false;
-        return -1; // TODO what is this?
+        // https://github.com/huggingface/transformers/blob/v4.44.0/src/transformers/models/deberta_v2/tokenization_deberta_v2.py#L165
+        // pair of sequences: [CLS] A [SEP] B [SEP]
+        return 3;
     }
 
     @Override
     int defaultSpanForChunking(int maxWindowSize) {
         return (maxWindowSize - numExtraTokensForSingleSequence()) / 2;
-    }
+    } // TODO verify
 
     @Override
     public TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokens> tokenizations) {

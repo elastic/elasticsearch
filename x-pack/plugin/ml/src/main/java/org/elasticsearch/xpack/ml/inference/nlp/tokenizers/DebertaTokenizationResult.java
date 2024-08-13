@@ -7,13 +7,22 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public class DebertaTokenizationResult extends TokenizationResult {
+    static final String REQUEST_ID = "request_id";
+    static final String TOKENS = "tokens";
+    static final String ARG1 = "arg_1";
 
     protected DebertaTokenizationResult(List<String> vocab, List<Tokens> tokenizations, int padTokenId) {
         super(vocab, tokenizations, padTokenId);
@@ -21,23 +30,48 @@ public class DebertaTokenizationResult extends TokenizationResult {
 
     @Override
     public NlpTask.Request buildRequest(String requestId, Tokenization.Truncate t) throws IOException {
-        return null;
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        builder.field(REQUEST_ID, requestId);
+        writePaddedTokens(TOKENS, builder);
+        writeAttentionMask(ARG1, builder);
+        builder.endObject(); // TODO verfiy builder
+
+        // BytesReference.bytes closes the builder
+        BytesReference jsonRequest = BytesReference.bytes(builder);
+        return new NlpTask.Request(this, jsonRequest);
     }
 
     static class DebertaTokensBuilder implements TokenizationResult.TokensBuilder {
-        private int clsTokenId;
-        private int sepTokenId;
-        private boolean withSpecialTokens;
+        private final int clsTokenId;
+        private final int sepTokenId;
+        private final boolean withSpecialTokens;
+        protected final Stream.Builder<IntStream> tokenIds;
+        protected final Stream.Builder<IntStream> tokenMap;
+        protected int seqPairOffset = 0;
 
         DebertaTokensBuilder(int clsTokenId, int sepTokenId, boolean withSpecialTokens) {
             this.clsTokenId = clsTokenId;
             this.sepTokenId = sepTokenId;
             this.withSpecialTokens = withSpecialTokens;
+            this.tokenIds = Stream.builder();
+            this.tokenMap = Stream.builder();
         }
 
         @Override
         public TokensBuilder addSequence(List<Integer> tokenIds, List<Integer> tokenMap) {
-            return null; // TODO: Implement
+            // DeBERTa-v2 single sequence: [CLS] X [SEP]
+            if (withSpecialTokens) {
+                this.tokenIds.add(IntStream.of(clsTokenId));
+                this.tokenMap.add(IntStream.of(SPECIAL_TOKEN_POSITION));
+            }
+            this.tokenIds.add(tokenIds.stream().mapToInt(Integer::valueOf));
+            this.tokenMap.add(tokenMap.stream().mapToInt(Integer::valueOf));
+            if (withSpecialTokens) {
+                this.tokenIds.add(IntStream.of(sepTokenId));
+                this.tokenMap.add(IntStream.of(SPECIAL_TOKEN_POSITION));
+            }
+            return this;
         }
 
         @Override
@@ -47,7 +81,30 @@ public class DebertaTokenizationResult extends TokenizationResult {
             List<Integer> tokenId2s,
             List<Integer> tokenMap2
         ) {
-            return null; // TODO
+            // DeBERTa-v2 pair of sequences: [CLS] A [SEP] B [SEP]
+            int specialTokenCount = 0;
+            if (withSpecialTokens) {
+                tokenIds.add(IntStream.of(clsTokenId));
+                tokenMap.add(IntStream.of(SPECIAL_TOKEN_POSITION));
+                specialTokenCount++;
+            }
+            tokenIds.add(tokenId1s.stream().mapToInt(Integer::valueOf));
+            tokenMap.add(tokenMap1.stream().mapToInt(Integer::valueOf));
+            int previouslyFinalMap = tokenMap1.get(tokenMap1.size() - 1);
+            if (withSpecialTokens) {
+                tokenIds.add(IntStream.of(sepTokenId, sepTokenId));
+                tokenMap.add(IntStream.of(SPECIAL_TOKEN_POSITION, SPECIAL_TOKEN_POSITION));
+                specialTokenCount++;
+            }
+            tokenIds.add(tokenId2s.stream().mapToInt(Integer::valueOf));
+            tokenMap.add(tokenMap2.stream().mapToInt(i -> i + previouslyFinalMap));
+            if (withSpecialTokens) {
+                tokenIds.add(IntStream.of(sepTokenId));
+                tokenMap.add(IntStream.of(SPECIAL_TOKEN_POSITION));
+                specialTokenCount++;
+            }
+            seqPairOffset = withSpecialTokens ? tokenId1s.size() + specialTokenCount : tokenId1s.size();
+            return this;
         }
 
         @Override
@@ -58,7 +115,16 @@ public class DebertaTokenizationResult extends TokenizationResult {
             int spanPrev,
             int seqId
         ) {
-            return null; // TODO
+            return new Tokens(
+                input,
+                allTokens,
+                truncated,
+                tokenIds.build().flatMapToInt(Function.identity()).toArray(),
+                tokenMap.build().flatMapToInt(Function.identity()).toArray(),
+                spanPrev,
+                seqId,
+                seqPairOffset
+            ); // TODO verify
         }
 
         @Override

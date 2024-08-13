@@ -17,26 +17,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.DebertaV2Tokenizer.MASK_TOKEN;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class DebertaV2TokenizerTests extends ESTestCase {
-
-    @Test
-    public void numExtraTokensForSingleSequence() {}
-
-    @Test
-    public void getNumExtraTokensForSeqPair() {}
-
-    @Test
-    public void buildTokenizationResult() {}
-
-    @Test
-    public void requestBuilder() {}
-
-    @Test
-    public void createTokensBuilder() {}
 
     private static final List<String> TEST_CASE_VOCAB = List.of(
         DebertaV2Tokenizer.CLASS_TOKEN,
@@ -57,7 +43,7 @@ public class DebertaV2TokenizerTests extends ESTestCase {
         "▁car",
         "▁😀",
         "▁🇸🇴",
-        DebertaV2Tokenizer.MASK_TOKEN,
+        MASK_TOKEN,
         "."
     );
     private static final List<Double> TEST_CASE_SCORES = List.of(
@@ -145,8 +131,8 @@ public class DebertaV2TokenizerTests extends ESTestCase {
 
         try (
             DebertaV2Tokenizer tokenizer = DebertaV2Tokenizer.builder(
-                TEST_CASE_VOCAB,
-                TEST_CASE_SCORES,
+                vocab.get(),
+                vocab.scores(),
                 new DebertaV2Tokenization(false, false, null, Tokenization.Truncate.NONE, -1)
             ).setWithSpecialTokens(true).build()
         ) {
@@ -165,16 +151,22 @@ public class DebertaV2TokenizerTests extends ESTestCase {
     }
 
     public void testTokenizeWithNeverSplit() throws IOException {
+        var vocab = DebertaV3TestVocab.loadMultiLingualTestVocab();
         try (
             DebertaV2Tokenizer tokenizer = DebertaV2Tokenizer.builder(
-                TEST_CASE_VOCAB,
-                TEST_CASE_SCORES,
+                vocab.get(),
+                vocab.scores(),
                 new DebertaV2Tokenization(false, false, null, Tokenization.Truncate.NONE, -1)
             ).build()
         ) {
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch .<mask>.", Tokenization.Truncate.NONE, -1, 0, null)
-                .get(0);
-            assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁Ela", "stic", "search", "▁", ".", "<mask>", "▁", "."));
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize(
+                "Elasticsearch ." + MASK_TOKEN + ".",
+                Tokenization.Truncate.NONE,
+                -1,
+                0,
+                null
+            ).get(0);
+            assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁Elasticsearch", "▁.", "[MASK]", "▁."));
         }
     }
 

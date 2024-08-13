@@ -98,7 +98,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
             executorService.execute(r);
 
-
             BulkResponse bulkResponse = future.actionGet();
             assertNoFailures(bulkResponse);
 
@@ -154,7 +153,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             };
 
             executorService.execute(r);
-
 
             BulkResponse bulkResponse = future.actionGet();
             assertNoFailures(bulkResponse);

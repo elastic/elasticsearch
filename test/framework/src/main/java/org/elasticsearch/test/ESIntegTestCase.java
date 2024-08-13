@@ -195,7 +195,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -1797,7 +1796,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
                                 handler.lastItems(docs, () -> {}, future);
                             } else {
                                 handler.addItems(docs, () -> {}, () -> {
-                                    if (runs.incrementAndGet() % 100 == 0) {
+                                    // Every 10 runs dispatch to new thread to prevent stackoverflow
+                                    if (runs.incrementAndGet() % 10 == 0) {
                                         new Thread(this).start();
                                     } else {
                                         this.run();

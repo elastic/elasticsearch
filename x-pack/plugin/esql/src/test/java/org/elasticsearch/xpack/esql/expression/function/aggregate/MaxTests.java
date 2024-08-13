@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -40,58 +43,12 @@ public class MaxTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
-            MultiRowTestCaseSupplier.booleanCases(1, 1000)
+            MultiRowTestCaseSupplier.booleanCases(1, 1000),
+            MultiRowTestCaseSupplier.ipCases(1, 1000)
         ).flatMap(List::stream).map(MaxTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         suppliers.addAll(
             List.of(
-                // Surrogates
-                new TestCaseSupplier(
-                    List.of(DataType.INTEGER),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(5, 8, -2, 0, 200), DataType.INTEGER, "field")),
-                        "Max[field=Attribute[channel=0]]",
-                        DataType.INTEGER,
-                        equalTo(200)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.LONG),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, -2L, 0L, 200L), DataType.LONG, "field")),
-                        "Max[field=Attribute[channel=0]]",
-                        DataType.LONG,
-                        equalTo(200L)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.DOUBLE),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(5., 8., -2., 0., 200.), DataType.DOUBLE, "field")),
-                        "Max[field=Attribute[channel=0]]",
-                        DataType.DOUBLE,
-                        equalTo(200.)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.DATETIME),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.DATETIME, "field")),
-                        "Max[field=Attribute[channel=0]]",
-                        DataType.DATETIME,
-                        equalTo(200L)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.BOOLEAN),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(true, false, false, true), DataType.BOOLEAN, "field")),
-                        "Max[field=Attribute[channel=0]]",
-                        DataType.BOOLEAN,
-                        equalTo(true)
-                    )
-                ),
-
                 // Folding
                 new TestCaseSupplier(
                     List.of(DataType.INTEGER),
@@ -137,11 +94,30 @@ public class MaxTests extends AbstractAggregationTestCase {
                         DataType.BOOLEAN,
                         equalTo(true)
                     )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.IP),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(
+                                List.of(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1")))),
+                                DataType.IP,
+                                "field"
+                            )
+                        ),
+                        "Max[field=Attribute[channel=0]]",
+                        DataType.IP,
+                        equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1"))))
+                    )
                 )
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
+            suppliers,
+            false,
+            (v, p) -> "boolean, datetime, ip or numeric except unsigned_long or counter types"
+        );
     }
 
     @Override

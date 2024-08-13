@@ -10,10 +10,12 @@ package org.elasticsearch.repositories.azure;
 
 import fixture.azure.AzureHttpFixture;
 
+import com.azure.core.exception.HttpResponseException;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.models.BlobStorageException;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -44,11 +46,16 @@ import static org.hamcrest.Matchers.not;
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
 
+    private static final String AZURE_ACCOUNT = System.getProperty("test.azure.account");
+
     @ClassRule
     public static AzureHttpFixture fixture = new AzureHttpFixture(
-        USE_FIXTURE,
-        System.getProperty("test.azure.account"),
-        System.getProperty("test.azure.container")
+        USE_FIXTURE ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.NONE,
+        AZURE_ACCOUNT,
+        System.getProperty("test.azure.container"),
+        System.getProperty("test.azure.tenant_id"),
+        System.getProperty("test.azure.client_id"),
+        AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_ACCOUNT)
     );
 
     @Override
@@ -183,8 +190,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     public void testReadFromPositionLargerThanBlobLength() {
         testReadFromPositionLargerThanBlobLength(
-            e -> asInstanceOf(BlobStorageException.class, e.getCause()).getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED
-                .getStatus()
+            e -> asInstanceOf(BlobStorageException.class, ExceptionsHelper.unwrap(e, HttpResponseException.class))
+                .getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()
         );
     }
 }

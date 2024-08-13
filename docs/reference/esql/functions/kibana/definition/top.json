@@ -104,6 +104,30 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "ip"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "long",
           "optional" : false,
           "description" : "The field to collect the top values for."

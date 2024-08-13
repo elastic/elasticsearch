@@ -10,31 +10,38 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ListMatcher;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Assert;
 import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.Is.is;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
@@ -49,7 +56,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         return cluster.getHttpAddresses();
     }
 
-    @ParametersFactory
+    @ParametersFactory(argumentFormatting = "%1s")
     public static List<Object[]> modes() {
         return Arrays.stream(Mode.values()).map(m -> new Object[] { m }).toList();
     }
@@ -59,19 +66,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     public void testBasicEsql() throws IOException {
-        StringBuilder b = new StringBuilder();
-        for (int i = 0; i < 1000; i++) {
-            b.append(String.format(Locale.ROOT, """
-                {"create":{"_index":"%s"}}
-                {"@timestamp":"2020-12-12","test":"value%s","value":%d}
-                """, testIndexName(), i, i));
-        }
-        Request bulk = new Request("POST", "/_bulk");
-        bulk.addParameter("refresh", "true");
-        bulk.addParameter("filter_path", "errors");
-        bulk.setJsonEntity(b.toString());
-        Response response = client().performRequest(bulk);
-        Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+        indexTimestampData(1);
 
         RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | stats avg(value)");
         if (Build.current().isSnapshot()) {
@@ -271,6 +266,176 @@ public class RestEsqlIT extends RestEsqlTestCase {
         ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(re.getMessage(), containsString("[6:10] Duplicate field 'a'"));
+    }
+
+    public void testProfile() throws IOException {
+        indexTimestampData(1);
+
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value)");
+        builder.profile(true);
+        if (Build.current().isSnapshot()) {
+            // Lock to shard level partitioning, so we get consistent profile output
+            builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
+        }
+        Map<String, Object> result = runEsql(builder);
+        assertMap(
+            result,
+            matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")))
+                .entry("values", List.of(List.of(499.5d)))
+                .entry("profile", matchesMap().entry("drivers", instanceOf(List.class)))
+        );
+
+        MapMatcher commonProfile = matchesMap().entry("iterations", greaterThan(0))
+            .entry("cpu_nanos", greaterThan(0))
+            .entry("took_nanos", greaterThan(0))
+            .entry("operators", instanceOf(List.class));
+        List<List<String>> signatures = new ArrayList<>();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+        for (Map<String, Object> p : profiles) {
+            assertThat(p, commonProfile);
+            List<String> sig = new ArrayList<>();
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+            for (Map<String, Object> o : operators) {
+                sig.add(checkOperatorProfile(o));
+            }
+            signatures.add(sig);
+        }
+        assertThat(
+            signatures,
+            containsInAnyOrder(
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator"),
+                matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator"),
+                matchesList().item("ExchangeSourceOperator")
+                    .item("AggregationOperator")
+                    .item("ProjectOperator")
+                    .item("LimitOperator")
+                    .item("EvalOperator")
+                    .item("ProjectOperator")
+                    .item("OutputOperator")
+            )
+        );
+    }
+
+    public void testInlineStatsProfile() throws IOException {
+        assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
+        indexTimestampData(1);
+
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | INLINESTATS AVG(value) | SORT value ASC");
+        builder.profile(true);
+        if (Build.current().isSnapshot()) {
+            // Lock to shard level partitioning, so we get consistent profile output
+            builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
+        }
+        Map<String, Object> result = runEsql(builder);
+        ListMatcher values = matchesList();
+        for (int i = 0; i < 1000; i++) {
+            values = values.item(matchesList().item("2020-12-12T00:00:00.000Z").item("value" + i).item("value" + i).item(i).item(499.5));
+        }
+        assertMap(
+            result,
+            matchesMap().entry(
+                "columns",
+                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                    .item(matchesMap().entry("name", "test").entry("type", "text"))
+                    .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
+                    .item(matchesMap().entry("name", "value").entry("type", "long"))
+                    .item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
+            ).entry("values", values).entry("profile", matchesMap().entry("drivers", instanceOf(List.class)))
+        );
+
+        MapMatcher commonProfile = matchesMap().entry("iterations", greaterThan(0))
+            .entry("cpu_nanos", greaterThan(0))
+            .entry("took_nanos", greaterThan(0))
+            .entry("operators", instanceOf(List.class));
+        List<List<String>> signatures = new ArrayList<>();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+        for (Map<String, Object> p : profiles) {
+            assertThat(p, commonProfile);
+            List<String> sig = new ArrayList<>();
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+            for (Map<String, Object> o : operators) {
+                sig.add(checkOperatorProfile(o));
+            }
+            signatures.add(sig);
+        }
+        assertThat(
+            signatures,
+            containsInAnyOrder(
+                // First pass read and start agg
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator"),
+                // First pass node level reduce
+                matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator"),
+                // First pass finish agg
+                matchesList().item("ExchangeSourceOperator")
+                    .item("AggregationOperator")
+                    .item("ProjectOperator")
+                    .item("EvalOperator")
+                    .item("ProjectOperator")
+                    .item("OutputOperator"),
+                // Second pass read and join via eval
+                matchesList().item("LuceneSourceOperator")
+                    .item("EvalOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("TopNOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("ProjectOperator")
+                    .item("ExchangeSinkOperator"),
+                // Second pass node level reduce
+                matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator"),
+                // Second pass finish
+                matchesList().item("ExchangeSourceOperator").item("TopNOperator").item("OutputOperator")
+            )
+        );
+    }
+
+    private String checkOperatorProfile(Map<String, Object> o) {
+        String name = (String) o.get("operator");
+        name = name.replaceAll("\\[.+", "");
+        MapMatcher status = switch (name) {
+            case "LuceneSourceOperator" -> matchesMap().entry("processed_slices", greaterThan(0))
+                .entry("processed_shards", List.of(testIndexName() + ":0"))
+                .entry("total_slices", greaterThan(0))
+                .entry("slice_index", 0)
+                .entry("slice_max", 0)
+                .entry("slice_min", 0)
+                .entry("current", DocIdSetIterator.NO_MORE_DOCS)
+                .entry("pages_emitted", greaterThan(0))
+                .entry("processing_nanos", greaterThan(0))
+                .entry("processed_queries", List.of("*:*"));
+            case "ValuesSourceReaderOperator" -> basicProfile().entry("readers_built", matchesMap().extraOk());
+            case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0)).entry("aggregation_nanos", greaterThan(0));
+            case "ExchangeSinkOperator" -> matchesMap().entry("pages_accepted", greaterThan(0));
+            case "ExchangeSourceOperator" -> matchesMap().entry("pages_emitted", greaterThan(0)).entry("pages_waiting", 0);
+            case "ProjectOperator", "EvalOperator" -> basicProfile();
+            case "LimitOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
+                .entry("limit", 1000)
+                .entry("limit_remaining", 999);
+            case "OutputOperator" -> null;
+            case "TopNOperator" -> matchesMap().entry("occupied_rows", 0)
+                .entry("ram_used", instanceOf(String.class))
+                .entry("ram_bytes_used", greaterThan(0));
+            default -> throw new AssertionError("unexpected status: " + o);
+        };
+        MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name));
+        if (status != null) {
+            expectedOp = expectedOp.entry("status", status);
+        }
+        assertMap(o, expectedOp);
+        return name;
+    }
+
+    private MapMatcher basicProfile() {
+        return matchesMap().entry("pages_processed", greaterThan(0)).entry("process_nanos", greaterThan(0));
     }
 
     private void assertException(String query, String... errorMessages) throws IOException {

@@ -50,6 +50,32 @@ a:boolean | b:boolean | c:boolean | d:boolean
 true      | true      | false     | true
 ;
 
+maxOfIp
+required_capability: agg_max_min_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats max(ip0), a = max(ip0), b = max(x), c = max(case(host == "beta", ip0, ip1));
+
+max(ip0):ip | a:ip | b:ip | c:ip
+fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0
+;
+
+
+maxOfIpGrouping
+required_capability: agg_max_min_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats max(ip0), a = max(ip0), b = max(x), c = max(case(host == "beta", ip0, ip1)) by host
+| sort host asc;
+
+max(ip0):ip | a:ip | b:ip | c:ip | host:keyword
+127.0.0.1 | 127.0.0.1 | 127.0.0.1 | 127.0.0.1 | beta
+fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | epsilon
+fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | fe81::cae2:65ff:fece:feb9 | gamma
+;
+
 minOfBooleanExpression
 required_capability: agg_max_min_boolean_support
 from employees
@@ -67,6 +93,32 @@ from employees | stats s = min(still_hired);
 
 s:boolean
 false
+;
+
+minOfIp
+required_capability: agg_max_min_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats min(ip0), a = min(ip0), b = min(x), c = min(case(host == "beta", ip0, ip1));
+
+min(ip0):ip | a:ip | b:ip | c:ip
+127.0.0.1 | 127.0.0.1 | 127.0.0.1 | 127.0.0.1
+;
+
+
+minOfIpGrouping
+required_capability: agg_max_min_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats min(ip0), a = min(ip0), b = min(x), c = min(case(host == "beta", ip0, ip1)) by host
+| sort host asc;
+
+min(ip0):ip | a:ip | b:ip | c:ip | host:keyword
+127.0.0.1 | 127.0.0.1 | 127.0.0.1 | 127.0.0.1 | beta
+fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | 127.0.0.1 | epsilon
+fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | 127.0.0.3 | gamma
 ;
 
 maxOfShort
@@ -612,6 +664,65 @@ ca:l | cx:l | l:i
 1    | 1    | 5
 1    | 1    | null
 ;
+
+///////////////////////////////////////////////////////////////
+// Test edge case interaction with push down past a rename
+// https://github.com/elastic/elasticsearch/issues/108008
+///////////////////////////////////////////////////////////////
+
+countSameFieldWithEval
+required_capability: fixed_pushdown_past_project
+from employees | stats  b = count(gender), c = count(gender) by gender | eval b = gender | sort c asc
+;
+
+c:l | gender:s | b:s
+0   | null     | null
+33  | F        | F
+57  | M        | M
+;
+
+countSameFieldWithDissect
+required_capability: fixed_pushdown_past_project
+from employees | stats b = count(gender), c = count(gender) by gender | dissect gender "%{b}" | sort c asc
+;
+
+c:l | gender:s | b:s
+0   | null     | null
+33  | F        | F
+57  | M        | M
+;
+
+countSameFieldWithGrok
+required_capability: fixed_pushdown_past_project
+from employees | stats  b = count(gender), c = count(gender) by gender | grok gender "%{USERNAME:b}" | sort c asc
+;
+
+c:l | gender:s | b:s
+0   | null     | null
+33  | F        | F
+57  | M        | M
+;
+
+countSameFieldWithEnrich
+required_capability: fixed_pushdown_past_project
+required_capability: enrich_load
+from employees | stats  b = count(gender), c = count(gender) by gender | enrich languages_policy on gender with b = language_name | sort c asc
+;
+
+c:l | gender:s | b:s
+0   | null     | null
+33  | F        | null
+57  | M        | null
+;
+
+countSameFieldWithEnrichLimit0
+required_capability: fixed_pushdown_past_project
+from employees | stats  b = count(gender), c = count(gender) by gender | enrich languages_policy on gender with b = language_name | sort c asc | limit 0
+;
+
+c:l | gender:s | b:s
+;
+///////////////////////////////////////////////////////////////
 
 aggsWithoutStats
 from employees | stats by gender | sort gender;
@@ -1906,6 +2017,19 @@ F
 M
 null
 ;
+
+shadowingInternalWithGroup2#[skip:-8.14.1,reason:implemented in 8.14]
+FROM employees
+| STATS x = MAX(emp_no), y = count(x) BY x = emp_no, x = gender
+| SORT x ASC
+;
+
+y:long | x:keyword
+    33 | F
+    57 | M
+     0 | null
+;
+
 
 shadowingTheGroup
 FROM employees

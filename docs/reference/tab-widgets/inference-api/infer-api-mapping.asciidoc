@@ -31,6 +31,34 @@ the {infer} pipeline configuration in the next step.
 
 // end::cohere[]
 
+// tag::elser[]
+
+[source,console]
+--------------------------------------------------
+PUT elser-embeddings
+{
+  "mappings": {
+    "properties": {
+      "content_embedding": { <1>
+        "type": "sparse_vector" <2>
+      },
+      "content": { <3>
+        "type": "text" <4>
+      }
+    }
+  }
+}
+--------------------------------------------------
+<1> The name of the field to contain the generated tokens. It must be refrenced
+in the {infer} pipeline configuration in the next step.
+<2> The field to contain the tokens is a `sparse_vector` field for ELSER.
+<3> The name of the field from which to create the dense vector representation.
+In this example, the name of the field is `content`. It must be referenced in
+the {infer} pipeline configuration in the next step.
+<4> The field type which is text in this example.
+
+// end::elser[]
+
 // tag::hugging-face[]
 
 [source,console]

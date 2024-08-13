@@ -1,0 +1,5 @@
+pr: 111490
+summary: Temporarily return both `modelId` and `inferenceId` for GET /_inference until we migrate clients to only `inferenceId`
+area: Machine Learning
+type: bug
+issues: []

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MinIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -36,7 +37,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Min", Min::new);
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date" },
+        returnType = { "boolean", "double", "integer", "long", "date", "ip" },
         description = "The minimum value of a field.",
         isAggregation = true,
         examples = {
@@ -49,7 +50,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
                 tag = "docsStatsMinNestedExpression"
             ) }
     )
-    public Min(Source source, @Param(name = "field", type = { "boolean", "double", "integer", "long", "date" }) Expression field) {
+    public Min(Source source, @Param(name = "field", type = { "boolean", "double", "integer", "long", "date", "ip" }) Expression field) {
         super(source, field);
     }
 
@@ -75,12 +76,13 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     @Override
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
-            this,
-            e -> e == DataType.BOOLEAN || e == DataType.DATETIME || (e.isNumeric() && e != DataType.UNSIGNED_LONG),
+            field(),
+            e -> e == DataType.BOOLEAN || e == DataType.DATETIME || e == DataType.IP || (e.isNumeric() && e != DataType.UNSIGNED_LONG),
             sourceText(),
             DEFAULT,
             "boolean",
             "datetime",
+            "ip",
             "numeric except unsigned_long or counter types"
         );
     }
@@ -104,6 +106,9 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
         }
         if (type == DataType.DOUBLE) {
             return new MinDoubleAggregatorFunctionSupplier(inputChannels);
+        }
+        if (type == DataType.IP) {
+            return new MinIpAggregatorFunctionSupplier(inputChannels);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

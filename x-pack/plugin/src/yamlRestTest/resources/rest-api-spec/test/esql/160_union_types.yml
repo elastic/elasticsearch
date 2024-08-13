@@ -296,11 +296,43 @@ load two indices, showing unsupported type and null value for event_duration:
 
 ---
 load two indices with no conversion function, but needs TO_LONG conversion:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_fix_rename_resolution]
+      reason: "Union type resolution fix for rename also allows direct usage of unsupported fields in KEEP"
+
   - do:
-      catch: '/Cannot use field \[event_duration\] due to ambiguities being mapped as \[2\] incompatible types: \[keyword\] in \[events_ip_keyword\], \[long\] in \[events_ip_long\]/'
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'FROM events_ip_* METADATA _index | KEEP _index, @timestamp, client_ip, event_duration, message | SORT _index ASC, @timestamp DESC'
+
+  - match: { columns.0.name: "_index" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "@timestamp" }
+  - match: { columns.1.type: "date" }
+  - match: { columns.2.name: "client_ip" }
+  - match: { columns.2.type: "ip" }
+  - match: { columns.3.name: "event_duration" }
+  - match: { columns.3.type: "unsupported" }
+  - match: { columns.4.name: "message" }
+  - match: { columns.4.type: "keyword" }
+  - length: { values: 14 }
+  - match: { values.0.0: "events_ip_keyword" }
+  - match: { values.0.1: "2023-10-23T13:55:01.543Z" }
+  - match: { values.0.2: "172.21.3.15" }
+  - match: { values.0.3: null }
+  - match: { values.0.4: "Connected to 10.1.0.1" }
+  - match: { values.7.0: "events_ip_long" }
+  - match: { values.7.1: "2023-10-23T13:55:01.543Z" }
+  - match: { values.7.2: "172.21.3.15" }
+  - match: { values.7.3: null }
+  - match: { values.7.4: "Connected to 10.1.0.1" }
 
 ---
 load two indices with incorrect conversion function, TO_IP instead of TO_LONG:
@@ -450,11 +482,43 @@ load two indices, showing unsupported type and null value for client_ip:
 
 ---
 load two indices with no conversion function, but needs TO_IP conversion:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_fix_rename_resolution]
+      reason: "Union type resolution fix for rename also allows direct usage of unsupported fields in KEEP"
+
   - do:
-      catch: '/Cannot use field \[client_ip\] due to ambiguities being mapped as \[2\] incompatible types: \[ip\] in \[events_ip_long\], \[keyword\] in \[events_keyword_long\]/'
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'FROM events_*_long METADATA _index | KEEP _index, @timestamp, client_ip, event_duration, message | SORT _index ASC, @timestamp DESC'
+
+  - match: { columns.0.name: "_index" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "@timestamp" }
+  - match: { columns.1.type: "date" }
+  - match: { columns.2.name: "client_ip" }
+  - match: { columns.2.type: "unsupported" }
+  - match: { columns.3.name: "event_duration" }
+  - match: { columns.3.type: "long" }
+  - match: { columns.4.name: "message" }
+  - match: { columns.4.type: "keyword" }
+  - length: { values: 14 }
+  - match: { values.0.0: "events_ip_long" }
+  - match: { values.0.1: "2023-10-23T13:55:01.543Z" }
+  - match: { values.0.2: null }
+  - match: { values.0.3: 1756467 }
+  - match: { values.0.4: "Connected to 10.1.0.1" }
+  - match: { values.7.0: "events_keyword_long" }
+  - match: { values.7.1: "2023-10-23T13:55:01.543Z" }
+  - match: { values.7.2: null }
+  - match: { values.7.3: 1756467 }
+  - match: { values.7.4: "Connected to 10.1.0.1" }
 
 ---
 load two indices with incorrect conversion function, TO_LONG instead of TO_IP:
@@ -629,20 +693,103 @@ load two indexes, convert client_ip and group by something invalid:
 
 ---
 load four indices with single conversion function TO_LONG:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_fix_rename_resolution]
+      reason: "Union type resolution fix for rename also allows direct usage of unsupported fields in KEEP"
+
   - do:
-      catch: '/Cannot use field \[client_ip\] due to ambiguities being mapped as \[2\] incompatible types: \[ip\] in \[events_ip_keyword, events_ip_long\], \[keyword\] in \[events_keyword_keyword, events_keyword_long\]/'
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'FROM events_* METADATA _index | EVAL event_duration = TO_LONG(event_duration) | KEEP _index, @timestamp, client_ip, event_duration, message | SORT _index ASC, @timestamp DESC'
 
+  - match: { columns.0.name: "_index" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "@timestamp" }
+  - match: { columns.1.type: "date" }
+  - match: { columns.2.name: "client_ip" }
+  - match: { columns.2.type: "unsupported" }
+  - match: { columns.3.name: "event_duration" }
+  - match: { columns.3.type: "long" }
+  - match: { columns.4.name: "message" }
+  - match: { columns.4.type: "keyword" }
+  - length: { values: 28 }
+  - match: { values.0.0: "events_ip_keyword" }
+  - match: { values.0.1: "2023-10-23T13:55:01.543Z" }
+  - match: { values.0.2: null }
+  - match: { values.0.3: 1756467 }
+  - match: { values.0.4: "Connected to 10.1.0.1" }
+  - match: { values.7.0: "events_ip_long" }
+  - match: { values.7.1: "2023-10-23T13:55:01.543Z" }
+  - match: { values.7.2: null }
+  - match: { values.7.3: 1756467 }
+  - match: { values.7.4: "Connected to 10.1.0.1" }
+  - match: { values.14.0: "events_keyword_keyword" }
+  - match: { values.14.1: "2023-10-23T13:55:01.543Z" }
+  - match: { values.14.2: null }
+  - match: { values.14.3: 1756467 }
+  - match: { values.14.4: "Connected to 10.1.0.1" }
+  - match: { values.21.0: "events_keyword_long" }
+  - match: { values.21.1: "2023-10-23T13:55:01.543Z" }
+  - match: { values.21.2: null }
+  - match: { values.21.3: 1756467 }
+  - match: { values.21.4: "Connected to 10.1.0.1" }
+
 ---
 load four indices with single conversion function TO_IP:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_fix_rename_resolution]
+      reason: "Union type resolution fix for rename also allows direct usage of unsupported fields in KEEP"
+
   - do:
-      catch: '/Cannot use field \[event_duration\] due to ambiguities being mapped as \[2\] incompatible types: \[keyword\] in \[events_ip_keyword, events_keyword_keyword\], \[long\] in \[events_ip_long, events_keyword_long\]/'
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'FROM events_* METADATA _index | EVAL client_ip = TO_IP(client_ip) | KEEP _index, @timestamp, client_ip, event_duration, message | SORT _index ASC, @timestamp DESC'
 
+  - match: { columns.0.name: "_index" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "@timestamp" }
+  - match: { columns.1.type: "date" }
+  - match: { columns.2.name: "client_ip" }
+  - match: { columns.2.type: "ip" }
+  - match: { columns.3.name: "event_duration" }
+  - match: { columns.3.type: "unsupported" }
+  - match: { columns.4.name: "message" }
+  - match: { columns.4.type: "keyword" }
+  - length: { values: 28 }
+  - match: { values.0.0: "events_ip_keyword" }
+  - match: { values.0.1: "2023-10-23T13:55:01.543Z" }
+  - match: { values.0.2: "172.21.3.15" }
+  - match: { values.0.3: null }
+  - match: { values.0.4: "Connected to 10.1.0.1" }
+  - match: { values.7.0: "events_ip_long" }
+  - match: { values.7.1: "2023-10-23T13:55:01.543Z" }
+  - match: { values.7.2: "172.21.3.15" }
+  - match: { values.7.3: null }
+  - match: { values.7.4: "Connected to 10.1.0.1" }
+  - match: { values.14.0: "events_keyword_keyword" }
+  - match: { values.14.1: "2023-10-23T13:55:01.543Z" }
+  - match: { values.14.2: "172.21.3.15" }
+  - match: { values.14.3: null }
+  - match: { values.14.4: "Connected to 10.1.0.1" }
+  - match: { values.21.0: "events_keyword_long" }
+  - match: { values.21.1: "2023-10-23T13:55:01.543Z" }
+  - match: { values.21.2: "172.21.3.15" }
+  - match: { values.21.3: null }
+  - match: { values.21.4: "Connected to 10.1.0.1" }
 ---
 load four indices with multiple conversion functions TO_LONG and TO_IP:
   - do:

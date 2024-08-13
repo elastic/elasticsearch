@@ -21,12 +21,15 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
@@ -35,6 +38,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -45,6 +49,7 @@ import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -52,7 +57,6 @@ import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerializ
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.MUST;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.SHOULD;
-import static org.elasticsearch.xpack.esql.core.util.SourceUtils.writeSource;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FilterTests extends ESTestCase {
@@ -65,14 +69,13 @@ public class FilterTests extends ESTestCase {
     private static Analyzer analyzer;
     private static LogicalPlanOptimizer logicalOptimizer;
     private static PhysicalPlanOptimizer physicalPlanOptimizer;
-    private static Map<String, EsField> mapping;
     private static Mapper mapper;
 
     @BeforeClass
     public static void init() {
         parser = new EsqlParser();
 
-        mapping = loadMapping("mapping-basic.json");
+        Map<String, EsField> mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Set.of("test"));
         IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
@@ -100,13 +103,14 @@ public class FilterTests extends ESTestCase {
     public void testTimestampNoRequestFilterQueryFilter() {
         var value = 10;
 
-        var plan = plan(LoggerMessageFormat.format(null, """
+        String query = LoggerMessageFormat.format(null, """
              FROM test
             |WHERE {} > {}
-            """, EMP_NO, value), null);
+            """, EMP_NO, value);
+        var plan = plan(query, null);
 
         var filter = filterQueryForTransportNodes(plan);
-        var expected = singleValueQuery(rangeQuery(EMP_NO).gt(value), EMP_NO, ((SingleValueQuery.Builder) filter).source());
+        var expected = singleValueQuery(query, rangeQuery(EMP_NO).gt(value), EMP_NO, ((SingleValueQuery.Builder) filter).source());
         assertEquals(expected.toString(), filter.toString());
     }
 
@@ -114,14 +118,16 @@ public class FilterTests extends ESTestCase {
         var value = 10;
         var restFilter = restFilterQuery(EMP_NO);
 
-        var plan = plan(LoggerMessageFormat.format(null, """
+        String query = LoggerMessageFormat.format(null, """
              FROM test
             |WHERE {} > 10
-            """, EMP_NO, value), restFilter);
+            """, EMP_NO, value);
+        var plan = plan(query, restFilter);
 
         var filter = filterQueryForTransportNodes(plan);
         var builder = ((BoolQueryBuilder) filter).filter().get(1);
         var queryFilter = singleValueQuery(
+            query,
             rangeQuery(EMP_NO).gt(value).includeUpper(false),
             EMP_NO,
             ((SingleValueQuery.Builder) builder).source()
@@ -135,15 +141,16 @@ public class FilterTests extends ESTestCase {
         var highValue = 100;
         var restFilter = restFilterQuery(EMP_NO);
 
-        var plan = plan(LoggerMessageFormat.format(null, """
+        String query = LoggerMessageFormat.format(null, """
              FROM test
             |WHERE {} > {} AND {} < {}
-            """, EMP_NO, lowValue, EMP_NO, highValue), restFilter);
+            """, EMP_NO, lowValue, EMP_NO, highValue);
+        var plan = plan(query, restFilter);
 
         var filter = filterQueryForTransportNodes(plan);
         var musts = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).must();
-        var left = singleValueQuery(rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(0)).source());
-        var right = singleValueQuery(rangeQuery(EMP_NO).lt(highValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(1)).source());
+        var left = singleValueQuery(query, rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(0)).source());
+        var right = singleValueQuery(query, rangeQuery(EMP_NO).lt(highValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(1)).source());
         var must = Queries.combine(MUST, asList(left, right));
         var expected = Queries.combine(FILTER, asList(restFilter, must));
         assertEquals(expected.toString(), filter.toString());
@@ -169,15 +176,16 @@ public class FilterTests extends ESTestCase {
         var highValue = 100;
         var restFilter = restFilterQuery(EMP_NO);
 
-        var plan = plan(LoggerMessageFormat.format(null, """
+        String query = LoggerMessageFormat.format(null, """
              FROM test
             |WHERE {} > {} OR {} < {}
-            """, EMP_NO, lowValue, EMP_NO, highValue), restFilter);
+            """, EMP_NO, lowValue, EMP_NO, highValue);
+        var plan = plan(query, restFilter);
 
         var filter = filterQueryForTransportNodes(plan);
         var shoulds = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).should();
-        var left = singleValueQuery(rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) shoulds.get(0)).source());
-        var right = singleValueQuery(rangeQuery(EMP_NO).lt(highValue), EMP_NO, ((SingleValueQuery.Builder) shoulds.get(1)).source());
+        var left = singleValueQuery(query, rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) shoulds.get(0)).source());
+        var right = singleValueQuery(query, rangeQuery(EMP_NO).lt(highValue), EMP_NO, ((SingleValueQuery.Builder) shoulds.get(1)).source());
         var should = Queries.combine(SHOULD, asList(left, right));
         var expected = Queries.combine(FILTER, asList(restFilter, should));
         assertEquals(expected.toString(), filter.toString());
@@ -189,15 +197,16 @@ public class FilterTests extends ESTestCase {
         var eqValue = 1234;
         var restFilter = restFilterQuery(EMP_NO);
 
-        var plan = plan(LoggerMessageFormat.format(null, """
+        String query = LoggerMessageFormat.format(null, """
              FROM test
             |WHERE {} > {} AND {} == {} AND {} < {}
-            """, EMP_NO, lowValue, OTHER_FIELD, eqValue, EMP_NO, highValue), restFilter);
+            """, EMP_NO, lowValue, OTHER_FIELD, eqValue, EMP_NO, highValue);
+        var plan = plan(query, restFilter);
 
         var filter = filterQueryForTransportNodes(plan);
         var musts = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).must();
-        var left = singleValueQuery(rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(0)).source());
-        var right = singleValueQuery(rangeQuery(EMP_NO).lt(highValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(1)).source());
+        var left = singleValueQuery(query, rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(0)).source());
+        var right = singleValueQuery(query, rangeQuery(EMP_NO).lt(highValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(1)).source());
         var must = Queries.combine(MUST, asList(left, right));
         var expected = Queries.combine(FILTER, asList(restFilter, must));
         assertEquals(expected.toString(), filter.toString());
@@ -210,16 +219,17 @@ public class FilterTests extends ESTestCase {
 
         var restFilter = restFilterQuery(EMP_NO);
 
-        var plan = plan(LoggerMessageFormat.format(null, """
+        String query = LoggerMessageFormat.format(null, """
              FROM test
             |WHERE {} > {}
             |EVAL {} = {}
             |WHERE {} > {}
-            """, EMP_NO, lowValue, EMP_NO, eqValue, EMP_NO, highValue), restFilter);
+            """, EMP_NO, lowValue, EMP_NO, eqValue, EMP_NO, highValue);
+        var plan = plan(query, restFilter);
 
         var filter = filterQueryForTransportNodes(plan);
         var builder = ((BoolQueryBuilder) filter).filter().get(1);
-        var queryFilter = singleValueQuery(rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) builder).source());
+        var queryFilter = singleValueQuery(query, rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) builder).source());
         var expected = Queries.combine(FILTER, asList(restFilter, queryFilter));
         assertEquals(expected.toString(), filter.toString());
     }
@@ -265,21 +275,25 @@ public class FilterTests extends ESTestCase {
      * Ugly hack to create a QueryBuilder for SingleValueQuery.
      * For some reason however the queryName is set to null on range queries when deserializing.
      */
-    public static QueryBuilder singleValueQuery(QueryBuilder inner, String field, Source source) {
+    public static QueryBuilder singleValueQuery(String query, QueryBuilder inner, String field, Source source) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
+            Configuration config = randomConfiguration(query, Map.of());
+
             // emulate SingleValueQuery writeTo
             out.writeFloat(AbstractQueryBuilder.DEFAULT_BOOST);
             out.writeOptionalString(null);
             out.writeNamedWriteable(inner);
             out.writeString(field);
-            writeSource(out, source);
+            source.writeTo(new PlanStreamOutput(out, new PlanNameRegistry(), config));
 
             StreamInput in = new NamedWriteableAwareStreamInput(
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),
                 SerializationTestUtils.writableRegistry()
             );
 
-            Object obj = SingleValueQuery.ENTRY.reader.read(in);
+            Object obj = SingleValueQuery.ENTRY.reader.read(
+                new PlanStreamInput(in, new PlanNameRegistry(), in.namedWriteableRegistry(), config)
+            );
             return (QueryBuilder) obj;
         } catch (IOException e) {
             throw new UncheckedIOException(e);

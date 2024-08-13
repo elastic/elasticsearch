@@ -88,7 +88,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         return PARSER.apply(parser, name);
     }
 
-    SnapshotLifecyclePolicyMetadata(
+    public SnapshotLifecyclePolicyMetadata(
         SnapshotLifecyclePolicy policy,
         Map<String, String> headers,
         long version,
@@ -274,6 +274,11 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
 
         public Builder setInvocationsSinceLastSuccess(long invocationsSinceLastSuccess) {
             this.invocationsSinceLastSuccess = invocationsSinceLastSuccess;
+            return this;
+        }
+
+        public Builder incrementInvocationsSinceLastSuccess() {
+            this.invocationsSinceLastSuccess++;
             return this;
         }
 

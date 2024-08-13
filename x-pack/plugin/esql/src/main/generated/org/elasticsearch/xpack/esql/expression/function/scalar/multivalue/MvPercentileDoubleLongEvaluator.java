@@ -69,7 +69,12 @@ public final class MvPercentileDoubleLongEvaluator implements EvalOperator.Expre
           result.appendNull();
           continue position;
         }
-        MvPercentile.process(result, p, valuesBlock, percentileBlock.getLong(percentileBlock.getFirstValueIndex(p)));
+        try {
+          MvPercentile.process(result, p, valuesBlock, percentileBlock.getLong(percentileBlock.getFirstValueIndex(p)));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

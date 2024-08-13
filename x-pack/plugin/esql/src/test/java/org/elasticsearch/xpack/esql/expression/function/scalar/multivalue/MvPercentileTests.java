@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MvPercentileTests extends AbstractScalarFunctionTestCase {
     public MvPercentileTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -302,6 +303,36 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                     )
                 )
             );
+
+            for (var fieldType : List.of(INTEGER, LONG, DataType.DOUBLE)) {
+                cases.add(
+                    new TestCaseSupplier(
+                        "out of bounds percentile <" + fieldType + ", " + percentileType + ">",
+                        List.of(fieldType, percentileType),
+                        () -> {
+                            var percentile = numberWithType(
+                                randomBoolean() ? randomIntBetween(Integer.MIN_VALUE, -1) : randomIntBetween(101, Integer.MAX_VALUE),
+                                percentileType
+                            );
+                            return new TestCaseSupplier.TestCase(
+                                List.of(
+                                    new TestCaseSupplier.TypedData(numberWithType(0, fieldType), fieldType, "field"),
+                                    new TestCaseSupplier.TypedData(percentile, percentileType, "percentile")
+                                ),
+                                evaluatorString(fieldType, percentileType),
+                                fieldType,
+                                nullValue()
+                            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                                .withWarning(
+                                    "Line -1:-1: java.lang.IllegalArgumentException: Percentile parameter must be "
+                                        + "a number between 0 and 100, found ["
+                                        + percentile.doubleValue()
+                                        + "]"
+                                );
+                        }
+                    )
+                );
+            }
         }
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(
@@ -406,12 +437,16 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
         return lowerValue.add(new BigDecimal(fraction).multiply(upperValue.subtract(lowerValue)));
     }
 
-    private static TestCaseSupplier.TypedData percentileWithType(int value, DataType type) {
-        return new TestCaseSupplier.TypedData(switch (type) {
-            case INTEGER -> value;
-            case LONG -> (long) value;
-            default -> (double) value;
-        }, type, "percentile");
+    private static TestCaseSupplier.TypedData percentileWithType(Number value, DataType type) {
+        return new TestCaseSupplier.TypedData(numberWithType(value, type), type, "percentile");
+    }
+
+    private static Number numberWithType(Number value, DataType type) {
+        return switch (type) {
+            case INTEGER -> value.intValue();
+            case LONG -> value.longValue();
+            default -> value.doubleValue();
+        };
     }
 
     private static String evaluatorString(DataType fieldDataType, DataType percentileDataType) {

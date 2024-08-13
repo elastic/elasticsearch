@@ -106,6 +106,26 @@ integer:integer | long:long | double:double
 -6              | -6        | -6.9
 ;
 
+fromIndexPercentile
+required_capability: fn_mv_percentile
+
+FROM employees
+| SORT emp_no
+| LIMIT 1
+| EVAL
+    integer = MV_PERCENTILE(salary_change.int, languages),
+    long = MV_PERCENTILE(salary_change.long, languages.long),
+    double = MV_PERCENTILE(salary_change, height),
+    null_value = MV_PERCENTILE(salary_change, emp_no)
+| KEEP integer, long, double, null_value
+;
+warning:Line 8:14: evaluation of [MV_PERCENTILE(salary_change, emp_no)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 8:14: java.lang.IllegalArgumentException: Percentile parameter must be a number between 0 and 100, found [10001.0]
+
+integer:integer | long:long | double:double | null_value:double
+1               | 1         | 1.19          | null
+;
+
 multipleExpressions
 required_capability: fn_mv_percentile
 

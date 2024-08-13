@@ -153,47 +153,47 @@ public class MvPercentile extends EsqlScalarFunction {
         return NodeInfo.create(this, MvPercentile::new, field, percentile);
     }
 
-    @Evaluator(extraName = "DoubleInteger")
+    @Evaluator(extraName = "DoubleInteger", warnExceptions = IllegalArgumentException.class)
     static void process(DoubleBlock.Builder builder, int position, DoubleBlock values, int percentile) {
         processDoubles(builder, position, values, percentile);
     }
 
-    @Evaluator(extraName = "DoubleLong")
+    @Evaluator(extraName = "DoubleLong", warnExceptions = IllegalArgumentException.class)
     static void process(DoubleBlock.Builder builder, int position, DoubleBlock values, long percentile) {
         processDoubles(builder, position, values, percentile);
     }
 
-    @Evaluator(extraName = "DoubleDouble")
+    @Evaluator(extraName = "DoubleDouble", warnExceptions = IllegalArgumentException.class)
     static void process(DoubleBlock.Builder builder, int position, DoubleBlock values, double percentile) {
         processDoubles(builder, position, values, percentile);
     }
 
-    @Evaluator(extraName = "IntegerInteger")
+    @Evaluator(extraName = "IntegerInteger", warnExceptions = IllegalArgumentException.class)
     static void process(IntBlock.Builder builder, int position, IntBlock values, int percentile) {
         processInts(builder, position, values, percentile);
     }
 
-    @Evaluator(extraName = "IntegerLong")
+    @Evaluator(extraName = "IntegerLong", warnExceptions = IllegalArgumentException.class)
     static void process(IntBlock.Builder builder, int position, IntBlock values, long percentile) {
         processInts(builder, position, values, percentile);
     }
 
-    @Evaluator(extraName = "IntegerDouble")
+    @Evaluator(extraName = "IntegerDouble", warnExceptions = IllegalArgumentException.class)
     static void process(IntBlock.Builder builder, int position, IntBlock values, double percentile) {
         processInts(builder, position, values, percentile);
     }
 
-    @Evaluator(extraName = "LongInteger")
+    @Evaluator(extraName = "LongInteger", warnExceptions = IllegalArgumentException.class)
     static void process(LongBlock.Builder builder, int position, LongBlock values, int percentile) {
         processLongs(builder, position, values, percentile);
     }
 
-    @Evaluator(extraName = "LongLong")
+    @Evaluator(extraName = "LongLong", warnExceptions = IllegalArgumentException.class)
     static void process(LongBlock.Builder builder, int position, LongBlock values, long percentile) {
         processLongs(builder, position, values, percentile);
     }
 
-    @Evaluator(extraName = "LongDouble")
+    @Evaluator(extraName = "LongDouble", warnExceptions = IllegalArgumentException.class)
     static void process(LongBlock.Builder builder, int position, LongBlock values, double percentile) {
         processLongs(builder, position, values, percentile);
     }
@@ -202,9 +202,13 @@ public class MvPercentile extends EsqlScalarFunction {
         int valueCount = valuesBlock.getValueCount(position);
         int firstValueIndex = valuesBlock.getFirstValueIndex(position);
 
-        if (valueCount == 0 || percentile < 0 || percentile > 100) {
+        if (valueCount == 0) {
             builder.appendNull();
             return;
+        }
+
+        if (percentile < 0 || percentile > 100) {
+            throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");
         }
 
         if (valueCount == 1) {
@@ -253,9 +257,13 @@ public class MvPercentile extends EsqlScalarFunction {
         int valueCount = valuesBlock.getValueCount(position);
         int firstValueIndex = valuesBlock.getFirstValueIndex(position);
 
-        if (valueCount == 0 || percentile < 0 || percentile > 100) {
+        if (valueCount == 0) {
             builder.appendNull();
             return;
+        }
+
+        if (percentile < 0 || percentile > 100) {
+            throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");
         }
 
         if (valueCount == 1) {
@@ -310,9 +318,13 @@ public class MvPercentile extends EsqlScalarFunction {
         int valueCount = valuesBlock.getValueCount(position);
         int firstValueIndex = valuesBlock.getFirstValueIndex(position);
 
-        if (valueCount == 0 || percentile < 0 || percentile > 100) {
+        if (valueCount == 0) {
             builder.appendNull();
             return;
+        }
+
+        if (percentile < 0 || percentile > 100) {
+            throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");
         }
 
         if (valueCount == 1) {

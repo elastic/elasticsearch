@@ -68,7 +68,12 @@ public final class MvPercentileIntegerIntegerEvaluator implements EvalOperator.E
           result.appendNull();
           continue position;
         }
-        MvPercentile.process(result, p, valuesBlock, percentileBlock.getInt(percentileBlock.getFirstValueIndex(p)));
+        try {
+          MvPercentile.process(result, p, valuesBlock, percentileBlock.getInt(percentileBlock.getFirstValueIndex(p)));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

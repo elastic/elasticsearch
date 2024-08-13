@@ -98,6 +98,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -3130,6 +3131,13 @@ public class InternalEngine extends Engine {
         boolean singleConsumer,
         boolean accessStats
     ) throws IOException {
+        if (enableRecoverySource == false) {
+            throw new IllegalStateException(
+                "Changes snapshot are unavailable when the "
+                    + IndicesService.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey()
+                    + " setting is disabled."
+            );
+        }
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);

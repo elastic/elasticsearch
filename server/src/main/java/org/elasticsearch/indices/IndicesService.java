@@ -209,6 +209,12 @@ public class IndicesService extends AbstractLifecycleComponent
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> INDICES_RECOVERY_SOURCE_ENABLED_SETTING = Setting.boolSetting(
+        "indices.recovery_source.enabled",
+        true,
+        Property.NodeScope
+    );
+
     static final NodeFeature SUPPORTS_AUTO_PUT = new NodeFeature("indices.auto_put_supported");
 
     /**

@@ -579,13 +579,24 @@ public final class ThreadContext implements Writeable, TraceContext {
     }
 
     /**
-     * Add the {@code value} for the specified {@code key} Any duplicate {@code value} is ignored.
+     * Add the {@code value} for the specified {@code key}. Any duplicate {@code value} is ignored.
      *
      * @param key         the header name
      * @param value       the header value
      */
     public void addResponseHeader(final String key, final String value) {
         addResponseHeader(key, value, v -> v);
+    }
+
+    /**
+     * Add the {@code value} for the specified {@code key}. Any duplicate {@code value} is ignored.
+     * True values are converted to "true", and false to "false".
+     *
+     * @param key         the header name
+     * @param value       the header boolean value
+     */
+    public void addResponseHeader(final String key, final boolean value) {
+        addResponseHeader(key, value ? "true" : "false", v -> v);
     }
 
     /**

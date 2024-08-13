@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.List;
-import java.util.Locale;
 
 /**
  * A LogicalPlan is <b>what</b> (not the "how") a user told us they want to do.
@@ -102,11 +101,7 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
         return lazyResolved;
     }
 
-    public String commandName() {
-        return Source.EMPTY.equals(source())
-            ? getClass().getSimpleName().toLowerCase(Locale.ROOT)
-            : sourceText().split(" ")[0].toLowerCase(Locale.ROOT);
-    }
+    public abstract String commandName();
 
     public abstract boolean expressionsResolved();
 

@@ -108,6 +108,11 @@ public class PhasedTests extends ESTestCase {
         }
 
         @Override
+        public String commandName() {
+            return "DUMMY";
+        }
+
+        @Override
         public boolean expressionsResolved() {
             throw new UnsupportedOperationException();
         }

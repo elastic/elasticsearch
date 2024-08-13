@@ -30,6 +30,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
     private final List<Attribute> metadataFields;
     private final IndexMode indexMode;
     private final String unresolvedMsg;
+    private final String commandName;
 
     public UnresolvedRelation(
         Source source,
@@ -37,7 +38,8 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
         boolean frozen,
         List<Attribute> metadataFields,
         IndexMode indexMode,
-        String unresolvedMessage
+        String unresolvedMessage,
+        String commandName
     ) {
         super(source);
         this.table = table;
@@ -45,6 +47,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
         this.metadataFields = metadataFields;
         this.indexMode = indexMode;
         this.unresolvedMsg = unresolvedMessage == null ? "Unknown index [" + table.index() + "]" : unresolvedMessage;
+        this.commandName = commandName;
     }
 
     @Override
@@ -59,7 +62,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
 
     @Override
     protected NodeInfo<UnresolvedRelation> info() {
-        return NodeInfo.create(this, UnresolvedRelation::new, table, frozen, metadataFields, indexMode, unresolvedMsg);
+        return NodeInfo.create(this, UnresolvedRelation::new, table, frozen, metadataFields, indexMode, unresolvedMsg, commandName);
     }
 
     public TableIdentifier table() {
@@ -73,6 +76,11 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
     @Override
     public boolean resolved() {
         return false;
+    }
+
+    @Override
+    public String commandName() {
+        return commandName;
     }
 
     @Override

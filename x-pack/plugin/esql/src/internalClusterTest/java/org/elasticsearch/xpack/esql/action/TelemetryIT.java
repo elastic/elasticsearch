@@ -16,7 +16,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
-import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
+import org.elasticsearch.xpack.esql.stats.PlanningMetricsManager;
 
 import java.util.Collection;
 import java.util.List;
@@ -58,49 +58,57 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
 
         client().admin().indices().prepareRefresh("idx").get();
 
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query("FROM idx | EVAL ip = to_ip(host), x = to_string(host) | STATS s = COUNT(*) by ip | KEEP ip | EVAL a = 10");
-        request.pragmas(randomPragmas());
-        CountDownLatch latch = new CountDownLatch(1);
+        int iterations = randomInt(10);
+        for (int i = 0; i < iterations; i++) {
+            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
+            request.query("FROM idx | EVAL ip = to_ip(host), x = to_string(host) | STATS s = COUNT(*) by ip | KEEP ip | EVAL a = 10");
+            request.pragmas(randomPragmas());
+            CountDownLatch latch = new CountDownLatch(1);
 
-        final var plugins = internalCluster().getInstance(PluginsService.class, nodeName).filterPlugins(TestTelemetryPlugin.class).toList();
-        assertThat(plugins, hasSize(1));
-        TestTelemetryPlugin plugin = plugins.get(0);
+            final var plugins = internalCluster().getInstance(PluginsService.class, nodeName)
+                .filterPlugins(TestTelemetryPlugin.class)
+                .toList();
+            assertThat(plugins, hasSize(1));
+            TestTelemetryPlugin plugin = plugins.get(0);
 
-        client(dataNode.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
-            try {
-                // test commands
-                final List<Measurement> metrics = Measurement.combine(plugin.getLongCounterMeasurement(PlanningMetrics.FEATURE_METRICS));
-                Set<String> featuresFound = metrics.stream()
-                    .map(x -> x.attributes().get(PlanningMetrics.FEATURE_NAME))
-                    .map(String.class::cast)
-                    .collect(Collectors.toSet());
-                assertThat(featuresFound, is(Set.of("FROM", "EVAL", "STATS", "KEEP")));
-                for (Measurement metric : metrics) {
-                    if ("EVAL".equalsIgnoreCase((String) metric.attributes().get(PlanningMetrics.FEATURE_NAME))) {
-                        assertThat(metric.value(), is(2L));
-                    } else {
-                        assertThat(metric.value(), is(1L));
+            final int iteration = i + 1;
+            client(dataNode.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
+                try {
+                    // test commands
+                    final List<Measurement> metrics = Measurement.combine(
+                        plugin.getLongCounterMeasurement(PlanningMetricsManager.FEATURE_METRICS)
+                    );
+                    Set<String> featuresFound = metrics.stream()
+                        .map(x -> x.attributes().get(PlanningMetricsManager.FEATURE_NAME))
+                        .map(String.class::cast)
+                        .collect(Collectors.toSet());
+                    assertThat(featuresFound, is(Set.of("FROM", "EVAL", "STATS", "KEEP")));
+                    for (Measurement metric : metrics) {
+                        if ("EVAL".equalsIgnoreCase((String) metric.attributes().get(PlanningMetricsManager.FEATURE_NAME))) {
+                            assertThat(metric.getLong(), is(iteration * 2L));
+                        } else {
+                            assertThat(metric.getLong(), is(iteration * 1L));
+                        }
                     }
-                }
 
-                // test functions
-                final List<Measurement> funcitonMeasurements = Measurement.combine(
-                    plugin.getLongCounterMeasurement(PlanningMetrics.FUNCTION_METRICS)
-                );
-                Set<String> functionNames = funcitonMeasurements.stream()
-                    .map(x -> x.attributes().get(PlanningMetrics.FEATURE_NAME))
-                    .map(String.class::cast)
-                    .collect(Collectors.toSet());
-                assertThat(functionNames, is(Set.of("TO_STRING", "TO_IP", "COUNT")));
-                for (Measurement measurement : funcitonMeasurements) {
-                    assertThat(measurement.value(), is(1L));
+                    // test functions
+                    final List<Measurement> funcitonMeasurements = Measurement.combine(
+                        plugin.getLongCounterMeasurement(PlanningMetricsManager.FUNCTION_METRICS)
+                    );
+                    Set<String> functionNames = funcitonMeasurements.stream()
+                        .map(x -> x.attributes().get(PlanningMetricsManager.FEATURE_NAME))
+                        .map(String.class::cast)
+                        .collect(Collectors.toSet());
+                    assertThat(functionNames, is(Set.of("TO_STRING", "TO_IP", "COUNT")));
+                    for (Measurement measurement : funcitonMeasurements) {
+                        assertThat(measurement.getLong(), is(iteration * 1L));
+                    }
+                } finally {
+                    latch.countDown();
                 }
-            } finally {
-                latch.countDown();
-            }
-        }));
-        latch.await(30, TimeUnit.SECONDS);
+            }));
+            latch.await(30, TimeUnit.SECONDS);
+        }
     }
 
     private DiscoveryNode randomDataNode() {

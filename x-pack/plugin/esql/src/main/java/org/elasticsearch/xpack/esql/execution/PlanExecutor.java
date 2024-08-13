@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.Metrics;
-import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
+import org.elasticsearch.xpack.esql.stats.PlanningMetricsManager;
 import org.elasticsearch.xpack.esql.stats.QueryMetric;
 
 import java.util.function.BiConsumer;
@@ -37,8 +37,8 @@ public class PlanExecutor {
     private final EsqlFunctionRegistry functionRegistry;
     private final Mapper mapper;
     private final Metrics metrics;
-    private final PlanningMetrics planningMetrics;
     private final Verifier verifier;
+    private final PlanningMetricsManager planningMetricsManager;
 
     public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry) {
         this.indexResolver = indexResolver;
@@ -47,7 +47,7 @@ public class PlanExecutor {
         this.mapper = new Mapper(functionRegistry);
         this.metrics = new Metrics();
         this.verifier = new Verifier(metrics);
-        this.planningMetrics = new PlanningMetrics(meterRegistry);
+        this.planningMetricsManager = new PlanningMetricsManager(meterRegistry);
     }
 
     public void esql(
@@ -68,7 +68,7 @@ public class PlanExecutor {
             new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg)),
             mapper,
             verifier,
-            planningMetrics
+            planningMetricsManager
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);

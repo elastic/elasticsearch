@@ -40,6 +40,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -272,7 +273,8 @@ public class NativePrivilegeStore {
 
     private void safeScheduleRetry(Runnable task, TimeValue delay, Consumer<Exception> onScheduleFailure) {
         try {
-            client.threadPool().schedule(task, delay, client.threadPool().generic());
+            final ThreadPool threadPool = client.threadPool();
+            threadPool.schedule(task, delay, threadPool.generic());
         } catch (Exception ex) {
             logger.warn("encountered exception during retry scheduling", ex);
             onScheduleFailure.accept(ex);

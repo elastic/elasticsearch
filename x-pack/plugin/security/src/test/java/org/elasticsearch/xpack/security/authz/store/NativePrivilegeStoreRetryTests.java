@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -29,7 +28,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -57,22 +55,21 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class NativePrivilegeStoreRetryTests extends ESTestCase {
+    private static final int MAX_RETRIES = 5;
 
     private NativePrivilegeStore store;
     private List<ActionRequest> requests;
     private AtomicReference<ActionListener<ActionResponse>> listener;
     private Client client;
     private SecurityIndexManager securityIndex;
-    private CacheInvalidatorRegistry cacheInvalidatorRegistry;
-    private CountDownLatch retryLatch;
-    private ThreadPool threadPool;
-    private ClusterService clusterService;
+    private CountDownLatch resultLatch;
+    private MockThreadPool threadPool;
 
-    private void setupStore(int expectedRetryCount) {
+    private void setupStore(int expectedCount) {
         requests = new ArrayList<>();
         listener = new AtomicReference<>();
-        retryLatch = new CountDownLatch(expectedRetryCount);
-        threadPool = new MockThreadPool(getTestName(), retryLatch);
+        resultLatch = new CountDownLatch(expectedCount);
+        threadPool = new MockThreadPool(getTestName(), resultLatch);
         client = new NoOpClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
@@ -83,7 +80,7 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
             ) {
                 NativePrivilegeStoreRetryTests.this.requests.add(request);
                 NativePrivilegeStoreRetryTests.this.listener.set((ActionListener<ActionResponse>) listener);
-                retryLatch.countDown();
+                resultLatch.countDown();
             }
 
             @Override
@@ -108,11 +105,70 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
-        cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
-        store = new NativePrivilegeStore(Settings.EMPTY, client, securityIndex, cacheInvalidatorRegistry, clusterService);
+        store = new NativePrivilegeStore(
+            Settings.EMPTY,
+            client,
+            securityIndex,
+            new CacheInvalidatorRegistry(),
+            ClusterServiceUtils.createClusterService(threadPool, clusterSettings)
+        );
+    }
+
+    private void setupStoreWithFailingClient(int expectedCount) {
+        requests = new ArrayList<>();
+        listener = new AtomicReference<>();
+        resultLatch = new CountDownLatch(expectedCount);
+        threadPool = new MockThreadPool(getTestName(), resultLatch);
+        client = new NoOpClient(threadPool) {
+            @Override
+            @SuppressWarnings("unchecked")
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                NativePrivilegeStoreRetryTests.this.requests.add(request);
+                if (resultLatch.getCount() > expectedCount - 1) {
+                    listener.onFailure(unavailableShardsException());
+                } else {
+                    NativePrivilegeStoreRetryTests.this.listener.set((ActionListener<ActionResponse>) listener);
+                }
+                resultLatch.countDown();
+            }
+
+            @Override
+            public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
+                ActionListener.respondAndRelease(listener, SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+            }
+        };
+        securityIndex = mock(SecurityIndexManager.class);
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        Mockito.doAnswer(invocationOnMock -> {
+            assertThat(invocationOnMock.getArguments().length, equalTo(2));
+            assertThat(invocationOnMock.getArguments()[1], instanceOf(Runnable.class));
+            ((Runnable) invocationOnMock.getArguments()[1]).run();
+            return null;
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
+        Mockito.doAnswer(invocationOnMock -> {
+            assertThat(invocationOnMock.getArguments().length, equalTo(2));
+            assertThat(invocationOnMock.getArguments()[1], instanceOf(Runnable.class));
+            ((Runnable) invocationOnMock.getArguments()[1]).run();
+            return null;
+        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
+
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        store = new NativePrivilegeStore(
+            Settings.EMPTY,
+            client,
+            securityIndex,
+            new CacheInvalidatorRegistry(),
+            ClusterServiceUtils.createClusterService(threadPool, clusterSettings)
+        );
     }
 
     @After
@@ -120,36 +176,82 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testGetPrivilegesRetriesOnUnavailableShards() throws Exception {
+    public void testGetPrivilegesSucceedsWithRetriesOnUnavailableShardFailures() throws Exception {
         final List<ApplicationPrivilegeDescriptor> sourcePrivileges = Arrays.asList(
             new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap()),
             new ApplicationPrivilegeDescriptor("myapp", "user", newHashSet("action:login", "data:read/*"), emptyMap()),
             new ApplicationPrivilegeDescriptor("myapp", "author", newHashSet("action:login", "data:read/*", "data:write/*"), emptyMap())
         );
-        int numRetryableFailures = 4;
-        setupStore(numRetryableFailures + 1);
+        int numRetryableFailures = randomIntBetween(1, MAX_RETRIES);
+        // extra call to latch to account for capturing `listener`
+        int totalCallsToLatch = numRetryableFailures + 1;
+        setupStore(totalCallsToLatch);
         var mockk = when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS));
         for (int i = 0; i < numRetryableFailures; i++) {
             mockk = mockk.thenReturn(false);
         }
         mockk.thenReturn(true);
-        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(
-            new UnavailableShardsException("index", 1, "bad shard")
-        );
+        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(unavailableShardsException());
 
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
         store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, future);
 
-        assertTrue(retryLatch.await(20, TimeUnit.SECONDS));
+        assertTrue(resultLatch.await(20, TimeUnit.SECONDS));
 
         final SearchHit[] hits = buildHits(sourcePrivileges);
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(hits));
 
         assertResult(sourcePrivileges, future);
+        assertThat(threadPool.delays.size(), equalTo(numRetryableFailures));
+    }
+
+    public void testGetPrivilegesSucceedsWithRetriesOnUnavailableShardFailuresThrown() throws Exception {
+        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = Arrays.asList(
+            new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap()),
+            new ApplicationPrivilegeDescriptor("myapp", "user", newHashSet("action:login", "data:read/*"), emptyMap()),
+            new ApplicationPrivilegeDescriptor("myapp", "author", newHashSet("action:login", "data:read/*", "data:write/*"), emptyMap())
+        );
+        int numRetryableFailures = 2;
+        // extra call to latch to account for capturing `listener`
+        setupStoreWithFailingClient(numRetryableFailures);
+
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, future);
+
+        assertTrue(resultLatch.await(20, TimeUnit.SECONDS));
+
+        final SearchHit[] hits = buildHits(sourcePrivileges);
+        ActionListener.respondAndRelease(listener.get(), buildSearchResponse(hits));
+
+        assertResult(sourcePrivileges, future);
+        assertThat(threadPool.delays.size(), equalTo(1));
+    }
+
+    private static UnavailableShardsException unavailableShardsException() {
+        return new UnavailableShardsException("index", 1, "bad shard");
+    }
+
+    public void testGetPrivilegesThrowsOnUnavailableShardFailuresWhenOutOfRetries() throws Exception {
+        int numRetryableFailures = MAX_RETRIES + 1;
+        int totalCallsToLatch = numRetryableFailures - 1;
+        setupStore(totalCallsToLatch);
+        var mockk = when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS));
+        for (int i = 0; i < numRetryableFailures; i++) {
+            mockk = mockk.thenReturn(false);
+        }
+        mockk.thenReturn(true);
+        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(unavailableShardsException());
+
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, future);
+
+        assertTrue(resultLatch.await(20, TimeUnit.SECONDS));
+
+        expectThrows(UnavailableShardsException.class, future::actionGet);
+        assertThat(threadPool.delays.size(), equalTo(numRetryableFailures - 1));
     }
 
     private static class MockThreadPool extends TestThreadPool {
-
         private final List<TimeValue> delays = new ArrayList<>();
         private final CountDownLatch countDownLatch;
 

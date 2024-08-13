@@ -9,11 +9,13 @@ package org.elasticsearch.blobcache;
 
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class BlobCacheMetrics {
     private static final String CACHE_POPULATION_REASON_ATTRIBUTE_KEY = "cachePopulationReason";
@@ -22,7 +24,9 @@ public class BlobCacheMetrics {
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
     private final LongHistogram cacheMissLoadTimes;
-    private final LongHistogram cachePopulateThroughput;
+    private final DoubleHistogram cachePopulateThroughput;
+    private final LongCounter cachePopulationBytes;
+    private final LongCounter cachePopulationTime;
 
     public enum CachePopulationReason {
         /**
@@ -52,10 +56,20 @@ public class BlobCacheMetrics {
                 "The time in milliseconds for populating entries in the blob store resulting from a cache miss, expressed as a histogram.",
                 "ms"
             ),
-            meterRegistry.registerLongHistogram(
+            meterRegistry.registerDoubleHistogram(
                 "es.blob_cache.populate_throughput.histogram",
                 "The throughput when populating the blob store from the cache",
-                "bytes/second"
+                "MB/second"
+            ),
+            meterRegistry.registerLongCounter(
+                "es.blob_cache.populate_bytes.counter",
+                "The number of bytes that have been loaded into the cache",
+                "bytes"
+            ),
+            meterRegistry.registerLongCounter(
+                "es.blob_cache.populate_time.counter",
+                "The time spent copying data into the cache",
+                "milliseconds"
             )
         );
     }
@@ -64,12 +78,16 @@ public class BlobCacheMetrics {
         LongCounter cacheMissCounter,
         LongCounter evictedCountNonZeroFrequency,
         LongHistogram cacheMissLoadTimes,
-        LongHistogram cachePopulateThroughput
+        DoubleHistogram cachePopulateThroughput,
+        LongCounter cachePopulationBytes,
+        LongCounter cachePopulationTime
     ) {
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
         this.cacheMissLoadTimes = cacheMissLoadTimes;
         this.cachePopulateThroughput = cachePopulateThroughput;
+        this.cachePopulationBytes = cachePopulationBytes;
+        this.cachePopulationTime = cachePopulationTime;
     }
 
     public static BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
@@ -106,7 +124,9 @@ public class BlobCacheMetrics {
             CACHE_POPULATION_REASON_ATTRIBUTE_KEY,
             cachePopulationReason
         );
-        cachePopulateThroughput.record(toBytesPerSecond(totalBytesCopied, totalCopyTimeNanos), metricAttributes);
+        cachePopulateThroughput.record(toMegabytesPerSecond(totalBytesCopied, totalCopyTimeNanos), metricAttributes);
+        cachePopulationBytes.incrementBy(totalBytesCopied, metricAttributes);
+        cachePopulationTime.incrementBy(TimeUnit.NANOSECONDS.toMillis(totalCopyTimeNanos), metricAttributes);
     }
 
     /**
@@ -116,8 +136,9 @@ public class BlobCacheMetrics {
      * @param totalNanoseconds The time to transfer in nanoseconds
      * @return The throughput as bytes/second
      */
-    private int toBytesPerSecond(int totalBytes, long totalNanoseconds) {
+    private double toMegabytesPerSecond(int totalBytes, long totalNanoseconds) {
         double totalSeconds = totalNanoseconds / 1_000_000_000.0;
-        return (int) (totalBytes / totalSeconds);
+        double totalMegabytes = totalBytes / 1_000_000.0;
+        return totalMegabytes / totalSeconds;
     }
 }

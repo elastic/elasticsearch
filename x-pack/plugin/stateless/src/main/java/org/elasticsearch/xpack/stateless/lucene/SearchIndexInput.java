@@ -397,7 +397,6 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
             IntConsumer progressUpdater,
             ActionListener<Void> completionListener
         ) throws IOException {
-            assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
             createInputStream(streamFactory, relativePos, len, completionListener.map(in -> {
                 try (in) {
                     // Can be executed on different thread pool depending whether we read from

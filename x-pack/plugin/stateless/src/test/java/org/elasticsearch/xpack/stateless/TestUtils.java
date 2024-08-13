@@ -33,12 +33,6 @@ public class TestUtils {
         Settings settings,
         ThreadPool threadPool
     ) {
-        return new StatelessSharedBlobCacheService(
-            nodeEnvironment,
-            settings,
-            threadPool,
-            Stateless.SHARD_READ_THREAD_POOL,
-            BlobCacheMetrics.NOOP
-        );
+        return new StatelessSharedBlobCacheService(nodeEnvironment, settings, threadPool, BlobCacheMetrics.NOOP);
     }
 }

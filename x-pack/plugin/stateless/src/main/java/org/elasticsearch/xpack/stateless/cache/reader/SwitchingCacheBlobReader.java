@@ -78,7 +78,6 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
             cacheBlobReaderForUploaded.getRangeInputStream(position, length, listener);
         } else {
             cacheBlobReaderForNonUploaded.getRangeInputStream(position, length, listener.delegateResponse((l, ex) -> {
-                // TODO ideally use ShardReadThread pool here again. (ES-8155)
                 final var resourceNotFoundException = ExceptionsHelper.unwrap(ex, ResourceNotFoundException.class);
                 if (resourceNotFoundException != null) {
                     final var message = Strings.format(

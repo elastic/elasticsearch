@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
-import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
@@ -57,6 +56,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
@@ -112,7 +112,8 @@ public class SearchDirectoryTests extends ESTestCase {
                         BlobLocation location,
                         MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer bytesReadFromObjectStore,
-                        LongConsumer bytesReadFromIndexing
+                        LongConsumer bytesReadFromIndexing,
+                        Executor objectStoreFetchExecutor
                     ) {
                         var originalCacheBlobReader = cacheBlobReaderService.getCacheBlobReader(
                             shardId,
@@ -121,7 +122,8 @@ public class SearchDirectoryTests extends ESTestCase {
                             // The test expects to go through the blob store always
                             MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                             bytesReadFromObjectStore,
-                            bytesReadFromIndexing
+                            bytesReadFromIndexing,
+                            objectStoreFetchExecutor
                         );
                         return new CacheBlobReader() {
                             @Override
@@ -153,13 +155,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 Settings settings,
                 ThreadPool threadPool
             ) {
-                return new StatelessSharedBlobCacheService(
-                    nodeEnvironment,
-                    settings,
-                    threadPool,
-                    Stateless.SHARD_READ_THREAD_POOL,
-                    BlobCacheMetrics.NOOP
-                ) {
+                return new StatelessSharedBlobCacheService(nodeEnvironment, settings, threadPool, BlobCacheMetrics.NOOP) {
                     @Override
                     protected boolean assertOffsetsWithinFileLength(long offset, long length, long fileLength) {
                         // this test tries to read beyond the file length

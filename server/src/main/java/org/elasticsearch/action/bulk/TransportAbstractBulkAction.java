@@ -321,9 +321,9 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Executor executor,
         ActionListener<BulkResponse> listener
     ) {
-        final long relativeStartTime = threadPool.relativeTimeInMillis();
+        final long relativeStartTimeNanos = threadPool.relativeTimeInNanos();
         if (applyPipelines(task, bulkRequest, executor, listener) == false) {
-            doInternalExecute(task, bulkRequest, executor, listener, relativeStartTime);
+            doInternalExecute(task, bulkRequest, executor, listener, relativeStartTimeNanos);
         }
     }
 

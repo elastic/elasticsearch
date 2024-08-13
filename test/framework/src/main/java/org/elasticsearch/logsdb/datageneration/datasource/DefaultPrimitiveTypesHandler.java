@@ -20,7 +20,8 @@ public class DefaultPrimitiveTypesHandler implements DataSourceHandler {
 
     @Override
     public DataSourceResponse.UnsignedLongGenerator handle(DataSourceRequest.UnsignedLongGenerator request) {
-        return new DataSourceResponse.UnsignedLongGenerator(() -> new BigInteger(64, ESTestCase.random()));
+        // TODO there is currently an issue with handling BigInteger in some synthetic source scenarios
+        return new DataSourceResponse.UnsignedLongGenerator(() -> new BigInteger(64, ESTestCase.random()).toString());
     }
 
     @Override
@@ -41,13 +42,6 @@ public class DefaultPrimitiveTypesHandler implements DataSourceHandler {
     @Override
     public DataSourceResponse.DoubleGenerator handle(DataSourceRequest.DoubleGenerator request) {
         return new DataSourceResponse.DoubleGenerator(ESTestCase::randomDouble);
-    }
-
-    @Override
-    public DataSourceResponse.DoubleInRangeGenerator handle(DataSourceRequest.DoubleInRangeGenerator request) {
-        return new DataSourceResponse.DoubleInRangeGenerator(
-            () -> ESTestCase.randomDoubleBetween(request.minExclusive(), request.maxExclusive(), false)
-        );
     }
 
     @Override

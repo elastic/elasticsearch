@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -41,6 +43,7 @@ public class ToDatetime extends AbstractConvertFunction {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DATETIME, (field, source) -> field),
+        Map.entry(DATE_NANOS, ToDatetimeFromDateNanosEvaluator.Factory::new),
         Map.entry(LONG, (field, source) -> field),
         Map.entry(KEYWORD, ToDatetimeFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToDatetimeFromStringEvaluator.Factory::new),
@@ -81,7 +84,7 @@ public class ToDatetime extends AbstractConvertFunction {
         Source source,
         @Param(
             name = "field",
-            type = { "date", "keyword", "text", "double", "long", "unsigned_long", "integer" },
+            type = { "date", "date_nanos", "keyword", "text", "double", "long", "unsigned_long", "integer" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {
@@ -120,5 +123,10 @@ public class ToDatetime extends AbstractConvertFunction {
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromKeyword(BytesRef in) {
         return dateTimeToLong(in.utf8ToString());
+    }
+
+    @ConvertEvaluator(extraName = "FromDateNanos", warnExceptions = { IllegalArgumentException.class })
+    static long fromDatenanos(long in) {
+        return DateUtils.toMilliSeconds(in);
     }
 }

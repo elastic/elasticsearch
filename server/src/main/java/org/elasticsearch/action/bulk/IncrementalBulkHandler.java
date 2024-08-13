@@ -82,12 +82,19 @@ public class IncrementalBulkHandler {
         }
 
         public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
-            bulkRequest.add(items);
-            releasables.add(releasable);
-            client.bulk(bulkRequest, listener.delegateFailureAndWrap((l, bulkResponse) -> {
-                handleIndividualResponse(bulkResponse);
-                l.onResponse(combineResponses());
-            }));
+            if (failure == null) {
+                bulkRequest.add(items);
+                releasables.add(releasable);
+                client.bulk(bulkRequest, listener.delegateFailureAndWrap((l, bulkResponse) -> {
+                    handleIndividualResponse(bulkResponse);
+                    l.onResponse(combineResponses());
+                }));
+            } else {
+                assert releasables.isEmpty();
+                assert bulkRequest == null;
+                releasable.close();
+                listener.onFailure(failure);
+            }
         }
 
         private void createNewBulkRequest() {

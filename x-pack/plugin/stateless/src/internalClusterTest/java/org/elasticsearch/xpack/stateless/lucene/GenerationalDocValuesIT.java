@@ -58,6 +58,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -340,7 +341,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
                     public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
                         ActionListener.run(listener, l -> {
                             InputStream stream = getRangeInputStream(position, length);
-                            getCacheService().getShardReadThreadPoolExecutor().execute(() -> ActionListener.completeWith(l, () -> stream));
+                            getCacheService().getShardReadThreadPoolExecutor().execute(ActionRunnable.supply(l, () -> stream));
                         });
                     }
                 },

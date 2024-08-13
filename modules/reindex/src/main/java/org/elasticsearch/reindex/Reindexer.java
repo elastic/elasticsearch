@@ -37,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -91,7 +92,7 @@ public class Reindexer {
         ThreadPool threadPool,
         ScriptService scriptService,
         ReindexSslConfig reindexSslConfig,
-        ReindexMetrics reindexMetrics
+        @Nullable ReindexMetrics reindexMetrics
     ) {
         this.clusterService = clusterService;
         this.client = client;
@@ -130,7 +131,7 @@ public class Reindexer {
                     request,
                     ActionListener.runAfter(listener, () -> {
                         long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
-                        reindexMetrics.recordTookTime(elapsedTime);
+                        if (reindexMetrics != null) reindexMetrics.recordTookTime(elapsedTime);
                     })
                 );
                 searchAction.start();

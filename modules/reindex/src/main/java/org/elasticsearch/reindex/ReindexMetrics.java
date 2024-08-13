@@ -17,12 +17,12 @@ public class ReindexMetrics {
 
     private final LongHistogram reindexTimeSecsHistogram;
 
-    private ReindexMetrics(LongHistogram reindexTimeSecsHistogram) {
-        this.reindexTimeSecsHistogram = reindexTimeSecsHistogram;
-    }
-
     public ReindexMetrics(MeterRegistry meterRegistry) {
         this(meterRegistry.registerLongHistogram(TOOK_TIME_HISTOGRAM, "Time to reindex by search", "seconds"));
+    }
+
+    private ReindexMetrics(LongHistogram reindexTimeSecsHistogram) {
+        this.reindexTimeSecsHistogram = reindexTimeSecsHistogram;
     }
 
     public long recordTookTime(long tookTime) {

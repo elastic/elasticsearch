@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -54,7 +55,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         Client client,
         TransportService transportService,
         ReindexSslConfig sslConfig,
-        ReindexMetrics reindexMetrics
+        @Nullable ReindexMetrics reindexMetrics
     ) {
         this(
             ReindexAction.NAME,
@@ -84,7 +85,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         Client client,
         TransportService transportService,
         ReindexSslConfig sslConfig,
-        ReindexMetrics reindexMetrics
+        @Nullable ReindexMetrics reindexMetrics
     ) {
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;

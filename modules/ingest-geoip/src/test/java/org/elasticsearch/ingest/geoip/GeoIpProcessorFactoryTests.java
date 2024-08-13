@@ -496,7 +496,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertThat(geoData.get("city_name"), equalTo("Linköping"));
         }
         {
-            // No databases are available, so assume that databases still need to be downloaded and therefor not fail:
+            // No databases are available, so assume that databases still need to be downloaded and therefore not fail:
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
             databaseNodeService.removeStaleEntries(List.of("GeoLite2-City.mmdb"));
             configDatabases.updateDatabase(geoIpConfigDir.resolve("GeoLite2-City.mmdb"), false);
@@ -505,7 +505,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertThat(geoData, nullValue());
         }
         {
-            // There are database available, but not the right one, so tag:
+            // There are databases available, but not the right one, so tag:
             databaseNodeService.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City-Test.mmdb"));
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
             processor.execute(ingestDocument);

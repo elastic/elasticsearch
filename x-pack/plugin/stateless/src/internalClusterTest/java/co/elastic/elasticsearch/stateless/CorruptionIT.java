@@ -396,7 +396,6 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                SHARD_READ_THREAD_POOL,
                 new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
             );
         }
@@ -410,10 +409,9 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
             NodeEnvironment environment,
             Settings settings,
             ThreadPool threadPool,
-            String ioExecutor,
             BlobCacheMetrics blobCacheMetrics
         ) {
-            super(environment, settings, threadPool, ioExecutor, blobCacheMetrics);
+            super(environment, settings, threadPool, blobCacheMetrics);
         }
 
         @Override

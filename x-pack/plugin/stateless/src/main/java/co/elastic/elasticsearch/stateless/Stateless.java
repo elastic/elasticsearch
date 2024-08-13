@@ -636,7 +636,6 @@ public class Stateless extends Plugin
             nodeEnvironment,
             settings,
             threadPool,
-            SHARD_READ_THREAD_POOL,
             new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
         );
     }

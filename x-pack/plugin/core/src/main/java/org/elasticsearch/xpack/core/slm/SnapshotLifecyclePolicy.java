@@ -51,7 +51,6 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     private final String repository;
     private final Map<String, Object> configuration;
     private final SnapshotRetentionConfiguration retentionPolicy;
-
     private final boolean isCronSchedule;
 
     private static final ParseField NAME = new ParseField("name");
@@ -141,11 +140,23 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     }
 
     /**
-     * @return whether `schedule` is a cron expression, as opposed to a time unit
+     * @return whether `schedule` is a cron expression
      */
     static boolean isCronSchedule(String schedule) {
         try {
             new Cron(schedule);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /**
+     * @return whether `schedule` is an interval time unit expression
+     */
+    public static boolean isIntervalSchedule(String schedule) {
+        try {
+            TimeValue.parseTimeValue(schedule, "schedule");
             return true;
         } catch (IllegalArgumentException e) {
             return false;
@@ -189,9 +200,9 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
 
     public SchedulerEngine.Job buildSchedulerJob(String jobId, long modifiedDate) {
         if (isCronSchedule()) {
-            return new SchedulerEngine.Job(jobId, new CronSchedule(getSchedule()));
+            return new SchedulerEngine.Job(jobId, new CronSchedule(schedule));
         } else {
-            TimeValue timeValue = TimeValue.parseTimeValue(getSchedule(), "schedule");
+            TimeValue timeValue = TimeValue.parseTimeValue(schedule, "schedule");
             return new SchedulerEngine.Job(jobId, new TimeValueSchedule(timeValue), modifiedDate);
         }
     }
@@ -234,9 +245,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
                     err.addValidationError("invalid schedule [" + schedule + "]: time unit must be at least 1 millisecond");
                 }
             } catch (IllegalArgumentException e1) {
-                try {
-                    new Cron(schedule);
-                } catch (IllegalArgumentException e2) {
+                if (isCronSchedule(schedule) == false) {
                     err.addValidationError("invalid schedule [" + schedule + "]: must be a valid cron expression or time unit");
                 }
             }
@@ -289,15 +298,6 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         }
 
         return err.validationErrors().size() == 0 ? null : err;
-    }
-
-    public static boolean validIntervalSchedule(String schedule) {
-        try {
-            TimeValue.parseTimeValue(schedule, "schedule");
-            return true;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
     }
 
     private Map<String, Object> addPolicyNameToMetadata(final Map<String, Object> metadata) {

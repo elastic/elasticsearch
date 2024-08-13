@@ -262,11 +262,11 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
     }
 
     /**
-     * Throw exception if schedule is an interval schedule but interval schedule feature is not supported by all nodes
+     * Validate that interval schedule feature is not supported by all nodes
+     * @throws IllegalArgumentException if is interval expression but interval schedule not supported
      */
     public static void validateIntervalScheduleSupport(String schedule, FeatureService featureService, ClusterState state) {
-        if (SnapshotLifecyclePolicy.validIntervalSchedule(schedule)
-            && featureService.clusterHasFeature(state, INTERVAL_SCHEDULE) == false) {
+        if (SnapshotLifecyclePolicy.isIntervalSchedule(schedule) && featureService.clusterHasFeature(state, INTERVAL_SCHEDULE) == false) {
             throw new IllegalArgumentException(
                 "Unable to use slm interval schedules in mixed-clusters with nodes that do not support feature " + INTERVAL_SCHEDULE.id()
             );

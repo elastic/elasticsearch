@@ -128,8 +128,11 @@ setup:
   - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 3 }
   - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 3 }
   - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.0._source.embeddings
   - match: { hits.hits.0.inner_hits.inference_field.hits.hits.1._source.text: "yet another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.1._source.embeddings
   - match: { hits.hits.0.inner_hits.inference_field.hits.hits.2._source.text: "inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.2._source.embeddings
 
   - do:
       headers:
@@ -153,6 +156,7 @@ setup:
   - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 3 }
   - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 1 }
   - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.0._source.embeddings
 
   - do:
       headers:
@@ -176,7 +180,9 @@ setup:
   - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 3 }
   - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 2 }
   - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "yet another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.0._source.embeddings
   - match: { hits.hits.0.inner_hits.inference_field.hits.hits.1._source.text: "inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.1._source.embeddings
 
   - do:
       headers:
@@ -201,6 +207,7 @@ setup:
   - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 3 }
   - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 1 }
   - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "yet another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.0._source.embeddings
 
   - do:
       headers:
@@ -345,8 +352,11 @@ setup:
   - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 3 }
   - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 3 }
   - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.0._source.embeddings
   - match: { hits.hits.0.inner_hits.inference_field.hits.hits.1._source.text: "yet another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.1._source.embeddings
   - match: { hits.hits.0.inner_hits.inference_field.hits.hits.2._source.text: "another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.2._source.embeddings
 
   - do:
       headers:
@@ -370,6 +380,7 @@ setup:
   - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 3 }
   - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 1 }
   - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.0._source.embeddings
 
   - do:
       headers:
@@ -393,7 +404,9 @@ setup:
   - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 3 }
   - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 2 }
   - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "yet another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.0._source.embeddings
   - match: { hits.hits.0.inner_hits.inference_field.hits.hits.1._source.text: "another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.1._source.embeddings
 
   - do:
       headers:
@@ -418,6 +431,7 @@ setup:
   - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 3 }
   - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 1 }
   - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "yet another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.0._source.embeddings
 
   - do:
       headers:

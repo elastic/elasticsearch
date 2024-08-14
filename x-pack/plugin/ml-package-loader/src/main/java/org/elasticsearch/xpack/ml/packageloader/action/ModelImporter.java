@@ -94,13 +94,11 @@ class ModelImporter {
                     BytesArray definition = chunkIterator.next();
 
                     if (countingListener.isFailing()) {
-                        logger.warn("listener is failing");
                         break;
-
                     }
 
                     if (task.isCancelled()) {
-                        throw new TaskCancelledException(format("task cancelled with reason [%s]", task.getReasonCancelled())); // TODO ??
+                        throw new TaskCancelledException(format("task cancelled with reason [%s]", task.getReasonCancelled()));
                     }
 
                     requestLimiter.acquire();
@@ -112,8 +110,7 @@ class ModelImporter {
         }
     }
 
-    private void uploadVocabulary(ModelLoaderUtils.VocabularyParts vocabularyParts, ActionListener<AcknowledgedResponse> listener)
-        throws URISyntaxException {
+    private void uploadVocabulary(ModelLoaderUtils.VocabularyParts vocabularyParts, ActionListener<AcknowledgedResponse> listener) {
         PutTrainedModelVocabularyAction.Request request = new PutTrainedModelVocabularyAction.Request(
             modelId,
             vocabularyParts.vocab(),

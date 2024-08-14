@@ -480,14 +480,30 @@ public class Driver implements Releasable, Describable {
         this.status.getAndUpdate(prev -> {
             long now = System.currentTimeMillis();
             DriverSleeps sleeps = prev.sleeps();
+
+            // Rebuild the sleeps or bail entirely based on the updated status.
+            // Sorry for the complexity here. If anyone has a nice way to refactor this, be my guest.
             switch (status) {
                 case ASYNC, WAITING -> sleeps = sleeps.sleep(reason, now);
                 case RUNNING -> {
-                    if (prev.status() == DriverStatus.Status.ASYNC || prev.status() == DriverStatus.Status.WAITING) {
-                        sleeps = sleeps.wake(now);
+                    switch (prev.status()) {
+                        case ASYNC, WAITING -> sleeps = sleeps.wake(now);
+                        case STARTING -> {
+                            if (extraIterations == 0) {
+                                /*
+                                 * 0 extraIterations means we haven't started the loop - we're just
+                                 * signaling that we've woken up. We don't need to signal that when
+                                 * the state is already STARTING because we don't have anything
+                                 * interesting to report. And some tests rely on the status staying
+                                 * in the STARTING state until the first status report.
+                                 */
+                                return prev;
+                            }
+                        }
                     }
                 }
             }
+
             return new DriverStatus(
                 sessionId,
                 startTime,

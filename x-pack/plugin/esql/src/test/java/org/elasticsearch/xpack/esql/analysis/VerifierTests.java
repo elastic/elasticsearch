@@ -725,9 +725,9 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(error("FROM tests | STATS " + agg_func + "(foobar) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
         assertThat(
-            error("FROM tests | STATS " + agg_func + "(foobar) by BUCKET(languages, 10)"),
+            error("FROM tests | STATS " + agg_func + "(foobar) by BUCKET(hire_date, 10)"),
             matchesRegex(
-                "1:\\d+: function expects exactly four arguments when the first one is of type \\[INTEGER]"
+                "1:\\d+: function expects exactly four arguments when the first one is of type \\[DATETIME]"
                     + " and the second of type \\[INTEGER]\n"
                     + "line 1:\\d+: Unknown column \\[foobar]"
             )

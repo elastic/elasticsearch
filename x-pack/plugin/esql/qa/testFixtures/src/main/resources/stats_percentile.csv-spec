@@ -197,6 +197,7 @@ p80_max_salary_change:double
 ;
 
 constantsFrom
+required_capability: fn_mv_percentile
 from employees
 | eval single = 7, mv = [1, 7, 10]
 | stats
@@ -210,6 +211,7 @@ eval_single:double | eval_mv:double | constant_single:double | constant_mv:doubl
 ;
 
 constantsRow
+required_capability: fn_mv_percentile
 row single=7, mv=[1, 7, 10]
 | stats
     eval_single = percentile(single, 50),
@@ -222,6 +224,7 @@ eval_single:double | eval_mv:double | constant_single:double | constant_mv:doubl
 ;
 
 singleConstant
+required_capability: fn_mv_percentile
 row a=0
 | stats constant_single = percentile(5, 50);
 

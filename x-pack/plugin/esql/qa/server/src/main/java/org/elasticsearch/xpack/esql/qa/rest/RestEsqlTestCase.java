@@ -816,6 +816,28 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    public void testToDatePeriodToTimeDurationWithField() throws IOException {
+        indexTimestampData(3);
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(requestObjectBuilder().query(fromIndex() + " | eval x = @timestamp + test::date_period").params("[]"))
+        );
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()),
+            containsString("first argument of [test::date_period] must be a constant, received [test]")
+        );
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(requestObjectBuilder().query(fromIndex() + " | eval x = @timestamp + test::time_duration").params("[]"))
+        );
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()),
+            containsString("first argument of [test::time_duration] must be a constant, received [test]")
+        );
+
+    }
+
     private static String queryWithComplexFieldNames(int field) {
         StringBuilder query = new StringBuilder();
         query.append(" | keep ").append(randomAlphaOfLength(10)).append(1);

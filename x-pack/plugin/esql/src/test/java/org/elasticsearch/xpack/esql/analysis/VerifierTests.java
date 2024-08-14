@@ -44,6 +44,9 @@ public class VerifierTests extends ESTestCase {
     private final Analyzer defaultAnalyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
     private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
 
+    private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
+    private final List<String> DATE_PERIODS = List.of("day", "week", "month", "year");
+
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
             "1:40: second argument of [a + c] must be [datetime or numeric], found value [c] type [keyword]",
@@ -594,7 +597,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testPeriodAndDurationInRowAssignment() {
-        for (var unit : List.of("millisecond", "second", "minute", "hour")) {
+        for (var unit : TIME_DURATIONS) {
             assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
             assertEquals(
                 "1:5: cannot use [1 " + unit + "::time_duration] directly in a row assignment",
@@ -613,7 +616,7 @@ public class VerifierTests extends ESTestCase {
                 error("row a = to_timeduration(\"1 " + unit + "\")")
             );
         }
-        for (var unit : List.of("day", "week", "month", "year")) {
+        for (var unit : DATE_PERIODS) {
             assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
             assertEquals(
                 "1:5: cannot use [1 " + unit + "::date_period] directly in a row assignment",
@@ -635,7 +638,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testSubtractDateTimeFromTemporal() {
-        for (var unit : List.of("millisecond", "second", "minute", "hour")) {
+        for (var unit : TIME_DURATIONS) {
             assertEquals(
                 "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
                     + "from a [TIME_DURATION] amount [1 "
@@ -672,7 +675,7 @@ public class VerifierTests extends ESTestCase {
                 error("row to_timeduration(\"1 " + unit + "\") - now() ")
             );
         }
-        for (var unit : List.of("day", "week", "month", "year")) {
+        for (var unit : DATE_PERIODS) {
             assertEquals(
                 "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
                     + "from a [DATE_PERIOD] amount [1 "
@@ -712,7 +715,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testPeriodAndDurationInEval() {
-        for (var unit : List.of("millisecond", "second", "minute", "hour")) {
+        for (var unit : TIME_DURATIONS) {
             assertEquals(
                 "1:18: EVAL does not support type [time_duration] as the return data type of expression [1 " + unit + "]",
                 error("row x = 1 | eval y = 1 " + unit)
@@ -738,7 +741,7 @@ public class VerifierTests extends ESTestCase {
                 error("row x = 1 | eval y = to_timeduration(\"1 " + unit + "\")")
             );
         }
-        for (var unit : List.of("day", "week", "month", "year")) {
+        for (var unit : DATE_PERIODS) {
             assertEquals(
                 "1:18: EVAL does not support type [date_period] as the return data type of expression [1 " + unit + "]",
                 error("row x = 1 | eval y = 1 " + unit)

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -143,8 +144,19 @@ public class ToDatePeriod extends AbstractConvertFunction {
                 }
                 return EsqlDataTypeConverter.parseTemporalAmount(b.utf8ToString(), DATE_PERIOD);
             }
+        } else if (field() instanceof ToDatePeriod && field().foldable()) {
+            return field().fold();
         }
-        return null;
+
+        throw new IllegalArgumentException(
+            LoggerMessageFormat.format(
+                null,
+                "{}argument of [{}] must be a constant, received [{}]",
+                FIRST.name().toLowerCase(Locale.ROOT) + " ",
+                sourceText(),
+                Expressions.name(field())
+            )
+        );
     }
 
     private boolean isValidInterval(String interval) {

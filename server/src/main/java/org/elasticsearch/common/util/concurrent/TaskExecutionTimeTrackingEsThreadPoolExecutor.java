@@ -136,6 +136,10 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             .append(", ");
     }
 
+    public boolean trackOngoingTasks() {
+        return trackOngoingTasks;
+    }
+
     /**
      * Returns the set of currently running tasks and their start timestamp.
      * <p>

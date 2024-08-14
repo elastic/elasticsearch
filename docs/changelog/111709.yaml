@@ -1,5 +1,0 @@
-pr: 111709
-summary: Adding `RankDocsRetrieverBuilder` and `RankDocsQuery`
-area: Ranking
-type: enhancement
-issues: []

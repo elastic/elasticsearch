@@ -4,24 +4,28 @@
       indices.create:
         index: index1
         body:
-          index.codec: legacy_best_compression
+          settings:
+            index:
+              codec: legacy_best_compression
 
   - do:
       indices.get_settings:
         index: index1
         flat_settings: false
   - match:
-      test-index.settings.index.codec: "legacy_best_compression"
+      index1.settings.index.codec: "legacy_best_compression"
 
   - do:
       indices.create:
         index: index2
         body:
-          index.codec: legacy_default
+          settings:
+            index:
+              codec: legacy_default
 
   - do:
       indices.get_settings:
         index: index2
         flat_settings: false
   - match:
-      test-index.settings.index.codec: "legacy_default"
+      index2.settings.index.codec: "legacy_default"

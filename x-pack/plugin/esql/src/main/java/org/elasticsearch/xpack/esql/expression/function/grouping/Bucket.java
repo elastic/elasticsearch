@@ -144,9 +144,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
             ),
             @Example(description = """
                 The range can be omitted if the desired bucket size is known in advance. Simply
-                provide it as the second argument:""", file = "bucket", tag = "docsBucketNumericWithSpan", explanation = """
-                NOTE: When providing the bucket size as the second parameter, it must be
-                of a floating point type."""),
+                provide it as the second argument:""", file = "bucket", tag = "docsBucketNumericWithSpan"),
             @Example(
                 description = "Create hourly buckets for the last 24 hours, and calculate the number of events per hour:",
                 file = "bucket",
@@ -176,20 +174,20 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
         ) Expression field,
         @Param(
             name = "buckets",
-            type = { "integer", "double", "date_period", "time_duration" },
+            type = { "integer", "long", "double", "date_period", "time_duration" },
             description = "Target number of buckets."
         ) Expression buckets,
         @Param(
             name = "from",
-            type = { "integer", "long", "double", "date" },
+            type = { "integer", "long", "double", "date", "keyword", "text" },
             optional = true,
-            description = "Start of the range. Can be a number or a date expressed as a string."
+            description = "Start of the range. Can be a number, a date or a date expressed as a string."
         ) Expression from,
         @Param(
             name = "to",
-            type = { "integer", "long", "double", "date" },
+            type = { "integer", "long", "double", "date", "keyword", "text" },
             optional = true,
-            description = "End of the range. Can be a number or a date expressed as a string."
+            description = "End of the range. Can be a number, a date or a date expressed as a string."
         ) Expression to
     ) {
         super(source, from != null && to != null ? List.of(field, buckets, from, to) : List.of(field, buckets));
@@ -251,7 +249,6 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                 double t = ((Number) to.fold()).doubleValue();
                 roundTo = pickRounding(b, f, t);
             } else {
-                assert buckets.dataType().isRationalNumber() : "Unexpected rounding data type [" + buckets.dataType() + "]";
                 roundTo = ((Number) buckets.fold()).doubleValue();
             }
             Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
@@ -307,7 +304,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     // datetime, integer, string/datetime, string/datetime
     // datetime, rounding/duration, -, -
     // numeric, integer, numeric, numeric
-    // numeric, double, -, -
+    // numeric, numeric, -, -
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
@@ -336,9 +333,18 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                 : resolution.and(checkArgsCount(2)); // temporal amount
         }
         if (fieldType.isNumeric()) {
-            return bucketsType.isWholeNumber()
-                ? checkArgsCount(4).and(() -> isNumeric(from, sourceText(), THIRD)).and(() -> isNumeric(to, sourceText(), FOURTH))
-                : isNumeric(buckets, sourceText(), SECOND).and(checkArgsCount(2));
+            return isNumeric(buckets, sourceText(), SECOND).and(() -> {
+                if (bucketsType.isRationalNumber()) {
+                    return checkArgsCount(2);
+                } else { // second arg is a whole number: either a span, but as a whole, or count, and we must expect a range
+                    var resolution = checkArgsCount(2);
+                    if (resolution.resolved() == false) {
+                        resolution = checkArgsCount(4).and(() -> isNumeric(from, sourceText(), THIRD))
+                            .and(() -> isNumeric(to, sourceText(), FOURTH));
+                    }
+                    return resolution;
+                }
+            });
         }
         return isType(field, e -> false, sourceText(), FIRST, "datetime", "numeric");
     }

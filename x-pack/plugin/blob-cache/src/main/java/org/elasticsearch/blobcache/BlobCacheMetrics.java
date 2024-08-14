@@ -7,7 +7,6 @@
 
 package org.elasticsearch.blobcache;
 
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
@@ -115,12 +114,12 @@ public class BlobCacheMetrics {
     public void recordCachePopulationMetrics(
         int totalBytesCopied,
         long totalCopyTimeNanos,
-        ShardId shardId,
+        String shardId,
         CachePopulationReason cachePopulationReason
     ) {
         Map<String, Object> metricAttributes = Map.of(
             SHARD_ID_ATTRIBUTE_KEY,
-            shardId.toString(),
+            shardId,
             CACHE_POPULATION_REASON_ATTRIBUTE_KEY,
             cachePopulationReason.name()
         );

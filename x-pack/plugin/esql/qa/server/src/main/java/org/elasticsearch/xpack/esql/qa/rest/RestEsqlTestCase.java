@@ -823,7 +823,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             () -> runEsql(requestObjectBuilder().query(fromIndex() + " | eval x = @timestamp + test::date_period").params("[]"))
         );
         assertThat(
-            EntityUtils.toString(re.getResponse().getEntity()),
+            EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", ""),
             containsString("first argument of [test::date_period] must be a constant, received [test]")
         );
 
@@ -832,7 +832,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             () -> runEsql(requestObjectBuilder().query(fromIndex() + " | eval x = @timestamp + test::time_duration").params("[]"))
         );
         assertThat(
-            EntityUtils.toString(re.getResponse().getEntity()),
+            EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", ""),
             containsString("first argument of [test::time_duration] must be a constant, received [test]")
         );
 

@@ -121,6 +121,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         Object result;
         try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
             try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
+                assertThat(block.getPositionCount(), is(1));
                 result = toJavaObjectUnsignedLongAware(block, 0);
             }
         }
@@ -241,6 +242,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 ExpressionEvaluator eval = evaluator(expression).get(context);
                 Block block = eval.eval(new Page(positions, manyPositionsBlocks))
             ) {
+                assertThat(block.getPositionCount(), is(positions));
                 for (int p = 0; p < positions; p++) {
                     if (nullPositions.contains(p)) {
                         assertThat(toJavaObject(block, p), allNullsMatcher());
@@ -284,6 +286,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                     try (EvalOperator.ExpressionEvaluator eval = evalSupplier.get(driverContext())) {
                         for (int c = 0; c < count; c++) {
                             try (Block block = eval.eval(page)) {
+                                assertThat(block.getPositionCount(), is(1));
                                 assertThat(toJavaObjectUnsignedLongAware(block, 0), testCase.getMatcher());
                             }
                         }

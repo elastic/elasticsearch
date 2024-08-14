@@ -36,6 +36,7 @@ public class TestTrustStore extends ExternalResource {
     private Path trustStorePath;
 
     public Path getTrustStorePath() {
+        // TODO when https://github.com/elastic/elasticsearch/issues/111532 addressed we should be able to use this in FIPS mode too
         assertFalse("Tests in FIPS mode cannot supply a custom trust store", ESTestCase.inFipsJvm());
         return Objects.requireNonNullElseGet(trustStorePath, () -> ESTestCase.fail(null, "trust store not created"));
     }

@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
@@ -59,7 +60,12 @@ public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.E
           result.appendNull();
           continue position;
         }
-        MvPSeriesWeightedSum.process(result, p, blockBlock, this.sum, this.p);
+        try {
+          MvPSeriesWeightedSum.process(result, p, blockBlock, this.sum, this.p);
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

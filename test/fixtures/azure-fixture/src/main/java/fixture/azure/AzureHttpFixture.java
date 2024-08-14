@@ -11,6 +11,7 @@ import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.Nullable;
@@ -112,10 +113,13 @@ public class AzureHttpFixture extends ExternalResource {
         Protocol protocol,
         String account,
         String container,
-        @Nullable String tenantId,
-        @Nullable String clientId,
+        @Nullable String rawTenantId,
+        @Nullable String rawClientId,
         Predicate<String> authHeaderPredicate
     ) {
+        final var tenantId = Strings.hasText(rawTenantId) ? rawTenantId : null;
+        final var clientId = Strings.hasText(rawClientId) ? rawClientId : null;
+
         if ((clientId == null) != (tenantId == null)) {
             fail(null, "either both [tenantId] and [clientId] must be set or neither must be set");
         }

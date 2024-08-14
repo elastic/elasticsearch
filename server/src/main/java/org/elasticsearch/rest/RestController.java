@@ -432,7 +432,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
             final XContentType xContentType = request.getXContentType();
             // TODO consider refactoring to handler.supportsContentStream(xContentType). It is only used with JSON and SMILE
-            if (handler.supportsContentStream()
+            if (handler.supportsBulkContent()
                 && XContentType.JSON != xContentType.canonical()
                 && XContentType.SMILE != xContentType.canonical()) {
                 channel.sendResponse(

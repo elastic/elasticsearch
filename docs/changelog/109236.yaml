@@ -1,6 +1,0 @@
-pr: 109236
-summary: Use proper executor for failing requests when connection closes
-area: Network
-type: bug
-issues:
- - 109225

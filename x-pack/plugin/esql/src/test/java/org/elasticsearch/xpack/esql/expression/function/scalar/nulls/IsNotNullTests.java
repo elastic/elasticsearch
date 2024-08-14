@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IsNotNullTests extends AbstractScalarFunctionTestCase {

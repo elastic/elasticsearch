@@ -36,7 +36,7 @@ public class MvMin extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvMin", MvMin::new);
 
     @FunctionInfo(
-        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+        returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
         description = "Converts a multivalued expression into a single valued column containing the minimum value.",
         examples = {
             @Example(file = "math", tag = "mv_min"),
@@ -51,7 +51,7 @@ public class MvMin extends AbstractMultivalueFunction {
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
             description = "Multivalue expression."
         ) Expression field
     ) {

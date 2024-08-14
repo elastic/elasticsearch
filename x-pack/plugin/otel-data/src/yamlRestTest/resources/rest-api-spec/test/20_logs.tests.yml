@@ -3,17 +3,6 @@ setup:
   - do:
       cluster.health:
         wait_for_events: languid
-  - do:
-      cluster.put_component_template:
-        name: logs-otel@custom
-        body:
-          template:
-            settings:
-              index:
-                routing_path: [unit, attributes.*, resource.attributes.*]
-                mode: time_series
-                time_series:
-                  start_time: 2024-07-01T13:03:08.138Z
 ---
 "Default data_stream.type must be logs":
   - do:

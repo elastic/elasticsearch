@@ -153,6 +153,8 @@ public class MvPercentile extends EsqlScalarFunction {
         return NodeInfo.create(this, MvPercentile::new, field, percentile);
     }
 
+    // Evaluators
+
     @Evaluator(extraName = "DoubleInteger", warnExceptions = IllegalArgumentException.class)
     static void process(DoubleBlock.Builder builder, int position, DoubleBlock values, int percentile) {
         processDoubles(builder, position, values, percentile);
@@ -198,6 +200,8 @@ public class MvPercentile extends EsqlScalarFunction {
         processLongs(builder, position, values, percentile);
     }
 
+    // Per-field-type processors
+
     private static void processDoubles(DoubleBlock.Builder builder, int position, DoubleBlock valuesBlock, double percentile) {
         int valueCount = valuesBlock.getValueCount(position);
         int firstValueIndex = valuesBlock.getFirstValueIndex(position);
@@ -211,47 +215,7 @@ public class MvPercentile extends EsqlScalarFunction {
             throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");
         }
 
-        if (valueCount == 1) {
-            builder.appendDouble(valuesBlock.getDouble(firstValueIndex));
-            return;
-        }
-
-        var p = percentile / 100.0;
-        var index = p * (valueCount - 1);
-        var lowerIndex = (int) index;
-        var upperIndex = lowerIndex + 1;
-        var fraction = index - lowerIndex;
-
-        if (valuesBlock.mvSortedAscending()) {
-            if (percentile == 0) {
-                builder.appendDouble(valuesBlock.getDouble(0));
-            } else if (percentile == 100) {
-                builder.appendDouble(valuesBlock.getDouble(valueCount - 1));
-            } else {
-                assert lowerIndex >= 0 && upperIndex < valueCount;
-                var result = calculateDoublePercentile(fraction, valuesBlock.getDouble(lowerIndex), valuesBlock.getDouble(upperIndex));
-                builder.appendDouble(result);
-            }
-            return;
-        }
-
-        var values = new double[valueCount];
-
-        for (int i = 0; i < valueCount; i++) {
-            values[i] = valuesBlock.getDouble(firstValueIndex + i);
-        }
-
-        Arrays.sort(values);
-
-        if (percentile == 0) {
-            builder.appendDouble(values[0]);
-        } else if (percentile == 100) {
-            builder.appendDouble(values[valueCount - 1]);
-        } else {
-            assert lowerIndex >= 0 && upperIndex < valueCount;
-            var result = calculateDoublePercentile(fraction, values[lowerIndex], values[upperIndex]);
-            builder.appendDouble(result);
-        }
+        builder.appendDouble(calculateDoublePercentile(valuesBlock, firstValueIndex, valueCount, percentile));
     }
 
     private static void processInts(IntBlock.Builder builder, int position, IntBlock valuesBlock, double percentile) {
@@ -267,53 +231,7 @@ public class MvPercentile extends EsqlScalarFunction {
             throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");
         }
 
-        if (valueCount == 1) {
-            builder.appendInt(valuesBlock.getInt(firstValueIndex));
-            return;
-        }
-
-        var p = percentile / 100.0;
-        var index = p * (valueCount - 1);
-        var lowerIndex = (int) index;
-        var upperIndex = lowerIndex + 1;
-        var fraction = index - lowerIndex;
-
-        if (valuesBlock.mvSortedAscending()) {
-            if (percentile == 0) {
-                builder.appendInt(valuesBlock.getInt(0));
-            } else if (percentile == 100) {
-                builder.appendInt(valuesBlock.getInt(valueCount - 1));
-            } else {
-                assert lowerIndex >= 0 && upperIndex < valueCount;
-                var lowerValue = valuesBlock.getInt(lowerIndex);
-                var upperValue = valuesBlock.getInt(upperIndex);
-                var difference = (long) upperValue - lowerValue;
-                var percentileValue = lowerValue + (int) (fraction * difference);
-                builder.appendInt(percentileValue);
-            }
-            return;
-        }
-
-        var values = new int[valueCount];
-
-        for (int i = 0; i < valueCount; i++) {
-            values[i] = valuesBlock.getInt(firstValueIndex + i);
-        }
-
-        Arrays.sort(values);
-
-        if (percentile == 0) {
-            builder.appendInt(values[0]);
-        } else if (percentile == 100) {
-            builder.appendInt(values[valueCount - 1]);
-        } else {
-            assert lowerIndex >= 0 && upperIndex < valueCount;
-            var lowerValue = values[lowerIndex];
-            var upperValue = values[upperIndex];
-            var difference = (long) upperValue - lowerValue;
-            var percentileValue = lowerValue + (int) (fraction * difference);
-            builder.appendInt(percentileValue);
-        }
+        builder.appendInt(calculateIntPercentile(valuesBlock, firstValueIndex, valueCount, percentile));
     }
 
     private static void processLongs(LongBlock.Builder builder, int position, LongBlock valuesBlock, double percentile) {
@@ -329,9 +247,14 @@ public class MvPercentile extends EsqlScalarFunction {
             throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");
         }
 
+        builder.appendLong(calculateLongPercentile(valuesBlock, firstValueIndex, valueCount, percentile));
+    }
+
+    // Percentile calculators
+
+    private static double calculateDoublePercentile(DoubleBlock valuesBlock, int firstValueIndex, int valueCount, double percentile) {
         if (valueCount == 1) {
-            builder.appendLong(valuesBlock.getLong(firstValueIndex));
-            return;
+            return valuesBlock.getDouble(firstValueIndex);
         }
 
         var p = percentile / 100.0;
@@ -342,15 +265,129 @@ public class MvPercentile extends EsqlScalarFunction {
 
         if (valuesBlock.mvSortedAscending()) {
             if (percentile == 0) {
-                builder.appendLong(valuesBlock.getLong(0));
+                return valuesBlock.getDouble(0);
             } else if (percentile == 100) {
-                builder.appendLong(valuesBlock.getLong(valueCount - 1));
+                return valuesBlock.getDouble(valueCount - 1);
             } else {
                 assert lowerIndex >= 0 && upperIndex < valueCount;
-                var result = calculateLongPercentile(fraction, valuesBlock.getLong(lowerIndex), valuesBlock.getLong(upperIndex));
-                builder.appendLong(result);
+                return calculateDoublePercentile(fraction, valuesBlock.getDouble(lowerIndex), valuesBlock.getDouble(upperIndex));
             }
-            return;
+        }
+
+        if (percentile == 0) {
+            double min = Double.POSITIVE_INFINITY;
+            for (int i = 0; i < valueCount; i++) {
+                min = Math.min(min, valuesBlock.getDouble(firstValueIndex + i));
+            }
+            return min;
+        } else if (percentile == 100) {
+            double max = Double.NEGATIVE_INFINITY;
+            for (int i = 0; i < valueCount; i++) {
+                max = Math.max(max, valuesBlock.getDouble(firstValueIndex + i));
+            }
+            return max;
+        }
+
+        var values = new double[valueCount];
+
+        for (int i = 0; i < valueCount; i++) {
+            values[i] = valuesBlock.getDouble(firstValueIndex + i);
+        }
+
+        Arrays.sort(values);
+
+        assert lowerIndex >= 0 && upperIndex < valueCount;
+        return calculateDoublePercentile(fraction, values[lowerIndex], values[upperIndex]);
+    }
+
+    private static int calculateIntPercentile(IntBlock valuesBlock, int firstValueIndex, int valueCount, double percentile) {
+        if (valueCount == 1) {
+            return valuesBlock.getInt(firstValueIndex);
+        }
+
+        var p = percentile / 100.0;
+        var index = p * (valueCount - 1);
+        var lowerIndex = (int) index;
+        var upperIndex = lowerIndex + 1;
+        var fraction = index - lowerIndex;
+
+        if (valuesBlock.mvSortedAscending()) {
+            if (percentile == 0) {
+                return valuesBlock.getInt(0);
+            } else if (percentile == 100) {
+                return valuesBlock.getInt(valueCount - 1);
+            } else {
+                assert lowerIndex >= 0 && upperIndex < valueCount;
+                var lowerValue = valuesBlock.getInt(lowerIndex);
+                var upperValue = valuesBlock.getInt(upperIndex);
+                var difference = (long) upperValue - lowerValue;
+                return lowerValue + (int) (fraction * difference);
+            }
+        }
+
+        if (percentile == 0) {
+            int min = Integer.MAX_VALUE;
+            for (int i = 0; i < valueCount; i++) {
+                min = Math.min(min, valuesBlock.getInt(firstValueIndex + i));
+            }
+            return min;
+        } else if (percentile == 100) {
+            int max = Integer.MIN_VALUE;
+            for (int i = 0; i < valueCount; i++) {
+                max = Math.max(max, valuesBlock.getInt(firstValueIndex + i));
+            }
+            return max;
+        }
+
+        var values = new int[valueCount];
+
+        for (int i = 0; i < valueCount; i++) {
+            values[i] = valuesBlock.getInt(firstValueIndex + i);
+        }
+
+        Arrays.sort(values);
+
+        assert lowerIndex >= 0 && upperIndex < valueCount;
+        var lowerValue = values[lowerIndex];
+        var upperValue = values[upperIndex];
+        var difference = (long) upperValue - lowerValue;
+        return lowerValue + (int) (fraction * difference);
+    }
+
+    private static long calculateLongPercentile(LongBlock valuesBlock, int firstValueIndex, int valueCount, double percentile) {
+        if (valueCount == 1) {
+            return valuesBlock.getLong(firstValueIndex);
+        }
+
+        var p = percentile / 100.0;
+        var index = p * (valueCount - 1);
+        var lowerIndex = (int) index;
+        var upperIndex = lowerIndex + 1;
+        var fraction = index - lowerIndex;
+
+        if (valuesBlock.mvSortedAscending()) {
+            if (percentile == 0) {
+                return valuesBlock.getLong(0);
+            } else if (percentile == 100) {
+                return valuesBlock.getLong(valueCount - 1);
+            } else {
+                assert lowerIndex >= 0 && upperIndex < valueCount;
+                return calculateLongPercentile(fraction, valuesBlock.getLong(lowerIndex), valuesBlock.getLong(upperIndex));
+            }
+        }
+
+        if (percentile == 0) {
+            long min = Long.MAX_VALUE;
+            for (int i = 0; i < valueCount; i++) {
+                min = Math.min(min, valuesBlock.getLong(firstValueIndex + i));
+            }
+            return min;
+        } else if (percentile == 100) {
+            long max = Long.MIN_VALUE;
+            for (int i = 0; i < valueCount; i++) {
+                max = Math.max(max, valuesBlock.getLong(firstValueIndex + i));
+            }
+            return max;
         }
 
         var values = new long[valueCount];
@@ -361,15 +398,8 @@ public class MvPercentile extends EsqlScalarFunction {
 
         Arrays.sort(values);
 
-        if (percentile == 0) {
-            builder.appendLong(values[0]);
-        } else if (percentile == 100) {
-            builder.appendLong(values[valueCount - 1]);
-        } else {
-            assert lowerIndex >= 0 && upperIndex < valueCount;
-            var result = calculateLongPercentile(fraction, values[lowerIndex], values[upperIndex]);
-            builder.appendLong(result);
-        }
+        assert lowerIndex >= 0 && upperIndex < valueCount;
+        return calculateLongPercentile(fraction, values[lowerIndex], values[upperIndex]);
     }
 
     /**

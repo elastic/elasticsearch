@@ -67,6 +67,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -553,17 +554,30 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         // Ingest load metrics are not impacted by shutdown metadata because the setting is not enabled
         assertBusy(() -> assertThat(getIngestNodesLoad(), hasSize(numNodes)));
 
-        // Enable the setting to see ingest load metrics attenuated for the shutdown metadata
-        updateClusterSettings(Settings.builder().put(IngestMetricsService.SHUTDOWN_ATTENUATION_ENABLED.getKey(), true));
-        final var nodesLoadAttenuated = getIngestNodesLoad();
-        final int expectedNumLoadMetrics = numNodes - shuttingDownNodes.size();
-        assertThat(nodesLoadAttenuated, hasSize(expectedNumLoadMetrics));
+        // Enable the setting to see ingest load metrics ignored for the nodes with shutdown metadata
+        updateClusterSettings(Settings.builder().put(IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), 0.0));
+        updateClusterSettings(Settings.builder().put(IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), 1.0));
         // Not comparing the exact metric values since new values may have been published.
         // In addition, the more granular comparison is exercised in IngestMetricsServiceTests.
+        final var epsilon = 0.0000001;
+        assertBusy(() -> {
+            final var ingestionLoadMetrics = getIngestNodesLoad();
+            assertThat(ingestionLoadMetrics, hasSize(numNodes));
+            assertTrue(ingestionLoadMetrics.stream().allMatch(l -> l.metricQuality().equals(MetricQuality.MINIMUM)));
+            // Expect at least shuttingDownNodes.size() ingestion loads with value 0.0
+            assertThat(
+                ingestionLoadMetrics.stream().filter(l -> l.load() < epsilon).count(),
+                greaterThanOrEqualTo((long) shuttingDownNodes.size())
+            );
+        });
 
         // Remove shutdown metadata and ingest load metrics will be back to normal
         deleteShutdownMetadataForNodes(shuttingDownNodes);
-        assertThat(getIngestNodesLoad(), hasSize(numNodes));
+        assertBusy(() -> {
+            final var ingestionLoadMetrics = getIngestNodesLoad();
+            assertThat(ingestionLoadMetrics, hasSize(numNodes));
+            assertTrue(ingestionLoadMetrics.stream().allMatch(l -> l.metricQuality().equals(MetricQuality.EXACT)));
+        });
     }
 
     public void testLogWarnForIngestionLoadsOlderThanAccurateWindow() throws Exception {

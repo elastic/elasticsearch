@@ -232,6 +232,7 @@ public class MvPercentile extends EsqlScalarFunction {
                 var result = calculateDoublePercentile(fraction, valuesBlock.getDouble(lowerIndex), valuesBlock.getDouble(upperIndex));
                 builder.appendDouble(result);
             }
+            return;
         }
 
         var values = new double[valueCount];
@@ -290,6 +291,7 @@ public class MvPercentile extends EsqlScalarFunction {
                 var percentileValue = lowerValue + (int) (fraction * difference);
                 builder.appendInt(percentileValue);
             }
+            return;
         }
 
         var values = new int[valueCount];
@@ -348,6 +350,7 @@ public class MvPercentile extends EsqlScalarFunction {
                 var result = calculateLongPercentile(fraction, valuesBlock.getLong(lowerIndex), valuesBlock.getLong(upperIndex));
                 builder.appendLong(result);
             }
+            return;
         }
 
         var values = new long[valueCount];

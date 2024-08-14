@@ -97,7 +97,6 @@ public final class EngineConfig {
      * allocated on both `kind` of nodes.
      */
     public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", s -> {
-
         switch (s) {
             case CodecService.DEFAULT_CODEC:
             case CodecService.LEGACY_DEFAULT_CODEC:

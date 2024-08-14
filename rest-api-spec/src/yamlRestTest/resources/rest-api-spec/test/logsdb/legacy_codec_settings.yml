@@ -1,5 +1,9 @@
 ---
 "Test legacy_* codec settings":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: 'legacy options added from 8.16.0'
+
   - do:
       indices.create:
         index: index1

@@ -153,7 +153,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, mode, estimatedRowSize, child());
+        return Objects.hash(groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, child());
     }
 
     @Override
@@ -170,6 +170,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         return Objects.equals(groupings, other.groupings)
             && Objects.equals(aggregates, other.aggregates)
             && Objects.equals(mode, other.mode)
+            && Objects.equals(intermediateAttributes, other.intermediateAttributes)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
             && Objects.equals(child(), other.child());
     }

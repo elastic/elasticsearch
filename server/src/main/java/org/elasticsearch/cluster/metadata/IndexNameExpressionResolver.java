@@ -367,7 +367,7 @@ public class IndexNameExpressionResolver {
             } else if (indexAbstraction.getType() == Type.DATA_STREAM && context.isResolveToWriteIndex()) {
                 resolveWriteIndexForDataStreams(context, (DataStream) indexAbstraction, concreteIndicesResult);
             } else {
-                if (resolvesToMoreThanOneIndex(indexAbstraction, context)
+                if (resolvesToMoreThanOneIndex(indexAbstraction)
                     && context.getOptions().allowAliasesToMultipleIndices() == false) {
                     String[] indexNames = new String[indexAbstraction.getIndices().size()];
                     int i = 0;
@@ -386,25 +386,13 @@ public class IndexNameExpressionResolver {
 
                 if (indexAbstraction.getType() == Type.DATA_STREAM) {
                     resolveIndicesForDataStream(context, (DataStream) indexAbstraction, concreteIndicesResult);
-                } else if (indexAbstraction.getType() == Type.ALIAS
-                    && indexAbstraction.isDataStreamRelated()
-                    && DataStream.isFailureStoreFeatureFlagEnabled()
-                    && context.getOptions().includeFailureIndices()) {
-                        // Collect the data streams involved
-                        Set<DataStream> aliasDataStreams = new HashSet<>();
-                        for (Index index : indexAbstraction.getIndices()) {
-                            aliasDataStreams.add(indicesLookup.get(index.getName()).getParentDataStream());
-                        }
-                        for (DataStream dataStream : aliasDataStreams) {
-                            resolveIndicesForDataStream(context, dataStream, concreteIndicesResult);
-                        }
-                    } else {
-                        for (Index index : indexAbstraction.getIndices()) {
-                            if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
-                                concreteIndicesResult.add(index);
-                            }
+                } else {
+                    for (Index index : indexAbstraction.getIndices()) {
+                        if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
+                            concreteIndicesResult.add(index);
                         }
                     }
+                }
             }
         }
 
@@ -416,64 +404,21 @@ public class IndexNameExpressionResolver {
     }
 
     private static void resolveIndicesForDataStream(Context context, DataStream dataStream, Set<Index> concreteIndicesResult) {
-        if (shouldIncludeRegularIndices(context.getOptions())) {
-            for (Index index : dataStream.getIndices()) {
-                if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
-                    concreteIndicesResult.add(index);
-                }
-            }
-        }
-        if (shouldIncludeFailureIndices(context.getOptions())) {
-            // We short-circuit here, if failure indices are not allowed and they can be skipped
-            if (context.getOptions().allowFailureIndices() || context.getOptions().ignoreUnavailable() == false) {
-                for (Index index : dataStream.getFailureIndices().getIndices()) {
-                    if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
-                        concreteIndicesResult.add(index);
-                    }
-                }
+        for (Index index : dataStream.getIndices()) {
+            if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
+                concreteIndicesResult.add(index);
             }
         }
     }
 
     private static void resolveWriteIndexForDataStreams(Context context, DataStream dataStream, Set<Index> concreteIndicesResult) {
-        if (shouldIncludeRegularIndices(context.getOptions())) {
-            Index writeIndex = dataStream.getWriteIndex();
-            if (addIndex(writeIndex, null, context)) {
-                concreteIndicesResult.add(writeIndex);
-            }
-        }
-        if (shouldIncludeFailureIndices(context.getOptions())) {
-            Index failureStoreWriteIndex = dataStream.getFailureStoreWriteIndex();
-            if (failureStoreWriteIndex != null && addIndex(failureStoreWriteIndex, null, context)) {
-                if (context.options.allowFailureIndices() == false) {
-                    throw new FailureIndexNotSupportedException(failureStoreWriteIndex);
-                }
-                concreteIndicesResult.add(failureStoreWriteIndex);
-            }
+        Index writeIndex = dataStream.getWriteIndex();
+        if (addIndex(writeIndex, null, context)) {
+            concreteIndicesResult.add(writeIndex);
         }
     }
 
-    private static boolean shouldIncludeRegularIndices(IndicesOptions indicesOptions) {
-        return DataStream.isFailureStoreFeatureFlagEnabled() == false || indicesOptions.includeRegularIndices();
-    }
-
-    private static boolean shouldIncludeFailureIndices(IndicesOptions indicesOptions) {
-        // We return failure indices regardless of whether the data stream actually has the `failureStoreEnabled` flag set to true.
-        return DataStream.isFailureStoreFeatureFlagEnabled() && indicesOptions.includeFailureIndices();
-    }
-
-    private static boolean resolvesToMoreThanOneIndex(IndexAbstraction indexAbstraction, Context context) {
-        if (indexAbstraction.getType() == Type.DATA_STREAM) {
-            DataStream dataStream = (DataStream) indexAbstraction;
-            int count = 0;
-            if (shouldIncludeRegularIndices(context.getOptions())) {
-                count += dataStream.getIndices().size();
-            }
-            if (shouldIncludeFailureIndices(context.getOptions())) {
-                count += dataStream.getFailureIndices().getIndices().size();
-            }
-            return count > 1;
-        }
+    private static boolean resolvesToMoreThanOneIndex(IndexAbstraction indexAbstraction) {
         return indexAbstraction.getIndices().size() > 1;
     }
 
@@ -1419,17 +1364,7 @@ public class IndexNameExpressionResolver {
                 } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
                     return Stream.of(indexAbstraction.getName());
                 } else {
-                    Stream<IndexMetadata> indicesStateStream = Stream.of();
-                    if (shouldIncludeRegularIndices(context.getOptions())) {
-                        indicesStateStream = indexAbstraction.getIndices().stream().map(context.state.metadata()::index);
-                    }
-                    if (indexAbstraction.getType() == Type.DATA_STREAM && shouldIncludeFailureIndices(context.getOptions())) {
-                        DataStream dataStream = (DataStream) indexAbstraction;
-                        indicesStateStream = Stream.concat(
-                            indicesStateStream,
-                            dataStream.getFailureIndices().getIndices().stream().map(context.state.metadata()::index)
-                        );
-                    }
+                    Stream<IndexMetadata> indicesStateStream = indexAbstraction.getIndices().stream().map(context.state.metadata()::index);
                     if (excludeState != null) {
                         indicesStateStream = indicesStateStream.filter(indexMeta -> indexMeta.getState() != excludeState);
                     }
@@ -1471,9 +1406,6 @@ public class IndexNameExpressionResolver {
         }
 
         private static String[] resolveEmptyOrTrivialWildcardToAllIndices(IndicesOptions options, Metadata metadata) {
-            if (shouldIncludeRegularIndices(options) == false) {
-                return Strings.EMPTY_ARRAY;
-            }
             if (options.expandWildcardsOpen() && options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
                 return metadata.getConcreteAllIndices();
             } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {

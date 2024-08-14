@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -356,7 +355,9 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
             createIndices(bulkRequest, indicesToAutoCreate, indicesThatCannotBeCreated, responses, refs);
             rollOverDataStreams(bulkRequest, dataStreamsToBeRolledOver, false, responses, refs);
-            rollOverDataStreams(bulkRequest, failureStoresToBeRolledOver, true, responses, refs);
+            // TODO: Failure store rollovers have been disabled because they previously were being done using indices options.
+            //  They will need to use the naming scheme going forward.
+            // rollOverDataStreams(bulkRequest, failureStoresToBeRolledOver, true, responses, refs);
         }
     }
 
@@ -399,13 +400,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         for (String dataStream : dataStreamsToBeRolledOver) {
             RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
             rolloverRequest.masterNodeTimeout(bulkRequest.timeout);
-            if (targetFailureStore) {
-                rolloverRequest.setIndicesOptions(
-                    IndicesOptions.builder(rolloverRequest.indicesOptions())
-                        .failureStoreOptions(new IndicesOptions.FailureStoreOptions(false, true))
-                        .build()
-                );
-            }
             // We are executing a lazy rollover because it is an action specialised for this situation, when we want an
             // unconditional and performant rollover.
             rolloverClient.execute(LazyRolloverAction.INSTANCE, rolloverRequest, ActionListener.releaseAfter(new ActionListener<>() {
@@ -414,7 +408,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 public void onResponse(RolloverResponse result) {
                     logger.debug(
                         "Data stream{} {} has {} over, the latest index is {}",
-                        rolloverRequest.targetsFailureStore() ? " failure store" : "",
+                        targetFailureStore ? " failure store" : "",
                         dataStream,
                         result.isRolledOver() ? "been successfully rolled" : "skipped rolling",
                         result.getNewIndex()

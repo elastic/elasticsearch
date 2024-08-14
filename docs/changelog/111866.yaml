@@ -2,4 +2,5 @@ pr: 111866
 summary: Fix windows memory locking
 area: Infra/Core
 type: bug
-issues: []
+issues:
+ - 111847

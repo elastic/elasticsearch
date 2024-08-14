@@ -624,6 +624,7 @@ public class Constants {
         "internal:admin/indices/prevalidate_shard_path",
         "internal:index/metadata/migration_version/update",
         "internal:admin/repository/verify",
-        "internal:admin/repository/verify/coordinate"
+        "internal:admin/repository/verify/coordinate",
+        "cluster:admin/projects/put"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

@@ -1,0 +1,22 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.test-with-dependencies'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+esplugin {
+  description 'The Multi-Project module adds functionality for working with multiple projects in ES (only for internal use).'
+  classname 'org.elasticsearch.multiproject.MultiProjectPlugin'
+}
+
+restResources {
+  restApi {
+    include '*'
+  }
+}
+
+dependencies {
+  testImplementation project(path: ':test:test-clusters')
+}

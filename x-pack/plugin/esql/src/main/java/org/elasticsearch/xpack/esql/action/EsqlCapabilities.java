@@ -224,7 +224,12 @@ public class EsqlCapabilities {
         /**
          * Support CIDRMatch in CombineDisjunctions rule.
          */
-        COMBINE_DISJUNCTIVE_CIDRMATCHES;
+        COMBINE_DISJUNCTIVE_CIDRMATCHES,
+
+        /**
+         * Support sending HTTP headers about the status of an async query.
+         */
+        ASYNC_QUERY_STATUS_HEADERS;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

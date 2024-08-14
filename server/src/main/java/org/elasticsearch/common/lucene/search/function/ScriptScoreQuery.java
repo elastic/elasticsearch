@@ -90,7 +90,7 @@ public class ScriptScoreQuery extends Query {
             return subQuery.createWeight(searcher, scoreMode, boost);
         }
         boolean needsScore = scriptBuilder.needs_score();
-        boolean needsTermStatistics = scriptBuilder.needs_termStatistics();
+        boolean needsTermStatistics = scriptBuilder.needs_termStats();
 
         ScoreMode subQueryScoreMode = needsScore || needsTermStatistics ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, 1.0f);

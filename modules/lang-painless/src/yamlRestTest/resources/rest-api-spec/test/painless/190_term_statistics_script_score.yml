@@ -39,7 +39,7 @@ setup:
             script_score:
               query: { match: { "title": "Star wars" } }
               script:
-                source: "return _termStatistics.uniqueTermsCount()"
+                source: "return _termStats.uniqueTermsCount()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 2 }
   - match: { hits.hits.1._score: 2 }
@@ -56,7 +56,7 @@ setup:
             script_score:
               query: { match: { "title": "Star wars" } }
               script:
-                source: "return _termStatistics.uniqueTermsCount()"
+                source: "return _termStats.uniqueTermsCount()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 2 }
   - match: { hits.hits.1._score: 2 }
@@ -72,7 +72,7 @@ setup:
             script_score:
               query: { match: { "title": "Star wars" } }
               script:
-                source: "return _termStatistics.matchedTermsCount()"
+                source: "return _termStats.matchedTermsCount()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 2 }
   - match: { hits.hits.1._score: 1 }
@@ -89,7 +89,7 @@ setup:
             script_score:
               query: { match: { "title": "Star wars" } }
               script:
-                source: "return _termStatistics.matchedTermsCount()"
+                source: "return _termStats.matchedTermsCount()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 2 }
   - match: { hits.hits.1._score: 1 }
@@ -105,7 +105,7 @@ setup:
             script_score:
               query: { match: { "title": "Star wars" } }
               script:
-                source: "return _termStatistics.docFreq().getMin()"
+                source: "return _termStats.docFreq().getMin()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 1 }
   - match: { hits.hits.1._score: 0 }
@@ -122,7 +122,7 @@ setup:
             script_score:
               query: { match: { "title": "Star wars" } }
               script:
-                source: "return _termStatistics.docFreq().getMin()"
+                source: "return _termStats.docFreq().getMin()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 1 }
   - match: { hits.hits.1._score: 1 }
@@ -138,7 +138,7 @@ setup:
             script_score:
               query: { match: { "title": "Star wars" } }
               script:
-                source: "return _termStatistics.docFreq().getMax()"
+                source: "return _termStats.docFreq().getMax()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 1 }
   - match: { hits.hits.1._score: 1 }
@@ -155,7 +155,7 @@ setup:
             script_score:
               query: { match: { "title": "Star wars" } }
               script:
-                source: "return _termStatistics.docFreq().getMax()"
+                source: "return _termStats.docFreq().getMax()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 2 }
   - match: { hits.hits.1._score: 2 }
@@ -171,7 +171,7 @@ setup:
             script_score:
               query: { match: { "title": "Star wars" } }
               script:
-                source: "return _termStatistics.totalTermFreq().getSum()"
+                source: "return _termStats.totalTermFreq().getSum()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 2 }
   - match: { hits.hits.1._score: 1 }
@@ -188,7 +188,7 @@ setup:
             script_score:
               query: { match: { "title": "Star wars" } }
               script:
-                source: "return _termStatistics.totalTermFreq().getSum()"
+                source: "return _termStats.totalTermFreq().getSum()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 3 }
   - match: { hits.hits.1._score: 3 }
@@ -204,7 +204,7 @@ setup:
             script_score:
               query: { match: { "title": "Star wars" } }
               script:
-                source: "return _termStatistics.termFreq().getSum()"
+                source: "return _termStats.termFreq().getSum()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 2 }
   - match: { hits.hits.1._score: 1 }
@@ -221,7 +221,7 @@ setup:
             script_score:
               query: { match: { "title": "Star wars" } }
               script:
-                source: "return _termStatistics.termFreq().getSum()"
+                source: "return _termStats.termFreq().getSum()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 2 }
   - match: { hits.hits.1._score: 1 }
@@ -237,7 +237,7 @@ setup:
             script_score:
               query: { match: { "title": "Star wars" } }
               script:
-                source: "return _termStatistics.termPositions().getAverage()"
+                source: "return _termStats.termPositions().getAverage()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 1.5 }
   - match: { hits.hits.1._score: 1 }
@@ -254,7 +254,7 @@ setup:
             script_score:
               query: { match: { "title": "Star wars" } }
               script:
-                source: "return _termStatistics.termPositions().getAverage()"
+                source: "return _termStats.termPositions().getAverage()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 1.5 }
   - match: { hits.hits.1._score: 1 }
@@ -270,7 +270,7 @@ setup:
             script_score:
               query: { term: { "genre.keyword": "Sci-fi" } }
               script:
-                source: "return _termStatistics.uniqueTermsCount()"
+                source: "return _termStats.uniqueTermsCount()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 1 }
   - match: { hits.hits.1._score: 1 }
@@ -287,7 +287,7 @@ setup:
             script_score:
               query: { term: { "genre.keyword": "Sci-fi" } }
               script:
-                source: "return _termStatistics.uniqueTermsCount()"
+                source: "return _termStats.uniqueTermsCount()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 1 }
   - match: { hits.hits.1._score: 1 }
@@ -303,7 +303,7 @@ setup:
             script_score:
               query: { term: { "genre.keyword": "Sci-fi" } }
               script:
-                source: "return _termStatistics.matchedTermsCount()"
+                source: "return _termStats.matchedTermsCount()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 1 }
   - match: { hits.hits.1._score: 1 }
@@ -320,7 +320,7 @@ setup:
             script_score:
               query: { term: { "genre.keyword": "Sci-fi" } }
               script:
-                source: "return _termStatistics.matchedTermsCount()"
+                source: "return _termStats.matchedTermsCount()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 1 }
   - match: { hits.hits.1._score: 1 }
@@ -336,7 +336,7 @@ setup:
             script_score:
               query: { term: { "genre.keyword": "Sci-fi" } }
               script:
-                source: "return _termStatistics.docFreq().getMin()"
+                source: "return _termStats.docFreq().getMin()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 1 }
   - match: { hits.hits.1._score: 1 }
@@ -353,7 +353,7 @@ setup:
             script_score:
               query: { term: { "genre.keyword": "Sci-fi" } }
               script:
-                source: "return _termStatistics.docFreq().getMin()"
+                source: "return _termStats.docFreq().getMin()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 2 }
   - match: { hits.hits.1._score: 2 }
@@ -369,7 +369,7 @@ setup:
             script_score:
               query: { term: { "genre.keyword": "Sci-fi" } }
               script:
-                source: "return _termStatistics.docFreq().getMax()"
+                source: "return _termStats.docFreq().getMax()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 1 }
   - match: { hits.hits.1._score: 1 }
@@ -386,7 +386,7 @@ setup:
             script_score:
               query: { term: { "genre.keyword": "Sci-fi" } }
               script:
-                source: "return _termStatistics.docFreq().getMax()"
+                source: "return _termStats.docFreq().getMax()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 2 }
   - match: { hits.hits.1._score: 2 }
@@ -402,7 +402,7 @@ setup:
             script_score:
               query: { term: { "genre.keyword": "Sci-fi" } }
               script:
-                source: "return _termStatistics.totalTermFreq().getSum()"
+                source: "return _termStats.totalTermFreq().getSum()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 1 }
   - match: { hits.hits.1._score: 1 }
@@ -419,7 +419,7 @@ setup:
             script_score:
               query: { term: { "genre.keyword": "Sci-fi" } }
               script:
-                source: "return _termStatistics.totalTermFreq().getSum()"
+                source: "return _termStats.totalTermFreq().getSum()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 2 }
   - match: { hits.hits.1._score: 2 }
@@ -435,7 +435,7 @@ setup:
             script_score:
               query: { term: { "genre.keyword": "Sci-fi" } }
               script:
-                source: "return _termStatistics.termFreq().getSum()"
+                source: "return _termStats.termFreq().getSum()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 1 }
   - match: { hits.hits.1._score: 1 }
@@ -452,7 +452,7 @@ setup:
             script_score:
               query: { term: { "genre.keyword": "Sci-fi" } }
               script:
-                source: "return _termStatistics.termFreq().getSum()"
+                source: "return _termStats.termFreq().getSum()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 1 }
   - match: { hits.hits.1._score: 1 }
@@ -468,7 +468,7 @@ setup:
             script_score:
               query: { term: { "genre.keyword": "Sci-fi" } }
               script:
-                source: "return _termStatistics.termPositions().getAverage()"
+                source: "return _termStats.termPositions().getAverage()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 0 }
   - match: { hits.hits.1._score: 0 }
@@ -485,7 +485,7 @@ setup:
             script_score:
               query: { term: { "genre.keyword": "Sci-fi" } }
               script:
-                source: "return _termStatistics.termPositions().getAverage()"
+                source: "return _termStats.termPositions().getAverage()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 0 }
   - match: { hits.hits.1._score: 0 }
@@ -510,7 +510,7 @@ setup:
                   must_not:
                     term: { "genre.keyword": "War" }
               script:
-                source: "return _termStatistics.uniqueTermsCount()"
+                source: "return _termStats.uniqueTermsCount()"
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 4 }
   - match: { hits.hits.1._score: 4 }
@@ -528,7 +528,7 @@ setup:
               query:
                 match_all: {}
               script:
-                source: "return _termStatistics.uniqueTermsCount()"
+                source: "return _termStats.uniqueTermsCount()"
   - match: { hits.total: 4 }
   - match: { hits.hits.0._score: 0 }
   - match: { hits.hits.1._score: 0 }
@@ -547,7 +547,7 @@ setup:
               query:
                 match_all: {}
               script:
-                source: "return _termStatistics.docFreq().getMax()"
+                source: "return _termStats.docFreq().getMax()"
   - match: { hits.total: 4 }
   - match: { hits.hits.0._score: 0 }
   - match: { hits.hits.1._score: 0 }
@@ -566,7 +566,7 @@ setup:
               query:
                 match_all: {}
               script:
-                source: "return _termStatistics.totalTermFreq().getSum()"
+                source: "return _termStats.totalTermFreq().getSum()"
   - match: { hits.total: 4 }
   - match: { hits.hits.0._score: 0 }
   - match: { hits.hits.1._score: 0 }
@@ -585,7 +585,7 @@ setup:
               query:
                 match_all: {}
               script:
-                source: "return _termStatistics.termFreq().getMax()"
+                source: "return _termStats.termFreq().getMax()"
   - match: { hits.total: 4 }
   - match: { hits.hits.0._score: 0 }
   - match: { hits.hits.1._score: 0 }
@@ -604,7 +604,7 @@ setup:
               query:
                 match_all: {}
               script:
-                source: "return _termStatistics.termPositions().getSum()"
+                source: "return _termStats.termPositions().getSum()"
   - match: { hits.total: 4 }
   - match: { hits.hits.0._score: 0 }
   - match: { hits.hits.1._score: 0 }

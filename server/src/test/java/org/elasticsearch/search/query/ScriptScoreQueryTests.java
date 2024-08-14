@@ -178,7 +178,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             }
 
             @Override
-            public boolean needs_termStatistics() {
+            public boolean needs_termStats() {
                 return randomBoolean();
             }
 

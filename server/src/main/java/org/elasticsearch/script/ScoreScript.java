@@ -199,11 +199,11 @@ public abstract class ScoreScript extends DocBasedScript {
     }
 
     /**
-     * Accessed as _termStatistics in the painless script.
+     * Accessed as _termStats in the painless script.
      */
-    public ScriptTermStats get_termStatistics() {
+    public ScriptTermStats get_termStats() {
         if (termStats == null) {
-            throw new IllegalArgumentException("_termStatistics is not available");
+            throw new IllegalArgumentException("_termStats is not available");
         }
         return termStats;
     }
@@ -216,9 +216,9 @@ public abstract class ScoreScript extends DocBasedScript {
         boolean needs_score();
 
         /**
-         * Return {@code true} if the script needs {@code _termStatistics} calculated, or {@code false} otherwise.
+         * Return {@code true} if the script needs {@code _termStats} calculated, or {@code false} otherwise.
          */
-        default boolean needs_termStatistics() {
+        default boolean needs_termStats() {
             return false;
         }
 

@@ -18,8 +18,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class BlobCacheMetrics {
-    private static final String CACHE_POPULATION_REASON_ATTRIBUTE_KEY = "cachePopulationReason";
-    private static final String SHARD_ID_ATTRIBUTE_KEY = "shardId";
+    public static final String CACHE_POPULATION_REASON_ATTRIBUTE_KEY = "cachePopulationReason";
+    public static final String SHARD_ID_ATTRIBUTE_KEY = "shardId";
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
@@ -120,9 +120,9 @@ public class BlobCacheMetrics {
     ) {
         Map<String, Object> metricAttributes = Map.of(
             SHARD_ID_ATTRIBUTE_KEY,
-            shardId,
+            shardId.toString(),
             CACHE_POPULATION_REASON_ATTRIBUTE_KEY,
-            cachePopulationReason
+            cachePopulationReason.name()
         );
         assert totalBytesCopied > 0 : "We shouldn't be recording zero-sized copies";
         cachePopulationBytes.incrementBy(totalBytesCopied, metricAttributes);

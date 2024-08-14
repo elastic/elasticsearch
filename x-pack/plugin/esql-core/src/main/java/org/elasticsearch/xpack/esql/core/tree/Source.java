@@ -55,10 +55,9 @@ public final class Source implements Writeable {
      * and there is no chance of getting a {@link PlanStreamInput}.
      */
     public static Source readEmpty(StreamInput in) throws IOException {
-        if (in.readBoolean() == false) {
-            return EMPTY;
+        if (in.readBoolean()) {
+            new SourcePositions(in);
         }
-        new SourcePositions(in);
         return EMPTY;
     }
 

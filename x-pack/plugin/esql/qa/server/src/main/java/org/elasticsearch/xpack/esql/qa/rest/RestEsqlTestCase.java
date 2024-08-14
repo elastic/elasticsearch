@@ -911,7 +911,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             assertThat((boolean) json.get("is_running"), is(false));
             if (supportsAsyncHeaders) {
                 assertThat(response.getHeader("X-Elasticsearch-Async-Id"), nullValue());
-                assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is("false"));
+                assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is("?0"));
             }
             assertWarnings(response, expectedWarnings, expectedWarningsRegex);
             json.remove("is_running"); // remove this to not mess up later map assertions
@@ -935,7 +935,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
             if (supportsAsyncHeaders) {
                 assertThat(response.getHeader("X-Elasticsearch-Async-Id"), is(id));
-                assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is(isRunning ? "true" : "false"));
+                assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is(isRunning ? "?1" : "?0"));
             }
 
             // issue a second request to "async get" the results

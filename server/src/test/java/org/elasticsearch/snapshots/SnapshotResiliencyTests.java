@@ -2311,7 +2311,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     responseCollectorService,
                     new NoneCircuitBreakerService(),
                     EmptySystemIndices.INSTANCE.getExecutorSelector(),
-                    Tracer.NOOP
+                    Tracer.NOOP,
+                    null
                 );
 
                 final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);

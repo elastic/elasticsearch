@@ -45,7 +45,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -142,7 +141,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -150,7 +148,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -317,8 +314,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final Tracer tracer;
 
-    private final boolean trackIndexExecutionTime;
-    private final ConcurrentHashMap<String, LongAdder> indexExecutionTimes = new ConcurrentHashMap<>();
+    private final SearchIndexMetricsTracker searchIndexMetricsTracker;
 
     public SearchService(
         ClusterService clusterService,
@@ -331,7 +327,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer
+        Tracer tracer,
+        SearchIndexMetricsTracker searchIndexMetricsTracker
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -389,9 +386,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
 
-        Executor searchExecutor = threadPool.executor(Names.SEARCH);
-        trackIndexExecutionTime = searchExecutor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor
-            && ((TaskExecutionTimeTrackingEsThreadPoolExecutor) searchExecutor).trackOngoingTasks();
+        this.searchIndexMetricsTracker = searchIndexMetricsTracker;
     }
 
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
@@ -674,25 +669,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
     }
 
-    public Map<String, LongAdder> getIndexExecutionTimes() {
-        return indexExecutionTimes;
-    }
-
     private <T extends RefCounted> void runAsync(
         Executor executor,
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener,
         IndexShard indexShard
     ) {
-        if (trackIndexExecutionTime) {
+        if (searchIndexMetricsTracker != null) {
             String indexName = indexShard.shardId().getIndexName();
-            indexExecutionTimes.putIfAbsent(indexName, new LongAdder());
-            LongAdder indexExecutionTime = indexExecutionTimes.get(indexName);
             executor.execute(ActionRunnable.supplyAndDecRef(listener, () -> {
                 long start = System.nanoTime();
                 var result = executable.get();
                 long total = System.nanoTime() - start;
-                indexExecutionTime.add(total);
+                searchIndexMetricsTracker.addExecutionTime(indexName, total);
                 return result;
             }));
         } else {

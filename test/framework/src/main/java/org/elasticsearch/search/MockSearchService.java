@@ -100,7 +100,8 @@ public class MockSearchService extends SearchService {
             responseCollectorService,
             circuitBreakerService,
             executorSelector,
-            tracer
+            tracer,
+            null
         );
     }
 

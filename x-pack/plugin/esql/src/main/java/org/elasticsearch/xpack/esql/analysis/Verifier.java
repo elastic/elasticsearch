@@ -394,7 +394,12 @@ public class Verifier {
                 DataType dataType = field.dataType();
                 if (DataType.isRepresentable(dataType) == false) {
                     failures.add(
-                        fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
+                        fail(
+                            field,
+                            "EVAL does not support type [{}] as the return data type of expression [{}]",
+                            dataType.typeName(),
+                            field.child().sourceText()
+                        )
                     );
                 }
                 // check no aggregate functions are used

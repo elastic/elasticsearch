@@ -26,9 +26,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 
 public class ToDatePeriod extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -94,12 +97,23 @@ public class ToDatePeriod extends AbstractConvertFunction {
 
     @Override
     protected final TypeResolution resolveType() {
-        if (field().foldable()) {
-            if (isValidInterval(field().fold().toString()) == false) {
-                return new TypeResolution(LoggerMessageFormat.format(null, INVALID_INTERVAL_ERROR, sourceText(), field().fold()));
-            }
+        if (childrenResolved() == false) {
+            return new TypeResolution("Unresolved children");
         }
-        return super.resolveType();
+        TypeResolution typeResolution = isType(
+            field(),
+            factories()::containsKey,
+            sourceText(),
+            FIRST,
+            supportedTypesNames(supportedTypes())
+        );
+        if (field().foldable()) {
+            if (isString(field().dataType()) && isValidInterval(field().fold().toString()) == false) {
+                typeResolution = new TypeResolution(LoggerMessageFormat.format(null, INVALID_INTERVAL_ERROR, sourceText(), field().fold()));
+            }
+
+        }
+        return typeResolution;
     }
 
     @Override

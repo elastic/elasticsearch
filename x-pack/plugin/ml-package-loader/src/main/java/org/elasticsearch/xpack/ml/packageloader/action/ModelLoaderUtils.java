@@ -67,7 +67,7 @@ final class ModelLoaderUtils {
         private final MessageDigest digestSha256 = MessageDigests.sha256();
         private final int chunkSize;
 
-        private int totalBytesRead = 0;
+        private long totalBytesRead = 0;
 
         InputStreamChunker(InputStream inputStream, int chunkSize) {
             this.inputStream = inputStream;
@@ -96,7 +96,7 @@ final class ModelLoaderUtils {
             return MessageDigests.toHexString(digestSha256.digest());
         }
 
-        public int getTotalBytesRead() {
+        public long getTotalBytesRead() {
             return totalBytesRead;
         }
     }

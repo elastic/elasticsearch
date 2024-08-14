@@ -72,7 +72,10 @@ For example, if you have a document that covers varying topics:
 ------------------------------------------------------------
 POST my-index/_doc/lake_tahoe
 {
-  "inference_field": [ "Lake Tahoe is the largest alpine lake in North America", "When hiking in the area, please be on alert for bears" ]
+  "inference_field": [
+    "Lake Tahoe is the largest alpine lake in North America",
+    "When hiking in the area, please be on alert for bears"
+  ]
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]

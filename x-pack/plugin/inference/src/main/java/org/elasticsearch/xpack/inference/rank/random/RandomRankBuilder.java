@@ -93,9 +93,7 @@ public class RandomRankBuilder extends RankBuilder {
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         // rankWindowSize serialization is handled by the parent class RankBuilder
-        if (field != null) {
-            builder.field(FIELD_FIELD.getPreferredName(), field);
-        }
+        builder.field(FIELD_FIELD.getPreferredName(), field);
         if (minScore != null) {
             builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
         }

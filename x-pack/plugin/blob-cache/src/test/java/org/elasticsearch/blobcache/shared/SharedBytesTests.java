@@ -53,8 +53,8 @@ public class SharedBytesTests extends ESTestCase {
 
     public void testPopulationListenerIsCalledOnSuccess() throws IOException {
         doWithSharedBytes(sharedBytes -> {
-            // position + length must be < region size
-            final int position = randomIntBetween(0, sharedBytes.regionSize);
+            // position + length must be <= region size
+            final int position = randomIntBetween(0, sharedBytes.regionSize - 1);
             final int alignedPosition = position - position % PAGE_SIZE;
             final int streamLength = randomIntBetween(1, sharedBytes.regionSize - alignedPosition);
             logger.info("Copying {} bytes to position {} (region size={})", streamLength, alignedPosition, sharedBytes.regionSize);

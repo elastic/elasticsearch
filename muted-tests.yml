@@ -143,6 +143,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {comparison.RangeVersion SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/111814
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: "test {p0=esql/26_aggs_bucket/friendlier BUCKET interval hourly: #110916}"
+  issue: https://github.com/elastic/elasticsearch/issues/111901
 
 # Examples:
 #

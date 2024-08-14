@@ -97,7 +97,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.noInferenceResults = false;
 
         if (this.innerChunkBuilder != null) {
-            this.innerChunkBuilder.setName(fieldName);
+            this.innerChunkBuilder.setFieldName(fieldName);
         }
     }
 

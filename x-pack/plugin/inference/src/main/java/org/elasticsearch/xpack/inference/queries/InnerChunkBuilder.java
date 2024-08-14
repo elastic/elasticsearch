@@ -13,10 +13,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,33 +34,33 @@ public class InnerChunkBuilder implements Writeable, ToXContentObject {
         PARSER.declareInt(InnerChunkBuilder::setSize, SearchSourceBuilder.SIZE_FIELD);
     }
 
-    private String name;
+    private String fieldName;
     private int from = DEFAULT_FROM;
     private int size = DEFAULT_SIZE;
 
     public InnerChunkBuilder() {
-        this.name = null;
+        this.fieldName = null;
     }
 
     public InnerChunkBuilder(StreamInput in) throws IOException {
-        name = in.readString();
+        fieldName = in.readOptionalString();
         from = in.readVInt();
         size = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+        out.writeOptionalString(fieldName);
         out.writeVInt(from);
         out.writeVInt(size);
     }
 
-    public String getName() {
-        return name;
+    public String getFieldName() {
+        return fieldName;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setFieldName(String fieldName) {
+        this.fieldName = fieldName;
     }
 
     public int getFrom() {
@@ -80,10 +82,13 @@ public class InnerChunkBuilder implements Writeable, ToXContentObject {
     }
 
     public InnerHitBuilder toInnerHitBuilder() {
-        if (name == null) {
-            throw new IllegalStateException("name must have a value");
+        if (fieldName == null) {
+            throw new IllegalStateException("fieldName must have a value");
         }
-        return new InnerHitBuilder(name).setFrom(from).setSize(size);
+
+        return new InnerHitBuilder(fieldName).setFrom(from)
+            .setSize(size)
+            .setFetchSourceContext(FetchSourceContext.of(true, null, new String[] { SemanticTextField.getEmbeddingsFieldName(fieldName) }));
     }
 
     @Override
@@ -109,12 +114,12 @@ public class InnerChunkBuilder implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InnerChunkBuilder that = (InnerChunkBuilder) o;
-        return from == that.from && size == that.size && Objects.equals(name, that.name);
+        return from == that.from && size == that.size && Objects.equals(fieldName, that.fieldName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, from, size);
+        return Objects.hash(fieldName, from, size);
     }
 
     @Override

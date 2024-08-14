@@ -206,7 +206,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             InnerHitContextBuilder.extractInnerHits(nestedQueryBuilder, innerHitInternals);
             assertThat(innerHitInternals.size(), equalTo(1));
 
-            InnerHitContextBuilder innerHits = innerHitInternals.get(queryBuilder.innerChunk().getName());
+            InnerHitContextBuilder innerHits = innerHitInternals.get(queryBuilder.innerChunk().getFieldName());
             assertNotNull(innerHits);
             assertThat(innerHits.innerHitBuilder(), equalTo(queryBuilder.innerChunk().toInnerHitBuilder()));
         }

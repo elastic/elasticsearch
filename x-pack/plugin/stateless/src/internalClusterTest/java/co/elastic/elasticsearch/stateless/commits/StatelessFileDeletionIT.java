@@ -1174,7 +1174,13 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
                         if (enableChecks.get()) {
                             // After the shard has recovered, but before sending any new commit notification response (that could trigger
                             // blob deletions), store the current blobs, so we later check that the blobs before the merge are intact.
-                            safeAwait(searchShardRecovered);
+                            // 30 seconds timeout to align with ensureGreen after we release the vbccChunkLatch
+                            try {
+                                assertTrue(searchShardRecovered.await(30, TimeUnit.SECONDS));
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                fail(e, "safeAwait: interrupted waiting for CountDownLatch to reach zero");
+                            }
                             blobsBeforeNewCommitNotificationResponse.set(listBlobsWithAbsolutePath(shardCommitsContainer));
                         }
                     })),

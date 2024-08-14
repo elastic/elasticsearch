@@ -58,7 +58,6 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
     private static final int MAX_RETRIES = 5;
 
     private NativePrivilegeStore store;
-    private List<ActionRequest> requests;
     private AtomicReference<ActionListener<ActionResponse>> listener;
     private Client client;
     private SecurityIndexManager securityIndex;
@@ -66,7 +65,6 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
     private MockThreadPool threadPool;
 
     private void setupStore(int expectedCount) {
-        requests = new ArrayList<>();
         listener = new AtomicReference<>();
         resultLatch = new CountDownLatch(expectedCount);
         threadPool = new MockThreadPool(getTestName(), resultLatch);
@@ -78,7 +76,6 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                NativePrivilegeStoreRetryTests.this.requests.add(request);
                 NativePrivilegeStoreRetryTests.this.listener.set((ActionListener<ActionResponse>) listener);
                 resultLatch.countDown();
             }
@@ -116,10 +113,9 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
         );
     }
 
-    private void setupStoreWithFailingClient(int expectedCount) {
-        requests = new ArrayList<>();
+    private void setupStoreWithFailingClient(int expectedRetries) {
         listener = new AtomicReference<>();
-        resultLatch = new CountDownLatch(expectedCount);
+        resultLatch = new CountDownLatch(expectedRetries + 1);
         threadPool = new MockThreadPool(getTestName(), resultLatch);
         client = new NoOpClient(threadPool) {
             @Override
@@ -129,13 +125,12 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                NativePrivilegeStoreRetryTests.this.requests.add(request);
-                if (resultLatch.getCount() > expectedCount - 1) {
+                if (threadPool.delays.size() < expectedRetries) {
                     listener.onFailure(unavailableShardsException());
                 } else {
                     NativePrivilegeStoreRetryTests.this.listener.set((ActionListener<ActionResponse>) listener);
+                    resultLatch.countDown();
                 }
-                resultLatch.countDown();
             }
 
             @Override
@@ -196,7 +191,7 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
         store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, future);
 
-        assertTrue(resultLatch.await(20, TimeUnit.SECONDS));
+        assertTrue(resultLatch.await(5, TimeUnit.SECONDS));
 
         final SearchHit[] hits = buildHits(sourcePrivileges);
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(hits));
@@ -211,24 +206,19 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
             new ApplicationPrivilegeDescriptor("myapp", "user", newHashSet("action:login", "data:read/*"), emptyMap()),
             new ApplicationPrivilegeDescriptor("myapp", "author", newHashSet("action:login", "data:read/*", "data:write/*"), emptyMap())
         );
-        int numRetryableFailures = 2;
-        // extra call to latch to account for capturing `listener`
+        int numRetryableFailures = randomIntBetween(1, MAX_RETRIES);
         setupStoreWithFailingClient(numRetryableFailures);
 
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
         store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, future);
 
-        assertTrue(resultLatch.await(20, TimeUnit.SECONDS));
+        assertTrue(resultLatch.await(5, TimeUnit.SECONDS));
 
         final SearchHit[] hits = buildHits(sourcePrivileges);
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(hits));
 
         assertResult(sourcePrivileges, future);
-        assertThat(threadPool.delays.size(), equalTo(1));
-    }
-
-    private static UnavailableShardsException unavailableShardsException() {
-        return new UnavailableShardsException("index", 1, "bad shard");
+        assertThat(threadPool.delays.size(), equalTo(numRetryableFailures));
     }
 
     public void testGetPrivilegesThrowsOnUnavailableShardFailuresWhenOutOfRetries() throws Exception {
@@ -245,7 +235,7 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
         store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, future);
 
-        assertTrue(resultLatch.await(20, TimeUnit.SECONDS));
+        assertTrue(resultLatch.await(5, TimeUnit.SECONDS));
 
         expectThrows(UnavailableShardsException.class, future::actionGet);
         assertThat(threadPool.delays.size(), equalTo(numRetryableFailures - 1));
@@ -266,13 +256,6 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
             countDownLatch.countDown();
             return super.schedule(command, TimeValue.ZERO, executor);
         }
-
-    }
-
-    private <T extends ActionRequest> T getLastRequest(Class<T> requestClass) {
-        final ActionRequest last = requests.get(requests.size() - 1);
-        assertThat(last, instanceOf(requestClass));
-        return requestClass.cast(last);
     }
 
     private SearchHit[] buildHits(List<ApplicationPrivilegeDescriptor> sourcePrivileges) {
@@ -306,5 +289,9 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private static <T> Consumer<T> anyConsumer() {
         return any(Consumer.class);
+    }
+
+    private static UnavailableShardsException unavailableShardsException() {
+        return new UnavailableShardsException("index", 1, "bad shard");
     }
 }

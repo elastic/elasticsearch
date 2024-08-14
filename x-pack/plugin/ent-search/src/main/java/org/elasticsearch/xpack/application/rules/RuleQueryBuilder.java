@@ -250,6 +250,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                         return;
                     }
 
+                    QueryRulesAnalysisService analysisService = new QueryRulesAnalysisService(client);
+
                     for (MultiGetItemResponse item : multiGetResponse) {
                         String rulesetId = item.getId();
                         GetResponse getResponse = item.getResponse();
@@ -264,8 +266,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                             getResponse.getSourceAsBytesRef(),
                             XContentType.JSON
                         );
+
                         for (QueryRule rule : queryRuleset.rules()) {
-                            rule.applyRule(appliedRules, matchCriteria);
+                            rule.applyRule(analysisService, appliedRules, matchCriteria);
                         }
                     }
 

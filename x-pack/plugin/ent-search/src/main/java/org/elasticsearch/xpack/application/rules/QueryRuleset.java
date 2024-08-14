@@ -160,4 +160,9 @@ public class QueryRuleset implements Writeable, ToXContentObject {
     public int hashCode() {
         return Objects.hash(id, rules);
     }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
 }

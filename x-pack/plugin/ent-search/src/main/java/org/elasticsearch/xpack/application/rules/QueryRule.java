@@ -318,10 +318,14 @@ public class QueryRule implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
-    public AppliedQueryRules applyRule(AppliedQueryRules appliedRules, Map<String, Object> matchCriteria) {
+    public AppliedQueryRules applyRule(
+        QueryRulesAnalysisService analysisService,
+        AppliedQueryRules appliedRules,
+        Map<String, Object> matchCriteria
+    ) {
         List<SpecifiedDocument> pinnedDocs = appliedRules.pinnedDocs();
         List<SpecifiedDocument> excludedDocs = appliedRules.excludedDocs();
-        List<SpecifiedDocument> matchingDocs = identifyMatchingDocs(matchCriteria);
+        List<SpecifiedDocument> matchingDocs = identifyMatchingDocs(analysisService, matchCriteria);
 
         switch (type) {
             case PINNED -> pinnedDocs.addAll(matchingDocs);
@@ -332,7 +336,7 @@ public class QueryRule implements Writeable, ToXContentObject {
     }
 
     @SuppressWarnings("unchecked")
-    private List<SpecifiedDocument> identifyMatchingDocs(Map<String, Object> matchCriteria) {
+    private List<SpecifiedDocument> identifyMatchingDocs(QueryRulesAnalysisService analysisService, Map<String, Object> matchCriteria) {
         List<SpecifiedDocument> matchingDocs = new ArrayList<>();
         Boolean isRuleMatch = null;
 
@@ -344,7 +348,7 @@ public class QueryRule implements Writeable, ToXContentObject {
                 final String criteriaMetadata = criterion.criteriaMetadata();
 
                 if (criteriaType == ALWAYS || (criteriaMetadata != null && criteriaMetadata.equals(match))) {
-                    boolean singleCriterionMatches = criterion.isMatch(matchValue, criteriaType, false);
+                    boolean singleCriterionMatches = criterion.isMatch(analysisService, matchValue, criteriaType, false);
                     isRuleMatch = (isRuleMatch == null) ? singleCriterionMatches : isRuleMatch && singleCriterionMatches;
                 }
             }

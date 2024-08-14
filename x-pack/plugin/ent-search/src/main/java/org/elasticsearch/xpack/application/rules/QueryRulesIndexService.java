@@ -97,7 +97,12 @@ public class QueryRulesIndexService {
                 .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS);
 
         return systemIndexDescriptorBuilder.apply(QueryRulesIndexMappingVersion.latest())
-            .setPriorSystemIndexDescriptors(List.of(systemIndexDescriptorBuilder.apply(QueryRulesIndexMappingVersion.INITIAL).build()))
+            .setPriorSystemIndexDescriptors(
+                List.of(
+                    systemIndexDescriptorBuilder.apply(QueryRulesIndexMappingVersion.INITIAL).build(),
+                    systemIndexDescriptorBuilder.apply(QueryRulesIndexMappingVersion.ADD_PRIORITY).build()
+                )
+            )
             .build();
     }
 
@@ -154,6 +159,13 @@ public class QueryRulesIndexService {
                             builder.field("type", "object");
                             builder.field("enabled", false);
                             builder.endObject();
+
+                            if (version.onOrAfter(QueryRulesIndexMappingVersion.ADD_ANALYZER_SUPPORT)) {
+                                builder.startObject(QueryRuleCriteria.PROPERTIES_FIELD.getPreferredName());
+                                builder.field("type", "object");
+                                builder.field("enabled", false);
+                                builder.endObject();
+                            }
                         }
                         builder.endObject();
                         builder.endObject();
@@ -254,7 +266,8 @@ public class QueryRulesIndexService {
                 new QueryRuleCriteria(
                     QueryRuleCriteriaType.type((String) entry.get(QueryRuleCriteria.TYPE_FIELD.getPreferredName())),
                     (String) entry.get(QueryRuleCriteria.METADATA_FIELD.getPreferredName()),
-                    (List<Object>) entry.get(QueryRuleCriteria.VALUES_FIELD.getPreferredName())
+                    (List<Object>) entry.get(QueryRuleCriteria.VALUES_FIELD.getPreferredName()),
+                    (Map<String, Object>) entry.get(QueryRuleCriteria.PROPERTIES_FIELD.getPreferredName())
                 )
             );
         }
@@ -463,7 +476,8 @@ public class QueryRulesIndexService {
 
     public enum QueryRulesIndexMappingVersion implements VersionId<QueryRulesIndexMappingVersion> {
         INITIAL(1),
-        ADD_PRIORITY(2),;
+        ADD_PRIORITY(2),
+        ADD_ANALYZER_SUPPORT(3),;
 
         private static final QueryRulesIndexMappingVersion LATEST = Arrays.stream(values())
             .max(Comparator.comparingInt(v -> v.id))

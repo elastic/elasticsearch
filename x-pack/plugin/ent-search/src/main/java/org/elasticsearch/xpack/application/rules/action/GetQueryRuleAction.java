@@ -96,6 +96,11 @@ public class GetQueryRuleAction {
         }
 
         @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(RULESET_ID_FIELD.getPreferredName(), rulesetId);
@@ -159,6 +164,11 @@ public class GetQueryRuleAction {
         @Override
         public int hashCode() {
             return Objects.hash(queryRule);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
 
         public static Response fromXContent(XContentParser parser) throws IOException {

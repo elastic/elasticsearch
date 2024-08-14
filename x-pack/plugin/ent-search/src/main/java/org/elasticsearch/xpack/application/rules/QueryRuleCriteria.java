@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -41,18 +42,25 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     private final QueryRuleCriteriaType criteriaType;
     private final String criteriaMetadata;
     private final List<Object> criteriaValues;
+    private final Map<String, Object> criteriaProperties;
 
     private static final Logger logger = LogManager.getLogger(QueryRuleCriteria.class);
 
     /**
      *
-     * @param criteriaType The {@link QueryRuleCriteriaType}, indicating how the criteria is matched
-     * @param criteriaMetadata The metadata for this identifier, indicating the criteria key of what is matched against.
-     *                         Required unless the CriteriaType is ALWAYS.
-     * @param criteriaValues The values to match against when evaluating {@link QueryRuleCriteria} against a {@link QueryRule}
-     *                      Required unless the CriteriaType is ALWAYS.
+     * @param criteriaType          The {@link QueryRuleCriteriaType}, indicating how the criteria is matched
+     * @param criteriaMetadata      The metadata for this identifier, indicating the criteria key of what is matched against.
+     *                              Required unless the CriteriaType is ALWAYS.
+     * @param criteriaValues        The values to match against when evaluating {@link QueryRuleCriteria} against a {@link QueryRule}
+     *                              Required unless the CriteriaType is ALWAYS.
+     * @param criteriaProperties    Additional configuration properties for this criteria, overriding default criteria configuration.
      */
-    public QueryRuleCriteria(QueryRuleCriteriaType criteriaType, @Nullable String criteriaMetadata, @Nullable List<Object> criteriaValues) {
+    public QueryRuleCriteria(
+        QueryRuleCriteriaType criteriaType,
+        @Nullable String criteriaMetadata,
+        @Nullable List<Object> criteriaValues,
+        @Nullable Map<String, Object> criteriaProperties
+    ) {
 
         Objects.requireNonNull(criteriaType);
 
@@ -68,7 +76,13 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         this.criteriaMetadata = criteriaMetadata;
         this.criteriaValues = criteriaValues;
         this.criteriaType = criteriaType;
+        this.criteriaProperties = criteriaProperties;
+        // TODO validate properties
 
+    }
+
+    public QueryRuleCriteria(QueryRuleCriteriaType criteriaType, @Nullable String criteriaMetadata, @Nullable List<Object> criteriaValues) {
+        this(criteriaType, criteriaMetadata, criteriaValues, null);
     }
 
     public QueryRuleCriteria(StreamInput in) throws IOException {
@@ -79,6 +93,11 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         } else {
             this.criteriaMetadata = in.readString();
             this.criteriaValues = List.of(in.readGenericValue());
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.QUERY_RULES_ANALYZER_SUPPORT_ADDED)) {
+            this.criteriaProperties = in.readGenericMap();
+        } else {
+            this.criteriaProperties = Map.of();
         }
     }
 
@@ -92,6 +111,9 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
             out.writeString(criteriaMetadata);
             out.writeGenericValue(criteriaValues().get(0));
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.QUERY_RULES_ANALYZER_SUPPORT_ADDED)) {
+            out.writeGenericMap(criteriaProperties);
+        }
     }
 
     private static final ConstructingObjectParser<QueryRuleCriteria, String> PARSER = new ConstructingObjectParser<>(
@@ -102,18 +124,22 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
             final String metadata = params.length >= 3 ? (String) params[1] : null;
             @SuppressWarnings("unchecked")
             final List<Object> values = params.length >= 3 ? (List<Object>) params[2] : null;
-            return new QueryRuleCriteria(type, metadata, values);
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> properties = params.length >= 4 ? (Map<String, Object>) params[3] : null;
+            return new QueryRuleCriteria(type, metadata, values, properties);
         }
     );
 
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField METADATA_FIELD = new ParseField("metadata");
     public static final ParseField VALUES_FIELD = new ParseField("values");
+    public static final ParseField PROPERTIES_FIELD = new ParseField("properties");
 
     static {
         PARSER.declareString(constructorArg(), TYPE_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), METADATA_FIELD);
         PARSER.declareStringArray(optionalConstructorArg(), VALUES_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), PROPERTIES_FIELD);
     }
 
     /**
@@ -153,6 +179,9 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
             if (criteriaValues != null) {
                 builder.array(VALUES_FIELD.getPreferredName(), criteriaValues.toArray());
             }
+            if (criteriaProperties != null && criteriaProperties.isEmpty() == false) {
+                builder.field(PROPERTIES_FIELD.getPreferredName(), criteriaProperties);
+            }
         }
         builder.endObject();
         return builder;
@@ -170,6 +199,10 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         return criteriaValues;
     }
 
+    public Map<String, Object> criteriaProperties() {
+        return criteriaProperties;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -177,12 +210,13 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         QueryRuleCriteria that = (QueryRuleCriteria) o;
         return criteriaType == that.criteriaType
             && Objects.equals(criteriaMetadata, that.criteriaMetadata)
-            && Objects.equals(criteriaValues, that.criteriaValues);
+            && Objects.equals(criteriaValues, that.criteriaValues)
+            && Objects.equals(criteriaProperties, that.criteriaProperties);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(criteriaType, criteriaMetadata, criteriaValues);
+        return Objects.hash(criteriaType, criteriaMetadata, criteriaValues, criteriaProperties);
     }
 
     @Override
@@ -190,11 +224,16 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
-    public boolean isMatch(Object matchValue, QueryRuleCriteriaType matchType) {
-        return isMatch(matchValue, matchType, true);
+    public boolean isMatch(QueryRulesAnalysisService analysisService, Object matchValue, QueryRuleCriteriaType matchType) {
+        return isMatch(analysisService, matchValue, matchType, true);
     }
 
-    public boolean isMatch(Object matchValue, QueryRuleCriteriaType matchType, boolean throwOnInvalidInput) {
+    public boolean isMatch(
+        QueryRulesAnalysisService analysisService,
+        Object matchValue,
+        QueryRuleCriteriaType matchType,
+        boolean throwOnInvalidInput
+    ) {
         if (matchType == ALWAYS) {
             return true;
         }
@@ -204,7 +243,8 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
             if (isValid == false) {
                 return false;
             }
-            boolean matchFound = matchType.isMatch(matchString, criteriaValue);
+            boolean matchFound = matchType.isMatch(analysisService, matchString, criteriaValue, criteriaProperties);
+
             if (matchFound) {
                 return true;
             }

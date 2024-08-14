@@ -11,6 +11,7 @@ import org.apache.lucene.search.spell.LevenshteinDistance;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Defines the different types of query rule criteria and their rules for matching input against the criteria.
@@ -94,11 +95,31 @@ public enum QueryRuleCriteriaType {
         return isValid;
     }
 
-    public boolean validateInput(Object input) {
-        return validateInput(input, true);
+    public void validateInput(Object input) {
+        validateInput(input, true);
     }
 
     public abstract boolean isMatch(Object input, Object criteriaValue);
+
+    public boolean isMatch(
+        QueryRulesAnalysisService analysisService,
+        Object input,
+        Object criteriaValue,
+        Map<String, Object> criteriaProperties
+    ) {
+        if (criteriaProperties != null && criteriaProperties.containsKey("analysis")) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> analysisChain = (List<Map<String, Object>>) criteriaProperties.get("analysis");
+            QueryRulesAnalysisService.AnalyzedContent analyzedContent = analysisService.analyzeContent(
+                analysisChain,
+                (String) input,
+                (String) criteriaValue
+            );
+            return isMatch(analyzedContent.analyzedInput(), analyzedContent.analyzedCriteriaValue());
+        } else {
+            return isMatch(input, criteriaValue);
+        }
+    }
 
     public static QueryRuleCriteriaType type(String criteriaType) {
         for (QueryRuleCriteriaType type : values()) {

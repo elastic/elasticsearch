@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -143,6 +144,11 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
         public Request addTokenFilter(Map<String, ?> tokenFilter) {
             this.tokenFilters.add(new NameOrDefinition(tokenFilter));
+            return this;
+        }
+
+        public Request addTokenFilters(List<String> tokenFilters) {
+            this.tokenFilters.addAll(tokenFilters.stream().map(NameOrDefinition::new).toList());
             return this;
         }
 

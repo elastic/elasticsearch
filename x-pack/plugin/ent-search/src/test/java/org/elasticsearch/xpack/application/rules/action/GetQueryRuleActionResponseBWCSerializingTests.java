@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.rules.QueryRule;
+import org.elasticsearch.xpack.application.rules.QueryRuleCriteria;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
@@ -47,6 +48,18 @@ public class GetQueryRuleActionResponseBWCSerializingTests extends AbstractBWCSe
 
     @Override
     protected GetQueryRuleAction.Response mutateInstanceForVersion(GetQueryRuleAction.Response instance, TransportVersion version) {
+        if (version.before(TransportVersions.QUERY_RULES_ANALYZER_SUPPORT_ADDED)) {
+
+            QueryRule rule = instance.queryRule();
+            List<QueryRuleCriteria> mutatedCriteria = rule.criteria()
+                .stream()
+                .map(c -> new QueryRuleCriteria(c.criteriaType(), c.criteriaMetadata(), c.criteriaValues()))
+                .collect(Collectors.toList());
+            QueryRule mutatedQueryRule = new QueryRule(rule.id(), rule.type(), mutatedCriteria, rule.actions(), rule.priority());
+
+            return new GetQueryRuleAction.Response(mutatedQueryRule);
+        }
+
         return instance;
     }
 

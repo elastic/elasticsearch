@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CRITERIA_METADATA_VALUES_TRANSPORT_VERSION;
 
@@ -54,24 +55,47 @@ public class PutQueryRulesetActionRequestBWCSerializingTests extends AbstractBWC
         if (version.before(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
             List<QueryRule> rules = new ArrayList<>();
             for (QueryRule rule : instance.queryRuleset().rules()) {
-                List<QueryRuleCriteria> newCriteria = new ArrayList<>();
-                for (QueryRuleCriteria criteria : rule.criteria()) {
-                    newCriteria.add(
-                        new QueryRuleCriteria(criteria.criteriaType(), criteria.criteriaMetadata(), criteria.criteriaValues().subList(0, 1))
-                    );
-                }
-                rules.add(new QueryRule(rule.id(), rule.type(), newCriteria, rule.actions(), null));
+                rules.add(new QueryRule(rule.id(), rule.type(), mutateQueryRuleCriteria(rule.criteria(), version), rule.actions(), null));
             }
             return new PutQueryRulesetAction.Request(new QueryRuleset(instance.queryRuleset().id(), rules));
         } else if (version.before(TransportVersions.QUERY_RULE_CRUD_API_PUT)) {
             List<QueryRule> rules = new ArrayList<>();
             for (QueryRule rule : instance.queryRuleset().rules()) {
-                rules.add(new QueryRule(rule.id(), rule.type(), rule.criteria(), rule.actions(), null));
+                rules.add(new QueryRule(rule.id(), rule.type(), mutateQueryRuleCriteria(rule.criteria(), version), rule.actions(), null));
+            }
+            return new PutQueryRulesetAction.Request(new QueryRuleset(instance.queryRuleset().id(), rules));
+        } else if (version.before(TransportVersions.QUERY_RULES_ANALYZER_SUPPORT_ADDED)) {
+            List<QueryRule> rules = new ArrayList<>();
+            for (QueryRule rule : instance.queryRuleset().rules()) {
+                rules.add(
+                    new QueryRule(
+                        rule.id(),
+                        rule.type(),
+                        mutateQueryRuleCriteria(rule.criteria(), version),
+                        rule.actions(),
+                        rule.priority()
+                    )
+                );
             }
             return new PutQueryRulesetAction.Request(new QueryRuleset(instance.queryRuleset().id(), rules));
         }
 
         // Default to current instance
         return instance;
+    }
+
+    private List<QueryRuleCriteria> mutateQueryRuleCriteria(List<QueryRuleCriteria> originalCriteria, TransportVersion version) {
+        List<QueryRuleCriteria> newCriteria = new ArrayList<>();
+        for (QueryRuleCriteria criteria : originalCriteria) {
+            List<Object> values = version.before(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)
+                ? criteria.criteriaValues().subList(0, 1)
+                : criteria.criteriaValues();
+            Map<String, Object> properties = version.before(TransportVersions.QUERY_RULES_ANALYZER_SUPPORT_ADDED)
+                ? null
+                : criteria.criteriaProperties();
+
+            newCriteria.add(new QueryRuleCriteria(criteria.criteriaType(), criteria.criteriaMetadata(), values, properties));
+        }
+        return newCriteria;
     }
 }

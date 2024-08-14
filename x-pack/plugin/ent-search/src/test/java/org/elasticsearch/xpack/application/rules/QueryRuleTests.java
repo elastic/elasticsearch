@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.rules;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -33,9 +34,11 @@ import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.EX
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.PREFIX;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.SUFFIX;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class QueryRuleTests extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
+    private final QueryRulesAnalysisService analysisService = new QueryRulesAnalysisService(mock(Client.class));
 
     @Before
     public void registerNamedObjects() {
@@ -284,12 +287,12 @@ public class QueryRuleTests extends ESTestCase {
             EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
-        rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
+        rule.applyRule(analysisService, appliedQueryRules, Map.of("query", "elastic"));
         assertEquals(List.of(new SpecifiedDocument(null, "id1"), new SpecifiedDocument(null, "id2")), appliedQueryRules.pinnedDocs());
         assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
 
         appliedQueryRules = new AppliedQueryRules();
-        rule.applyRule(appliedQueryRules, Map.of("query", "elastic1"));
+        rule.applyRule(analysisService, appliedQueryRules, Map.of("query", "elastic1"));
         assertEquals(Collections.emptyList(), appliedQueryRules.pinnedDocs());
         assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
     }
@@ -303,12 +306,12 @@ public class QueryRuleTests extends ESTestCase {
             EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
-        rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
+        rule.applyRule(analysisService, appliedQueryRules, Map.of("query", "elastic"));
         assertEquals(List.of(new SpecifiedDocument(null, "id1"), new SpecifiedDocument(null, "id2")), appliedQueryRules.excludedDocs());
         assertEquals(Collections.emptyList(), appliedQueryRules.pinnedDocs());
 
         appliedQueryRules = new AppliedQueryRules();
-        rule.applyRule(appliedQueryRules, Map.of("query", "elastic1"));
+        rule.applyRule(analysisService, appliedQueryRules, Map.of("query", "elastic1"));
         assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
         assertEquals(Collections.emptyList(), appliedQueryRules.pinnedDocs());
     }
@@ -322,13 +325,13 @@ public class QueryRuleTests extends ESTestCase {
             EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
-        rule.applyRule(appliedQueryRules, Map.of("query", "elastic - you know, for search"));
+        rule.applyRule(analysisService, appliedQueryRules, Map.of("query", "elastic - you know, for search"));
         assertEquals(List.of(new SpecifiedDocument(null, "id1"), new SpecifiedDocument(null, "id2")), appliedQueryRules.pinnedDocs());
         assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
         assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
 
         appliedQueryRules = new AppliedQueryRules();
-        rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
+        rule.applyRule(analysisService, appliedQueryRules, Map.of("query", "elastic"));
         assertEquals(Collections.emptyList(), appliedQueryRules.pinnedDocs());
         assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
     }

@@ -89,7 +89,15 @@ public final class EnterpriseSearchModuleTestUtils {
     public static QueryRuleCriteria randomQueryRuleCriteria() {
         // We intentionally don't allow ALWAYS criteria in this method, since we want to test parsing metadata and values
         QueryRuleCriteriaType type = randomFrom(Arrays.stream(QueryRuleCriteriaType.values()).filter(t -> t != ALWAYS).toList());
-        return new QueryRuleCriteria(type, randomAlphaOfLengthBetween(1, 10), randomList(1, 5, () -> randomAlphaOfLengthBetween(1, 10)));
+
+        Map<String, Object> properties = Map.of("analysis", Map.of("tokenizer", "keyword", "filters", List.of("lowercase")));
+
+        return new QueryRuleCriteria(
+            type,
+            randomAlphaOfLengthBetween(1, 10),
+            randomList(1, 5, () -> randomAlphaOfLengthBetween(1, 10)),
+            randomBoolean() ? properties : null
+        );
     }
 
     public static QueryRule randomQueryRule() {

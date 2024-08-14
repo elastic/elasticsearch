@@ -46,7 +46,6 @@ public abstract class AbstractGeoIpIT extends ESIntegTestCase {
     protected Settings nodeSettings(final int nodeOrdinal, final Settings otherSettings) {
         final Path databasePath = createTempDir();
         try {
-            Files.createDirectories(databasePath);
             Files.copy(
                 new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb")),
                 databasePath.resolve("GeoLite2-City.mmdb")

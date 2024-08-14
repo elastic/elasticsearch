@@ -117,7 +117,6 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     @Before
     public void setup() throws IOException {
         final Path geoIpConfigDir = createTempDir();
-        Files.createDirectories(geoIpConfigDir);
         GeoIpCache cache = new GeoIpCache(1000);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
         copyDatabaseFiles(geoIpConfigDir, configDatabases);

@@ -1,7 +1,7 @@
 ---
 "Test legacy_* codec settings":
   - do:
-      indices.put_settings:
+      indices.create:
         index: index1
         body:
           index.codec: legacy_best_compression
@@ -14,7 +14,7 @@
       test-index.settings.index.codec: "legacy_best_compression"
 
   - do:
-      indices.put_settings:
+      indices.create:
         index: index2
         body:
           index.codec: legacy_default

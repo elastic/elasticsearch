@@ -232,8 +232,8 @@
 ---
 "Took is not orders of magnitude off":
   - requires:
-      cluster_features: ["gte_v8.16.0"]
-      reason: "Bug reporting wrong took time introduced in 8.15.0, fixed in 8.16.0"
+      cluster_features: ["gte_v8.15.1"]
+      reason: "Bug reporting wrong took time introduced in 8.15.0, fixed in 8.15.1"
   - do:
       bulk:
         body:

@@ -7,8 +7,6 @@ template:
   mappings:
     date_detection: false
     dynamic: false
-    _source:
-      mode: synthetic
     properties:
       "@timestamp":
 #Ultimeately we aim to use date_nanos. Waiting for https://github.com/elastic/elasticsearch/issues/109352

@@ -14,6 +14,9 @@ template:
             priority: 30
             time_series_dimension: true
             properties:
+              host.name:
+                type: keyword
+                ignore_above: 1024
               telemetry.sdk.language:
                 type: keyword
                 ignore_above: 1024

@@ -4,6 +4,11 @@ _meta:
   description: Default mappings for OpenTelemetry logs index template installed by x-pack
   managed: true
 template:
+  settings:
+    index:
+      mode: logsdb
+      sort:
+        field: [ "resource.attributes.host.name" ]
   mappings:
     properties:
       data_stream.type:

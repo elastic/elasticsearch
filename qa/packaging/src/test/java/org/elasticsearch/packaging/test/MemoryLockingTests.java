@@ -23,17 +23,20 @@ public class MemoryLockingTests extends PackagingTestCase {
     }
 
     public void test20MemoryLockingEnabled() throws Exception {
-        configureAndRun(Map.of(
-            "bootstrap.memory_lock",
-            "true",
-            "xpack.security.enabled",
-            "false",
-            "xpack.security.http.ssl.enabled",
-            "false",
-            "xpack.security.enrollment.enabled",
-            "false",
-            "discovery.type",
-            "single-node"));
+        configureAndRun(
+            Map.of(
+                "bootstrap.memory_lock",
+                "true",
+                "xpack.security.enabled",
+                "false",
+                "xpack.security.http.ssl.enabled",
+                "false",
+                "xpack.security.enrollment.enabled",
+                "false",
+                "discovery.type",
+                "single-node"
+            )
+        );
         // TODO: very locking worked. logs? check memory of process? at least we know the process started successfully
         stopElasticsearch();
     }

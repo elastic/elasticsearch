@@ -1,0 +1,27 @@
+---
+"Test legacy_* codec settings":
+  - do:
+      indices.put_settings:
+        index: index1
+        body:
+          index.codec: legacy_best_compression
+
+  - do:
+      indices.get_settings:
+        index: index1
+        flat_settings: false
+  - match:
+      test-index.settings.index.codec: "legacy_best_compression"
+
+  - do:
+      indices.put_settings:
+        index: index2
+        body:
+          index.codec: legacy_default
+
+  - do:
+      indices.get_settings:
+        index: index2
+        flat_settings: false
+  - match:
+      test-index.settings.index.codec: "legacy_default"

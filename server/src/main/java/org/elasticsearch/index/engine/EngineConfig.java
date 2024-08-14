@@ -24,6 +24,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecProvider;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
@@ -96,10 +97,13 @@ public final class EngineConfig {
      * allocated on both `kind` of nodes.
      */
     public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", s -> {
+
         switch (s) {
-            case "default":
-            case "best_compression":
-            case "lucene_default":
+            case CodecService.DEFAULT_CODEC:
+            case CodecService.LEGACY_DEFAULT_CODEC:
+            case CodecService.BEST_COMPRESSION_CODEC:
+            case CodecService.LEGACY_BEST_COMPRESSION_CODEC:
+            case CodecService.LUCENE_DEFAULT_CODEC:
                 return s;
             default:
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones

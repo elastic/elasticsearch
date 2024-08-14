@@ -53,8 +53,10 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.ACCURATE_LOAD_WINDOW;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.SHUTDOWN_ATTENUATION_ENABLED;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.STALE_LOAD_WINDOW;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.calculateIngestLoadMetric;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -63,6 +65,7 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class IngestMetricsServiceTests extends ESTestCase {
 
+    private static final double EPSILON = 0.0000001;
     private MemoryMetricsService memoryMetricsService;
 
     @Before
@@ -256,16 +259,16 @@ public class IngestMetricsServiceTests extends ESTestCase {
         final var nodes = DiscoveryNodes.builder().add(masterNode).add(indexNode).localNodeId(masterNode.getId()).build();
         final var nodesWithElectedMaster = DiscoveryNodes.builder(nodes).masterNodeId(masterNode.getId()).build();
         final var clusterState1 = clusterState(nodesWithElectedMaster);
-        var service = new IngestMetricsService(
-            clusterSettings(Settings.builder().put(SHUTDOWN_ATTENUATION_ENABLED.getKey(), randomBoolean()).build()),
-            () -> 0,
-            memoryMetricsService
-        );
+        final var settingsBuilder = Settings.builder();
+        settingsBuilder.put(HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), randomDoubleBetween(0.0, 1.0, true));
+        settingsBuilder.put(LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), randomDoubleBetween(0.0, 1.0, true));
+        var service = new IngestMetricsService(clusterSettings(settingsBuilder.build()), () -> 0, memoryMetricsService);
         service.clusterChanged(new ClusterChangedEvent("master node elected", clusterState1, ClusterState.EMPTY_STATE));
 
         var seqNo = randomNonNegativeLong();
         service.trackNodeIngestLoad(clusterState1, indexNode.getId(), seqNo, randomIngestionLoad());
-        service.trackNodeIngestLoad(clusterState1, masterNode.getId(), seqNo, randomIngestionLoad());
+        final var masterNodeLoad = randomIngestionLoad();
+        service.trackNodeIngestLoad(clusterState1, masterNode.getId(), seqNo, masterNodeLoad);
 
         var indexTierMetrics = service.getIndexTierMetrics(clusterState1);
         assertThat(indexTierMetrics.getNodesLoad().toString(), indexTierMetrics.getNodesLoad(), hasSize(2));
@@ -293,13 +296,15 @@ public class IngestMetricsServiceTests extends ESTestCase {
 
         indexTierMetrics = service.getIndexTierMetrics(clusterState2);
         assertThat(indexTierMetrics.getNodesLoad().toString(), indexTierMetrics.getNodesLoad(), hasSize(1));
-        assertTrue(indexTierMetrics.getNodesLoad().stream().allMatch(load -> load.metricQuality().equals(MetricQuality.EXACT)));
+        assertEquals(indexTierMetrics.getNodesLoad().get(0).load(), masterNodeLoad, EPSILON);
+        assertEquals(indexTierMetrics.getNodesLoad().get(0).metricQuality(), MetricQuality.EXACT);
 
         service.trackNodeIngestLoad(clusterState2, indexNode.getId(), seqNo + 1, randomIngestionLoad());
 
         indexTierMetrics = service.getIndexTierMetrics(clusterState2);
         assertThat(indexTierMetrics.getNodesLoad().toString(), indexTierMetrics.getNodesLoad(), hasSize(1));
-        assertTrue(indexTierMetrics.getNodesLoad().stream().allMatch(load -> load.metricQuality().equals(MetricQuality.EXACT)));
+        assertEquals(indexTierMetrics.getNodesLoad().get(0).load(), masterNodeLoad, EPSILON);
+        assertEquals(indexTierMetrics.getNodesLoad().get(0).metricQuality(), MetricQuality.EXACT);
     }
 
     public void testDelayedMetricForDroppingNodeIsNotDiscarded() {
@@ -382,47 +387,55 @@ public class IngestMetricsServiceTests extends ESTestCase {
         assertThat(indexTierMetricsAfterMasterHandover.getNodesLoad(), is(empty()));
     }
 
-    public void testIngestLoadsMetricsAttenuatedForShutdownMetadata() {
-        // Initial state
-        final ClusterState state1;
-        {
-            final List<DiscoveryNode> nodes = IntStream.range(0, between(1, 8))
-                .mapToObj(
-                    i -> DiscoveryNodeUtils.builder("node-" + i)
-                        .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE))
-                        .build()
-                )
-                .toList();
+    public void testIngestLoadsMetricsAdjustmentWhenNodesAreShuttingDown() {
+        final List<DiscoveryNode> indexNodes = IntStream.range(0, between(1, 8))
+            .mapToObj(
+                i -> DiscoveryNodeUtils.builder("node-" + i)
+                    .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE))
+                    .build()
+            )
+            .toList();
 
-            final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-            for (int i = 0; i < nodes.size(); i++) {
-                final DiscoveryNode node = nodes.get(i);
-                if (i == 0) {
-                    builder.add(node).localNodeId(node.getId()).masterNodeId(node.getId());
-                } else {
-                    builder.add(node);
-                }
+        final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+        for (int i = 0; i < indexNodes.size(); i++) {
+            final DiscoveryNode node = indexNodes.get(i);
+            if (i == 0) {
+                builder.add(node).localNodeId(node.getId()).masterNodeId(node.getId());
+            } else {
+                builder.add(node);
             }
-            state1 = clusterState(builder.build());
         }
+        // The number of search nodes and whether they are shutting down should not change anything w.r.t. ingestion load adjustment
+        // during indexing tier scaling events.
+        final List<DiscoveryNode> searchNodes = IntStream.range(0, randomIntBetween(0, 3))
+            .mapToObj(i -> DiscoveryNodeUtils.builder("search-node-" + i).roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build())
+            .toList();
+        searchNodes.forEach(builder::add);
+        final var initialState = clusterState(builder.build());
 
         var service = new IngestMetricsService(
-            clusterSettings(Settings.builder().put(SHUTDOWN_ATTENUATION_ENABLED.getKey(), true).build()),
+            clusterSettings(
+                Settings.builder()
+                    .put(HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), randomDoubleBetween(0.0, 1.0, true))
+                    .put(LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), randomDoubleBetween(0.0, 1.0, true))
+                    .build()
+            ),
             () -> 0,
             memoryMetricsService
         );
-        service.clusterChanged(new ClusterChangedEvent("test", state1, ClusterState.EMPTY_STATE));
+        service.clusterChanged(new ClusterChangedEvent("test", initialState, ClusterState.EMPTY_STATE));
         final LongSupplier seqNoSupplier = new AtomicLong(randomLongBetween(0, 100))::getAndIncrement;
-        final List<Double> ingestionLoads1 = trackRandomIngestionLoads(service, seqNoSupplier, state1);
-        assertExactIngestionLoads(service, ingestionLoads1, state1);
+        final List<Double> publishedLoads1 = trackRandomIngestionLoads(service, seqNoSupplier, initialState);
+        assertExactIngestionLoads(service, publishedLoads1, initialState);
 
         // Simulate nodes shutting down and new nodes joining
-        final List<DiscoveryNode> shuttingDownNodes = randomSubsetOf(
-            Math.min(between(1, 3), state1.nodes().size()),
-            state1.nodes().getAllNodes()
-        );
+        List<DiscoveryNode> shuttingDownNodes = randomSubsetOf(Math.min(between(1, 3), indexNodes.size()), indexNodes);
+        shuttingDownNodes.addAll(randomSubsetOf(searchNodes));
         final var nodeShutdownMetadata = createShutdownMetadata(shuttingDownNodes);
-        final List<DiscoveryNode> newNodes = IntStream.range(state1.nodes().size(), state1.nodes().size() + shuttingDownNodes.size())
+        final List<DiscoveryNode> newNodes = IntStream.range(
+            initialState.nodes().size(),
+            initialState.nodes().size() + shuttingDownNodes.size()
+        )
             .mapToObj(
                 i -> DiscoveryNodeUtils.builder("node-" + i)
                     .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE))
@@ -431,44 +444,48 @@ public class IngestMetricsServiceTests extends ESTestCase {
             .toList();
 
         final ClusterState state2, state3;
-        final List<Double> ingestionLoads3;
+        final List<Double> publishedLoads3;
         if (randomBoolean()) {
             // shutdown first and then add new nodes
-            state2 = ClusterState.builder(state1)
-                .metadata(Metadata.builder(state1.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
+            state2 = ClusterState.builder(initialState)
+                .metadata(Metadata.builder(initialState.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
                 .build();
-            service.clusterChanged(new ClusterChangedEvent("shutdown", state2, state1));
-            final List<Double> ingestionLoads2 = trackRandomIngestionLoads(service, seqNoSupplier, state2);
-            assertAttenuatedIngestionLoads(service, ingestionLoads2, state2);
+            service.clusterChanged(new ClusterChangedEvent("shutdown", state2, initialState));
+            final List<Double> publishedLoads2 = trackRandomIngestionLoads(service, seqNoSupplier, state2);
+            final var readMetrics2 = service.getIndexTierMetrics(state2).getNodesLoad();
+            assertEquals(publishedLoads2.size(), readMetrics2.size());
+            assertIngestionLoadWeightApplied(service, publishedLoads2, readMetrics2);
 
             state3 = stateWithNewNodes(state2, newNodes);
             service.clusterChanged(new ClusterChangedEvent("node-join", state3, state2));
         } else {
             // add new nodes first then shutdown
-            state2 = stateWithNewNodes(state1, newNodes);
-            service.clusterChanged(new ClusterChangedEvent("node-join", state2, state1));
+            state2 = stateWithNewNodes(initialState, newNodes);
+            service.clusterChanged(new ClusterChangedEvent("node-join", state2, initialState));
             final List<Double> ingestionLoads2 = trackRandomIngestionLoads(service, seqNoSupplier, state2);
             assertExactIngestionLoads(service, ingestionLoads2, state2);
 
             state3 = ClusterState.builder(state2)
-                .metadata(Metadata.builder(state1.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
+                .metadata(Metadata.builder(initialState.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
                 .build();
             service.clusterChanged(new ClusterChangedEvent("shutdown", state3, state2));
         }
-        ingestionLoads3 = trackRandomIngestionLoads(service, seqNoSupplier, state3);
-        assertAttenuatedIngestionLoads(service, ingestionLoads3, state3);
+        publishedLoads3 = trackRandomIngestionLoads(service, seqNoSupplier, state3);
+        final var readMetrics3 = service.getIndexTierMetrics(state3).getNodesLoad();
+        assertEquals(publishedLoads3.size(), readMetrics3.size());
+        assertIngestionLoadWeightApplied(service, publishedLoads3, readMetrics3);
 
         // shutdown metadata removed, i.e. shutdown cancelled and nodes remain in the cluster
         final ClusterState state4 = ClusterState.builder(state3)
             .metadata(Metadata.builder(state3.metadata()).removeCustom(NodesShutdownMetadata.TYPE))
             .build();
         service.clusterChanged(new ClusterChangedEvent("shutdown-cancelled", state4, state3));
-        final List<Double> ingestionLoads4 = trackRandomIngestionLoads(service, seqNoSupplier, state4);
-        assertExactIngestionLoads(service, ingestionLoads4, state4);
+        final List<Double> publishedLoads4 = trackRandomIngestionLoads(service, seqNoSupplier, state4);
+        assertExactIngestionLoads(service, publishedLoads4, state4);
     }
 
     // Tests that if during shutdown some nodes leave (w/o having shutdown marker), we'd still consider them.
-    public void testIngestLoadsMetricsAttenuatedForUnexpectedNodeLeaves() {
+    public void testIngestLoadMetricsAdjustmentForUnexpectedNodeLeaves() {
         // Initial state
         final List<DiscoveryNode> nodes = IntStream.range(0, between(1, 8))
             .mapToObj(
@@ -480,24 +497,32 @@ public class IngestMetricsServiceTests extends ESTestCase {
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         nodes.forEach(builder::add);
         builder.localNodeId(nodes.get(0).getId()).masterNodeId(nodes.get(0).getId());
-        final ClusterState state1 = clusterState(builder.build());
+        final ClusterState initialState = clusterState(builder.build());
 
         var service = new IngestMetricsService(
-            clusterSettings(Settings.builder().put(SHUTDOWN_ATTENUATION_ENABLED.getKey(), true).build()),
+            clusterSettings(
+                Settings.builder()
+                    .put(HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), randomDoubleBetween(0.0, 1.0, true))
+                    .put(LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), randomDoubleBetween(0.0, 1.0, true))
+                    .build()
+            ),
             () -> 0,
             memoryMetricsService
         );
-        service.clusterChanged(new ClusterChangedEvent("test", state1, ClusterState.EMPTY_STATE));
+        service.clusterChanged(new ClusterChangedEvent("test", initialState, ClusterState.EMPTY_STATE));
         final LongSupplier seqNoSupplier = new AtomicLong(randomLongBetween(0, 100))::getAndIncrement;
-        final List<Double> ingestionLoads1 = trackRandomIngestionLoads(service, seqNoSupplier, state1);
-        assertExactIngestionLoads(service, ingestionLoads1, state1);
+        final List<Double> publishedLoads1 = trackRandomIngestionLoads(service, seqNoSupplier, initialState);
+        assertExactIngestionLoads(service, publishedLoads1, initialState);
 
         final List<DiscoveryNode> shuttingDownNodes = randomSubsetOf(
-            Math.min(between(1, 3), state1.nodes().size()),
-            state1.nodes().getAllNodes()
+            Math.min(between(1, 3), initialState.nodes().size()),
+            initialState.nodes().getAllNodes()
         );
         final var nodeShutdownMetadata = createShutdownMetadata(shuttingDownNodes);
-        final List<DiscoveryNode> newNodes = IntStream.range(state1.nodes().size(), state1.nodes().size() + shuttingDownNodes.size())
+        final List<DiscoveryNode> newNodes = IntStream.range(
+            initialState.nodes().size(),
+            initialState.nodes().size() + shuttingDownNodes.size()
+        )
             .mapToObj(
                 i -> DiscoveryNodeUtils.builder("node-" + i)
                     .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE))
@@ -505,22 +530,72 @@ public class IngestMetricsServiceTests extends ESTestCase {
             )
             .toList();
         // we're scaling up. new nodes are added and some are marked for shutdown
-        final var state2 = ClusterState.builder(state1)
-            .metadata(Metadata.builder(state1.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
+        final var stateWithShutDowns = ClusterState.builder(initialState)
+            .metadata(Metadata.builder(initialState.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
             .build();
-        service.clusterChanged(new ClusterChangedEvent("shutdown", state2, state1));
-        final List<Double> ingestionLoads2 = trackRandomIngestionLoads(service, seqNoSupplier, state2);
-        assertAttenuatedIngestionLoads(service, ingestionLoads2, state2);
-        final var state3 = stateWithNewNodes(state2, newNodes);
-        service.clusterChanged(new ClusterChangedEvent("node-join", state3, state2));
-        final var ingestionLoads3 = trackRandomIngestionLoads(service, seqNoSupplier, state3);
-        assertAttenuatedIngestionLoads(service, ingestionLoads3, state3);
+        service.clusterChanged(new ClusterChangedEvent("shutdown", stateWithShutDowns, initialState));
+        final List<Double> publishedLoads2 = trackRandomIngestionLoads(service, seqNoSupplier, stateWithShutDowns);
+        final var readMetrics2 = service.getIndexTierMetrics(stateWithShutDowns).getNodesLoad();
+        assertFalse(readMetrics2.isEmpty());
+        assertEquals(publishedLoads2.size(), readMetrics2.size());
+        assertIngestionLoadWeightApplied(service, publishedLoads2, readMetrics2);
+        final var stateWithAllNodes = stateWithNewNodes(stateWithShutDowns, newNodes);
+        service.clusterChanged(new ClusterChangedEvent("node-join", stateWithAllNodes, stateWithShutDowns));
+        final var publishedLoads3 = trackRandomIngestionLoads(service, seqNoSupplier, stateWithAllNodes);
+        final var readMetrics3 = service.getIndexTierMetrics(stateWithAllNodes).getNodesLoad();
+        assertFalse(readMetrics3.isEmpty());
+        assertEquals(publishedLoads3.size(), readMetrics3.size());
+        assertIngestionLoadWeightApplied(service, publishedLoads3, readMetrics3);
         // some non-shutting down node disappears
-        final ClusterState state4 = stateWithNewNodes(state2, randomSubsetOf(newNodes.size() - 1, newNodes));
-        assertThat(state4.nodes().size(), lessThan(state3.nodes().size()));
-        service.clusterChanged(new ClusterChangedEvent("node-join", state4, state3));
-        final var ingestionLoads4 = trackRandomIngestionLoads(service, seqNoSupplier, state4);
-        assertAttenuatedIngestionLoads(service, ingestionLoads4, state4);
+        final var droppingNodesCount = randomIntBetween(1, newNodes.size());
+        final ClusterState stateWithSomeNodesMissing = stateWithNewNodes(
+            stateWithShutDowns,
+            randomSubsetOf(newNodes.size() - droppingNodesCount, newNodes)
+        );
+        assertThat(stateWithSomeNodesMissing.nodes().size(), lessThan(stateWithAllNodes.nodes().size()));
+        service.clusterChanged(new ClusterChangedEvent("nodes-dropped", stateWithSomeNodesMissing, stateWithAllNodes));
+        final var publishedLoads4 = trackRandomIngestionLoads(service, seqNoSupplier, stateWithSomeNodesMissing);
+        final var readMetrics4 = service.getIndexTierMetrics(stateWithSomeNodesMissing).getNodesLoad();
+        assertThat(readMetrics4.size(), equalTo(publishedLoads4.size() + droppingNodesCount));
+    }
+
+    public void testCalculateIngestLoadMetric() {
+        var noneShuttingDownNodesCount = between(0, 2);
+        var shuttingDownNodesCount = between(noneShuttingDownNodesCount == 0 ? 1 : 0, 2);
+        final var nodeRoles = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE);
+        final var nodes = IntStream.range(0, noneShuttingDownNodesCount + shuttingDownNodesCount)
+            .mapToObj(i -> DiscoveryNodeUtils.builder("node-" + i).roles(nodeRoles).build())
+            .toList();
+        final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+        nodes.forEach(builder::add);
+        builder.localNodeId(nodes.get(0).getId()).masterNodeId(nodes.get(0).getId());
+        final List<DiscoveryNode> shuttingDownNodes = randomSubsetOf(shuttingDownNodesCount, nodes);
+        final var nodeShutdownMetadata = createShutdownMetadata(shuttingDownNodes);
+        final var state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(builder)
+            .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
+            .build();
+        var lowWeight = randomDoubleBetween(0.0, 1.0, true);
+        var highWeight = randomDoubleBetween(0.0, 1.0, true);
+        final var lowLoads = IntStream.range(0, noneShuttingDownNodesCount)
+            .mapToDouble(i -> randomDoubleBetween(0.0, 8.0, true))
+            .boxed()
+            .toList();
+        final var highLoads = IntStream.range(0, shuttingDownNodesCount)
+            .mapToDouble(i -> randomDoubleBetween(8.0, 16.0, false))
+            .boxed()
+            .toList();
+        List<NodeIngestLoadSnapshot> publishedLoads = new ArrayList<>(noneShuttingDownNodesCount + shuttingDownNodesCount);
+        lowLoads.forEach(l -> publishedLoads.add(new NodeIngestLoadSnapshot(l, randomFrom(MetricQuality.values()))));
+        highLoads.forEach(l -> publishedLoads.add(new NodeIngestLoadSnapshot(l, randomFrom(MetricQuality.values()))));
+        var calculatedLoads = calculateIngestLoadMetric(state, publishedLoads, highWeight, lowWeight);
+        assertThat(calculatedLoads.size(), equalTo(publishedLoads.size()));
+        if (shuttingDownNodesCount == 0 || (lowWeight == 1.0 && highWeight == 1.0)) {
+            assertEquals(publishedLoads, calculatedLoads);
+        } else {
+            lowLoads.forEach(load -> assertTrue(calculatedLoads.stream().anyMatch(e -> doublesEquals(e.load(), load * lowWeight))));
+            highLoads.forEach(load -> assertTrue(calculatedLoads.stream().anyMatch(e -> doublesEquals(e.load(), load * highWeight))));
+        }
     }
 
     private ClusterState stateWithNewNodes(ClusterState state, List<DiscoveryNode> nodes) {
@@ -541,41 +616,33 @@ public class IngestMetricsServiceTests extends ESTestCase {
         return ingestionLoads;
     }
 
-    private void assertExactIngestionLoads(IngestMetricsService service, List<Double> allIngestionLoads, ClusterState state) {
-        final List<NodeIngestLoadSnapshot> newNodeLoadList = service.getIndexTierMetrics(state).getNodesLoad();
-        assertThat(newNodeLoadList.size(), equalTo(state.nodes().size()));
-        assertTrue(newNodeLoadList.stream().allMatch(nodeLoad -> nodeLoad.metricQuality() == MetricQuality.EXACT));
+    private void assertExactIngestionLoads(IngestMetricsService service, List<Double> publishedLoads, ClusterState state) {
+        final List<NodeIngestLoadSnapshot> readMetrics = service.getIndexTierMetrics(state).getNodesLoad();
+        assertThat(readMetrics.size(), equalTo(state.nodes().size()));
+        assertTrue(readMetrics.stream().allMatch(nodeLoad -> nodeLoad.metricQuality() == MetricQuality.EXACT));
         assertArrayEquals(
-            allIngestionLoads.stream().mapToDouble(Double::doubleValue).sorted().toArray(),
-            newNodeLoadList.stream().mapToDouble(NodeIngestLoadSnapshot::load).sorted().toArray(),
-            0.0000001
+            publishedLoads.stream().mapToDouble(Double::doubleValue).sorted().toArray(),
+            readMetrics.stream().mapToDouble(NodeIngestLoadSnapshot::load).sorted().toArray(),
+            EPSILON
         );
     }
 
-    private void assertAttenuatedIngestionLoads(IngestMetricsService service, List<Double> allIngestionLoads, ClusterState state) {
-        final List<NodeIngestLoadSnapshot> newNodeLoadList = service.getIndexTierMetrics(state).getNodesLoad();
-        assertThat(newNodeLoadList.size(), equalTo(state.nodes().size() - state.metadata().nodeShutdowns().getAllNodeIds().size()));
-        doAssertAttenuatedIngestionLoads(allIngestionLoads, newNodeLoadList);
-    }
-
-    private static void doAssertAttenuatedIngestionLoads(List<Double> allIngestionLoads, List<NodeIngestLoadSnapshot> newNodeLoadList) {
-        newNodeLoadList.forEach(nodeLoad -> assertThat(nodeLoad.metricQuality(), is(MetricQuality.MINIMUM)));
-        final List<Double> newLoadValues = newNodeLoadList.stream().map(NodeIngestLoadSnapshot::load).toList();
-        // All nodeLoads that are _not_ reported have higher load values
-        final double epsilon = 0.0000001;
-        allIngestionLoads.stream()
-            // Filter for metrics that are _not_ returned in the new report
-            .filter(
-                nodeLoad -> newLoadValues.stream()
-                    .noneMatch(newLoadValue -> Double.compare(newLoadValue, nodeLoad) == 0 || Math.abs(newLoadValue - nodeLoad) <= epsilon)
-            )
-            .forEach(
-                ignoredNodeLoad -> assertThat(
-                    "newNodeLoadList " + newNodeLoadList + " has higher load value than " + ignoredNodeLoad,
-                    newNodeLoadList.stream().allMatch(nodeLoad -> nodeLoad.load() < ignoredNodeLoad),
-                    is(true)
-                )
-            );
+    private void assertIngestionLoadWeightApplied(
+        IngestMetricsService service,
+        List<Double> publishedLoads,
+        List<NodeIngestLoadSnapshot> readMetrics
+    ) {
+        boolean weightApplied = service.getHighIngestionLoadWeightDuringScaling() < 1.0
+            || service.getLowIngestionLoadWeightDuringScaling() < 1.0;
+        double totalPublishedIngestionLoad = publishedLoads.stream().reduce(Double::sum).get();
+        double totalReadMetric = readMetrics.stream().map(NodeIngestLoadSnapshot::load).reduce(Double::sum).get();
+        if (weightApplied) {
+            assertTrue(readMetrics.stream().allMatch(l -> l.metricQuality().equals(MetricQuality.MINIMUM)));
+            assertThat(totalReadMetric, lessThan(totalPublishedIngestionLoad));
+        } else {
+            assertTrue(readMetrics.stream().allMatch(l -> l.metricQuality().equals(MetricQuality.EXACT)));
+            assertEquals(totalReadMetric, totalPublishedIngestionLoad, EPSILON);
+        }
     }
 
     private static NodesShutdownMetadata createShutdownMetadata(List<DiscoveryNode> shuttingDownNodes) {
@@ -605,6 +672,18 @@ public class IngestMetricsServiceTests extends ESTestCase {
     }
 
     private static ClusterSettings clusterSettings(Settings settings) {
-        return new ClusterSettings(settings, Set.of(ACCURATE_LOAD_WINDOW, STALE_LOAD_WINDOW, SHUTDOWN_ATTENUATION_ENABLED));
+        return new ClusterSettings(
+            settings,
+            Set.of(
+                ACCURATE_LOAD_WINDOW,
+                STALE_LOAD_WINDOW,
+                HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING,
+                LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING
+            )
+        );
+    }
+
+    private static boolean doublesEquals(double expected, double actual) {
+        return Math.abs(expected - actual) < EPSILON;
     }
 }

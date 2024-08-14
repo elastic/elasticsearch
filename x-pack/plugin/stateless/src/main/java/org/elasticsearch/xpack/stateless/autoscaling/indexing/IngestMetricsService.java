@@ -36,12 +36,12 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
+import java.util.stream.IntStream;
 
 public class IngestMetricsService implements ClusterStateListener {
 
@@ -61,9 +61,19 @@ public class IngestMetricsService implements ClusterStateListener {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<Boolean> SHUTDOWN_ATTENUATION_ENABLED = Setting.boolSetting(
-        "serverless.autoscaling.ingest_metrics.shutdown_attenuation.enabled",
-        false,
+    public static final Setting<Double> HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING = Setting.doubleSetting(
+        "serverless.autoscaling.ingest_metrics.high_ingestion_load_weight_during_scaling",
+        1.0,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<Double> LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING = Setting.doubleSetting(
+        "serverless.autoscaling.ingest_metrics.low_ingestion_load_weight_during_scaling",
+        1.0,
+        0.0,
+        1.0,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -73,7 +83,8 @@ public class IngestMetricsService implements ClusterStateListener {
     private volatile TimeValue accurateLoadWindow;
     private volatile TimeValue staleLoadWindow;
     private volatile boolean initialized;
-    private volatile boolean shutdownAttenuationEnabled;
+    private volatile double highIngestionLoadWeightDuringScaling;
+    private volatile double lowIngestionLoadWeightDuringScaling;
     private final LongSupplier relativeTimeInNanosSupplier;
     private final MemoryMetricsService memoryMetricsService;
     private final Map<String, NodeIngestLoad> nodesIngestLoad = ConcurrentCollections.newConcurrentMap();
@@ -87,7 +98,14 @@ public class IngestMetricsService implements ClusterStateListener {
         this.memoryMetricsService = memoryMetricsService;
         clusterSettings.initializeAndWatch(ACCURATE_LOAD_WINDOW, value -> this.accurateLoadWindow = value);
         clusterSettings.initializeAndWatch(STALE_LOAD_WINDOW, value -> this.staleLoadWindow = value);
-        clusterSettings.initializeAndWatch(SHUTDOWN_ATTENUATION_ENABLED, value -> this.shutdownAttenuationEnabled = value);
+        clusterSettings.initializeAndWatch(
+            HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING,
+            value -> this.highIngestionLoadWeightDuringScaling = value
+        );
+        clusterSettings.initializeAndWatch(
+            LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING,
+            value -> this.lowIngestionLoadWeightDuringScaling = value
+        );
     }
 
     @Override
@@ -158,7 +176,7 @@ public class IngestMetricsService implements ClusterStateListener {
 
     public IndexTierMetrics getIndexTierMetrics(ClusterState clusterState) {
         var nodeLoadIterator = nodesIngestLoad.entrySet().iterator();
-        List<NodeIngestLoadSnapshot> ingestLoads = new ArrayList<>();
+        final List<NodeIngestLoadSnapshot> ingestLoads = new ArrayList<>();
         while (nodeLoadIterator.hasNext()) {
             var nodeIngestStatsEntry = nodeLoadIterator.next();
             var value = nodeIngestStatsEntry.getValue();
@@ -175,51 +193,74 @@ public class IngestMetricsService implements ClusterStateListener {
                 ingestLoads.add(value.getIngestLoadSnapshot());
             }
         }
+        final var adjustedIngestLoads = calculateIngestLoadMetric(
+            clusterState,
+            ingestLoads,
+            highIngestionLoadWeightDuringScaling,
+            lowIngestionLoadWeightDuringScaling
+        );
+        return new IndexTierMetrics(adjustedIngestLoads, memoryMetricsService.getMemoryMetrics());
+    }
 
-        if (shutdownAttenuationEnabled) {
-            // If there are shutting-down nodes, we attenuate the overall reporting by removing entries with higher values
-            // so that the final number of entries equals to the number of "not-shutting-down" nodes. The idea is that if
-            // relocation causes temporary queuing on either source or target node, we don't want them to impact autoscaling
-            // decision and potentially lead to over upsizing. In case of a genuine high load during scaling, it is likely
-            // that most nodes are affected by the load and the extra load might show itself in the lower ingestion values
-            // as well to trigger a scale up. That said, we'd still be missing the genuine extra load that might on the
-            // shutting-down nodes (waiting for relocation).
-            final var shuttingDownNodes = Set.copyOf(clusterState.metadata().nodeShutdowns().getAllNodeIds());
-            if (shuttingDownNodes.isEmpty() == false) {
-                final int numberNotShuttingDownIndexingNodes = (int) clusterState.nodes()
-                    .stream()
-                    .filter(IngestMetricsService::isIndexNode)
-                    .filter(node -> shuttingDownNodes.contains(node.getId()) == false)
-                    .count();
-                // When a node leaves the cluster, we set its metric quality to minimum but do not remove it from
-                // nodesIngestLoad immediately. Before its metric becomes stale, we will still report it even when
-                // it is no longer in the cluster and does not count towards numberNotShuttingDownIndexingNodes.
-                // This might skew the following sorting and limiting a bit. We consider this a corner case which
-                // will be addressed separately by ES-6956
-                final int numberIngestLoads = ingestLoads.size();
-                if (numberIngestLoads > numberNotShuttingDownIndexingNodes) {
-                    final var existingIngestLoads = ingestLoads;
-                    final List<NodeIngestLoadSnapshot> adjustedIngestLoads = ingestLoads.stream()
-                        .sorted(Comparator.comparingDouble(NodeIngestLoadSnapshot::load))
-                        .limit(numberNotShuttingDownIndexingNodes)
-                        .map(e -> new NodeIngestLoadSnapshot(e.load(), MetricQuality.MINIMUM))
-                        .toList();
-                    logger.debug(
-                        () -> Strings.format(
-                            "adjusting ingest loads from %s to %s for shutting down nodes",
-                            existingIngestLoads,
-                            adjustedIngestLoads
-                        )
-                    );
-                    ingestLoads = adjustedIngestLoads;
-                }
-                // In most cases, ingestLoads.size() >= numberNotShuttingDownIndexingNodes should hold.
-                // However, since ingestLoads filters out stale reports and removes the nodesIngestLoad map,
-                // in extreme case, a node may fail to report metrics continuously so that it becomes stale
-                // for metric while still being part of the cluster. Very unlikely, but technically not impossible.
-            }
+    // Package-private for testing
+    static List<NodeIngestLoadSnapshot> calculateIngestLoadMetric(
+        ClusterState clusterState,
+        List<NodeIngestLoadSnapshot> ingestLoads,
+        double highIngestionLoadWeightDuringScaling,
+        double lowIngestionLoadWeightDuringScaling
+    ) {
+        // During a scaling event, we need to account for the extra load that is caused by ongoing relocations. Poor relocation performance
+        // can lead to frequent autoscaling events, where during a scale down we see an increased ingestion load and scale up, only to scale
+        // down as soon as possible. We detect a scaling event by looking for shutdown metadata in the cluster. During this time we adjust
+        // the ingestion loads reported by applying some weight to control the impact of the relocation-related load on the autoscaling
+        // behaviour. One simple approach is to just report the lowest ingestion loads for the number of non-shutting-down nodes with a
+        // non-exact metric quality. This could be enough to prevent scale ups due to the load caused by relocations, while still allowing
+        // scale ups if the cluster sees so much load that it leads to an increase in all ingestion loads. (The non-exact quality prevents
+        // an unwanted scale down.) However, it is still possible that the extra load is only on one (or few) node(s) and simply dropping
+        // the high ingestion loads during the scaling event can lead to suppressing a scale up when it would be beneficial. To be able to
+        // control this behaviour we generalize this simple approach to allow setting weights on the ingestion loads. We sort the list of
+        // ingestion loads and apply two different weights, one to the firs N entries (with smaller values) and one to the remaining S
+        // entries (with larger values), where S is the number of nodes in the indexing tier that have a shutdown marker, and N is the
+        // number of indexing nodes that have none. This allows controlling how much the S highest ingestion loads and the N lowest ones
+        // impact the total reported ingestion load. As an example to keep the lowest N (number of nodes w/o a shutdown marker) ingestion
+        // loads and 50% of each of the highest ingestion loads, we can use lowIngestionLoadWeightDuringScaling = 1.0 and
+        // highIngestionLoadWeightDuringScaling = 0.5. Note that, N and S is used here to split the list, and it doesn't necessarily mean
+        // that the N entries in the list all belong to nodes that have no shutdown markers.
+        final var shuttingDownNodes = Set.copyOf(clusterState.metadata().nodeShutdowns().getAllNodeIds());
+        final var shuttingDownIndexingNodes = clusterState.nodes()
+            .stream()
+            .filter(node -> shuttingDownNodes.contains(node.getId()) && isIndexNode(node))
+            .toList();
+        boolean adjustIngestionLoadWeight = highIngestionLoadWeightDuringScaling < 1.0 || lowIngestionLoadWeightDuringScaling < 1.0;
+        if (shuttingDownIndexingNodes.isEmpty() || adjustIngestionLoadWeight == false) {
+            return ingestLoads;
         }
-        return new IndexTierMetrics(Collections.unmodifiableList(ingestLoads), memoryMetricsService.getMemoryMetrics());
+        final int nodesNotShuttingDown = (int) clusterState.nodes()
+            .stream()
+            .filter(IngestMetricsService::isIndexNode)
+            .filter(node -> shuttingDownNodes.contains(node.getId()) == false)
+            .count();
+        ingestLoads.sort(Comparator.comparingDouble(NodeIngestLoadSnapshot::load));
+        final List<NodeIngestLoadSnapshot> adjustedIngestLoads = IntStream.range(0, ingestLoads.size()).mapToObj(i -> {
+            var load = ingestLoads.get(i).load();
+            var weight = i < nodesNotShuttingDown ? lowIngestionLoadWeightDuringScaling : highIngestionLoadWeightDuringScaling;
+            return new NodeIngestLoadSnapshot(load * weight, MetricQuality.MINIMUM);
+        }).toList();
+        logger.info(
+            () -> Strings.format(
+                "adjusting ingest loads from %s to %s "
+                    + "(number of indexing nodes: %d, number of indexing nodes with a shutdown marker: %d, %s: %.2f, %s: %.2f",
+                ingestLoads,
+                adjustedIngestLoads,
+                clusterState.nodes().size(),
+                shuttingDownIndexingNodes.size(),
+                HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(),
+                highIngestionLoadWeightDuringScaling,
+                LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(),
+                lowIngestionLoadWeightDuringScaling
+            )
+        );
+        return adjustedIngestLoads;
     }
 
     private long relativeTimeInNanos() {
@@ -229,6 +270,16 @@ public class IngestMetricsService implements ClusterStateListener {
     private static boolean isIndexNode(DiscoveryNode node) {
         // TODO: move to core
         return node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE);
+    }
+
+    // Package-private for testing
+    double getHighIngestionLoadWeightDuringScaling() {
+        return highIngestionLoadWeightDuringScaling;
+    }
+
+    // Package-private for testing
+    double getLowIngestionLoadWeightDuringScaling() {
+        return lowIngestionLoadWeightDuringScaling;
     }
 
     private class NodeIngestLoad {

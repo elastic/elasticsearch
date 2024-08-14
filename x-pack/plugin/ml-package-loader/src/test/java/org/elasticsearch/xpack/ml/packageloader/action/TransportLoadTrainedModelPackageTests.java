@@ -33,7 +33,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -42,7 +42,7 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
     private static final String MODEL_IMPORT_FAILURE_MSG_FORMAT = "Model importing failed due to %s [%s]";
 
     public void testSendsFinishedUploadNotification() {
-        var uploader = mock(ModelImporter.class);
+        var uploader = createUploader(null);
         var taskManager = mock(TaskManager.class);
         var task = mock(Task.class);
         var client = mock(Client.class);
@@ -74,14 +74,14 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         MalformedURLException exception = new MalformedURLException("exception");
         String message = format(MODEL_IMPORT_FAILURE_MSG_FORMAT, "an invalid URL", exception.toString());
 
-        assertUploadCallsOnFailure(exception, message, RestStatus.INTERNAL_SERVER_ERROR, Level.ERROR);
+        assertUploadCallsOnFailure(exception, message, RestStatus.BAD_REQUEST, Level.ERROR);
     }
 
     public void testSendsErrorNotificationForURISyntax() throws Exception {
         URISyntaxException exception = mock(URISyntaxException.class);
         String message = format(MODEL_IMPORT_FAILURE_MSG_FORMAT, "an invalid URL syntax", exception.toString());
 
-        assertUploadCallsOnFailure(exception, message, RestStatus.INTERNAL_SERVER_ERROR, Level.ERROR);
+        assertUploadCallsOnFailure(exception, message, RestStatus.BAD_REQUEST, Level.ERROR);
     }
 
     public void testSendsErrorNotificationForIOException() throws Exception {
@@ -177,11 +177,18 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         verify(taskManager).unregister(task);
     }
 
+    @SuppressWarnings("unchecked")
     private ModelImporter createUploader(Exception exception) {
         ModelImporter uploader = mock(ModelImporter.class);
-        if (exception != null) {
-            doThrow(exception).when(uploader).doImport();
-        }
+        doAnswer(invocation -> {
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[0];
+            if (exception != null) {
+                listener.onFailure(exception);
+            } else {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            }
+            return null;
+        }).when(uploader).doImport(any(ActionListener.class));
 
         return uploader;
     }

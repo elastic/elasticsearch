@@ -60,17 +60,18 @@ contents cannot be listed.
 
 [discrete]
 [[introduce_logs_index_mode_as_tech_preview]]
-=== Introduce logs index mode as Tech Preview
-This change introduces a new index mode named `logs`.
+=== Introduce `logsdb` index mode as Tech Preview
+This change introduces a new index mode named `logsdb`.
 When the new index mode is enabled then the following storage savings features are enabled automatically:
-* Synthetic source, which omits storing the _source. When _source or part of it is requested it is synthesized on the fly at runtime.
+
+* Synthetic source, which omits storing the `_source` field. When `_source` or part of it is requested it is synthesized on the fly at runtime.
 * Index sorting. By default indices are sorted by `host.name` and `@timestamp` fields at index time. This can be overwritten if other sorting fields yield better compression rate.
 * Enable more space efficient compression for fields with doc values enabled. These are the same codecs used
   when `time_series` index mode is enabled.
 
-The `index.mode` index setting set to `logs` should be configured in index templates or defined when creating a plain index.
+The `index.mode` index setting set to `logsdb` should be configured in index templates or defined when creating a plain index.
 Benchmarks and other tests have shown that logs data sets use around 2.5 times less storage with the new index mode enabled compared to not configuring it.
-The new `logs` index mode is a tech preview feature.
+The new `logsdb` index mode is a tech preview feature.
 
 {es-pull}108896[#108896]
 
@@ -111,7 +112,7 @@ hamming distance), and the scores are transformed and normalized given
 the vector dimensions.
 
 For scripts, `l1norm` is the same as `hamming` distance and `l2norm` is
-`sqrt(l1norm)`. `dotProduct` and `cosineSimilarity` are not supported. 
+`sqrt(l1norm)`. `dotProduct` and `cosineSimilarity` are not supported.
 
 Note, the dimensions expected by this element_type are always to be
 divisible by `8`, and the `byte[]` vectors provided for index must be

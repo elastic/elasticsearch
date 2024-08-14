@@ -8,8 +8,11 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.delete.TransportDeleteRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -23,17 +26,30 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshot
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -819,6 +835,10 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
+        // Now remove some of the SnapshotDetails from the RepositoryData as if the snapshots came from an older version, forcing the
+        // get-snapshots API to read the details from the SnapshotInfo blobs.
+        final var snapshotsWithoutDetails = removeRandomSnapshotDetails(repositories);
+
         Predicate<SnapshotInfo> snapshotInfoPredicate = Predicates.always();
 
         // {repository} path parameter
@@ -999,5 +1019,98 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         }
 
         assertEquals(0, remaining);
+    }
+
+    private static Set<SnapshotId> removeRandomSnapshotDetails(List<String> repositories) {
+        if (randomBoolean()) {
+            return Set.of();
+        }
+        final var masterRepositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
+        return safeAwait(l0 -> {
+            final Set<SnapshotId> snapshotsWithoutDetails = ConcurrentCollections.newConcurrentSet();
+            try (var listeners = new RefCountingListener(l0.map(v -> Set.copyOf(snapshotsWithoutDetails)))) {
+                for (final var repositoryName : repositories) {
+                    if (randomBoolean()) {
+                        continue;
+                    }
+
+                    final var repository = asInstanceOf(FsRepository.class, masterRepositoriesService.repository(repositoryName));
+                    final var repositoryMetadata = repository.getMetadata();
+                    final var repositorySettings = repositoryMetadata.settings();
+                    final var rootPath = asInstanceOf(FsBlobStore.class, repository.blobStore()).path();
+
+                    SubscribableListener
+
+                        .<AcknowledgedResponse>newForked(
+                            l -> client().execute(
+                                TransportDeleteRepositoryAction.TYPE,
+                                new DeleteRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName),
+                                l
+                            )
+                        )
+                        .andThenAccept(ElasticsearchAssertions::assertAcked)
+                        .andThenAccept(v -> {
+                            final var repoDataBlobPath = rootPath.resolve(
+                                BlobStoreRepository.INDEX_FILE_PREFIX + repositoryMetadata.generation()
+                            );
+                            final var repoDataBytes = Files.readAllBytes(repoDataBlobPath);
+                            final var repoDataMap = XContentHelper.convertToMap(
+                                JsonXContent.jsonXContent,
+                                repoDataBytes,
+                                0,
+                                repoDataBytes.length,
+                                true
+                            );
+                            final var snapshotsList = asInstanceOf(List.class, repoDataMap.get("snapshots"));
+                            for (final var snapshotObj : snapshotsList) {
+                                if (randomBoolean()) {
+                                    continue;
+                                }
+                                final var snapshotMap = asInstanceOf(Map.class, snapshotObj);
+                                snapshotsWithoutDetails.add(
+                                    new SnapshotId(
+                                        asInstanceOf(String.class, snapshotMap.get("name")),
+                                        asInstanceOf(String.class, snapshotMap.get("uuid"))
+                                    )
+                                );
+                                assertNotNull(snapshotMap.remove("start_time_millis"));
+                                assertNotNull(snapshotMap.remove("end_time_millis"));
+                                assertNotNull(snapshotMap.remove("slm_policy"));
+                            }
+                            final var updatedRepoDataBytes = XContentTestUtils.convertToXContent(repoDataMap, XContentType.JSON);
+                            try (var outputStream = Files.newOutputStream(repoDataBlobPath)) {
+                                BytesRef bytesRef;
+                                final var iterator = updatedRepoDataBytes.iterator();
+                                while ((bytesRef = iterator.next()) != null) {
+                                    outputStream.write(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                                }
+                            }
+                        })
+                        .<AcknowledgedResponse>andThen(
+                            l -> client().execute(
+                                TransportPutRepositoryAction.TYPE,
+                                new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName).type(FsRepository.TYPE)
+                                    .settings(repositorySettings),
+                                l
+                            )
+                        )
+                        .andThenAccept(ElasticsearchAssertions::assertAcked)
+                        .<RepositoryData>andThen(
+                            l -> masterRepositoriesService.repository(repositoryName)
+                                .getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l)
+                        )
+                        .andThenAccept(repositoryData -> {
+                            for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
+                                assertEquals(
+                                    repositoryName + "/" + snapshotId.toString() + ": " + repositoryData.getSnapshotDetails(snapshotId),
+                                    snapshotsWithoutDetails.contains(snapshotId),
+                                    repositoryData.hasMissingDetails(snapshotId)
+                                );
+                            }
+                        })
+                        .addListener(listeners.acquire());
+                }
+            }
+        });
     }
 }

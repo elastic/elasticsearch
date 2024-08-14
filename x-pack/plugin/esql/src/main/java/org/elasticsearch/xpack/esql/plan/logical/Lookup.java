@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -15,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
@@ -31,6 +33,8 @@ import java.util.Objects;
  * The class is supposed to be substituted by a {@link Join}.
  */
 public class Lookup extends UnaryPlan {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Lookup", Lookup::new);
+
     private final Expression tableName;
     /**
      * References to the input fields to match against the {@link #localRelation}.
@@ -54,16 +58,17 @@ public class Lookup extends UnaryPlan {
         this.localRelation = localRelation;
     }
 
-    public Lookup(PlanStreamInput in) throws IOException {
-        super(Source.readFrom(in), in.readLogicalPlanNode());
+    public Lookup(StreamInput in) throws IOException {
+        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
         this.tableName = in.readNamedWriteable(Expression.class);
         this.matchFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.localRelation = in.readBoolean() ? new LocalRelation(in) : null;
     }
 
-    public void writeTo(PlanStreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeLogicalPlanNode(child());
+        out.writeNamedWriteable(child());
         out.writeNamedWriteable(tableName);
         out.writeNamedWriteableCollection(matchFields);
         if (localRelation == null) {
@@ -72,6 +77,11 @@ public class Lookup extends UnaryPlan {
             out.writeBoolean(true);
             localRelation.writeTo(out);
         }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public Expression tableName() {

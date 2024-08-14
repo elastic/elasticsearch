@@ -18,16 +18,17 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.rules.AddDefaultTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanSimplification;
-import org.elasticsearch.xpack.esql.optimizer.rules.CombineDisjunctionsToIn;
+import org.elasticsearch.xpack.esql.optimizer.rules.CombineBinaryComparisons;
+import org.elasticsearch.xpack.esql.optimizer.rules.CombineDisjunctions;
 import org.elasticsearch.xpack.esql.optimizer.rules.CombineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.ConstantFolding;
@@ -207,7 +208,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PropagateEquals(),
             new PropagateNullable(),
             new BooleanFunctionEqualsElimination(),
-            new CombineDisjunctionsToIn(),
+            new CombineBinaryComparisons(),
+            new CombineDisjunctions(),
             new SimplifyComparisonsArithmetics(DataType::areCompatible),
             // prune/elimination
             new PruneFilters(),
@@ -334,7 +336,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                         new Alias(
                             originalAttribute.source(),
                             originalAttribute.name(),
-                            originalAttribute.qualifier(),
                             renamedAttribute,
                             originalAttribute.id(),
                             originalAttribute.synthetic()
@@ -371,7 +372,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 if (attributeNamesToRename.contains(attr.name())) {
                     Alias renamedAttribute = aliasesForReplacedAttributes.computeIfAbsent(attr, a -> {
                         String tempName = locallyUniqueTemporaryName(a.name(), "temp_name");
-                        return new Alias(a.source(), tempName, null, a, null, true);
+                        return new Alias(a.source(), tempName, a, null, true);
                     });
                     return renamedAttribute.toAttribute();
                 }

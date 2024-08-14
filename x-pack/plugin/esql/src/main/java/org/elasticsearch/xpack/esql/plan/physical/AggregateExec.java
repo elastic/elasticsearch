@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -14,12 +17,21 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 public class AggregateExec extends UnaryExec implements EstimatesRowSize {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "AggregateExec",
+        AggregateExec::new
+    );
+
     private final List<? extends Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
     /**
@@ -52,6 +64,34 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         this.mode = mode;
         this.intermediateAttributes = intermediateAttributes;
         this.estimatedRowSize = estimatedRowSize;
+    }
+
+    private AggregateExec(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            ((PlanStreamInput) in).readPhysicalPlanNode(),
+            in.readNamedWriteableCollectionAsList(Expression.class),
+            in.readNamedWriteableCollectionAsList(NamedExpression.class),
+            in.readEnum(AggregatorMode.class),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readOptionalVInt()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        ((PlanStreamOutput) out).writePhysicalPlanNode(child());
+        out.writeNamedWriteableCollection(groupings());
+        out.writeNamedWriteableCollection(aggregates());
+        out.writeEnum(getMode());
+        out.writeNamedWriteableCollection(intermediateAttributes());
+        out.writeOptionalVInt(estimatedRowSize());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

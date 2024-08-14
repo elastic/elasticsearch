@@ -22,11 +22,6 @@ public interface Stats {
     Stats with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates);
 
     /**
-     * Have all the expressions in this plan been resolved?
-     */
-    boolean expressionsResolved();
-
-    /**
      * List containing both the aggregate expressions and grouping expressions.
      */
     List<? extends NamedExpression> aggregates();

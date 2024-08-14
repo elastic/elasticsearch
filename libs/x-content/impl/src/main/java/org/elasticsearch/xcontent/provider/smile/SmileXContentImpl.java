@@ -65,7 +65,7 @@ public final class SmileXContentImpl implements XContent {
     }
 
     @Override
-    public byte streamSeparator() {
+    public byte bulkSeparator() {
         return (byte) 0xFF;
     }
 

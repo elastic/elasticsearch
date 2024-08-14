@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.plan.QueryPlan;
 
 import java.util.HashSet;
 import java.util.Set;

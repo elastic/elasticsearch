@@ -56,6 +56,7 @@ public final class Source implements Writeable {
      */
     public static Source readEmpty(StreamInput in) throws IOException {
         if (in.readBoolean()) {
+            // Read it and throw it away because we're always returning empty.
             new SourcePositions(in);
         }
         return EMPTY;

@@ -19,9 +19,6 @@ import org.apache.lucene.search.TermStatistics;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.DoubleSummaryStatistics;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -29,10 +26,12 @@ import java.util.function.Supplier;
  * Access the term statistics of the children query of a script_score query.
  */
 public class ScriptTermStats {
-    private static final DoubleSummaryStatistics EMPTY_STATS = new DoubleSummaryStatistics(1, 0, 0, 0);
     private final Supplier<Integer> docIdSupplier;
-    private final Set<Term> terms;
+    private final Term[] terms;
     private final Reader termStatsReader;
+    private final StatsAccumulator statsAccumulator = new StatsAccumulator();
+    private volatile PostingsEnum[] postings;
+    private volatile TermStatistics[] termStatistics;
 
     public ScriptTermStats(IndexSearcher searcher, LeafReaderContext leafReaderContext, Supplier<Integer> docIdSupplier, Set<Term> terms) {
         this(new Reader(searcher, leafReaderContext), docIdSupplier, terms);
@@ -40,7 +39,7 @@ public class ScriptTermStats {
 
     ScriptTermStats(Reader termStatsReader, Supplier<Integer> docIdSupplier, Set<Term> terms) {
         this.docIdSupplier = docIdSupplier;
-        this.terms = terms;
+        this.terms = terms.toArray(new Term[0]);
         this.termStatsReader = termStatsReader;
     }
 
@@ -50,7 +49,7 @@ public class ScriptTermStats {
      * @return the number of unique terms
      */
     public long uniqueTermsCount() {
-        return terms.size();
+        return terms.length;
     }
 
     /**
@@ -59,16 +58,19 @@ public class ScriptTermStats {
      * @return the number of matched terms
      */
     public long matchedTermsCount() {
-        int docId = docIdSupplier.get();
+        final int docId = docIdSupplier.get();
+        int matchedTerms = 0;
 
-        return terms.stream().filter(term -> {
-            try {
-                PostingsEnum postingsEnum = termStatsReader.postings(term);
-                return postingsEnum != null && postingsEnum.advance(docId) == docId && postingsEnum.freq() > 0;
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+        try {
+            for (PostingsEnum postingsEnum : postings()) {
+                if (postingsEnum != null && postingsEnum.advance(docId) == docId && postingsEnum.freq() > 0) {
+                    matchedTerms++;
+                }
             }
-        }).count();
+            return matchedTerms;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**
@@ -76,15 +78,18 @@ public class ScriptTermStats {
      *
      * @return statistics on docFreq for the terms of the query.
      */
-    public DoubleSummaryStatistics docFreq() {
-        DoubleSummaryStatistics docFreqStatistics = new DoubleSummaryStatistics();
+    public StatsAccumulator docFreq() {
+        statsAccumulator.reset();
 
-        for (Term term : terms) {
-            TermStatistics termStats = termStatsReader.termStatistics(term);
-            docFreqStatistics.accept(termStats != null ? termStats.docFreq() : 0L);
+        try {
+            for (TermStatistics termStats : termStatistics()) {
+                statsAccumulator.accept(termStats != null ? termStats.docFreq() : 0L);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
 
-        return docFreqStatistics.getCount() > 0 ? docFreqStatistics : EMPTY_STATS;
+        return statsAccumulator;
     }
 
     /**
@@ -92,15 +97,18 @@ public class ScriptTermStats {
      *
      * @return statistics on totalTermFreq for the terms of the query.
      */
-    public DoubleSummaryStatistics totalTermFreq() {
-        DoubleSummaryStatistics totalTermFreqStatistics = new DoubleSummaryStatistics();
+    public StatsAccumulator totalTermFreq() {
+        statsAccumulator.reset();
 
-        for (Term term : terms) {
-            TermStatistics termStats = termStatsReader.termStatistics(term);
-            totalTermFreqStatistics.accept(termStats != null ? termStats.totalTermFreq() : 0L);
+        try {
+            for (TermStatistics termStats : termStatistics()) {
+                statsAccumulator.accept(termStats != null ? termStats.totalTermFreq() : 0L);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
 
-        return totalTermFreqStatistics.getCount() > 0 ? totalTermFreqStatistics : EMPTY_STATS;
+        return statsAccumulator;
     }
 
     /**
@@ -108,24 +116,23 @@ public class ScriptTermStats {
      *
      * @return statistics on totalTermFreq for the terms of the query in the current dac
      */
-    public DoubleSummaryStatistics termFreq() {
-        DoubleSummaryStatistics termFreqStatistics = new DoubleSummaryStatistics();
-        int docId = docIdSupplier.get();
+    public StatsAccumulator termFreq() {
+        statsAccumulator.reset();
+        final int docId = docIdSupplier.get();
 
-        for (Term term : terms) {
-            try {
-                PostingsEnum postingsEnum = termStatsReader.postings(term);
+        try {
+            for (PostingsEnum postingsEnum : postings()) {
                 if (postingsEnum == null || postingsEnum.advance(docId) != docId) {
-                    termFreqStatistics.accept(0);
+                    statsAccumulator.accept(0);
                 } else {
-                    termFreqStatistics.accept(postingsEnum.freq());
+                    statsAccumulator.accept(postingsEnum.freq());
                 }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
             }
-        }
 
-        return termFreqStatistics.getCount() > 0 ? termFreqStatistics : EMPTY_STATS;
+            return statsAccumulator;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**
@@ -133,25 +140,52 @@ public class ScriptTermStats {
      *
      * @return statistics on termPositions for the terms of the query in the current dac
      */
-    public DoubleSummaryStatistics termPositions() {
-        DoubleSummaryStatistics termPositionsStatistics = new DoubleSummaryStatistics();
-        int docId = docIdSupplier.get();
+    public StatsAccumulator termPositions() {
+        try {
+            statsAccumulator.reset();
+            int docId = docIdSupplier.get();
 
-        for (Term term : terms) {
-            try {
-                PostingsEnum postingsEnum = termStatsReader.postings(term);
+            for (PostingsEnum postingsEnum : postings()) {
                 if (postingsEnum == null || postingsEnum.advance(docId) != docId) {
                     continue;
                 }
                 for (int i = 0; i < postingsEnum.freq(); i++) {
-                    termPositionsStatistics.accept(postingsEnum.nextPosition() + 1);
+                    statsAccumulator.accept(postingsEnum.nextPosition() + 1);
                 }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
             }
+
+            return statsAccumulator;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private PostingsEnum[] postings() throws IOException {
+        if (postings != null) {
+            return postings;
         }
 
-        return termPositionsStatistics.getCount() > 0 ? termPositionsStatistics : EMPTY_STATS;
+        postings = new PostingsEnum[terms.length];
+
+        for (int i = 0; i < terms.length; i++) {
+            postings[i] = termStatsReader.postings(terms[i]);
+        }
+
+        return postings;
+    }
+
+    private TermStatistics[] termStatistics() throws IOException {
+        if (termStatistics != null) {
+            return termStatistics;
+        }
+
+        termStatistics = new TermStatistics[terms.length];
+
+        for (int i = 0; i < terms.length; i++) {
+            termStatistics[i] = termStatsReader.termStatistics(terms[i]);
+        }
+
+        return termStatistics;
     }
 
     /**
@@ -160,64 +194,39 @@ public class ScriptTermStats {
     static class Reader {
         private final IndexSearcher searcher;
         private final LeafReaderContext leafReaderContext;
-        private final Map<Term, TermStates> termContexts = new HashMap<>();
-        private final Map<Term, PostingsEnum> postings = new HashMap<>();
 
         private Reader(IndexSearcher searcher, LeafReaderContext leafReaderContext) {
             this.searcher = searcher;
             this.leafReaderContext = leafReaderContext;
         }
 
-        PostingsEnum postings(Term term) {
-            return postings.computeIfAbsent(term, t -> {
-                try {
-                    TermStates termStates = termStates(term);
+        PostingsEnum postings(Term term) throws IOException {
+            TermStates termStates = TermStates.build(searcher, term, true);
 
-                    if (termStates == null || termStates.docFreq() == 0) {
-                        return null;
-                    }
+            if (termStates.docFreq() == 0) {
+                return null;
+            }
 
-                    TermState state = termStates.get(leafReaderContext);
-                    if (state == null) {
-                        return null;
-                    }
+            TermState state = termStates.get(leafReaderContext);
+            if (state == null) {
+                return null;
+            }
 
-                    TermsEnum termsEnum = leafReaderContext.reader().terms(term.field()).iterator();
-                    termsEnum.seekExact(term.bytes(), state);
-                    return termsEnum.postings(null, PostingsEnum.ALL);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
+            TermsEnum termsEnum = leafReaderContext.reader().terms(term.field()).iterator();
+            termsEnum.seekExact(term.bytes(), state);
+
+            return termsEnum.postings(null, PostingsEnum.ALL);
         }
 
-        TermStatistics termStatistics(Term term) {
+        TermStatistics termStatistics(Term term) throws IOException {
             try {
-                TermStates termStates = termStates(term);
+                TermStates termStates = TermStates.build(searcher, term, true);
 
-                if (termStates != null && termStates.docFreq() > 0) {
-                    // Using the searcher to get term statistics. If search_type is dfs, this is how the stats from the DFS phase are read.
-                    return searcher.termStatistics(term, termStates.docFreq(), termStates.totalTermFreq());
-                }
-
-                // TermStates is null or docFreq is 0, but we still want try to load term stats using the searcher, so we can retrieve
-                // terms statistics from the DFS phase, even if the term is not present on this shard.
-                return searcher.termStatistics(term, 0, 0);
+                // Using the searcher to get term statistics. If search_type is dfs, this is how the stats from the DFS phase are read.
+                return searcher.termStatistics(term, termStates.docFreq(), termStates.totalTermFreq());
             } catch (IllegalArgumentException e) {
                 return null;
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
             }
-        }
-
-        private TermStates termStates(Term term) {
-            return termContexts.computeIfAbsent(term, t -> {
-                try {
-                    return TermStates.build(searcher, t, true);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
         }
     }
 }

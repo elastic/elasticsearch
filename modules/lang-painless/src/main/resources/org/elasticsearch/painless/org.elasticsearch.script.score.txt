@@ -13,13 +13,21 @@ class org.elasticsearch.script.ScoreScript @no_import {
 class org.elasticsearch.script.ScoreScript$Factory @no_import {
 }
 
+class org.elasticsearch.script.StatsAccumulator {
+    double getMin()
+    double getMax()
+    double getAverage()
+    double getSum()
+    long getCount()
+}
+
 class org.elasticsearch.script.ScriptTermStats {
     long uniqueTermsCount()
     long matchedTermsCount()
-    DoubleSummaryStatistics docFreq()
-    DoubleSummaryStatistics totalTermFreq()
-    DoubleSummaryStatistics termFreq()
-    DoubleSummaryStatistics termPositions()
+    StatsAccumulator docFreq()
+    StatsAccumulator totalTermFreq()
+    StatsAccumulator termFreq()
+    StatsAccumulator termPositions()
 }
 
 static_import {

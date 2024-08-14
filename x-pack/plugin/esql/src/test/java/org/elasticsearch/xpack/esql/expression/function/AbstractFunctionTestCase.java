@@ -859,6 +859,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
         List<String> table = new ArrayList<>();
         for (Map.Entry<List<DataType>, DataType> sig : signatures().entrySet()) { // TODO flip to using sortedSignatures
+            if (shouldHideSignature(sig.getKey(), sig.getValue())) {
+                continue;
+            }
             if (sig.getKey().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
                 continue;
             }
@@ -1090,6 +1093,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 if (sig.getKey().size() < minArgCount) {
                     throw new IllegalArgumentException("signature " + sig.getKey() + " is missing non-optional arg for " + args);
                 }
+                if (shouldHideSignature(sig.getKey(), sig.getValue())) {
+                    continue;
+                }
                 builder.startObject();
                 builder.startArray("params");
                 for (int i = 0; i < sig.getKey().size(); i++) {
@@ -1274,5 +1280,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     private static boolean isAggregation() {
         return AbstractAggregationTestCase.class.isAssignableFrom(getTestClass());
+    }
+
+    /**
+     * Should this particular signature be hidden from the docs even though we test it?
+     */
+    private static boolean shouldHideSignature(List<DataType> argTypes, DataType returnType) {
+        // DATE_NANOS are under construction and behind a feature flag.
+        if (returnType == DataType.DATE_NANOS) {
+            return true;
+        }
+        return argTypes.contains(DataType.DATE_NANOS);
     }
 }

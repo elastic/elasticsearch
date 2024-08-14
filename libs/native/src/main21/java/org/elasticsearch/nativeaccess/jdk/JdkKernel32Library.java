@@ -56,7 +56,7 @@ class JdkKernel32Library implements Kernel32Library {
     );
     private static final MethodHandle SetProcessWorkingSetSize$mh = downcallHandleWithError(
         "SetProcessWorkingSetSize",
-        FunctionDescriptor.of(ADDRESS, JAVA_LONG, JAVA_LONG)
+        FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, JAVA_LONG, JAVA_LONG)
     );
     private static final MethodHandle GetCompressedFileSizeW$mh = downcallHandleWithError(
         "GetCompressedFileSizeW",

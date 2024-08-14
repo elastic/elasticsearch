@@ -409,7 +409,8 @@ ROW long = TO_LONG(100), double = 99., int = 100
 ;
 
 // identical results as above
-bucketNumericMixedTypesIntegerSpans#[skip:-8.13.99, reason:BUCKET extended in 8.14]
+bucketNumericMixedTypesIntegerSpans
+required_capability: bucket_whole_number_as_span
 ROW long = TO_LONG(100), double = 99., int = 100
 | STATS BY b1 = BUCKET(long, double::int), b2 = BUCKET(double, long), b3 = BUCKET(int, 49.5)
 ;

@@ -224,7 +224,12 @@ public class EsqlCapabilities {
         /**
          * Support CIDRMatch in CombineDisjunctions rule.
          */
-        COMBINE_DISJUNCTIVE_CIDRMATCHES;
+        COMBINE_DISJUNCTIVE_CIDRMATCHES,
+
+        /**
+         * Support for the whole number spans in BUCKET function.
+         */
+        BUCKET_WHOLE_NUMBER_AS_SPAN;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

@@ -533,7 +533,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             responses,
             indicesThatCannotBeCreated,
             indexNameExpressionResolver,
-            relativeTimeProvider,
+            relativeTimeNanosProvider,
             startTimeNanos,
             listener
         ).run();

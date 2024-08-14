@@ -227,6 +227,11 @@ public class EsqlCapabilities {
         COMBINE_DISJUNCTIVE_CIDRMATCHES,
 
         /**
+         * Consider the upper bound when computing the interval in BUCKET auto mode.
+         */
+        BUCKET_INCLUSIVE_UPPER_BOUND,
+
+        /**
          * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.
          */
         CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT;

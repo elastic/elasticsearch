@@ -443,8 +443,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 // We don't test that functions don't take date_period or time_duration. We should.
                 return false;
             }
-            if (t == DataType.DATE_NANOS) {
-                // Date nanos is still under construction
+            if (DataType.UNDER_CONSTRUCTION.containsKey(t)) {
+                /*
+                 * Types under construction aren't checked because we're actively
+                 * adding support for them to functions. That's *why* they are
+                 * under construction.
+                 */
                 return false;
             }
             if (t.isCounter()) {
@@ -859,6 +863,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
         List<String> table = new ArrayList<>();
         for (Map.Entry<List<DataType>, DataType> sig : signatures().entrySet()) { // TODO flip to using sortedSignatures
+            if (shouldHideSignature(sig.getKey(), sig.getValue())) {
+                continue;
+            }
             if (sig.getKey().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
                 continue;
             }
@@ -1090,6 +1097,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 if (sig.getKey().size() < minArgCount) {
                     throw new IllegalArgumentException("signature " + sig.getKey() + " is missing non-optional arg for " + args);
                 }
+                if (shouldHideSignature(sig.getKey(), sig.getValue())) {
+                    continue;
+                }
                 builder.startObject();
                 builder.startArray("params");
                 for (int i = 0; i < sig.getKey().size(); i++) {
@@ -1274,5 +1284,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     private static boolean isAggregation() {
         return AbstractAggregationTestCase.class.isAssignableFrom(getTestClass());
+    }
+
+    /**
+     * Should this particular signature be hidden from the docs even though we test it?
+     */
+    private static boolean shouldHideSignature(List<DataType> argTypes, DataType returnType) {
+        for (DataType dt : DataType.UNDER_CONSTRUCTION.keySet()) {
+            if (returnType == dt) {
+                return true;
+            }
+            return argTypes.contains(dt);
+        }
+        return false;
     }
 }

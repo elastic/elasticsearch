@@ -144,7 +144,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             nodeEnvironment,
             Settings.EMPTY,
             threadPool,
-            threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
             BlobCacheMetrics.NOOP
         );
     }
@@ -167,7 +167,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             singlePathNodeEnvironment,
             cacheSettings.build(),
             threadPool,
-            threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
             BlobCacheMetrics.NOOP
         );
     }
@@ -192,7 +192,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                 .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
                 .build(),
             threadPool,
-            threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
             BlobCacheMetrics.NOOP
         );
     }

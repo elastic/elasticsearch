@@ -288,7 +288,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
             while (used < buckets) {
                 bucket = r.nextRoundingValue(bucket);
                 used++;
-                if (bucket > to) {
+                if (bucket >= to) {
                     return true;
                 }
             }

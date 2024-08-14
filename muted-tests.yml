@@ -74,9 +74,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFileTests
   method: testCacheFileCreatedAsSparseFile
   issue: https://github.com/elastic/elasticsearch/issues/110801
-- class: org.elasticsearch.nativeaccess.PreallocateTests
-  method: testPreallocate
-  issue: https://github.com/elastic/elasticsearch/issues/110948
 - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
   method: testSystemPropertyDisabled
   issue: https://github.com/elastic/elasticsearch/issues/110949
@@ -125,24 +122,27 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
   method: testGetModel
   issue: https://github.com/elastic/elasticsearch/issues/111570
-- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
-  method: testMatchCommandWithWhereClause {default}
-  issue: https://github.com/elastic/elasticsearch/issues/111658
-- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
-  method: testMatchCommand {default}
-  issue: https://github.com/elastic/elasticsearch/issues/111659
-- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
-  method: testMatchCommandWithMultipleMatches {default}
-  issue: https://github.com/elastic/elasticsearch/issues/111660
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testMatchCommand
-  issue: https://github.com/elastic/elasticsearch/issues/111661
-- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/111664
-- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/111666
+- class: org.elasticsearch.tdigest.ComparisonTests
+  method: testSparseGaussianDistribution
+  issue: https://github.com/elastic/elasticsearch/issues/111721
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSnapshotRestore {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111777
+- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
+  method: testSnapshotRestore {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111775
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSnapshotRestore {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111798
+- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
+  method: testSnapshotRestore {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111799
+- class: org.elasticsearch.indices.breaker.HierarchyCircuitBreakerTelemetryTests
+  method: testCircuitBreakerTripCountMetric
+  issue: https://github.com/elastic/elasticsearch/issues/111778
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {comparison.RangeVersion SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111814
 
 # Examples:
 #

@@ -54,7 +54,11 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
 
         this.fieldSpecificMatchers = Map.of(
             "half_float",
-            new FieldSpecificMatcher.HalfFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
+            new FieldSpecificMatcher.HalfFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings),
+            "scaled_float",
+            new FieldSpecificMatcher.ScaledFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings),
+            "unsigned_long",
+            new FieldSpecificMatcher.UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
         );
     }
 
@@ -136,8 +140,21 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
         }
 
         var expectedFieldMapping = expectedNormalizedMapping.get(fieldName);
-        if (expectedFieldMapping == null || Objects.equals(actualFieldType, expectedFieldMapping.get("type")) == false) {
-            throw new IllegalStateException("Field type of a leaf field [" + fieldName + "] differs between expected and actual mapping");
+        if (expectedFieldMapping == null) {
+            throw new IllegalStateException("Leaf field [" + fieldName + "] is present in actual mapping but absent in expected mapping");
+        } else {
+            var expectedFieldType = expectedFieldMapping.get("type");
+            if (Objects.equals(actualFieldType, expectedFieldType) == false) {
+                throw new IllegalStateException(
+                    "Leaf field ["
+                        + fieldName
+                        + "] has type ["
+                        + actualFieldType
+                        + "] in actual mapping but a different type ["
+                        + expectedFieldType
+                        + "] in expected mapping"
+                );
+            }
         }
 
         var fieldSpecificMatcher = fieldSpecificMatchers.get(actualFieldType);
@@ -145,7 +162,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             return Optional.empty();
         }
 
-        MatchResult matched = fieldSpecificMatcher.match(actualValues, expectedValues);
+        MatchResult matched = fieldSpecificMatcher.match(actualValues, expectedValues, expectedFieldMapping, actualFieldMapping);
         return Optional.of(matched);
     }
 

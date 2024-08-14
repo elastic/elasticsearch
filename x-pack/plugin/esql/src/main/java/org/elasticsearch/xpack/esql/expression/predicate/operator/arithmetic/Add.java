@@ -25,8 +25,8 @@ import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
 
-import static org.elasticsearch.xpack.esql.core.type.DateUtils.asDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DateUtils.asMillis;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAddExact;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.ADD;
 

@@ -34,6 +34,7 @@ public class DataSource {
         this.handlers.add(new DefaultPrimitiveTypesHandler());
         this.handlers.add(new DefaultWrappersHandler());
         this.handlers.add(new DefaultObjectGenerationHandler());
+        this.handlers.add(new DefaultMappingParametersHandler());
     }
 
     public <T extends DataSourceResponse> T get(DataSourceRequest<T> request) {

@@ -106,10 +106,10 @@ public final class PlanNamedTypes {
     public static List<PlanNameRegistry.Entry> namedTypeEntries() {
         List<PlanNameRegistry.Entry> declared = List.of(
             // Physical Plan Nodes
-            of(PhysicalPlan.class, AggregateExec.class, PlanNamedTypes::writeAggregateExec, PlanNamedTypes::readAggregateExec),
-            of(PhysicalPlan.class, DissectExec.class, PlanNamedTypes::writeDissectExec, PlanNamedTypes::readDissectExec),
+            of(PhysicalPlan.class, AggregateExec.ENTRY),
+            of(PhysicalPlan.class, DissectExec.ENTRY),
             of(PhysicalPlan.class, EsQueryExec.class, PlanNamedTypes::writeEsQueryExec, PlanNamedTypes::readEsQueryExec),
-            of(PhysicalPlan.class, EsSourceExec.class, PlanNamedTypes::writeEsSourceExec, PlanNamedTypes::readEsSourceExec),
+            of(PhysicalPlan.class, EsSourceExec.ENTRY),
             of(PhysicalPlan.class, EvalExec.class, PlanNamedTypes::writeEvalExec, PlanNamedTypes::readEvalExec),
             of(PhysicalPlan.class, EnrichExec.class, PlanNamedTypes::writeEnrichExec, PlanNamedTypes::readEnrichExec),
             of(PhysicalPlan.class, ExchangeExec.class, PlanNamedTypes::writeExchangeExec, PlanNamedTypes::readExchangeExec),
@@ -156,44 +156,6 @@ public final class PlanNamedTypes {
     }
 
     // -- physical plan nodes
-    static AggregateExec readAggregateExec(PlanStreamInput in) throws IOException {
-        return new AggregateExec(
-            Source.readFrom(in),
-            in.readPhysicalPlanNode(),
-            in.readNamedWriteableCollectionAsList(Expression.class),
-            in.readNamedWriteableCollectionAsList(NamedExpression.class),
-            in.readEnum(AggregateExec.Mode.class),
-            in.readOptionalVInt()
-        );
-    }
-
-    static void writeAggregateExec(PlanStreamOutput out, AggregateExec aggregateExec) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writePhysicalPlanNode(aggregateExec.child());
-        out.writeNamedWriteableCollection(aggregateExec.groupings());
-        out.writeNamedWriteableCollection(aggregateExec.aggregates());
-        out.writeEnum(aggregateExec.getMode());
-        out.writeOptionalVInt(aggregateExec.estimatedRowSize());
-    }
-
-    static DissectExec readDissectExec(PlanStreamInput in) throws IOException {
-        return new DissectExec(
-            Source.readFrom(in),
-            in.readPhysicalPlanNode(),
-            in.readNamedWriteable(Expression.class),
-            Dissect.Parser.readFrom(in),
-            in.readNamedWriteableCollectionAsList(Attribute.class)
-        );
-    }
-
-    static void writeDissectExec(PlanStreamOutput out, DissectExec dissectExec) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writePhysicalPlanNode(dissectExec.child());
-        out.writeNamedWriteable(dissectExec.inputExpression());
-        dissectExec.parser().writeTo(out);
-        out.writeNamedWriteableCollection(dissectExec.extractedFields());
-    }
-
     static EsQueryExec readEsQueryExec(PlanStreamInput in) throws IOException {
         return new EsQueryExec(
             Source.readFrom(in),
@@ -217,24 +179,6 @@ public final class PlanNamedTypes {
         out.writeOptionalNamedWriteable(esQueryExec.limit());
         out.writeOptionalCollection(esQueryExec.sorts(), writerFromPlanWriter(PlanNamedTypes::writeFieldSort));
         out.writeOptionalInt(esQueryExec.estimatedRowSize());
-    }
-
-    static EsSourceExec readEsSourceExec(PlanStreamInput in) throws IOException {
-        return new EsSourceExec(
-            Source.readFrom(in),
-            new EsIndex(in),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readOptionalNamedWriteable(QueryBuilder.class),
-            readIndexMode(in)
-        );
-    }
-
-    static void writeEsSourceExec(PlanStreamOutput out, EsSourceExec esSourceExec) throws IOException {
-        Source.EMPTY.writeTo(out);
-        esSourceExec.index().writeTo(out);
-        out.writeNamedWriteableCollection(esSourceExec.output());
-        out.writeOptionalNamedWriteable(esSourceExec.query());
-        writeIndexMode(out, esSourceExec.indexMode());
     }
 
     public static IndexMode readIndexMode(StreamInput in) throws IOException {

@@ -161,28 +161,16 @@ public class ScriptTermStats {
     }
 
     private PostingsEnum[] postings() throws IOException {
-        if (postings != null) {
-            return postings;
-        }
-
-        postings = new PostingsEnum[terms.length];
-
-        for (int i = 0; i < terms.length; i++) {
-            postings[i] = termStatsReader.postings(terms[i]);
+        if (postings == null) {
+            postings = termStatsReader.postings(terms);
         }
 
         return postings;
     }
 
     private TermStatistics[] termStatistics() throws IOException {
-        if (termStatistics != null) {
-            return termStatistics;
-        }
-
-        termStatistics = new TermStatistics[terms.length];
-
-        for (int i = 0; i < terms.length; i++) {
-            termStatistics[i] = termStatsReader.termStatistics(terms[i]);
+        if (termStatistics == null) {
+            termStatistics = termStatsReader.termStatistics(terms);
         }
 
         return termStatistics;
@@ -200,7 +188,17 @@ public class ScriptTermStats {
             this.leafReaderContext = leafReaderContext;
         }
 
-        PostingsEnum postings(Term term) throws IOException {
+        PostingsEnum[] postings(Term[] terms) throws IOException {
+            PostingsEnum[] postings = new PostingsEnum[terms.length];
+
+            for (int i = 0; i < terms.length; i++) {
+                postings[i] = postings(terms[i]);
+            }
+
+            return postings;
+        }
+
+        private PostingsEnum postings(Term term) throws IOException {
             TermStates termStates = TermStates.build(searcher, term, true);
 
             if (termStates.docFreq() == 0) {
@@ -216,6 +214,16 @@ public class ScriptTermStats {
             termsEnum.seekExact(term.bytes(), state);
 
             return termsEnum.postings(null, PostingsEnum.ALL);
+        }
+
+        TermStatistics[] termStatistics(Term[] terms) throws IOException {
+            TermStatistics[] termStatistics = new TermStatistics[terms.length];
+
+            for (int i = 0; i < terms.length; i++) {
+                termStatistics[i] = termStatistics(terms[i]);
+            }
+
+            return termStatistics;
         }
 
         TermStatistics termStatistics(Term term) throws IOException {

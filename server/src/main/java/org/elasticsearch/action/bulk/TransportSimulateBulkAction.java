@@ -68,7 +68,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             ingestService,
             indexingPressure,
             systemIndices,
-            System::nanoTime
+            threadPool::relativeTimeInNanos
         );
         this.indicesService = indicesService;
     }

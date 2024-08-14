@@ -1,0 +1,5 @@
+pr: 111876
+summary: "[7.17] Add maximum nested depth check to WKT parser"
+area: Geo
+type: bug
+issues: []

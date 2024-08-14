@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.settings;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -15,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction.ALLOWED_SETTING_KEYS;
+import static org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction.ALLOWED_SETTING_VALIDATORS;
 import static org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction.MAIN_INDEX_NAME;
 import static org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction.PROFILES_INDEX_NAME;
 import static org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction.TOKENS_INDEX_NAME;
@@ -43,7 +45,7 @@ public class UpdateSecuritySettingsActionTests extends ESTestCase {
 
     public void testAllowedSettingsOk() {
         Map<String, Object> allAllowedSettingsMap = new HashMap<>();
-        for (String allowedSetting : ALLOWED_SETTING_KEYS) {
+        for (String allowedSetting : ALLOWED_SETTING_VALIDATORS.keySet()) {
             Map<String, Object> allowedSettingMap = Map.of(allowedSetting, randomAlphaOfLength(5));
             allAllowedSettingsMap.put(allowedSetting, randomAlphaOfLength(5));
             var req = new UpdateSecuritySettingsAction.Request(
@@ -86,11 +88,11 @@ public class UpdateSecuritySettingsActionTests extends ESTestCase {
 
     public void testDisallowedSettingsFailsValidation() {
         String disallowedSetting = "index."
-            + randomValueOtherThanMany((value) -> ALLOWED_SETTING_KEYS.contains("index." + value), () -> randomAlphaOfLength(5));
+            + randomValueOtherThanMany((value) -> ALLOWED_SETTING_VALIDATORS.containsKey("index." + value), () -> randomAlphaOfLength(5));
         Map<String, Object> disallowedSettingMap = Map.of(disallowedSetting, randomAlphaOfLength(5));
         Map<String, Object> validOrEmptySettingMap = randomFrom(
             Collections.emptyMap(),
-            Map.of(randomFrom(ALLOWED_SETTING_KEYS), randomAlphaOfLength(5))
+            Map.of(randomFrom(ALLOWED_SETTING_VALIDATORS.keySet()), randomAlphaOfLength(5))
         );
         {
             var req = new UpdateSecuritySettingsAction.Request(
@@ -106,11 +108,11 @@ public class UpdateSecuritySettingsActionTests extends ESTestCase {
                 assertThat(
                     errorMsg,
                     matchesRegex(
-                        "illegal settings for index \\["
+                        "illegal setting for index \\["
                             + Pattern.quote(TOKENS_INDEX_NAME)
                             + "\\]: \\["
                             + disallowedSetting
-                            + "\\], these settings may not be configured. Only the following settings may be configured for that index.*"
+                            + "\\], this setting may not be configured. Only the following settings may be configured for that index.*"
                     )
                 );
             }
@@ -130,13 +132,13 @@ public class UpdateSecuritySettingsActionTests extends ESTestCase {
                 assertThat(
                     errorMsg,
                     matchesRegex(
-                        "illegal settings for index \\[("
+                        "illegal setting for index \\[("
                             + Pattern.quote(MAIN_INDEX_NAME)
                             + "|"
                             + Pattern.quote(PROFILES_INDEX_NAME)
                             + ")\\]: \\["
                             + disallowedSetting
-                            + "\\], these settings may not be configured. Only the following settings may be configured for that index.*"
+                            + "\\], this setting may not be configured. Only the following settings may be configured for that index.*"
                     )
                 );
             }
@@ -156,7 +158,7 @@ public class UpdateSecuritySettingsActionTests extends ESTestCase {
                 assertThat(
                     errorMsg,
                     matchesRegex(
-                        "illegal settings for index \\[("
+                        "illegal setting for index \\[("
                             + Pattern.quote(MAIN_INDEX_NAME)
                             + "|"
                             + Pattern.quote(TOKENS_INDEX_NAME)
@@ -164,11 +166,42 @@ public class UpdateSecuritySettingsActionTests extends ESTestCase {
                             + Pattern.quote(PROFILES_INDEX_NAME)
                             + ")\\]: \\["
                             + disallowedSetting
-                            + "\\], these settings may not be configured. Only the following settings may be configured for that index.*"
+                            + "\\], this setting may not be configured. Only the following settings may be configured for that index.*"
                     )
                 );
             }
         }
+    }
+
+    public void testSettingValuesAreValidated() {
+        Map<String, Object> badSettingsMap = Map.of(DataTier.TIER_PREFERENCE, DataTier.DATA_FROZEN);
+        Map<String, Object> allowedSettingMap = Map.of(
+            DataTier.TIER_PREFERENCE,
+            randomFrom(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_CONTENT, DataTier.DATA_COLD)
+        );
+        var req = new UpdateSecuritySettingsAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            allowedSettingMap,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
+        assertThat(req.validate(), nullValue());
+
+        req = new UpdateSecuritySettingsAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            badSettingsMap,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
+        ActionRequestValidationException exception = req.validate();
+        assertThat(exception, notNullValue());
+        assertThat(exception.validationErrors(), hasSize(1));
+        assertThat(
+            exception.validationErrors().get(0),
+            containsString("security indices may not be assigned a preference for " + DataTier.DATA_FROZEN)
+        );
     }
 
 }

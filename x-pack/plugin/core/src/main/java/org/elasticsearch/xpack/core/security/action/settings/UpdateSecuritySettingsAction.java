@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -28,7 +27,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -43,11 +42,28 @@ public class UpdateSecuritySettingsAction {
     public static final String TOKENS_INDEX_NAME = "security-tokens";
     public static final String PROFILES_INDEX_NAME = "security-profile";
 
-    public static final Set<String> ALLOWED_SETTING_KEYS = Set.of(
-        IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-        IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS,
-        DataTier.TIER_PREFERENCE
-    );
+    /**
+     * A map of allowed settings to validators for those settings. Values should take the value which is being assigned to the setting
+     * and an existing {@link ActionRequestValidationException}, to which they should add if the value is disallowed.
+     */
+    public static final Map<
+        String,
+        BiFunction<Object, ActionRequestValidationException, ActionRequestValidationException>> ALLOWED_SETTING_VALIDATORS = Map.of(
+            IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+            (it, ex) -> ex, // no additional validation
+            IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS,
+            (it, ex) -> ex, // no additional validation
+            DataTier.TIER_PREFERENCE,
+            (it, ex) -> {
+                if (it instanceof String preference && preference.contains(DataTier.DATA_FROZEN)) {
+                    return ValidateActions.addValidationError(
+                        "security indices may not be assigned a preference for " + DataTier.DATA_FROZEN,
+                        ex
+                    );
+                }
+                return ex;
+            }
+        );
 
     private UpdateSecuritySettingsAction() {/* no instances */}
 
@@ -156,19 +172,26 @@ public class UpdateSecuritySettingsAction {
             String indexName,
             ActionRequestValidationException existingExceptions
         ) {
-            Set<String> forbiddenSettings = Sets.difference(indexSettings.keySet(), ALLOWED_SETTING_KEYS);
-            if (forbiddenSettings.size() > 0) {
-                return ValidateActions.addValidationError(
-                    "illegal settings for index ["
-                        + indexName
-                        + "]: "
-                        + forbiddenSettings
-                        + ", these settings may not be configured. Only the following settings may be configured for that index: "
-                        + ALLOWED_SETTING_KEYS,
-                    existingExceptions
-                );
+            ActionRequestValidationException errors = existingExceptions;
+
+            for (Map.Entry<String, Object> entry : indexSettings.entrySet()) {
+                String setting = entry.getKey();
+                if (ALLOWED_SETTING_VALIDATORS.containsKey(setting)) {
+                    errors = ALLOWED_SETTING_VALIDATORS.get(setting).apply(entry.getValue(), errors);
+                } else {
+                    errors = ValidateActions.addValidationError(
+                        "illegal setting for index ["
+                            + indexName
+                            + "]: ["
+                            + setting
+                            + "], this setting may not be configured. Only the following settings may be configured for that index: "
+                            + ALLOWED_SETTING_VALIDATORS.keySet(),
+                        existingExceptions
+                    );
+                }
             }
-            return existingExceptions;
+
+            return errors;
         }
     }
 }

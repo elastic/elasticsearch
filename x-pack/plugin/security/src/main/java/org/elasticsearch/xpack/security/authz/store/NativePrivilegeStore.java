@@ -114,7 +114,12 @@ public class NativePrivilegeStore {
     );
     private static final Logger logger = LogManager.getLogger(NativePrivilegeStore.class);
 
-    private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(50), 5);
+    // pck-private for testing
+    static final int MAX_NUMBER_OF_RETRIES = 8;
+    private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff(
+        TimeValue.timeValueMillis(50),
+        MAX_NUMBER_OF_RETRIES
+    );
 
     private final Settings settings;
     private final Client client;

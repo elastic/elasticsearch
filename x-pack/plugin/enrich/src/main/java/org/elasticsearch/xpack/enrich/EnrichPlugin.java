@@ -19,6 +19,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -123,27 +125,28 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         return String.valueOf(maxConcurrentRequests * maxLookupsPerRequest);
     }, val -> Setting.parseInt(val, 1, Integer.MAX_VALUE, QUEUE_CAPACITY_SETTING_NAME), Setting.Property.NodeScope);
 
-    public static final Setting<Long> CACHE_SIZE = new Setting<>("enrich.cache_size", (String) null, (String s) -> {
-        if (s == null) {
-            return null;
-        }
-        return Setting.parseLong(s, 0, "enrich.cache_size");
-    }, Setting.Property.NodeScope);
+    public static final String CACHE_SIZE_SETTING_NAME = "enrich.cache.size";
+    public static final Setting<FlatNumberOrByteSizeValue> CACHE_SIZE = new Setting<>(
+        "enrich.cache.size",
+        (String) null,
+        (String s) -> FlatNumberOrByteSizeValue.parse(
+            s,
+            CACHE_SIZE_SETTING_NAME,
+            new FlatNumberOrByteSizeValue(ByteSizeValue.ofBytes((long) (0.01 * JvmInfo.jvmInfo().getConfiguredMaxHeapSize())))
+        ),
+        Setting.Property.NodeScope
+    );
 
     private final Settings settings;
     private final EnrichCache enrichCache;
 
     public EnrichPlugin(final Settings settings) {
         this.settings = settings;
-        Long maxSize = CACHE_SIZE.get(settings);
-        long maxHeapSize = JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
-        // If we were unable to read the max heap size, we fall back to 1000 entries.
-        if (maxSize == null && maxHeapSize > 0) {
-            var maxByteSize = (long) (maxHeapSize * 0.01);
-            this.enrichCache = new EnrichCache(ByteSizeValue.ofBytes(maxByteSize));
+        FlatNumberOrByteSizeValue maxSize = CACHE_SIZE.get(settings);
+        if (maxSize.byteSizeValue() != null) {
+            this.enrichCache = new EnrichCache(maxSize.byteSizeValue());
         } else {
-            maxSize = maxSize == null ? 1000 : maxSize;
-            this.enrichCache = new EnrichCache(maxSize);
+            this.enrichCache = new EnrichCache(maxSize.flatNumber());
         }
     }
 
@@ -280,5 +283,46 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     @Override
     public String getFeatureDescription() {
         return "Manages data related to Enrich policies";
+    }
+
+    /**
+     * A class that specifies either a flat (unit-less) number or a byte size value.
+     */
+    public static class FlatNumberOrByteSizeValue {
+
+        @Nullable
+        private final Long flatNumber;
+        @Nullable
+        private final ByteSizeValue byteSizeValue;
+
+        public FlatNumberOrByteSizeValue(ByteSizeValue byteSizeValue) {
+            this.byteSizeValue = byteSizeValue;
+            this.flatNumber = null;
+        }
+
+        public FlatNumberOrByteSizeValue(Long flatNumber) {
+            this.flatNumber = flatNumber;
+            this.byteSizeValue = null;
+        }
+
+        public static FlatNumberOrByteSizeValue parse(String value, String settingName, FlatNumberOrByteSizeValue defaultValue) {
+            if (value == null) {
+                return defaultValue;
+            }
+            if (value.endsWith("%") || value.endsWith("b") | value.endsWith("B")) {
+                return new FlatNumberOrByteSizeValue(MemorySizeValue.parseBytesSizeValueOrHeapRatio(value, settingName));
+            }
+            return new FlatNumberOrByteSizeValue(Long.parseLong(value));
+        }
+
+        @Nullable
+        public ByteSizeValue byteSizeValue() {
+            return byteSizeValue;
+        }
+
+        @Nullable
+        public Long flatNumber() {
+            return flatNumber;
+        }
     }
 }

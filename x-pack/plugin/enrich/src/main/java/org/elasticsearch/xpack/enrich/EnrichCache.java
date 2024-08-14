@@ -79,9 +79,13 @@ public final class EnrichCache {
     }
 
     private Cache<CacheKey, CacheValue> createCache(long maxWeight, ToLongBiFunction<CacheKey, CacheValue> weigher) {
-        return CacheBuilder.<CacheKey, CacheValue>builder().setMaximumWeight(maxWeight).removalListener(notification -> {
+        var builder = CacheBuilder.<CacheKey, CacheValue>builder().setMaximumWeight(maxWeight).removalListener(notification -> {
             sizeInBytes.getAndAdd(-1 * notification.getValue().sizeInBytes);
-        }).weigher(weigher).build();
+        });
+        if (weigher != null) {
+            builder.weigher(weigher);
+        }
+        return builder.build();
     }
 
     /**

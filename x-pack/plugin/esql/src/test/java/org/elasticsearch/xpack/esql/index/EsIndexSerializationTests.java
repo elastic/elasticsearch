@@ -58,8 +58,8 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
     @Override
     protected EsIndex mutateInstance(EsIndex instance) throws IOException {
         String name = instance.name();
-        Map<String, EsField> mapping = randomMapping();
-        Set<String> concreteIndices = randomConcreteIndices();
+        Map<String, EsField> mapping = instance.mapping();
+        Set<String> concreteIndices = instance.concreteIndices();
         switch (between(0, 2)) {
             case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLength(5));
             case 1 -> mapping = randomValueOtherThan(mapping, EsIndexSerializationTests::randomMapping);

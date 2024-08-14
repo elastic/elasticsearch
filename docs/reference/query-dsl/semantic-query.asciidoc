@@ -161,7 +161,7 @@ GET my-index/_search
     }
 }
 ------------------------------------------------------------
-<1> Ranked passages will be returned using the <<retrieve-inner-hits,`inner_hits` response format>>, with `<inner_hits_name>` set to the `semantic_text` field name.
+<1> Ranked passages will be returned using the <<inner-hits,`inner_hits` response format>>, with `<inner_hits_name>` set to the `semantic_text` field name.
 
 By default, the top three matching chunks will be returned.
 You can use the `size` parameter to control the number of chunks returned and the `from` parameter to page through the matching chunks:

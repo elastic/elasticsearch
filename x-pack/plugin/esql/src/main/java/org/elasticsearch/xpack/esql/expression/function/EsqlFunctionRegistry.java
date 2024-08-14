@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.ParsingException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
@@ -501,6 +500,9 @@ public class EsqlFunctionRegistry {
         return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, isAggregation);
     }
 
+    /**
+     * Remove types that are being actively built.
+     */
     private static String[] removeUnderConstruction(String[] types) {
         for (Map.Entry<DataType, FeatureFlag> underConstruction : DataType.UNDER_CONSTRUCTION.entrySet()) {
             if (underConstruction.getValue().isEnabled() == false) {

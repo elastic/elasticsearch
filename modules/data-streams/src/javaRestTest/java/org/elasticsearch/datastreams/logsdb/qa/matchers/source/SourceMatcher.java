@@ -54,7 +54,11 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
 
         this.fieldSpecificMatchers = Map.of(
             "half_float",
-            new FieldSpecificMatcher.HalfFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
+            new FieldSpecificMatcher.HalfFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings),
+            "scaled_float",
+            new FieldSpecificMatcher.ScaledFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings),
+            "unsigned_long",
+            new FieldSpecificMatcher.UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
         );
     }
 
@@ -158,7 +162,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             return Optional.empty();
         }
 
-        MatchResult matched = fieldSpecificMatcher.match(actualValues, expectedValues);
+        MatchResult matched = fieldSpecificMatcher.match(actualValues, expectedValues, expectedFieldMapping, actualFieldMapping);
         return Optional.of(matched);
     }
 

@@ -30,77 +30,93 @@ public class BlobCacheMetricsTests extends ESTestCase {
     public void testRecordCachePopulationMetricsRecordsThroughput() {
         int mebiBytesSent = randomIntBetween(1, 4);
         int secondsTaken = randomIntBetween(1, 5);
+        String indexName = randomAlphaOfLength(10);
+        int shardId = randomIntBetween(0, 10);
+        BlobCacheMetrics.CachePopulationReason cachePopulationReason = randomFrom(BlobCacheMetrics.CachePopulationReason.values());
+        CachePopulationSource cachePopulationSource = randomFrom(CachePopulationSource.values());
         metrics.recordCachePopulationMetrics(
             Math.toIntExact(ByteSizeValue.ofMb(mebiBytesSent).getBytes()),
             TimeUnit.SECONDS.toNanos(secondsTaken),
-            "test-index",
-            123,
-            BlobCacheMetrics.CachePopulationReason.CacheMiss,
-            CachePopulationSource.Peer
+            indexName,
+            shardId,
+            cachePopulationReason,
+            cachePopulationSource
         );
         Measurement throughputMeasurement = recordingMeterRegistry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, "es.blob_cache.population.throughput.histogram")
             .get(0);
         assertEquals(throughputMeasurement.getDouble(), (double) mebiBytesSent / secondsTaken, 0.0);
-        assertEquals(throughputMeasurement.attributes().get(BlobCacheMetrics.SHARD_ID_ATTRIBUTE_KEY), 123);
-        assertEquals(throughputMeasurement.attributes().get(BlobCacheMetrics.INDEX_ATTRIBUTE_KEY), "test-index");
+        assertEquals(throughputMeasurement.attributes().get(BlobCacheMetrics.SHARD_ID_ATTRIBUTE_KEY), shardId);
+        assertEquals(throughputMeasurement.attributes().get(BlobCacheMetrics.INDEX_ATTRIBUTE_KEY), indexName);
         assertEquals(
             throughputMeasurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_REASON_ATTRIBUTE_KEY),
-            BlobCacheMetrics.CachePopulationReason.CacheMiss.name()
+            cachePopulationReason.name()
         );
         assertEquals(
             throughputMeasurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY),
-            CachePopulationSource.Peer.name()
+            cachePopulationSource.name()
         );
     }
 
     public void testRecordCachePopulationMetricsRecordsTotalBytes() {
+        int mebiBytesSent = randomIntBetween(1, 4);
+        int secondsTaken = randomIntBetween(1, 5);
+        String indexName = randomAlphaOfLength(10);
+        int shardId = randomIntBetween(0, 10);
+        BlobCacheMetrics.CachePopulationReason cachePopulationReason = randomFrom(BlobCacheMetrics.CachePopulationReason.values());
+        CachePopulationSource cachePopulationSource = randomFrom(CachePopulationSource.values());
         metrics.recordCachePopulationMetrics(
-            Math.toIntExact(ByteSizeValue.ofMb(1).getBytes()),
-            TimeUnit.SECONDS.toNanos(1),
-            "test-index",
-            123,
-            BlobCacheMetrics.CachePopulationReason.CacheMiss,
-            CachePopulationSource.Peer
+            Math.toIntExact(ByteSizeValue.ofMb(mebiBytesSent).getBytes()),
+            TimeUnit.SECONDS.toNanos(secondsTaken),
+            indexName,
+            shardId,
+            cachePopulationReason,
+            cachePopulationSource
         );
         Measurement totalBytesMeasurement = recordingMeterRegistry.getRecorder()
             .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.population.bytes.total")
             .get(0);
-        assertEquals(totalBytesMeasurement.getLong(), ByteSizeValue.ofMb(1).getBytes());
-        assertEquals(totalBytesMeasurement.attributes().get(BlobCacheMetrics.SHARD_ID_ATTRIBUTE_KEY), 123);
-        assertEquals(totalBytesMeasurement.attributes().get(BlobCacheMetrics.INDEX_ATTRIBUTE_KEY), "test-index");
+        assertEquals(totalBytesMeasurement.getLong(), ByteSizeValue.ofMb(mebiBytesSent).getBytes());
+        assertEquals(totalBytesMeasurement.attributes().get(BlobCacheMetrics.SHARD_ID_ATTRIBUTE_KEY), shardId);
+        assertEquals(totalBytesMeasurement.attributes().get(BlobCacheMetrics.INDEX_ATTRIBUTE_KEY), indexName);
         assertEquals(
             totalBytesMeasurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_REASON_ATTRIBUTE_KEY),
-            BlobCacheMetrics.CachePopulationReason.CacheMiss.name()
+            cachePopulationReason.name()
         );
         assertEquals(
             totalBytesMeasurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY),
-            CachePopulationSource.Peer.name()
+            cachePopulationSource.name()
         );
     }
 
     public void testRecordCachePopulationMetricsRecordsTotalTime() {
+        int mebiBytesSent = randomIntBetween(1, 4);
+        int secondsTaken = randomIntBetween(1, 5);
+        String indexName = randomAlphaOfLength(10);
+        int shardId = randomIntBetween(0, 10);
+        BlobCacheMetrics.CachePopulationReason cachePopulationReason = randomFrom(BlobCacheMetrics.CachePopulationReason.values());
+        CachePopulationSource cachePopulationSource = randomFrom(CachePopulationSource.values());
         metrics.recordCachePopulationMetrics(
-            Math.toIntExact(ByteSizeValue.ofMb(1).getBytes()),
-            TimeUnit.SECONDS.toNanos(1),
-            "test-index",
-            123,
-            BlobCacheMetrics.CachePopulationReason.CacheMiss,
-            CachePopulationSource.Peer
+            Math.toIntExact(ByteSizeValue.ofMb(mebiBytesSent).getBytes()),
+            TimeUnit.SECONDS.toNanos(secondsTaken),
+            indexName,
+            shardId,
+            cachePopulationReason,
+            cachePopulationSource
         );
         Measurement totalTimeMeasurement = recordingMeterRegistry.getRecorder()
             .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.population.time.total")
             .get(0);
-        assertEquals(totalTimeMeasurement.getLong(), TimeUnit.SECONDS.toMillis(1));
-        assertEquals(totalTimeMeasurement.attributes().get(BlobCacheMetrics.SHARD_ID_ATTRIBUTE_KEY), 123);
-        assertEquals(totalTimeMeasurement.attributes().get(BlobCacheMetrics.INDEX_ATTRIBUTE_KEY), "test-index");
+        assertEquals(totalTimeMeasurement.getLong(), TimeUnit.SECONDS.toMillis(secondsTaken));
+        assertEquals(totalTimeMeasurement.attributes().get(BlobCacheMetrics.SHARD_ID_ATTRIBUTE_KEY), shardId);
+        assertEquals(totalTimeMeasurement.attributes().get(BlobCacheMetrics.INDEX_ATTRIBUTE_KEY), indexName);
         assertEquals(
             totalTimeMeasurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_REASON_ATTRIBUTE_KEY),
-            BlobCacheMetrics.CachePopulationReason.CacheMiss.name()
+            cachePopulationReason.name()
         );
         assertEquals(
             totalTimeMeasurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY),
-            CachePopulationSource.Peer.name()
+            cachePopulationSource.name()
         );
     }
 }

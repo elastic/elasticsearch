@@ -817,23 +817,23 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testToDatePeriodToTimeDurationWithField() throws IOException {
-        indexTimestampData(3);
+        bulkLoadTestData(5);
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsql(requestObjectBuilder().query(fromIndex() + " | eval x = @timestamp + test::date_period").params("[]"))
+            () -> runEsql(requestObjectBuilder().query(fromIndex() + " | eval x = date + keyword::date_period").params("[]"))
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", ""),
-            containsString("first argument of [test::date_period] must be a constant, received [test]")
+            containsString("first argument of [keyword::date_period] must be a constant, received [keyword]")
         );
 
         re = expectThrows(
             ResponseException.class,
-            () -> runEsql(requestObjectBuilder().query(fromIndex() + " | eval x = @timestamp + test::time_duration").params("[]"))
+            () -> runEsql(requestObjectBuilder().query(fromIndex() + " | eval x = date + keyword::time_duration").params("[]"))
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", ""),
-            containsString("first argument of [test::time_duration] must be a constant, received [test]")
+            containsString("first argument of [keyword::time_duration] must be a constant, received [keyword]")
         );
 
     }

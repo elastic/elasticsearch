@@ -10,6 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -93,6 +94,11 @@ public class BulkRequest extends ActionRequest
         timeout = in.readTimeValue();
         for (DocWriteRequest<?> request : requests) {
             indices.add(Objects.requireNonNull(request.index(), "request index must not be null"));
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
+            incrementalState = new BulkRequest.IncrementalState(in);
+        } else {
+            incrementalState = BulkRequest.IncrementalState.EMPTY;
         }
     }
 
@@ -445,6 +451,9 @@ public class BulkRequest extends ActionRequest
         out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
+            incrementalState.writeTo(out);
+        }
     }
 
     @Override

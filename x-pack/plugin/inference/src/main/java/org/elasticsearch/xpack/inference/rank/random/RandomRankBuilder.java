@@ -58,13 +58,18 @@ public class RandomRankBuilder extends RankBuilder {
 
     public RandomRankBuilder(int rankWindowSize, String field) {
         super(rankWindowSize);
+
+        if (field == null || field.isEmpty()) {
+            throw new IllegalArgumentException("field is required");
+        }
+
         this.field = field;
     }
 
     public RandomRankBuilder(StreamInput in) throws IOException {
         super(in);
         // rankWindowSize deserialization is handled by the parent class RankBuilder
-        this.field = in.readOptionalString();
+        this.field = in.readString();
     }
 
     @Override
@@ -80,7 +85,7 @@ public class RandomRankBuilder extends RankBuilder {
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
         // rankWindowSize serialization is handled by the parent class RankBuilder
-        out.writeOptionalString(field);
+        out.writeString(field);
     }
 
     @Override

@@ -123,6 +123,7 @@ public class NativePrivilegeStore {
     private final SecurityIndexManager securityIndexManager;
     private volatile boolean allowExpensiveQueries;
     private final DescriptorsAndApplicationNamesCache descriptorsAndApplicationNamesCache;
+    @Nullable
     private final BackoffPolicy backoffPolicy;
 
     public NativePrivilegeStore(
@@ -138,9 +139,7 @@ public class NativePrivilegeStore {
             securityIndexManager,
             cacheInvalidatorRegistry,
             clusterService,
-            MAX_NUMBER_OF_RETRIES == 0
-                ? BackoffPolicy.noBackoff()
-                : BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(50), MAX_NUMBER_OF_RETRIES)
+            MAX_NUMBER_OF_RETRIES == 0 ? null : BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(50), MAX_NUMBER_OF_RETRIES)
         );
     }
 
@@ -150,7 +149,7 @@ public class NativePrivilegeStore {
         SecurityIndexManager securityIndexManager,
         CacheInvalidatorRegistry cacheInvalidatorRegistry,
         ClusterService clusterService,
-        BackoffPolicy backoffPolicy
+        @Nullable BackoffPolicy backoffPolicy
     ) {
         this.settings = settings;
         this.client = client;
@@ -223,17 +222,17 @@ public class NativePrivilegeStore {
     }
 
     private void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
-        innerGetPrivilegesWithRetry(applications, backoffPolicy.iterator(), listener);
+        innerGetPrivilegesWithRetry(applications, backoffPolicy == null ? null : backoffPolicy.iterator(), listener);
     }
 
     private void innerGetPrivilegesWithRetry(
         Collection<String> applications,
-        Iterator<TimeValue> backoff,
+        @Nullable Iterator<TimeValue> backoff,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
     ) {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
         // If we didn't configure retries, just pass through to onFailure to avoid unnecessary checks and confusing log messages
-        final Consumer<Exception> maybeRetryOnShardNotAvailableFailure = MAX_NUMBER_OF_RETRIES == 0 ? listener::onFailure : ex -> {
+        final Consumer<Exception> maybeRetryOnShardNotAvailableFailure = backoff == null ? listener::onFailure : ex -> {
             if (false == backoff.hasNext()) {
                 logger.info("failed to query privileges after all retries");
                 listener.onFailure(ex);

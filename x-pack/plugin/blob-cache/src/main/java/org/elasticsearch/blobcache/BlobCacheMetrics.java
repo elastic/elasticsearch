@@ -17,8 +17,10 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class BlobCacheMetrics {
-    public static final String CACHE_POPULATION_REASON_ATTRIBUTE_KEY = "cachePopulationReason";
-    public static final String SHARD_ID_ATTRIBUTE_KEY = "shardId";
+    public static final String CACHE_POPULATION_REASON_ATTRIBUTE_KEY = "reason";
+    public static final String CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY = "source";
+    public static final String SHARD_ID_ATTRIBUTE_KEY = "shard_id";
+    public static final String INDEX_ATTRIBUTE_KEY = "index";
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
@@ -36,6 +38,17 @@ public class BlobCacheMetrics {
          * When the data we need is not in the cache
          */
         CacheMiss
+    }
+
+    public enum CachePopulationSource {
+        /**
+         * When loading data from the blob-store
+         */
+        BlobStore,
+        /**
+         * When fetching data from a peer node
+         */
+        Peer
     }
 
     public BlobCacheMetrics(MeterRegistry meterRegistry) {
@@ -108,20 +121,28 @@ public class BlobCacheMetrics {
      *
      * @param totalBytesCopied The total number of bytes copied
      * @param totalCopyTimeNanos The time taken to copy the bytes in nanoseconds
-     * @param shardId The shard ID to which the chunk belonged
+     * @param index The index being loaded
+     * @param shardId The ID of the shard being loaded
      * @param cachePopulationReason The reason for the cache being populated
+     * @param cachePopulationSource The source from which the data is being loaded
      */
     public void recordCachePopulationMetrics(
         int totalBytesCopied,
         long totalCopyTimeNanos,
-        String shardId,
-        CachePopulationReason cachePopulationReason
+        String index,
+        int shardId,
+        CachePopulationReason cachePopulationReason,
+        CachePopulationSource cachePopulationSource
     ) {
         Map<String, Object> metricAttributes = Map.of(
+            INDEX_ATTRIBUTE_KEY,
+            index,
             SHARD_ID_ATTRIBUTE_KEY,
             shardId,
             CACHE_POPULATION_REASON_ATTRIBUTE_KEY,
-            cachePopulationReason.name()
+            cachePopulationReason.name(),
+            CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY,
+            cachePopulationSource.name()
         );
         assert totalBytesCopied > 0 : "We shouldn't be recording zero-sized copies";
         cachePopulationBytes.incrementBy(totalBytesCopied, metricAttributes);

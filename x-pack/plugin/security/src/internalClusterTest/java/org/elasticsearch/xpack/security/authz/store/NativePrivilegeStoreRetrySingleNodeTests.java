@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.security.authz.store;
 
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -21,6 +23,7 @@ import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRespo
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -60,6 +63,14 @@ public class NativePrivilegeStoreRetrySingleNodeTests extends SecuritySingleNode
 
     @Before
     public void configureApplicationPrivileges() {
+        client().admin()
+            .cluster()
+            .updateSettings(
+                new ClusterUpdateSettingsRequest().persistentSettings(
+                    Settings.builder().put("logger.org.elasticsearch.xpack.security.authz.store", "DEBUG").build()
+                )
+            )
+            .actionGet();
         final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest();
         final List<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors = Arrays.asList(
             new ApplicationPrivilegeDescriptor("myapp-1", "read", Set.of("action:read"), emptyMap()),
@@ -69,6 +80,18 @@ public class NativePrivilegeStoreRetrySingleNodeTests extends SecuritySingleNode
         client().execute(PutPrivilegesAction.INSTANCE, putPrivilegesRequest).actionGet();
     }
 
+    @After
+    public void clean() {
+        client().admin()
+            .cluster()
+            .updateSettings(
+                new ClusterUpdateSettingsRequest().persistentSettings(
+                    Settings.builder().putNull("logger.org.elasticsearch.xpack.security.authz.store").build()
+                )
+            )
+            .actionGet();
+    }
+
     public void testRetry() {
         // TODO this test is very brittle right now -- it marks a shard as failed (which is only transient, and the shard auto-recovers)
         // then attempts to get privileges
@@ -76,7 +99,7 @@ public class NativePrivilegeStoreRetrySingleNodeTests extends SecuritySingleNode
         // however there are race conditions both ways: the shard might take longer to recover than the retry, or conversely recover faster
         // than the first request comes in
         // we should make this more robust
-
+        logger.info("Max retries configured [{}]", System.getProperty("es.xpack.security.authz.store.get_privileges.max_retries", "0"));
         // TODO make this work with the main security index alias
         String indexName = ".security-7";
         failShardOnIndex(indexName);

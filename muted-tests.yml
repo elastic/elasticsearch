@@ -181,6 +181,8 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.JdbcCsvSpecIT
   method: test {agg-ordering.testHistogramDateTimeWithCountAndOrder_2}
   issue: https://github.com/elastic/elasticsearch/issues/111919
+- class: org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.JdbcCsvSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/111923
 
 # Examples:
 #

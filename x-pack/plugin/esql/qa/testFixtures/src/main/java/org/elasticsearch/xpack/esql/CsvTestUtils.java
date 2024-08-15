@@ -53,7 +53,7 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
-import static org.elasticsearch.xpack.esql.core.SpecReader.shouldSkipLine;
+import static org.elasticsearch.xpack.esql.SpecReader.shouldSkipLine;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToUnsignedLong;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.ISO_DATE_WITH_NANOS;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FORMATTER;

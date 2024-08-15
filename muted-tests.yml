@@ -122,18 +122,33 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
   method: testGetModel
   issue: https://github.com/elastic/elasticsearch/issues/111570
-- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
-  method: testMatchCommandWithWhereClause {default}
-  issue: https://github.com/elastic/elasticsearch/issues/111658
-- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
-  method: testMatchCommand {default}
-  issue: https://github.com/elastic/elasticsearch/issues/111659
-- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
-  method: testMatchCommandWithMultipleMatches {default}
-  issue: https://github.com/elastic/elasticsearch/issues/111660
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testMatchCommand
-  issue: https://github.com/elastic/elasticsearch/issues/111661
+- class: org.elasticsearch.tdigest.ComparisonTests
+  method: testSparseGaussianDistribution
+  issue: https://github.com/elastic/elasticsearch/issues/111721
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSnapshotRestore {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111777
+- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
+  method: testSnapshotRestore {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111775
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSnapshotRestore {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111798
+- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
+  method: testSnapshotRestore {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111799
+- class: org.elasticsearch.indices.breaker.HierarchyCircuitBreakerTelemetryTests
+  method: testCircuitBreakerTripCountMetric
+  issue: https://github.com/elastic/elasticsearch/issues/111778
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {comparison.RangeVersion SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111814
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: "test {p0=esql/26_aggs_bucket/friendlier BUCKET interval hourly: #110916}"
+  issue: https://github.com/elastic/elasticsearch/issues/111901
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: "test {p0=esql/26_aggs_bucket/friendlier BUCKET interval: monthly #110916}"
+  issue: https://github.com/elastic/elasticsearch/issues/111902
 
 # Examples:
 #

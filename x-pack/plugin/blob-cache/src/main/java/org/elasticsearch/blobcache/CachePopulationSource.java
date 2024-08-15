@@ -18,5 +18,9 @@ public enum CachePopulationSource {
     /**
      * When fetching data from a peer node
      */
-    Peer
+    Peer,
+    /**
+     * We cannot determine the source (should not be used except in exceptional cases)
+     */
+    Unknown
 }

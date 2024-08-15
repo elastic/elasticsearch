@@ -239,8 +239,8 @@ public class NativePrivilegeStore {
                 return;
             }
 
-            if (false == isShardNotAvailableException(ex)) {
-                logger.debug("non-retryable exception encountered, won't retry privilege query request");
+            if (false == shouldRetryOn(ex)) {
+                logger.info("non-retryable exception encountered, won't retry privilege query request");
                 listener.onFailure(ex);
                 return;
             }
@@ -293,6 +293,11 @@ public class NativePrivilegeStore {
                 }
             });
         }
+    }
+
+    private static boolean shouldRetryOn(Exception ex) {
+        // search exceptions wrap shard failures, so also need to check the exception cause
+        return isShardNotAvailableException(ex) || (ex.getCause() != null && isShardNotAvailableException(ex.getCause()));
     }
 
     private void safeScheduleRetry(Runnable task, TimeValue delay, Consumer<Exception> onScheduleFailure) {

@@ -1,6 +1,0 @@
-pr: 109876
-summary: Always pick the user `maxPageSize` value
-area: Transform
-type: bug
-issues:
- - 109844

@@ -68,7 +68,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             ingestService,
             indexingPressure,
             systemIndices,
-            System::nanoTime
+            threadPool::relativeTimeInNanos
         );
         this.indicesService = indicesService;
     }
@@ -79,7 +79,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         BulkRequest bulkRequest,
         Executor executor,
         ActionListener<BulkResponse> listener,
-        long relativeStartTime
+        long relativeStartTimeNanos
     ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
@@ -105,7 +105,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             );
         }
         listener.onResponse(
-            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(relativeStartTime))
+            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(relativeStartTimeNanos))
         );
     }
 
@@ -166,7 +166,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     }
 
     @Override
-    protected boolean shouldStoreFailure(String indexName, Metadata metadata, long time) {
+    protected boolean shouldStoreFailure(String indexName, Metadata metadata, long epochMillis) {
         // A simulate bulk request should not change any persistent state in the system, so we never write to the failure store
         return false;
     }

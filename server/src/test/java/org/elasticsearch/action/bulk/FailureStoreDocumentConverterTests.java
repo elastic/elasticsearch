@@ -83,7 +83,7 @@ public class FailureStoreDocumentConverterTests extends ESTestCase {
 
         assertThat(ObjectPath.eval("document.id", convertedRequest.sourceAsMap()), is(equalTo("1")));
         assertThat(ObjectPath.eval("document.routing", convertedRequest.sourceAsMap()), is(equalTo("fake_routing")));
-        assertThat(ObjectPath.eval("document.index", convertedRequest.sourceAsMap()), is(equalTo(targetIndexName)));
+        assertThat(ObjectPath.eval("document.index", convertedRequest.sourceAsMap()), is(equalTo("original_index")));
         assertThat(ObjectPath.eval("document.source.key", convertedRequest.sourceAsMap()), is(equalTo("value")));
 
         assertThat(ObjectPath.eval("error.type", convertedRequest.sourceAsMap()), is(equalTo("exception")));

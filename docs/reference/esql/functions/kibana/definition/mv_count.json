@@ -44,18 +44,6 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "date_nanos",
-          "optional" : false,
-          "description" : "Multivalue expression."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "integer"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
           "type" : "datetime",
           "optional" : false,
           "description" : "Multivalue expression."

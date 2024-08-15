@@ -18,6 +18,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
@@ -399,7 +400,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final CountDownLatch latch = new CountDownLatch(indices.size());
         for (final Index index : indices) {
             indicesStopExecutor.execute(
-                () -> ActionListener.run(
+                ActionRunnable.wrap(
                     ActionListener.assertOnce(ActionListener.<Void>releasing(latch::countDown)),
                     l -> removeIndex(
                         index,

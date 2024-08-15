@@ -240,7 +240,7 @@ public class NativePrivilegeStore {
             }
 
             if (false == shouldRetryOn(ex)) {
-                logger.info("non-retryable exception encountered, won't retry privilege query request");
+                logger.debug("non-retryable exception encountered, won't retry privilege query request");
                 listener.onFailure(ex);
                 return;
             }

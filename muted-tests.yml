@@ -169,6 +169,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111918
 - class: org.elasticsearch.xpack.sql.qa.single_node.JdbcCsvSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/111923
+- class: org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.JdbcCsvSpecIT
+  method: test {datetime.testDateTimeParseHaving}
+  issue: https://github.com/elastic/elasticsearch/issues/111922
 
 # Examples:
 #

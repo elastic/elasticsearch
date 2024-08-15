@@ -53,8 +53,9 @@ public class XContentGeneratorTests extends ESTestCase {
         inputData.field("long", 420L);
         inputData.field("float", 42.0f);
         inputData.field("double", 42.0);
-        inputData.field("big_integer", BigInteger.valueOf(420));
-        inputData.field("big_decimal", BigDecimal.valueOf(42.0));
+        inputData.field("big_integer", new BigInteger("18446744073709551615"));
+        // Does not exercise JSON properly, it is just a double in JSON
+        inputData.field("big_decimal", new BigDecimal("42.2"));
         inputData.startArray("arr").value(1).value(2).endArray();
 
         inputData.endObject();

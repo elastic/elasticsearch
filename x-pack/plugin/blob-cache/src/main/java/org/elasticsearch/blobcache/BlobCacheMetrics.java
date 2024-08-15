@@ -20,7 +20,7 @@ public class BlobCacheMetrics {
     public static final String CACHE_POPULATION_REASON_ATTRIBUTE_KEY = "reason";
     public static final String CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY = "source";
     public static final String SHARD_ID_ATTRIBUTE_KEY = "shard_id";
-    public static final String INDEX_ATTRIBUTE_KEY = "index";
+    public static final String INDEX_ATTRIBUTE_KEY = "index_name";
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
@@ -58,17 +58,17 @@ public class BlobCacheMetrics {
                 "ms"
             ),
             meterRegistry.registerDoubleHistogram(
-                "es.blob_cache.populate_throughput.histogram",
+                "es.blob_cache.population.throughput.histogram",
                 "The throughput when populating the blob store from the cache",
                 "MiB/second"
             ),
             meterRegistry.registerLongCounter(
-                "es.blob_cache.populate_bytes.total",
+                "es.blob_cache.population.bytes.total",
                 "The number of bytes that have been loaded into the cache",
                 "bytes"
             ),
             meterRegistry.registerLongCounter(
-                "es.blob_cache.populate_time.total",
+                "es.blob_cache.population.time.total",
                 "The time spent copying data into the cache",
                 "milliseconds"
             )

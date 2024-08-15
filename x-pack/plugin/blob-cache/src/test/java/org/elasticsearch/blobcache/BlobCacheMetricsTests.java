@@ -39,7 +39,7 @@ public class BlobCacheMetricsTests extends ESTestCase {
             CachePopulationSource.Peer
         );
         Measurement throughputMeasurement = recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, "es.blob_cache.populate_throughput.histogram")
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, "es.blob_cache.population.throughput.histogram")
             .get(0);
         assertEquals(throughputMeasurement.getDouble(), (double) mebiBytesSent / secondsTaken, 0.0);
         assertEquals(throughputMeasurement.attributes().get(BlobCacheMetrics.SHARD_ID_ATTRIBUTE_KEY), 123);
@@ -64,7 +64,7 @@ public class BlobCacheMetricsTests extends ESTestCase {
             CachePopulationSource.Peer
         );
         Measurement totalBytesMeasurement = recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.populate_bytes.total")
+            .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.population.bytes.total")
             .get(0);
         assertEquals(totalBytesMeasurement.getLong(), ByteSizeValue.ofMb(1).getBytes());
         assertEquals(totalBytesMeasurement.attributes().get(BlobCacheMetrics.SHARD_ID_ATTRIBUTE_KEY), 123);
@@ -89,7 +89,7 @@ public class BlobCacheMetricsTests extends ESTestCase {
             CachePopulationSource.Peer
         );
         Measurement totalTimeMeasurement = recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.populate_time.total")
+            .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.population.time.total")
             .get(0);
         assertEquals(totalTimeMeasurement.getLong(), TimeUnit.SECONDS.toMillis(1));
         assertEquals(totalTimeMeasurement.attributes().get(BlobCacheMetrics.SHARD_ID_ATTRIBUTE_KEY), 123);

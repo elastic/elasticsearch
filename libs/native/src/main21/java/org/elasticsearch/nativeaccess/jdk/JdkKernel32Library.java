@@ -115,7 +115,7 @@ class JdkKernel32Library implements Kernel32Library {
 
         @Override
         public Address add(long offset) {
-            return new JdkAddress(MemorySegment.ofAddress(address.address()));
+            return new JdkAddress(MemorySegment.ofAddress(address.address() + offset));
         }
     }
 

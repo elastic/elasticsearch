@@ -167,6 +167,8 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.single_node.JdbcCsvSpecIT
   method: test {agg-ordering.testHistogramDateTimeWithCountAndOrder_1}
   issue: https://github.com/elastic/elasticsearch/issues/111918
+- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcCsvSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/111923
 
 # Examples:
 #

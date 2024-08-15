@@ -398,6 +398,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             .getBytes();
     }
 
+    public BlobCacheMetrics getBlobCacheMetrics() {
+        return blobCacheMetrics;
+    }
+
     public int getRangeSize() {
         return rangeSize;
     }

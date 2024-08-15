@@ -25,7 +25,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.Util;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Queue;
@@ -110,7 +110,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     static int defaultMaxConcurrentSearches(final int allocatedProcessors, final ClusterState state) {
         int numDateNodes = state.getNodes().getDataNodes().size();
         // we bound the default concurrency to preserve some search thread pool capacity for other searches
-        final int defaultSearchThreadPoolSize = Math.min(ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors), 10);
+        final int defaultSearchThreadPoolSize = Math.min(Util.searchOrGetThreadPoolSize(allocatedProcessors), 10);
         return Math.max(1, numDateNodes * defaultSearchThreadPoolSize);
     }
 

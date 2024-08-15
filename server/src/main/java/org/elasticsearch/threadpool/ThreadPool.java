@@ -16,8 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
@@ -237,10 +235,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
-        final int halfProc = halfAllocatedProcessors(allocatedProcessors);
-        final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
-        final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
-        final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
+        final int halfProc = Util.halfAllocatedProcessors(allocatedProcessors);
+        final int halfProcMaxAt5 = Util.halfAllocatedProcessorsMaxFive(allocatedProcessors);
+        final int halfProcMaxAt10 = Util.halfAllocatedProcessorsMaxTen(allocatedProcessors);
+        final int genericThreadPoolMax = Util.boundedBy(4 * allocatedProcessors, 128, 512);
         final Map<String, ArrayList<Instrument>> instruments = new HashMap<>();
 
         builders.put(
@@ -251,7 +249,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             Names.WRITE,
             new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000, new TaskTrackingConfig(true, 0.1))
         );
-        int searchOrGetThreadPoolSize = searchOrGetThreadPoolSize(allocatedProcessors);
+        int searchOrGetThreadPoolSize = Util.searchOrGetThreadPoolSize(allocatedProcessors);
         builders.put(
             Names.GET,
             new FixedExecutorBuilder(settings, Names.GET, searchOrGetThreadPoolSize, 1000, TaskTrackingConfig.DO_NOT_TRACK)
@@ -291,14 +289,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.MANAGEMENT,
-            new ScalingExecutorBuilder(Names.MANAGEMENT, 1, boundedBy(allocatedProcessors, 1, 5), TimeValue.timeValueMinutes(5), false)
+            new ScalingExecutorBuilder(Names.MANAGEMENT, 1, Util.boundedBy(allocatedProcessors, 1, 5), TimeValue.timeValueMinutes(5), false)
         );
         builders.put(Names.FLUSH, new ScalingExecutorBuilder(Names.FLUSH, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false));
         // TODO: remove (or refine) this temporary stateless custom refresh pool sizing once ES-7631 is solved.
         final int refreshThreads = DiscoveryNode.isStateless(settings) ? allocatedProcessors : halfProcMaxAt10;
         builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, refreshThreads, TimeValue.timeValueMinutes(5), false));
         builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false));
-        final int maxSnapshotCores = getMaxSnapshotThreadPoolSize(allocatedProcessors);
+        final int maxSnapshotCores = Util.getMaxSnapshotThreadPoolSize(allocatedProcessors);
         builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, maxSnapshotCores, TimeValue.timeValueMinutes(5), false));
         builders.put(
             Names.SNAPSHOT_META,
@@ -319,7 +317,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             new FixedExecutorBuilder(
                 settings,
                 Names.FORCE_MERGE,
-                oneEighthAllocatedProcessors(allocatedProcessors),
+                Util.oneEighthAllocatedProcessors(allocatedProcessors),
                 -1,
                 TaskTrackingConfig.DO_NOT_TRACK
             )
@@ -720,59 +718,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     public ScheduledExecutorService scheduler() {
         return this.scheduler;
-    }
-
-    /**
-     * Constrains a value between minimum and maximum values
-     * (inclusive).
-     *
-     * @param value the value to constrain
-     * @param min   the minimum acceptable value
-     * @param max   the maximum acceptable value
-     * @return min if value is less than min, max if value is greater
-     * than value, otherwise value
-     */
-    static int boundedBy(int value, int min, int max) {
-        assert min < max : min + " vs " + max;
-        return Math.min(max, Math.max(min, value));
-    }
-
-    static int halfAllocatedProcessors(final int allocatedProcessors) {
-        return (allocatedProcessors + 1) / 2;
-    }
-
-    static int halfAllocatedProcessorsMaxFive(final int allocatedProcessors) {
-        return boundedBy(halfAllocatedProcessors(allocatedProcessors), 1, 5);
-    }
-
-    static int halfAllocatedProcessorsMaxTen(final int allocatedProcessors) {
-        return boundedBy(halfAllocatedProcessors(allocatedProcessors), 1, 10);
-    }
-
-    static int twiceAllocatedProcessors(final int allocatedProcessors) {
-        return boundedBy(2 * allocatedProcessors, 2, Integer.MAX_VALUE);
-    }
-
-    public static int oneEighthAllocatedProcessors(final int allocatedProcessors) {
-        return boundedBy(allocatedProcessors / 8, 1, Integer.MAX_VALUE);
-    }
-
-    public static int searchOrGetThreadPoolSize(final int allocatedProcessors) {
-        return ((allocatedProcessors * 3) / 2) + 1;
-    }
-
-    static int getMaxSnapshotThreadPoolSize(int allocatedProcessors) {
-        final ByteSizeValue maxHeapSize = ByteSizeValue.ofBytes(Runtime.getRuntime().maxMemory());
-        return getMaxSnapshotThreadPoolSize(allocatedProcessors, maxHeapSize);
-    }
-
-    static int getMaxSnapshotThreadPoolSize(int allocatedProcessors, final ByteSizeValue maxHeapSize) {
-        // While on larger data nodes, larger snapshot threadpool size improves snapshotting on high latency blob stores,
-        // smaller instances can run into OOM issues and need a smaller snapshot threadpool size.
-        if (maxHeapSize.compareTo(new ByteSizeValue(750, ByteSizeUnit.MB)) < 0) {
-            return halfAllocatedProcessorsMaxFive(allocatedProcessors);
-        }
-        return 10;
     }
 
     static class ThreadedRunnable implements Runnable {

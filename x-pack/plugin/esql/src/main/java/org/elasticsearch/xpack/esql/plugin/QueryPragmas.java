@@ -17,7 +17,7 @@ import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.Util;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,7 +32,7 @@ public final class QueryPragmas implements Writeable {
 
     private static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
         "task_concurrency",
-        ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY))
+        Util.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY))
     );
 
     public static final Setting<DataPartitioning> DATA_PARTITIONING = Setting.enumSetting(

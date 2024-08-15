@@ -114,11 +114,8 @@ public class NativePrivilegeStore {
     );
     private static final Logger logger = LogManager.getLogger(NativePrivilegeStore.class);
 
-    // pck-private for testing
-    static final int MAX_NUMBER_OF_RETRIES = 8;
-    private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff(
-        TimeValue.timeValueMillis(50),
-        MAX_NUMBER_OF_RETRIES
+    private static final int MAX_NUMBER_OF_RETRIES = Integer.parseInt(
+        System.getProperty("es.xpack.security.authz.store.get_privileges.max_retries", "0")
     );
 
     private final Settings settings;
@@ -126,6 +123,7 @@ public class NativePrivilegeStore {
     private final SecurityIndexManager securityIndexManager;
     private volatile boolean allowExpensiveQueries;
     private final DescriptorsAndApplicationNamesCache descriptorsAndApplicationNamesCache;
+    private final BackoffPolicy backoffPolicy;
 
     public NativePrivilegeStore(
         Settings settings,
@@ -133,6 +131,26 @@ public class NativePrivilegeStore {
         SecurityIndexManager securityIndexManager,
         CacheInvalidatorRegistry cacheInvalidatorRegistry,
         ClusterService clusterService
+    ) {
+        this(
+            settings,
+            client,
+            securityIndexManager,
+            cacheInvalidatorRegistry,
+            clusterService,
+            MAX_NUMBER_OF_RETRIES == 0
+                ? BackoffPolicy.noBackoff()
+                : BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(50), MAX_NUMBER_OF_RETRIES)
+        );
+    }
+
+    NativePrivilegeStore(
+        Settings settings,
+        Client client,
+        SecurityIndexManager securityIndexManager,
+        CacheInvalidatorRegistry cacheInvalidatorRegistry,
+        ClusterService clusterService,
+        BackoffPolicy backoffPolicy
     ) {
         this.settings = settings;
         this.client = client;
@@ -149,6 +167,7 @@ public class NativePrivilegeStore {
         } else {
             descriptorsAndApplicationNamesCache = null;
         }
+        this.backoffPolicy = backoffPolicy;
     }
 
     public void getPrivileges(
@@ -204,7 +223,7 @@ public class NativePrivilegeStore {
     }
 
     private void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
-        innerGetPrivilegesWithRetry(applications, DEFAULT_BACKOFF.iterator(), listener);
+        innerGetPrivilegesWithRetry(applications, backoffPolicy.iterator(), listener);
     }
 
     private void innerGetPrivilegesWithRetry(
@@ -215,19 +234,19 @@ public class NativePrivilegeStore {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
         final Consumer<Exception> maybeRetryOnShardNotAvailableFailure = ex -> {
             if (false == isShardNotAvailableException(ex)) {
-                logger.trace("non-retryable exception encountered, won't retry privilege query request");
+                logger.debug("non-retryable exception encountered, won't retry privilege query request");
                 listener.onFailure(ex);
                 return;
             }
 
             if (false == backoff.hasNext()) {
-                logger.debug("failed to query privileges after all retries");
+                logger.info("failed to query privileges after all retries");
                 listener.onFailure(ex);
                 return;
             }
 
             final TimeValue nextBackoffTime = backoff.next();
-            logger.trace("retrying privilege query request after [{}] backoff", nextBackoffTime);
+            logger.debug("retrying privilege query request after [{}] backoff", nextBackoffTime);
             safeScheduleRetry(() -> innerGetPrivilegesWithRetry(applications, backoff, listener), nextBackoffTime, listener::onFailure);
         };
 

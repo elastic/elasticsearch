@@ -12,14 +12,18 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -46,7 +50,6 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
-import static org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore.MAX_NUMBER_OF_RETRIES;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.iterableWithSize;
@@ -57,6 +60,8 @@ import static org.mockito.Mockito.when;
 public class NativePrivilegeStoreRetryTests extends ESTestCase {
 
     private MockThreadPool threadPool;
+
+    private static final int MAX_NUMBER_OF_RETRIES = 8;
 
     @After
     public void cleanup() {
@@ -73,7 +78,8 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
             ClusterServiceUtils.createClusterService(
                 threadPool,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            )
+            ),
+            BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(50), MAX_NUMBER_OF_RETRIES)
         );
     }
 
@@ -145,7 +151,7 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
         assertThat(threadPool.delays.size(), equalTo(numRetryableFailures));
     }
 
-    public void testGetPrivilegesSucceedsWithRetriesOnUnavailableShardFailuresThrownByClient() throws Exception {
+    public void testGetPrivilegesSucceedsWithRetriesOnUnavailableShardFailuresThrownDuringSearch() throws Exception {
         final List<ApplicationPrivilegeDescriptor> sourcePrivileges = Arrays.asList(
             new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap()),
             new ApplicationPrivilegeDescriptor("myapp", "user", newHashSet("action:login", "data:read/*"), emptyMap()),
@@ -190,7 +196,7 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
         assertThat(threadPool.delays.size(), equalTo(numRetryableFailures));
     }
 
-    public void testGetPrivilegesThrowsWhenOutOfRetriesWithRetriesOnUnavailableShardFailures() throws Exception {
+    public void testGetPrivilegesThrowsWhenOutOfRetriesOnUnavailableShardFailures() throws Exception {
         var resultLatch = new CountDownLatch(MAX_NUMBER_OF_RETRIES);
         threadPool = new MockThreadPool(getTestName(), resultLatch);
         var securityIndex = defaultSecurityIndex();
@@ -205,12 +211,12 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                // nothing to do
+                fail("should not get here");
             }
 
             @Override
             public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-                ActionListener.respondAndRelease(listener, SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+                fail("should not get here");
             }
         }, securityIndex);
 
@@ -223,14 +229,11 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
         assertThat(threadPool.delays.size(), equalTo(MAX_NUMBER_OF_RETRIES));
     }
 
-    public void testGetPrivilegesThrowsOnUnavailableShardFailuresWhenOutOfRetries() throws Exception {
+    public void testGetPrivilegesThrowsWhenOutOfRetriesOnUnavailableShardFailuresThrownDuringSearch() throws Exception {
         int numRetryableFailures = MAX_NUMBER_OF_RETRIES + 1;
         var resultLatch = new CountDownLatch(MAX_NUMBER_OF_RETRIES);
         threadPool = new MockThreadPool(getTestName(), resultLatch);
         var securityIndex = defaultSecurityIndex();
-        // always fails
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false);
-        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(unavailableShardsException());
 
         var store = setupStore(threadPool, new NoOpClient(threadPool) {
             @Override
@@ -255,6 +258,42 @@ public class NativePrivilegeStoreRetryTests extends ESTestCase {
 
         expectThrows(UnavailableShardsException.class, future::actionGet);
         assertThat(threadPool.delays.size(), equalTo(numRetryableFailures - 1));
+    }
+
+    public void testGetPrivilegesDoesNotRetryOnUnretriableFailure() throws Exception {
+        var resultLatch = new CountDownLatch(0);
+        threadPool = new MockThreadPool(getTestName(), resultLatch);
+        var securityIndex = defaultSecurityIndex();
+        // always fails
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false);
+        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(
+            // we do not retry on index closed
+            new IndexClosedException(new Index("name", ClusterState.UNKNOWN_UUID))
+        );
+
+        var store = setupStore(threadPool, new NoOpClient(threadPool) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                fail("should not get here");
+            }
+
+            @Override
+            public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
+                fail("should not get here");
+            }
+        }, securityIndex);
+
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, future);
+
+        assertTrue(resultLatch.await(5, TimeUnit.SECONDS));
+
+        expectThrows(IndexClosedException.class, future::actionGet);
+        assertThat(threadPool.delays.size(), equalTo(0));
     }
 
     private static class MockThreadPool extends TestThreadPool {

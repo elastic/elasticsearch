@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -109,7 +110,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             listener.onFailure(
                 new ElasticsearchStatusException(
                     format(
-                        "The [allow_partial_search_results] parameter cannot be used while the cluster is still upgrading. Please wait until the upgrade is fully completed and try again."
+                        "The [allow_partial_search_results] parameter cannot be used while the cluster is still upgrading. " +
+                                "Please wait until the upgrade is fully completed and try again."
                     ),
                     RestStatus.BAD_REQUEST
                 )

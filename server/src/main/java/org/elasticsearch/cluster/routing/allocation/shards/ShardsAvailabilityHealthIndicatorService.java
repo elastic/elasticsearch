@@ -40,9 +40,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -56,6 +58,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -107,6 +110,21 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final String NAME = "shards_availability";
 
     private static final String DATA_TIER_ALLOCATION_DECIDER_NAME = "data_tier";
+
+    /**
+     * Allows the shard_availability health indicator to return YELLOW if a primary
+     * is STARTED, but a replica is still INITIALIZING and the replica has been unassigned
+     * for less than the value of this setting. The default value of 0 seconds will cause
+     * shard_availability health to be RED in this situation.
+     */
+    public static final Setting<TimeValue> REPLICA_UNASSIGNED_BUFFER_TIME = Setting.timeSetting(
+        "health.shard_availability.replica_unassigned_buffer_time",
+        TimeValue.timeValueSeconds(0),
+        TimeValue.timeValueSeconds(0),
+        TimeValue.timeValueSeconds(20),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     private final ClusterService clusterService;
     private final AllocationService allocationService;
@@ -439,10 +457,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         final Map<Diagnosis.Definition, Set<String>> diagnosisDefinitions = new HashMap<>();
 
         public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
+            final TimeValue replicaUnassignedThreshold = clusterService.getClusterSettings().get(REPLICA_UNASSIGNED_BUFFER_TIME);
             boolean isNew = isUnassignedDueToNewInitialization(routing, state);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
             boolean allUnavailable = areAllShardsOfThisTypeUnavailable(routing, state)
-                && isNewlyCreatedAndInitializingReplica(routing, state) == false;
+                && isNewlyCreatedAndInitializingReplica(routing, state, replicaUnassignedThreshold, Clock.systemUTC()) == false;
             if (allUnavailable) {
                 indicesWithAllShardsUnavailable.add(routing.getIndexName());
             }
@@ -520,7 +539,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * (a newly created index having unassigned replicas for example), we don't want the cluster
      * to turn "unhealthy" for the tiny amount of time before the shards are allocated.
      */
-    static boolean isNewlyCreatedAndInitializingReplica(ShardRouting routing, ClusterState state) {
+    static boolean isNewlyCreatedAndInitializingReplica(
+        ShardRouting routing,
+        ClusterState state,
+        TimeValue replicaUnassignedThreshold,
+        Clock clock
+    ) {
         if (routing.active()) {
             return false;
         }
@@ -528,10 +552,17 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             return false;
         }
         ShardRouting primary = state.routingTable().shardRoutingTable(routing.shardId()).primaryShard();
-        if (primary.active()) {
-            return false;
+        if (primary.active() == false) {
+            return ClusterShardHealth.getInactivePrimaryHealth(primary) == ClusterHealthStatus.YELLOW;
         }
-        return ClusterShardHealth.getInactivePrimaryHealth(primary) == ClusterHealthStatus.YELLOW;
+
+        Optional<UnassignedInfo> ui = Optional.ofNullable(routing.unassignedInfo());
+        boolean isNewlyCreated = ui.filter(info -> info.failedAllocations() == 0)
+            .map(info -> info.lastAllocationStatus() != UnassignedInfo.AllocationStatus.DECIDERS_NO)
+            .orElse(false);
+        var cutOffTime = clock.millis() - replicaUnassignedThreshold.millis();
+        boolean hasBeenUnassignedLessThanThreshold = ui.map(info -> info.unassignedTimeMillis() > cutOffTime).orElse(false);
+        return isNewlyCreated && hasBeenUnassignedLessThanThreshold;
     }
 
     private static boolean isUnassignedDueToTimelyRestart(ShardRouting routing, NodesShutdownMetadata shutdowns) {

@@ -356,7 +356,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             createIndices(bulkRequest, indicesToAutoCreate, indicesThatCannotBeCreated, responses, refs);
             rollOverDataStreams(bulkRequest, dataStreamsToBeRolledOver, false, responses, refs);
             // TODO: Failure store rollovers have been disabled because they previously were being done using indices options.
-            //  They will need to use the naming scheme going forward.
+            // They will need to use the naming scheme going forward.
             // rollOverDataStreams(bulkRequest, failureStoresToBeRolledOver, true, responses, refs);
         }
     }

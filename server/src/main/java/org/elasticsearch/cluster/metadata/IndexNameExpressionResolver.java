@@ -367,8 +367,7 @@ public class IndexNameExpressionResolver {
             } else if (indexAbstraction.getType() == Type.DATA_STREAM && context.isResolveToWriteIndex()) {
                 resolveWriteIndexForDataStreams(context, (DataStream) indexAbstraction, concreteIndicesResult);
             } else {
-                if (resolvesToMoreThanOneIndex(indexAbstraction)
-                    && context.getOptions().allowAliasesToMultipleIndices() == false) {
+                if (resolvesToMoreThanOneIndex(indexAbstraction) && context.getOptions().allowAliasesToMultipleIndices() == false) {
                     String[] indexNames = new String[indexAbstraction.getIndices().size()];
                     int i = 0;
                     for (Index indexName : indexAbstraction.getIndices()) {

@@ -33,7 +33,6 @@ import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -944,11 +943,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             if ((configuredFloorSegmentMerge == null || configuredFloorSegmentMerge.equals(targetMergePolicyFloorSegment) == false)
                 || (configuredMergeFactor == null || configuredMergeFactor.equals(targetMergePolicyFactor) == false)) {
                 UpdateSettingsRequest updateMergePolicySettingsRequest = new UpdateSettingsRequest();
-                updateMergePolicySettingsRequest.indicesOptions(
-                    IndicesOptions.builder(updateMergePolicySettingsRequest.indicesOptions())
-                        .failureStoreOptions(new IndicesOptions.FailureStoreOptions(true, true))
-                        .build()
-                );
+                // TODO: This needs to target failure stores and backing indices for the given index
                 updateMergePolicySettingsRequest.indices(indexName);
                 updateMergePolicySettingsRequest.settings(
                     Settings.builder()
@@ -1407,11 +1402,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     ) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
         if (rolloverFailureStore) {
-            rolloverRequest.setIndicesOptions(
-                IndicesOptions.builder(rolloverRequest.indicesOptions())
-                    .failureStoreOptions(opts -> opts.includeFailureIndices(true).includeRegularIndices(false))
-                    .build()
-            );
+            // TODO: We need to target the rollover to the failure store somehow here
         }
         rolloverRequest.setConditions(rolloverConfiguration.resolveRolloverConditions(dataRetention));
         return rolloverRequest;

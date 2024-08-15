@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
@@ -129,15 +128,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         response = client.execute(CreateDataStreamAction.INSTANCE, request).get();
         assertTrue(response.isAcknowledged());
 
-        // Initialize the failure store.
-        RolloverRequest rolloverRequest = new RolloverRequest("with-fs", null);
-        rolloverRequest.setIndicesOptions(
-            IndicesOptions.builder(rolloverRequest.indicesOptions())
-                .failureStoreOptions(b -> b.includeRegularIndices(false).includeFailureIndices(true))
-                .build()
-        );
-        response = client.execute(RolloverAction.INSTANCE, rolloverRequest).get();
-        assertTrue(response.isAcknowledged());
+        // TODO: Initialize the failure store.
 
         // Resolve backing index names after data streams have been created:
         // (these names have a date component, and running around midnight could lead to test failures otherwise)

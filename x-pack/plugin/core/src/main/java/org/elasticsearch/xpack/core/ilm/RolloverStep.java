@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -125,11 +124,7 @@ public class RolloverStep extends AsyncActionStep {
         // Calling rollover with no conditions will always roll over the index
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(TimeValue.MAX_VALUE);
         if (targetFailureStore) {
-            rolloverRequest.setIndicesOptions(
-                IndicesOptions.builder(rolloverRequest.indicesOptions())
-                    .failureStoreOptions(opts -> opts.includeFailureIndices(true).includeRegularIndices(false))
-                    .build()
-            );
+            // TODO: target operation to failure store
         }
         // We don't wait for active shards when we perform the rollover because the
         // {@link org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep} step will do so

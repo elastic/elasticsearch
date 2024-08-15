@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -177,11 +176,6 @@ public class RolloverRequestTests extends ESTestCase {
                 .build()
         );
         originalRequest.lazy(randomBoolean());
-        originalRequest.setIndicesOptions(
-            IndicesOptions.builder(originalRequest.indicesOptions())
-                .failureStoreOptions(new IndicesOptions.FailureStoreOptions(randomBoolean(), randomBoolean()))
-                .build()
-        );
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalRequest.writeTo(out);
@@ -191,10 +185,6 @@ public class RolloverRequestTests extends ESTestCase {
                 assertThat(cloneRequest.getNewIndexName(), equalTo(originalRequest.getNewIndexName()));
                 assertThat(cloneRequest.getRolloverTarget(), equalTo(originalRequest.getRolloverTarget()));
                 assertThat(cloneRequest.isLazy(), equalTo(originalRequest.isLazy()));
-                assertThat(
-                    cloneRequest.indicesOptions().failureStoreOptions(),
-                    equalTo(originalRequest.indicesOptions().failureStoreOptions())
-                );
                 for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().getConditions().entrySet()) {
                     Condition<?> condition = originalRequest.getConditions().getConditions().get(entry.getKey());
                     // here we compare the string representation as there is some information loss when serializing
@@ -262,11 +252,6 @@ public class RolloverRequestTests extends ESTestCase {
 
         {
             RolloverRequest rolloverRequest = new RolloverRequest("alias-index", "new-index-name");
-            rolloverRequest.setIndicesOptions(
-                IndicesOptions.builder(rolloverRequest.indicesOptions())
-                    .failureStoreOptions(new IndicesOptions.FailureStoreOptions(true, true))
-                    .build()
-            );
             ActionRequestValidationException validationException = rolloverRequest.validate();
             assertNotNull(validationException);
             assertEquals(1, validationException.validationErrors().size());

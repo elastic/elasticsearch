@@ -1,5 +1,0 @@
-pr: 111730
-summary: "Add callback for copy-to-cache metrics, additional `BlobCacheMetrics`"
-area: Store
-type: enhancement
-issues: []

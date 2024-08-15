@@ -526,6 +526,45 @@ public class SubscribableListenerTests extends ESTestCase {
         }
     }
 
+    public void testAndThenDropResultSuccess() {
+        final var initialListener = new SubscribableListener<>();
+        final var forked = new AtomicReference<ActionListener<Object>>();
+
+        final var chainedListener = initialListener.andThen(forked::set);
+        assertNull(forked.get());
+
+        final var o1 = new Object();
+        initialListener.onResponse(o1);
+        assertSame(chainedListener, forked.get());
+        assertFalse(chainedListener.isDone());
+    }
+
+    public void testAndThenDropResultThrowException() {
+        final var initialListener = new SubscribableListener<>();
+        final var forked = new AtomicReference<ActionListener<Object>>();
+
+        final var chainedListener = initialListener.andThen(l -> {
+            forked.set(l);
+            throw new ElasticsearchException("simulated");
+        });
+        assertNull(forked.get());
+
+        final var o1 = new Object();
+        initialListener.onResponse(o1);
+        assertSame(chainedListener, forked.get());
+        assertComplete(chainedListener, "simulated");
+    }
+
+    public void testAndThenDropResultFailure() {
+        final var initialListener = new SubscribableListener<>();
+
+        final var chainedListener = initialListener.andThen(l -> fail("should not be called"));
+        assertFalse(chainedListener.isDone());
+
+        initialListener.onFailure(new ElasticsearchException("simulated"));
+        assertComplete(chainedListener, "simulated");
+    }
+
     public void testAndThenApplySuccess() throws Exception {
         final var initialListener = new SubscribableListener<>();
         final var result = new AtomicReference<>();

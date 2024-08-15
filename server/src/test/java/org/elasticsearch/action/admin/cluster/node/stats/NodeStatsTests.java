@@ -561,7 +561,12 @@ public class NodeStatsTests extends ESTestCase {
 
     private static CommonStats createIndexLevelCommonStats() {
         CommonStats stats = new CommonStats(new CommonStatsFlags().clear().set(CommonStatsFlags.Flag.Mappings, true));
-        stats.nodeMappings = new NodeMappingStats(randomNonNegativeLong(), randomNonNegativeLong());
+        stats.nodeMappings = new NodeMappingStats(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
         return stats;
     }
 

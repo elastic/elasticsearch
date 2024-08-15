@@ -27,7 +27,6 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.UnsupportedValueSource;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverStatus;
@@ -41,6 +40,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ParserConstructor;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -63,9 +63,14 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContent.wrapAsToXConte
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
-import static org.elasticsearch.xpack.esql.action.ResponseValueUtils.valuesToPage;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -122,7 +127,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     private ColumnInfoImpl randomColumnInfo() {
         DataType type = randomValueOtherThanMany(
-            t -> false == DataType.isPrimitive(t) || t == DataType.DATE_PERIOD || t == DataType.TIME_DURATION || t == DataType.PARTIAL_AGG,
+            t -> false == DataType.isPrimitiveAndSupported(t)
+                || t == DataType.DATE_PERIOD
+                || t == DataType.TIME_DURATION
+                || t == DataType.PARTIAL_AGG,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType());
@@ -149,9 +157,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 );
                 case DATETIME -> ((LongBlock.Builder) builder).appendLong(randomInstant().toEpochMilli());
                 case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(randomBoolean());
-                case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendBytesRef(
-                    new BytesRef(UnsupportedValueSource.UNSUPPORTED_OUTPUT)
-                );
+                case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();
+                // TODO - add a random instant thing here?
+                case DATE_NANOS -> ((LongBlock.Builder) builder).appendLong(randomLong());
                 case VERSION -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
                 case GEO_POINT -> ((BytesRefBlock.Builder) builder).appendBytesRef(GEO.asWkb(GeometryTestUtils.randomPoint()));
                 case CARTESIAN_POINT -> ((BytesRefBlock.Builder) builder).appendBytesRef(CARTESIAN.asWkb(ShapeTestUtils.randomPoint()));
@@ -254,6 +262,13 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         return ResponseBuilder.fromXContent(parser);
     }
 
+    /**
+     * Used to test round tripping through x-content. Unlike lots of other
+     * response objects, ESQL doesn't have production code that can parse
+     * the response because it doesn't need it. But we want to test random
+     * responses are valid. This helps with that by parsing it into a
+     * response.
+     */
     public static class ResponseBuilder {
         private static final ParseField ID = new ParseField("id");
         private static final ParseField IS_RUNNING = new ParseField("is_running");
@@ -625,4 +640,61 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         values.forEachRemaining(l::add);
         return l;
     }
+
+    /**
+     * Converts a list of values to Pages so that we can parse from xcontent, so we
+     * can test round tripping. This is functionally the inverse of {@link PositionToXContent}.
+     */
+    static Page valuesToPage(BlockFactory blockFactory, List<ColumnInfoImpl> columns, List<List<Object>> values) {
+        List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
+        List<Block.Builder> results = dataTypes.stream()
+            .map(c -> PlannerUtils.toElementType(c).newBlockBuilder(values.size(), blockFactory))
+            .toList();
+
+        for (List<Object> row : values) {
+            for (int c = 0; c < row.size(); c++) {
+                var builder = results.get(c);
+                var value = row.get(c);
+                switch (dataTypes.get(c)) {
+                    case UNSIGNED_LONG -> ((LongBlock.Builder) builder).appendLong(longToUnsignedLong(((Number) value).longValue(), true));
+                    case LONG, COUNTER_LONG -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
+                    case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
+                    case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
+                    case KEYWORD, TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
+                    case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();
+                    case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToIP(value.toString()));
+                    case DATETIME -> {
+                        long longVal = dateTimeToLong(value.toString());
+                        ((LongBlock.Builder) builder).appendLong(longVal);
+                    }
+                    case DATE_NANOS -> {
+                        long longVal = dateNanosToLong(value.toString());
+                        ((LongBlock.Builder) builder).appendLong(longVal);
+                    }
+                    case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(((Boolean) value));
+                    case NULL -> builder.appendNull();
+                    case VERSION -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToVersion(new BytesRef(value.toString())));
+                    case SOURCE -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, ?> o = (Map<String, ?>) value;
+                        try {
+                            try (XContentBuilder sourceBuilder = JsonXContent.contentBuilder()) {
+                                sourceBuilder.map(o);
+                                ((BytesRefBlock.Builder) builder).appendBytesRef(BytesReference.bytes(sourceBuilder).toBytesRef());
+                            }
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    }
+                    case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> {
+                        // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
+                        BytesRef wkb = stringToSpatial(value.toString());
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
+                    }
+                }
+            }
+        }
+        return new Page(results.stream().map(Block.Builder::build).toArray(Block[]::new));
+    }
+
 }

@@ -32,7 +32,9 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
     @Override
@@ -462,5 +464,40 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         boolQuery.must(termQuery);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> boolQuery.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testShallowCopy() {
+        BoolQueryBuilder orig = createTestQueryBuilder();
+        BoolQueryBuilder shallowCopy = orig.shallowCopy();
+        assertThat(shallowCopy.adjustPureNegative(), equalTo(orig.adjustPureNegative()));
+        assertThat(shallowCopy.minimumShouldMatch(), equalTo(orig.minimumShouldMatch()));
+        assertThat(shallowCopy.must(), equalTo(orig.must()));
+        assertThat(shallowCopy.mustNot(), equalTo(orig.mustNot()));
+        assertThat(shallowCopy.should(), equalTo(orig.should()));
+        assertThat(shallowCopy.filter(), equalTo(orig.filter()));
+
+        QueryBuilder b = new MatchQueryBuilder("foo", "bar");
+        switch (between(0, 3)) {
+            case 0 -> {
+                shallowCopy.must(b);
+                assertThat(shallowCopy.must(), hasItem(b));
+                assertThat(orig.must(), not(hasItem(b)));
+            }
+            case 1 -> {
+                shallowCopy.mustNot(b);
+                assertThat(shallowCopy.mustNot(), hasItem(b));
+                assertThat(orig.mustNot(), not(hasItem(b)));
+            }
+            case 2 -> {
+                shallowCopy.should(b);
+                assertThat(shallowCopy.should(), hasItem(b));
+                assertThat(orig.should(), not(hasItem(b)));
+            }
+            case 3 -> {
+                shallowCopy.filter(b);
+                assertThat(shallowCopy.filter(), hasItem(b));
+                assertThat(orig.filter(), not(hasItem(b)));
+            }
+        }
     }
 }

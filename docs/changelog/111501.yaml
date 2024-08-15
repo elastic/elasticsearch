@@ -1,0 +1,6 @@
+pr: 111501
+summary: "[ES|QL] Combine Disjunctive CIDRMatch"
+area: ES|QL
+type: enhancement
+issues:
+ - 105143

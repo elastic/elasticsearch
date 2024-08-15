@@ -23,6 +23,7 @@ import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.CodecProvider;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -60,7 +61,7 @@ public final class EngineConfig {
     private final MergePolicy mergePolicy;
     private final Analyzer analyzer;
     private final Similarity similarity;
-    private final CodecService codecService;
+    private final CodecProvider codecProvider;
     private final Engine.EventListener eventListener;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
@@ -97,9 +98,11 @@ public final class EngineConfig {
      */
     public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", s -> {
         switch (s) {
-            case "default":
-            case "best_compression":
-            case "lucene_default":
+            case CodecService.DEFAULT_CODEC:
+            case CodecService.LEGACY_DEFAULT_CODEC:
+            case CodecService.BEST_COMPRESSION_CODEC:
+            case CodecService.LEGACY_BEST_COMPRESSION_CODEC:
+            case CodecService.LUCENE_DEFAULT_CODEC:
                 return s;
             default:
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
@@ -148,7 +151,7 @@ public final class EngineConfig {
         MergePolicy mergePolicy,
         Analyzer analyzer,
         Similarity similarity,
-        CodecService codecService,
+        CodecProvider codecProvider,
         Engine.EventListener eventListener,
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
@@ -176,7 +179,7 @@ public final class EngineConfig {
         this.mergePolicy = mergePolicy;
         this.analyzer = analyzer;
         this.similarity = similarity;
-        this.codecService = codecService;
+        this.codecProvider = codecProvider;
         this.eventListener = eventListener;
         codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
         this.mapperService = mapperService;
@@ -252,14 +255,22 @@ public final class EngineConfig {
      * </p>
      */
     public Codec getCodec() {
-        return codecService.codec(codecName);
+        return codecProvider.codec(codecName);
     }
 
     /**
-     * @return the {@link CodecService}
+     * @return the {@link CodecProvider}
      */
-    public CodecService getCodecService() {
-        return codecService;
+    public CodecProvider getCodecProvider() {
+        return codecProvider;
+    }
+
+    /**
+     * @return the {@link CodecProvider}
+     */
+    @Deprecated // to avoid breaking serverless, just temporary
+    public CodecProvider getCodecService() {
+        return codecProvider;
     }
 
     /**

@@ -106,8 +106,12 @@ public final class KeyStoreUtil {
      * @param certificates The root certificates to trust
      */
     public static KeyStore buildTrustStore(Iterable<Certificate> certificates) throws GeneralSecurityException {
+        return buildTrustStore(certificates, KeyStore.getDefaultType());
+    }
+
+    public static KeyStore buildTrustStore(Iterable<Certificate> certificates, String type) throws GeneralSecurityException {
         assert certificates != null : "Cannot create keystore with null certificates";
-        KeyStore store = buildNewKeyStore();
+        KeyStore store = buildNewKeyStore(type);
         int counter = 0;
         for (Certificate certificate : certificates) {
             store.setCertificateEntry("cert-" + counter, certificate);
@@ -117,7 +121,11 @@ public final class KeyStoreUtil {
     }
 
     private static KeyStore buildNewKeyStore() throws GeneralSecurityException {
-        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        return buildNewKeyStore(KeyStore.getDefaultType());
+    }
+
+    private static KeyStore buildNewKeyStore(String type) throws GeneralSecurityException {
+        KeyStore keyStore = KeyStore.getInstance(type);
         try {
             keyStore.load(null, null);
         } catch (IOException e) {

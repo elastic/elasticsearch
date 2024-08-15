@@ -137,7 +137,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         this.repositoriesStatsArchive = new RepositoriesStatsArchive(
             REPOSITORIES_STATS_ARCHIVE_RETENTION_PERIOD.get(settings),
             REPOSITORIES_STATS_ARCHIVE_MAX_ARCHIVED_STATS.get(settings),
-            threadPool::relativeTimeInMillis
+            threadPool.relativeTimeInMillisSupplier()
         );
         this.preRestoreChecks = preRestoreChecks;
     }
@@ -166,7 +166,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             // When publication has completed (and all acks received or timed out) then verify the repository.
             // (if acks timed out then acknowledgementStep completes before the master processes this cluster state, hence why we have
             // to wait for the publication to be complete too)
-            .<RegisterRepositoryTaskResult>andThen((clusterUpdateStep, ignored) -> {
+            .<RegisterRepositoryTaskResult>andThen(clusterUpdateStep -> {
                 final ListenableFuture<AcknowledgedResponse> acknowledgementStep = new ListenableFuture<>();
                 final ListenableFuture<Boolean> publicationStep = new ListenableFuture<>(); // Boolean==changed.
                 submitUnbatchedTask(
@@ -221,7 +221,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         })
                         // When verification has completed, get the repository data for the first time
                         .<RepositoryData>andThen(
-                            (getRepositoryDataStep, ignored) -> threadPool.generic()
+                            getRepositoryDataStep -> threadPool.generic()
                                 .execute(
                                     ActionRunnable.wrap(
                                         getRepositoryDataStep,

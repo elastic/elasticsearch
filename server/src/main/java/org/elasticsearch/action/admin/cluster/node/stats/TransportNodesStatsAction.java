@@ -22,9 +22,9 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.tasks.CancellableTask;
@@ -57,8 +57,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        NodeService nodeService,
         ActionFilters actionFilters,
+        NodeService nodeService,
         NodeClient client
     ) {
         super(
@@ -92,14 +92,15 @@ public class TransportNodesStatsAction extends TransportNodesAction<
                 TransportGetAllocationStatsAction.TYPE,
                 new TransportGetAllocationStatsAction.Request(
                     Objects.requireNonNullElse(request.timeout(), RestUtils.REST_MASTER_TIMEOUT_DEFAULT),
-                    new TaskId(clusterService.localNode().getId(), task.getId())
+                    new TaskId(clusterService.localNode().getId(), task.getId()),
+                    metrics
                 ),
-                listener.delegateFailure((l, r) -> {
-                    ActionListener.respondAndRelease(
+                listener.delegateFailure(
+                    (l, r) -> ActionListener.respondAndRelease(
                         l,
                         newResponse(request, merge(responses, r.getNodeAllocationStats(), r.getDiskThresholdSettings()), failures)
-                    );
-                })
+                    )
+                )
             );
         } else {
             ActionListener.run(listener, l -> ActionListener.respondAndRelease(l, newResponse(request, responses, failures)));

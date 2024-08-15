@@ -42,7 +42,7 @@ import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.features.NodeFeaturesFixupListener;
 import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionProvider;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
@@ -64,10 +64,6 @@ import org.elasticsearch.cluster.service.TransportVersionsFixupListener;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -134,6 +130,10 @@ import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.injection.guice.Injector;
+import org.elasticsearch.injection.guice.Key;
+import org.elasticsearch.injection.guice.Module;
+import org.elasticsearch.injection.guice.ModulesBuilder;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -588,25 +588,25 @@ class NodeConstruction {
         return scriptService;
     }
 
-    private DataStreamGlobalRetentionResolver createDataStreamServicesAndGlobalRetentionResolver(
+    private DataStreamGlobalRetentionProvider createDataStreamServicesAndGlobalRetentionResolver(
         ThreadPool threadPool,
         ClusterService clusterService,
         IndicesService indicesService,
         MetadataCreateIndexService metadataCreateIndexService
     ) {
-        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = new DataStreamGlobalRetentionResolver(
+        DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider = new DataStreamGlobalRetentionProvider(
             DataStreamFactoryRetention.load(pluginsService, clusterService.getClusterSettings())
         );
-        modules.bindToInstance(DataStreamGlobalRetentionResolver.class, dataStreamGlobalRetentionResolver);
+        modules.bindToInstance(DataStreamGlobalRetentionProvider.class, dataStreamGlobalRetentionProvider);
         modules.bindToInstance(
             MetadataCreateDataStreamService.class,
             new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService)
         );
         modules.bindToInstance(
             MetadataDataStreamsService.class,
-            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionResolver)
+            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionProvider)
         );
-        return dataStreamGlobalRetentionResolver;
+        return dataStreamGlobalRetentionProvider;
     }
 
     private UpdateHelper createUpdateHelper(DocumentParsingProvider documentParsingProvider, ScriptService scriptService) {
@@ -728,7 +728,7 @@ class NodeConstruction {
                 clusterService::state,
                 clusterService.getClusterSettings(),
                 client,
-                threadPool::relativeTimeInMillis,
+                threadPool.relativeTimeInMillisSupplier(),
                 rerouteService
             )::onNewInfo
         );
@@ -815,7 +815,7 @@ class NodeConstruction {
             threadPool
         );
 
-        final DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = createDataStreamServicesAndGlobalRetentionResolver(
+        final DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider = createDataStreamServicesAndGlobalRetentionResolver(
             threadPool,
             clusterService,
             indicesService,
@@ -840,7 +840,7 @@ class NodeConstruction {
             IndicesService indicesService,
             FeatureService featureService,
             SystemIndices systemIndices,
-            DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver,
+            DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider,
             DocumentParsingProvider documentParsingProvider
         ) implements Plugin.PluginServices {}
         PluginServiceInstances pluginServices = new PluginServiceInstances(
@@ -861,7 +861,7 @@ class NodeConstruction {
             indicesService,
             featureService,
             systemIndices,
-            dataStreamGlobalRetentionResolver,
+            dataStreamGlobalRetentionProvider,
             documentParsingProvider
         );
 
@@ -895,7 +895,7 @@ class NodeConstruction {
                 systemIndices,
                 indexSettingProviders,
                 metadataCreateIndexService,
-                dataStreamGlobalRetentionResolver
+                dataStreamGlobalRetentionProvider
             ),
             pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll)
         );
@@ -1447,7 +1447,12 @@ class NodeConstruction {
             ClusterCoordinationPlugin.PersistedClusterStateServiceFactory.class
         ).map(f -> f.newPersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool, compatibilityVersions))
             .orElseGet(
-                () -> new PersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool::relativeTimeInMillis)
+                () -> new PersistedClusterStateService(
+                    nodeEnvironment,
+                    xContentRegistry,
+                    clusterSettings,
+                    threadPool.relativeTimeInMillisSupplier()
+                )
             );
 
         return b -> b.bind(PersistedClusterStateService.class).toInstance(service);
@@ -1460,7 +1465,7 @@ class NodeConstruction {
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
         MetadataCreateIndexService metadataCreateIndexService,
-        DataStreamGlobalRetentionResolver globalRetentionResolver
+        DataStreamGlobalRetentionProvider globalRetentionResolver
     ) {
         List<ReservedClusterStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 

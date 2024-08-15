@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.shards.ShardCounts;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -79,7 +80,8 @@ public class ShardLimitValidatorTests extends ESTestCase {
                 + maxShards
                 + "] maximum "
                 + group
-                + " shards open",
+                + " shards open; for more information, see "
+                + ReferenceDocs.MAX_SHARDS_PER_NODE,
             ShardLimitValidator.errorMessageFrom(shardLimitsResult)
         );
         assertEquals(shardLimitsResult.maxShardsInCluster(), maxShards);
@@ -151,7 +153,9 @@ public class ShardLimitValidatorTests extends ESTestCase {
                 + maxShards
                 + "] maximum "
                 + group
-                + " shards open;",
+                + " shards open; for more information, see "
+                + ReferenceDocs.MAX_SHARDS_PER_NODE
+                + ";",
             exception.getMessage()
         );
     }
@@ -179,7 +183,9 @@ public class ShardLimitValidatorTests extends ESTestCase {
                 + shardsPerNode * nodesInCluster
                 + "] maximum "
                 + group
-                + " shards open;",
+                + " shards open; for more information, see "
+                + ReferenceDocs.MAX_SHARDS_PER_NODE
+                + ";",
             exception.getMessage()
         );
     }

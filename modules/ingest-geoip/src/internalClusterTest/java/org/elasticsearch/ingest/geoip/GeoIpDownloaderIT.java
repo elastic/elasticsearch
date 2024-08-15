@@ -66,6 +66,7 @@ import java.util.stream.StreamSupport;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -688,12 +689,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             .forEach(path -> {
                 try {
                     Files.createDirectories(path);
-                    Files.copy(GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-City.mmdb"), path.resolve("GeoLite2-City.mmdb"));
-                    Files.copy(GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-ASN.mmdb"), path.resolve("GeoLite2-ASN.mmdb"));
-                    Files.copy(
-                        GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-Country.mmdb"),
-                        path.resolve("GeoLite2-Country.mmdb")
-                    );
+                    copyDefaultDatabases(path);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }

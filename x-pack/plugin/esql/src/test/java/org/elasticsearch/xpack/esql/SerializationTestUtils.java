@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -36,7 +37,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -51,7 +52,7 @@ public class SerializationTestUtils {
         assertSerialization(plan, EsqlTestUtils.TEST_CFG);
     }
 
-    public static void assertSerialization(PhysicalPlan plan, EsqlConfiguration configuration) {
+    public static void assertSerialization(PhysicalPlan plan, Configuration configuration) {
         var deserPlan = serializeDeserialize(
             plan,
             PlanStreamOutput::writePhysicalPlanNode,
@@ -62,7 +63,7 @@ public class SerializationTestUtils {
     }
 
     public static void assertSerialization(LogicalPlan plan) {
-        var deserPlan = serializeDeserialize(plan, PlanStreamOutput::writeLogicalPlanNode, PlanStreamInput::readLogicalPlanNode);
+        var deserPlan = serializeDeserialize(plan, PlanStreamOutput::writeNamedWriteable, in -> in.readNamedWriteable(LogicalPlan.class));
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(plan, unused -> deserPlan);
     }
 
@@ -70,7 +71,7 @@ public class SerializationTestUtils {
         assertSerialization(expression, EsqlTestUtils.TEST_CFG);
     }
 
-    public static void assertSerialization(Expression expression, EsqlConfiguration configuration) {
+    public static void assertSerialization(Expression expression, Configuration configuration) {
         Expression deserExpression = serializeDeserialize(
             expression,
             PlanStreamOutput::writeNamedWriteable,
@@ -84,7 +85,7 @@ public class SerializationTestUtils {
         return serializeDeserialize(orig, serializer, deserializer, EsqlTestUtils.TEST_CFG);
     }
 
-    public static <T> T serializeDeserialize(T orig, Serializer<T> serializer, Deserializer<T> deserializer, EsqlConfiguration config) {
+    public static <T> T serializeDeserialize(T orig, Serializer<T> serializer, Deserializer<T> deserializer, Configuration config) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             PlanStreamOutput planStreamOutput = new PlanStreamOutput(out, planNameRegistry, config);
             serializer.write(planStreamOutput, orig);
@@ -126,6 +127,8 @@ public class SerializationTestUtils {
         entries.addAll(Expression.getNamedWriteables());
         entries.addAll(EsqlScalarFunction.getNamedWriteables());
         entries.addAll(AggregateFunction.getNamedWriteables());
+        entries.addAll(Block.getNamedWriteables());
+        entries.addAll(LogicalPlan.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }
 }

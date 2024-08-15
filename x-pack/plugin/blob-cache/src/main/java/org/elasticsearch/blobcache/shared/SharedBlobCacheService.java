@@ -398,6 +398,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             .getBytes();
     }
 
+    public BlobCacheMetrics getBlobCacheMetrics() {
+        return blobCacheMetrics;
+    }
+
     public int getRangeSize() {
         return rangeSize;
     }
@@ -1116,7 +1120,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     IntConsumer progressUpdater
                 ) throws IOException {
                     writer.fillCacheRange(channel, channelPos, streamFactory, relativePos, length, progressUpdater);
-                    var elapsedTime = TimeUnit.NANOSECONDS.toMicros(relativeTimeInNanosSupplier.getAsLong() - startTime);
+                    var elapsedTime = TimeUnit.NANOSECONDS.toMillis(relativeTimeInNanosSupplier.getAsLong() - startTime);
                     SharedBlobCacheService.this.blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
                     SharedBlobCacheService.this.blobCacheMetrics.getCacheMissCounter().increment();
                 }

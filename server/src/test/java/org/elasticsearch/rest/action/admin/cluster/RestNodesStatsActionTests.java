@@ -35,7 +35,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
         action = new RestNodesStatsAction();
     }
 
-    public void testUnrecognizedMetric() throws IOException {
+    public void testUnrecognizedMetric() {
         final HashMap<String, String> params = new HashMap<>();
         final String metric = randomAlphaOfLength(64);
         params.put("metric", metric);
@@ -47,7 +47,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
         assertThat(e, hasToString(containsString("request [/_nodes/stats] contains unrecognized metric: [" + metric + "]")));
     }
 
-    public void testUnrecognizedMetricDidYouMean() throws IOException {
+    public void testUnrecognizedMetricDidYouMean() {
         final HashMap<String, String> params = new HashMap<>();
         params.put("metric", "os,transprot,unrecognized");
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
@@ -65,7 +65,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
         );
     }
 
-    public void testAllRequestWithOtherMetrics() throws IOException {
+    public void testAllRequestWithOtherMetrics() {
         final HashMap<String, String> params = new HashMap<>();
         final String metric = randomFrom(Metric.ALL_NAMES);
         params.put("metric", "_all," + metric);
@@ -109,7 +109,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
         );
     }
 
-    public void testIndexMetricsRequestWithoutIndicesMetric() throws IOException {
+    public void testIndexMetricsRequestWithoutIndicesMetric() {
         final HashMap<String, String> params = new HashMap<>();
         final Set<String> metrics = new HashSet<>(Metric.ALL_NAMES);
         metrics.remove("indices");
@@ -129,7 +129,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
         );
     }
 
-    public void testIndexMetricsRequestOnAllRequest() throws IOException {
+    public void testIndexMetricsRequestOnAllRequest() {
         final HashMap<String, String> params = new HashMap<>();
         params.put("metric", "_all");
         final String indexMetric = randomSubsetOf(1, RestNodesStatsAction.FLAGS.keySet()).get(0);

@@ -13,6 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
@@ -548,15 +550,15 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             }
             // search-shards API
             for (int i = 0; i < 10; i++) {
-                final var search = clusterAdmin().prepareSearchShards(INDEX_NAME);
+                final var search = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, INDEX_NAME);
                 switch (randomIntBetween(0, 2)) {
-                    case 0 -> search.setRouting(randomAlphaOfLength(10));
-                    case 1 -> search.setRouting(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));
+                    case 0 -> search.routing(randomAlphaOfLength(10));
+                    case 1 -> search.routing(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));
                     default -> {
                         // do nothing
                     }
                 }
-                ClusterSearchShardsGroup[] groups = search.get().getGroups();
+                ClusterSearchShardsGroup[] groups = safeExecute(client(), TransportClusterSearchShardsAction.TYPE, search).getGroups();
                 for (ClusterSearchShardsGroup group : groups) {
                     for (ShardRouting shr : group.getShards()) {
                         String profileKey = "[" + shr.currentNodeId() + "][" + INDEX_NAME + "][" + shr.id() + "]";

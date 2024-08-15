@@ -10,6 +10,7 @@ package org.elasticsearch.snapshots;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.TransportDeleteRepositoryAction;
@@ -835,9 +836,16 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        // Now remove some of the SnapshotDetails from the RepositoryData as if the snapshots came from an older version, forcing the
-        // get-snapshots API to read the details from the SnapshotInfo blobs.
-        final var snapshotsWithoutDetails = removeRandomSnapshotDetails(repositories);
+        if (randomBoolean()) {
+            // Sometimes also
+            safeAwait(l -> {
+                try (var listeners = new RefCountingListener(l.map(v -> null))) {
+                    for (final var repositoryName : randomSubsetOf(repositories)) {
+                        removeDetailsForRandomSnapshots(repositoryName, listeners.acquire());
+                    }
+                }
+            });
+        }
 
         Predicate<SnapshotInfo> snapshotInfoPredicate = Predicates.always();
 
@@ -1021,96 +1029,85 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(0, remaining);
     }
 
-    private static Set<SnapshotId> removeRandomSnapshotDetails(List<String> repositories) {
-        if (randomBoolean()) {
-            return Set.of();
-        }
+    /**
+     * Older versions of Elasticsearch don't record in {@link RepositoryData} all the details needed for the get-snapshots API to pick out
+     * the right snapshots, so in this case the API must fall back to reading those details from each candidate {@link SnapshotInfo} blob.
+     * Simulate this situation by manipulating the {@link RepositoryData} blob directly.
+     */
+    private static void removeDetailsForRandomSnapshots(String repositoryName, ActionListener<Void> listener) {
+        final Set<SnapshotId> snapshotsWithoutDetails = ConcurrentCollections.newConcurrentSet();
         final var masterRepositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
-        return safeAwait(l0 -> {
-            final Set<SnapshotId> snapshotsWithoutDetails = ConcurrentCollections.newConcurrentSet();
-            try (var listeners = new RefCountingListener(l0.map(v -> Set.copyOf(snapshotsWithoutDetails)))) {
-                for (final var repositoryName : repositories) {
+        final var repository = asInstanceOf(FsRepository.class, masterRepositoriesService.repository(repositoryName));
+        final var repositoryMetadata = repository.getMetadata();
+        final var repositorySettings = repositoryMetadata.settings();
+        final var rootPath = asInstanceOf(FsBlobStore.class, repository.blobStore()).path();
+
+        SubscribableListener
+
+            .<AcknowledgedResponse>newForked(
+                l -> client().execute(
+                    TransportDeleteRepositoryAction.TYPE,
+                    new DeleteRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName),
+                    l
+                )
+            )
+            .andThenAccept(ElasticsearchAssertions::assertAcked)
+            .andThenAccept(ignored -> {
+                final var repoDataBlobPath = rootPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryMetadata.generation());
+                final var repoDataBytes = Files.readAllBytes(repoDataBlobPath);
+                final var repoDataMap = XContentHelper.convertToMap(
+                    JsonXContent.jsonXContent,
+                    repoDataBytes,
+                    0,
+                    repoDataBytes.length,
+                    true
+                );
+                final var snapshotsList = asInstanceOf(List.class, repoDataMap.get("snapshots"));
+                for (final var snapshotObj : snapshotsList) {
                     if (randomBoolean()) {
                         continue;
                     }
-
-                    final var repository = asInstanceOf(FsRepository.class, masterRepositoriesService.repository(repositoryName));
-                    final var repositoryMetadata = repository.getMetadata();
-                    final var repositorySettings = repositoryMetadata.settings();
-                    final var rootPath = asInstanceOf(FsBlobStore.class, repository.blobStore()).path();
-
-                    SubscribableListener
-
-                        .<AcknowledgedResponse>newForked(
-                            l -> client().execute(
-                                TransportDeleteRepositoryAction.TYPE,
-                                new DeleteRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName),
-                                l
-                            )
+                    final var snapshotMap = asInstanceOf(Map.class, snapshotObj);
+                    snapshotsWithoutDetails.add(
+                        new SnapshotId(
+                            asInstanceOf(String.class, snapshotMap.get("name")),
+                            asInstanceOf(String.class, snapshotMap.get("uuid"))
                         )
-                        .andThenAccept(ElasticsearchAssertions::assertAcked)
-                        .andThenAccept(v -> {
-                            final var repoDataBlobPath = rootPath.resolve(
-                                BlobStoreRepository.INDEX_FILE_PREFIX + repositoryMetadata.generation()
-                            );
-                            final var repoDataBytes = Files.readAllBytes(repoDataBlobPath);
-                            final var repoDataMap = XContentHelper.convertToMap(
-                                JsonXContent.jsonXContent,
-                                repoDataBytes,
-                                0,
-                                repoDataBytes.length,
-                                true
-                            );
-                            final var snapshotsList = asInstanceOf(List.class, repoDataMap.get("snapshots"));
-                            for (final var snapshotObj : snapshotsList) {
-                                if (randomBoolean()) {
-                                    continue;
-                                }
-                                final var snapshotMap = asInstanceOf(Map.class, snapshotObj);
-                                snapshotsWithoutDetails.add(
-                                    new SnapshotId(
-                                        asInstanceOf(String.class, snapshotMap.get("name")),
-                                        asInstanceOf(String.class, snapshotMap.get("uuid"))
-                                    )
-                                );
-                                assertNotNull(snapshotMap.remove("start_time_millis"));
-                                assertNotNull(snapshotMap.remove("end_time_millis"));
-                                assertNotNull(snapshotMap.remove("slm_policy"));
-                            }
-                            final var updatedRepoDataBytes = XContentTestUtils.convertToXContent(repoDataMap, XContentType.JSON);
-                            try (var outputStream = Files.newOutputStream(repoDataBlobPath)) {
-                                BytesRef bytesRef;
-                                final var iterator = updatedRepoDataBytes.iterator();
-                                while ((bytesRef = iterator.next()) != null) {
-                                    outputStream.write(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-                                }
-                            }
-                        })
-                        .<AcknowledgedResponse>andThen(
-                            l -> client().execute(
-                                TransportPutRepositoryAction.TYPE,
-                                new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName).type(FsRepository.TYPE)
-                                    .settings(repositorySettings),
-                                l
-                            )
-                        )
-                        .andThenAccept(ElasticsearchAssertions::assertAcked)
-                        .<RepositoryData>andThen(
-                            l -> masterRepositoriesService.repository(repositoryName)
-                                .getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l)
-                        )
-                        .andThenAccept(repositoryData -> {
-                            for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
-                                assertEquals(
-                                    repositoryName + "/" + snapshotId.toString() + ": " + repositoryData.getSnapshotDetails(snapshotId),
-                                    snapshotsWithoutDetails.contains(snapshotId),
-                                    repositoryData.hasMissingDetails(snapshotId)
-                                );
-                            }
-                        })
-                        .addListener(listeners.acquire());
+                    );
+                    assertNotNull(snapshotMap.remove("start_time_millis"));
+                    assertNotNull(snapshotMap.remove("end_time_millis"));
+                    assertNotNull(snapshotMap.remove("slm_policy"));
                 }
-            }
-        });
+                final var updatedRepoDataBytes = XContentTestUtils.convertToXContent(repoDataMap, XContentType.JSON);
+                try (var outputStream = Files.newOutputStream(repoDataBlobPath)) {
+                    BytesRef bytesRef;
+                    final var iterator = updatedRepoDataBytes.iterator();
+                    while ((bytesRef = iterator.next()) != null) {
+                        outputStream.write(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                    }
+                }
+            })
+            .<AcknowledgedResponse>andThen(
+                l -> client().execute(
+                    TransportPutRepositoryAction.TYPE,
+                    new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName).type(FsRepository.TYPE)
+                        .settings(repositorySettings),
+                    l
+                )
+            )
+            .andThenAccept(ElasticsearchAssertions::assertAcked)
+            .<RepositoryData>andThen(
+                l -> masterRepositoriesService.repository(repositoryName).getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l)
+            )
+            .andThenAccept(repositoryData -> {
+                for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
+                    assertEquals(
+                        repositoryName + "/" + snapshotId.toString() + ": " + repositoryData.getSnapshotDetails(snapshotId),
+                        snapshotsWithoutDetails.contains(snapshotId),
+                        repositoryData.hasMissingDetails(snapshotId)
+                    );
+                }
+            })
+            .addListener(listener);
     }
 }

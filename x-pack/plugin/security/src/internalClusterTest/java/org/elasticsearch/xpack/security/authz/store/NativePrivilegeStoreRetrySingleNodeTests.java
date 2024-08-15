@@ -41,7 +41,7 @@ public class NativePrivilegeStoreRetrySingleNodeTests extends SecuritySingleNode
     private static final int MAX_RETRIES = 10;
 
     @BeforeClass
-    @SuppressForbidden(reason = "configured max retry system property as part of test setup")
+    @SuppressForbidden(reason = "configures max retry system property as part of test setup")
     public static void setup() {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             System.setProperty("es.xpack.security.authz.store.get_privileges.max_retries", String.valueOf(MAX_RETRIES));

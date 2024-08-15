@@ -91,6 +91,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final OriginSettingClient rolloverClient;
     private final Set<String> failureStoresToBeRolledOver = ConcurrentCollections.newConcurrentSet();
     private final Set<Integer> failedRolloverRequests = ConcurrentCollections.newConcurrentSet();
+    private final Map<ShardId, Exception> preexistingShardFailures = new HashMap<>();
 
     BulkOperation(
         Task task,
@@ -156,6 +157,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.observer = observer;
         this.failureStoreDocumentConverter = failureStoreDocumentConverter;
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
+        this.preexistingShardFailures.putAll(bulkRequest.incrementalState().shardLevelFailures());
     }
 
     @Override
@@ -362,7 +364,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                 final ShardId shardId = entry.getKey();
                 final List<BulkItemRequest> requests = entry.getValue();
-
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
                     bulkRequest.getRefreshPolicy(),
@@ -420,66 +421,79 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, Releasable releaseOnFinish) {
-        client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
+        ShardId shardId = bulkShardRequest.shardId();
+        if (preexistingShardFailures.containsKey(shardId)) {
+            handleShardFailure(bulkShardRequest, clusterService.state(), preexistingShardFailures.get(shardId));
+            releaseOnFinish.close();
+        } else {
+            client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
 
-            // Lazily get the cluster state to avoid keeping it around longer than it is needed
-            private ClusterState clusterState = null;
+                // Lazily get the cluster state to avoid keeping it around longer than it is needed
+                private ClusterState clusterState = null;
 
-            private ClusterState getClusterState() {
-                if (clusterState == null) {
-                    clusterState = clusterService.state();
+                private ClusterState getClusterState() {
+                    if (clusterState == null) {
+                        clusterState = clusterService.state();
+                    }
+                    return clusterState;
                 }
-                return clusterState;
-            }
 
-            @Override
-            public void onResponse(BulkShardResponse bulkShardResponse) {
-                for (int idx = 0; idx < bulkShardResponse.getResponses().length; idx++) {
-                    // We zip the requests and responses together so that we can identify failed documents and potentially store them
-                    BulkItemResponse bulkItemResponse = bulkShardResponse.getResponses()[idx];
+                @Override
+                public void onResponse(BulkShardResponse bulkShardResponse) {
+                    for (int idx = 0; idx < bulkShardResponse.getResponses().length; idx++) {
+                        // We zip the requests and responses together so that we can identify failed documents and potentially store them
+                        BulkItemResponse bulkItemResponse = bulkShardResponse.getResponses()[idx];
 
-                    if (bulkItemResponse.isFailed()) {
-                        BulkItemRequest bulkItemRequest = bulkShardRequest.items()[idx];
-                        assert bulkItemRequest.id() == bulkItemResponse.getItemId() : "Bulk items were returned out of order";
+                        if (bulkItemResponse.isFailed()) {
+                            BulkItemRequest bulkItemRequest = bulkShardRequest.items()[idx];
+                            assert bulkItemRequest.id() == bulkItemResponse.getItemId() : "Bulk items were returned out of order";
 
-                        DataStream failureStoreReference = getRedirectTarget(bulkItemRequest.request(), getClusterState().metadata());
-                        if (failureStoreReference != null) {
-                            maybeMarkFailureStoreForRollover(failureStoreReference);
-                            var cause = bulkItemResponse.getFailure().getCause();
-                            addDocumentToRedirectRequests(bulkItemRequest, cause, failureStoreReference.getName());
+                            DataStream failureStoreReference = getRedirectTarget(bulkItemRequest.request(), getClusterState().metadata());
+                            if (failureStoreReference != null) {
+                                maybeMarkFailureStoreForRollover(failureStoreReference);
+                                var cause = bulkItemResponse.getFailure().getCause();
+                                addDocumentToRedirectRequests(bulkItemRequest, cause, failureStoreReference.getName());
+                            }
+                            addFailure(bulkItemResponse);
+                        } else {
+                            bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                            responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                         }
-                        addFailure(bulkItemResponse);
-                    } else {
-                        bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
-                        responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                     }
+                    completeShardOperation();
                 }
-                completeShardOperation();
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                // create failures for all relevant requests
-                for (BulkItemRequest request : bulkShardRequest.items()) {
-                    final String indexName = request.index();
-                    DocWriteRequest<?> docWriteRequest = request.request();
-
-                    DataStream failureStoreReference = getRedirectTarget(docWriteRequest, getClusterState().metadata());
-                    if (failureStoreReference != null) {
-                        maybeMarkFailureStoreForRollover(failureStoreReference);
-                        addDocumentToRedirectRequests(request, e, failureStoreReference.getName());
-                    }
-                    addFailure(docWriteRequest, request.id(), indexName, e);
+                @Override
+                public void onFailure(Exception e) {
+                    assert preexistingShardFailures.containsKey(shardId) == false;
+                    preexistingShardFailures.put(shardId, e);
+                    handleShardFailure(bulkShardRequest, getClusterState(), e);
+                    completeShardOperation();
                 }
-                completeShardOperation();
-            }
 
-            private void completeShardOperation() {
-                // Clear our handle on the cluster state to allow it to be cleaned up
-                clusterState = null;
-                releaseOnFinish.close();
+                private void completeShardOperation() {
+                    // Clear our handle on the cluster state to allow it to be cleaned up
+                    clusterState = null;
+                    releaseOnFinish.close();
+                }
+            });
+        }
+
+    }
+
+    private void handleShardFailure(BulkShardRequest bulkShardRequest, ClusterState clusterState, Exception e) {
+        // create failures for all relevant requests
+        for (BulkItemRequest request : bulkShardRequest.items()) {
+            final String indexName = request.index();
+            DocWriteRequest<?> docWriteRequest = request.request();
+
+            DataStream failureStoreReference = getRedirectTarget(docWriteRequest, clusterState.metadata());
+            if (failureStoreReference != null) {
+                maybeMarkFailureStoreForRollover(failureStoreReference);
+                addDocumentToRedirectRequests(request, e, failureStoreReference.getName());
             }
-        });
+            addFailure(docWriteRequest, request.id(), indexName, e);
+        }
     }
 
     /**

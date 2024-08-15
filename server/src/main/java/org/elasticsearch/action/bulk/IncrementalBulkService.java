@@ -45,6 +45,8 @@ public class IncrementalBulkService {
 
         private final ArrayList<Releasable> releasables = new ArrayList<>(4);
         private final ArrayList<BulkResponse> responses = new ArrayList<>(2);
+        private boolean globalFailure = false;
+        private boolean incrementalRequestSubmitted = false;
         private Exception topLevelFailure = null;
         private BulkRequest bulkRequest = null;
 
@@ -53,13 +55,16 @@ public class IncrementalBulkService {
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
             this.refresh = refresh;
-            createNewBulkRequest();
+            createNewBulkRequest(BulkRequest.IncrementalState.EMPTY);
         }
 
         public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
             if (topLevelFailure != null) {
                 assert releasables.isEmpty();
                 assert bulkRequest == null;
+                if (globalFailure == false) {
+                    addItemLevelFailures(items);
+                }
                 Releasables.close(releasable);
                 nextItems.run();
             } else {
@@ -67,20 +72,22 @@ public class IncrementalBulkService {
 
                 if (shouldBackOff()) {
                     client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
+
+                        private final boolean isFirstRequest = incrementalRequestSubmitted == false;
+
                         @Override
                         public void onResponse(BulkResponse bulkResponse) {
                             responses.add(bulkResponse);
                             releaseCurrentReferences();
-                            createNewBulkRequest();
+                            createNewBulkRequest(bulkResponse.getIncrementalState());
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            topLevelFailure = e;
-                            releaseCurrentReferences();
-                            bulkRequest = null;
+                            handleBulkFailure(isFirstRequest, e);
                         }
                     }, nextItems));
+                    incrementalRequestSubmitted = true;
                 } else {
                     nextItems.run();
                 }
@@ -93,7 +100,7 @@ public class IncrementalBulkService {
         }
 
         public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
-            if (topLevelFailure != null) {
+            if (globalFailure) {
                 assert releasables.isEmpty();
                 assert bulkRequest == null;
                 releasable.close();
@@ -101,12 +108,42 @@ public class IncrementalBulkService {
             } else {
                 internalAddItems(items, releasable);
 
-                client.bulk(bulkRequest, listener.delegateFailureAndWrap((l, bulkResponse) -> {
-                    responses.add(bulkResponse);
-                    releaseCurrentReferences();
-                    l.onResponse(combineResponses());
-                }));
+                client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
+
+                    private final boolean isFirstRequest = incrementalRequestSubmitted == false;
+
+                    @Override
+                    public void onResponse(BulkResponse bulkResponse) {
+                        responses.add(bulkResponse);
+                        releaseCurrentReferences();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        handleBulkFailure(isFirstRequest, e);
+                    }
+                }, () -> listener.onResponse(combineResponses())));
             }
+        }
+
+        private void handleBulkFailure(boolean isFirstRequest, Exception e) {
+            assert topLevelFailure == null;
+            globalFailure = isFirstRequest;
+            topLevelFailure = e;
+            addItemLevelFailures(bulkRequest.requests());
+            releaseCurrentReferences();
+            bulkRequest = null;
+        }
+
+        private void addItemLevelFailures(List<DocWriteRequest<?>> items) {
+            BulkItemResponse[] bulkItemResponses = new BulkItemResponse[items.size()];
+            int idx = 0;
+            for (DocWriteRequest<?> item : items) {
+                BulkItemResponse.Failure failure = new BulkItemResponse.Failure(item.index(), item.id(), topLevelFailure);
+                bulkItemResponses[idx++] = BulkItemResponse.failure(idx, item.opType(), failure);
+            }
+
+            responses.add(new BulkResponse(bulkItemResponses, 0, 0));
         }
 
         private void internalAddItems(List<DocWriteRequest<?>> items, Releasable releasable) {
@@ -114,8 +151,9 @@ public class IncrementalBulkService {
             releasables.add(releasable);
         }
 
-        private void createNewBulkRequest() {
+        private void createNewBulkRequest(BulkRequest.IncrementalState incrementalState) {
             bulkRequest = new BulkRequest();
+            bulkRequest.incrementalState(incrementalState);
 
             if (waitForActiveShards != null) {
                 bulkRequest.waitForActiveShards(waitForActiveShards);

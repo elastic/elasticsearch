@@ -30,12 +30,7 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<Map<String, Object>>) () -> org.elasticsearch.nimbus.jose.util.JSONObjectUtils.parse(s)
             );
         } catch (PrivilegedActionException e) {
-            if (e.getException() instanceof ParseException pe) {
-                throw pe;
-            } else if (e.getException() instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException(e);
+           throw (ParseException) e.getException();
         }
     }
 
@@ -48,12 +43,7 @@ public class JSONObjectUtils {
                 )
             );
         } catch (PrivilegedActionException e) {
-            if (e.getException() instanceof ParseException pe) {
-                throw pe;
-            } else if (e.getException() instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException(e);
+           throw (ParseException) e.getException();
         }
     }
 
@@ -64,12 +54,7 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<Map<String, Object>>) () -> org.elasticsearch.nimbus.jose.util.JSONObjectUtils.parseJSONObject(s)
             );
         } catch (PrivilegedActionException e) {
-            if (e.getException() instanceof ParseException pe) {
-                throw pe;
-            } else if (e.getException() instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException(e);
+           throw (ParseException) e.getException();
         }
     }
 
@@ -79,12 +64,7 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<Boolean>) () -> org.elasticsearch.nimbus.jose.util.JSONObjectUtils.getBoolean(o, key)
             );
         } catch (PrivilegedActionException e) {
-            if (e.getException() instanceof ParseException pe) {
-                throw pe;
-            } else if (e.getException() instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException(e);
+           throw (ParseException) e.getException();
         }
     }
 
@@ -94,12 +74,7 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<Integer>) () -> org.elasticsearch.nimbus.jose.util.JSONObjectUtils.getInt(o, key)
             );
         } catch (PrivilegedActionException e) {
-            if (e.getException() instanceof ParseException pe) {
-                throw pe;
-            } else if (e.getException() instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException(e);
+           throw (ParseException) e.getException();
         }
     }
 
@@ -109,12 +84,7 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<Long>) () -> org.elasticsearch.nimbus.jose.util.JSONObjectUtils.getLong(o, key)
             );
         } catch (PrivilegedActionException e) {
-            if (e.getException() instanceof ParseException pe) {
-                throw pe;
-            } else if (e.getException() instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException(e);
+           throw (ParseException) e.getException();
         }
     }
 
@@ -124,12 +94,7 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<Float>) () -> org.elasticsearch.nimbus.jose.util.JSONObjectUtils.getFloat(o, key)
             );
         } catch (PrivilegedActionException e) {
-            if (e.getException() instanceof ParseException pe) {
-                throw pe;
-            } else if (e.getException() instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException(e);
+           throw (ParseException) e.getException();
         }
     }
 
@@ -139,12 +104,7 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<Double>) () -> org.elasticsearch.nimbus.jose.util.JSONObjectUtils.getDouble(o, key)
             );
         } catch (PrivilegedActionException e) {
-            if (e.getException() instanceof ParseException pe) {
-                throw pe;
-            } else if (e.getException() instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException(e);
+           throw (ParseException) e.getException();
         }
     }
 
@@ -154,12 +114,7 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<String>) () -> org.elasticsearch.nimbus.jose.util.JSONObjectUtils.getString(o, key)
             );
         } catch (PrivilegedActionException e) {
-            if (e.getException() instanceof ParseException pe) {
-                throw pe;
-            } else if (e.getException() instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException(e);
+           throw (ParseException) e.getException();
         }
     }
 
@@ -169,12 +124,7 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<URI>) () -> org.elasticsearch.nimbus.jose.util.JSONObjectUtils.getURI(o, key)
             );
         } catch (PrivilegedActionException e) {
-            if (e.getException() instanceof ParseException pe) {
-                throw pe;
-            } else if (e.getException() instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException(e);
+           throw (ParseException) e.getException();
         }
     }
 
@@ -184,12 +134,7 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<List<Object>>) () -> org.elasticsearch.nimbus.jose.util.JSONObjectUtils.getJSONArray(o, key)
             );
         } catch (PrivilegedActionException e) {
-            if (e.getException() instanceof ParseException pe) {
-                throw pe;
-            } else if (e.getException() instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException(e);
+           throw (ParseException) e.getException();
         }
     }
 
@@ -199,12 +144,7 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<String[]>) () -> org.elasticsearch.nimbus.jose.util.JSONObjectUtils.getStringArray(o, key)
             );
         } catch (PrivilegedActionException e) {
-            if (e.getException() instanceof ParseException pe) {
-                throw pe;
-            } else if (e.getException() instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException(e);
+           throw (ParseException) e.getException();
         }
     }
 
@@ -215,12 +155,7 @@ public class JSONObjectUtils {
                     .getJSONObjectArray(o, key)
             );
         } catch (PrivilegedActionException e) {
-            if (e.getException() instanceof ParseException pe) {
-                throw pe;
-            } else if (e.getException() instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException(e);
+           throw (ParseException) e.getException();
         }
     }
 
@@ -230,12 +165,7 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<List<String>>) () -> org.elasticsearch.nimbus.jose.util.JSONObjectUtils.getStringList(o, key)
             );
         } catch (PrivilegedActionException e) {
-            if (e.getException() instanceof ParseException pe) {
-                throw pe;
-            } else if (e.getException() instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException(e);
+           throw (ParseException) e.getException();
         }
     }
 
@@ -248,12 +178,7 @@ public class JSONObjectUtils {
                 )
             );
         } catch (PrivilegedActionException e) {
-            if (e.getException() instanceof ParseException pe) {
-                throw pe;
-            } else if (e.getException() instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException(e);
+           throw (ParseException) e.getException();
         }
     }
 
@@ -263,12 +188,7 @@ public class JSONObjectUtils {
                 (PrivilegedExceptionAction<Base64URL>) () -> org.elasticsearch.nimbus.jose.util.JSONObjectUtils.getBase64URL(o, key)
             );
         } catch (PrivilegedActionException e) {
-            if (e.getException() instanceof ParseException pe) {
-                throw pe;
-            } else if (e.getException() instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException(e);
+           throw (ParseException) e.getException();
         }
     }
 

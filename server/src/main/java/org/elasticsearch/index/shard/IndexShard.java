@@ -1431,7 +1431,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public DenseVectorStats denseVectorStats() {
         readAllowed();
-        return getEngine().denseVectorStats();
+        MappingLookup mappingLookup = mapperService != null ? mapperService.mappingLookup() : null;
+        return getEngine().denseVectorStats(mappingLookup);
     }
 
     public SparseVectorStats sparseVectorStats() {
@@ -3514,8 +3515,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             cachingPolicy,
             translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-            List.of(refreshListeners, refreshPendingLocationListener, refreshFieldHasValueListener, new RefreshShardFieldStatsListener()),
-            Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
+            List.of(refreshListeners, refreshPendingLocationListener, refreshFieldHasValueListener),
+            List.of(new RefreshMetricUpdater(refreshMetric), new RefreshShardFieldStatsListener()),
             indexSort,
             circuitBreakerService,
             globalCheckpointSupplier,

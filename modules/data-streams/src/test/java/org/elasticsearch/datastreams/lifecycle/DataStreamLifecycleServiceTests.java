@@ -37,7 +37,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionProvider;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
@@ -138,7 +138,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     private List<TransportRequest> clientSeenRequests;
     private DoExecuteDelegate clientDelegate;
     private ClusterService clusterService;
-    private final DataStreamGlobalRetentionResolver globalRetentionResolver = new DataStreamGlobalRetentionResolver(
+    private final DataStreamGlobalRetentionProvider globalRetentionResolver = new DataStreamGlobalRetentionProvider(
         DataStreamFactoryRetention.emptyFactoryRetention()
     );
 

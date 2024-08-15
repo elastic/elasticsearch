@@ -17,13 +17,14 @@ import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.logsdb.datageneration.fields.PredefinedField;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
-import java.util.function.Function;
 
 /**
  * Challenge test (see {@link StandardVersusLogsIndexModeChallengeRestIT}) that uses randomly generated
@@ -31,58 +32,57 @@ import java.util.function.Function;
  */
 public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends StandardVersusLogsIndexModeChallengeRestIT {
     private final boolean fullyDynamicMapping;
+    private final boolean subobjectsDisabled;
 
     private final DataGenerator dataGenerator;
 
     public StandardVersusLogsIndexModeRandomDataChallengeRestIT() {
         super();
         this.fullyDynamicMapping = randomBoolean();
+        this.subobjectsDisabled = randomBoolean();
 
-        this.dataGenerator = new DataGenerator(
-            DataGeneratorSpecification.builder()
-                // Nested fields don't work with subobjects: false.
-                .withNestedFieldsLimit(0)
-                // TODO increase depth of objects
-                // Currently matching fails because in synthetic source all fields are flat (given that we have subobjects: false)
-                // but stored source is identical to original document which has nested structure.
-                .withMaxObjectDepth(0)
-                .withDataSourceHandlers(List.of(new DataSourceHandler() {
-                    // TODO enable null values
-                    // Matcher does not handle nulls currently
-                    @Override
-                    public DataSourceResponse.NullWrapper handle(DataSourceRequest.NullWrapper request) {
-                        return new DataSourceResponse.NullWrapper(Function.identity());
+        var specificationBuilder = DataGeneratorSpecification.builder();
+        // TODO enable nested fields when subobjects are enabled
+        // It currently hits a bug with empty nested objects
+        // Nested fields don't work with subobjects: false.
+        specificationBuilder = specificationBuilder.withNestedFieldsLimit(0);
+        this.dataGenerator = new DataGenerator(specificationBuilder.withDataSourceHandlers(List.of(new DataSourceHandler() {
+            @Override
+            public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
+                // Unsigned long is not used with dynamic mapping
+                // since it can initially look like long
+                // but later fail to parse once big values arrive.
+                // Double is not used since it maps to float with dynamic mapping
+                // resulting in precision loss compared to original source.
+                var excluded = fullyDynamicMapping ? List.of(FieldType.DOUBLE, FieldType.SCALED_FLOAT, FieldType.UNSIGNED_LONG) : List.of();
+                return new DataSourceResponse.FieldTypeGenerator(
+                    () -> randomValueOtherThanMany(excluded::contains, () -> randomFrom(FieldType.values()))
+                );
+            }
+
+            public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
+                if (subobjectsDisabled == false) {
+                    // Use default behavior
+                    return null;
+                }
+
+                assert request.isNested() == false;
+
+                // "enabled: false" is not compatible with subobjects: false
+                // "runtime: false/strict/runtime" is not compatible with subobjects: false
+                return new DataSourceResponse.ObjectMappingParametersGenerator(() -> {
+                    var parameters = new HashMap<String, Object>();
+                    if (ESTestCase.randomBoolean()) {
+                        parameters.put("dynamic", "true");
+                    }
+                    if (ESTestCase.randomBoolean()) {
+                        parameters.put("enabled", "true");
                     }
 
-                    // TODO enable arrays
-                    // List matcher currently does not apply matching logic recursively
-                    // and equality check fails because arrays are sorted in synthetic source.
-                    @Override
-                    public DataSourceResponse.ArrayWrapper handle(DataSourceRequest.ArrayWrapper request) {
-                        return new DataSourceResponse.ArrayWrapper(Function.identity());
-                    }
-
-                    // TODO enable scaled_float fields
-                    // There a difference in synthetic source (precision loss)
-                    // specific to this fields which matcher can't handle.
-                    @Override
-                    public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-                        // Unsigned long is not used with dynamic mapping
-                        // since it can initially look like long
-                        // but later fail to parse once big values arrive.
-                        // Double is not used since it maps to float with dynamic mapping
-                        // resulting in precision loss compared to original source.
-                        var excluded = fullyDynamicMapping
-                            ? List.of(FieldType.DOUBLE, FieldType.SCALED_FLOAT, FieldType.UNSIGNED_LONG)
-                            : List.of(FieldType.SCALED_FLOAT);
-                        return new DataSourceResponse.FieldTypeGenerator(
-                            () -> randomValueOtherThanMany(excluded::contains, () -> randomFrom(FieldType.values()))
-                        );
-                    }
-                }))
-                .withPredefinedFields(List.of(new PredefinedField("host.name", FieldType.KEYWORD)))
-                .build()
-        );
+                    return parameters;
+                });
+            }
+        })).withPredefinedFields(List.of(new PredefinedField("host.name", FieldType.KEYWORD))).build());
     }
 
     @Override
@@ -107,10 +107,16 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
         if (fullyDynamicMapping == false) {
-            dataGenerator.writeMapping(builder, b -> builder.field("subobjects", false));
+            if (subobjectsDisabled) {
+                dataGenerator.writeMapping(builder, b -> builder.field("subobjects", false));
+            } else {
+                dataGenerator.writeMapping(builder);
+            }
         } else {
             builder.startObject();
-            builder.field("subobjects", false);
+            if (subobjectsDisabled) {
+                builder.field("subobjects", false);
+            }
             builder.endObject();
         }
     }

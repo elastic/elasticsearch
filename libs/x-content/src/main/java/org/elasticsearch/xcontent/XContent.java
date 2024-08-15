@@ -24,7 +24,7 @@ public interface XContent {
      */
     XContentType type();
 
-    byte streamSeparator();
+    byte bulkSeparator();
 
     @Deprecated
     boolean detectContent(byte[] bytes, int offset, int length);

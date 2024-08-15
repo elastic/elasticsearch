@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
@@ -157,6 +158,12 @@ public class EsqlCapabilities {
         UNION_TYPES_REMOVE_FIELDS,
 
         /**
+         * Fix for union-types when renaming unrelated columns.
+         * https://github.com/elastic/elasticsearch/issues/111452
+         */
+        UNION_TYPES_FIX_RENAME_RESOLUTION,
+
+        /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */
@@ -202,7 +209,27 @@ public class EsqlCapabilities {
         /**
          * Add CombineBinaryComparisons rule.
          */
-        COMBINE_BINARY_COMPARISONS;
+        COMBINE_BINARY_COMPARISONS,
+
+        /**
+         * MATCH command support
+         */
+        MATCH_COMMAND(true),
+
+        /**
+         * Support for nanosecond dates as a data type
+         */
+        DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * Support CIDRMatch in CombineDisjunctions rule.
+         */
+        COMBINE_DISJUNCTIVE_CIDRMATCHES,
+
+        /**
+         * Consider the upper bound when computing the interval in BUCKET auto mode.
+         */
+        BUCKET_INCLUSIVE_UPPER_BOUND;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;
@@ -225,7 +252,7 @@ public class EsqlCapabilities {
             this.featureFlag = featureFlag;
         }
 
-        private boolean isEnabled() {
+        public boolean isEnabled() {
             if (featureFlag == null) {
                 return Build.current().isSnapshot() || this.snapshotOnly == false;
             }
@@ -234,10 +261,6 @@ public class EsqlCapabilities {
 
         public String capabilityName() {
             return name().toLowerCase(Locale.ROOT);
-        }
-
-        public boolean snapshotOnly() {
-            return snapshotOnly;
         }
     }
 

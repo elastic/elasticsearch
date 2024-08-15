@@ -23,15 +23,17 @@ public class XContentGeneratorTests extends ESTestCase {
         assertTypeCopy("float", "1.0");
         assertTypeCopy("long", "5000000000");
         assertTypeCopy("double", "1.123456789");
-        //assertTypeCopy("biginteger", "18446744073709551615");
+        // assertTypeCopy("biginteger", "18446744073709551615");
         assertTypeCopy("bigdecimal", "1.1234567890123456789");
     }
 
     private void assertTypeCopy(String typename, String value) throws Exception {
         var input = String.format("{\"%s\":%s,\"%s_in_array\":[%s]}", typename, value, typename, value);
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        try (var generator = JsonXContent.jsonXContent.createGenerator(outputStream);
-             var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, input)) {
+        try (
+            var generator = JsonXContent.jsonXContent.createGenerator(outputStream);
+            var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, input)
+        ) {
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 generator.copyCurrentEvent(parser);

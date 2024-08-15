@@ -62,6 +62,9 @@ public final class SearchContextId {
         TransportVersion version,
         ShardSearchFailure[] shardFailures
     ) {
+        assert shardFailures.length == 0 || version.onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)
+                : "[allow_partial_search_results] cannot be enabled on a cluster that has not been fully upgraded to version ["
+                + TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT + "] or higher.";
         try (var out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             TransportVersion.writeVersion(version, out);
@@ -74,13 +77,6 @@ public final class SearchContextId {
                 new SearchContextIdForNode(target.getClusterAlias(), target.getNodeId(), searchResult.getContextId()).writeTo(out);
             }
             if (allowNullContextId) {
-                /**
-                 * Shard failures are not encoded if there are nodes in the cluster that have not yet been upgraded to
-                 * {@link TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT}.
-                 * These shards will be silently ignored during searches using this PIT; however, this situation should never occur,
-                 * as failures are not permitted when creating a point in time with versions prior to
-                 * {@link TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT}.
-                 */
                 for (var failure : shardFailures) {
                     failure.shard().getShardId().writeTo(out);
                     new SearchContextIdForNode(failure.shard().getClusterAlias(), null, null).writeTo(out);

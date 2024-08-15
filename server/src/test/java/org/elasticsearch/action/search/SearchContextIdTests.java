@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -23,7 +22,6 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 
 import java.util.HashMap;
 import java.util.List;
@@ -138,35 +136,5 @@ public class SearchContextIdTests extends ESTestCase {
         assertThat(indices[0], equalTo("cluster_x:idx"));
         assertThat(indices[1], equalTo("cluster_y:idy"));
         assertThat(indices[2], equalTo("idy"));
-    }
-
-    public void testFailuresIgnoredInPreviousVersion() {
-        final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-            List.of(
-                new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new),
-                new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new),
-                new NamedWriteableRegistry.Entry(QueryBuilder.class, IdsQueryBuilder.NAME, IdsQueryBuilder::new)
-            )
-        );
-        final AtomicArray<SearchPhaseResult> queryResults = TransportSearchHelperTests.generateQueryResults();
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersionUtils.getFirstVersion(),
-            TransportVersionUtils.getPreviousVersion(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)
-        );
-        Map<SearchShardTarget, ShardSearchFailure> shardSearchFailures = new HashMap<>();
-
-        final BytesReference id = SearchContextId.encode(
-            queryResults.asList(),
-            Map.of(),
-            version,
-            shardSearchFailures.values().toArray(ShardSearchFailure[]::new)
-        );
-
-        final SearchContextId context = SearchContextId.decode(namedWriteableRegistry, id);
-        assertThat(context.shards().size(), equalTo(queryResults.asList().size()));
-        for (var result : queryResults.asList()) {
-            assertTrue(context.shards().containsKey(result.getSearchShardTarget().getShardId()));
-        }
     }
 }

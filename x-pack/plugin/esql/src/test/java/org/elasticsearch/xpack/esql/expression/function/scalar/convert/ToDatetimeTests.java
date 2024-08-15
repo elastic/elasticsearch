@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -37,6 +38,13 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryDatetime(suppliers, read, DataType.DATETIME, Instant::toEpochMilli, emptyList());
+        TestCaseSupplier.forUnaryDateNanos(
+            suppliers,
+            "ToDatetimeFromDateNanosEvaluator[field=" + read + "]",
+            DataType.DATETIME,
+            i -> DateUtils.toMilliSeconds(DateUtils.toLong(i)),
+            emptyList()
+        );
 
         TestCaseSupplier.forUnaryInt(
             suppliers,
@@ -162,7 +170,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "datetime or numeric or string");
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "date_nanos or datetime or numeric or string");
     }
 
     private static String randomDateString(long from, long to) {

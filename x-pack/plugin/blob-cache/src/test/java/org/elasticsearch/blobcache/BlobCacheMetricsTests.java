@@ -16,7 +16,7 @@ import org.junit.Before;
 
 import java.util.concurrent.TimeUnit;
 
-public class BlobCacheMetricsTest extends ESTestCase {
+public class BlobCacheMetricsTests extends ESTestCase {
 
     private RecordingMeterRegistry recordingMeterRegistry;
     private BlobCacheMetrics metrics;

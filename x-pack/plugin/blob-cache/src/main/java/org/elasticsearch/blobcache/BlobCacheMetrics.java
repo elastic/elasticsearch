@@ -40,17 +40,6 @@ public class BlobCacheMetrics {
         CacheMiss
     }
 
-    public enum CachePopulationSource {
-        /**
-         * When loading data from the blob-store
-         */
-        BlobStore,
-        /**
-         * When fetching data from a peer node
-         */
-        Peer
-    }
-
     public BlobCacheMetrics(MeterRegistry meterRegistry) {
         this(
             meterRegistry.registerLongCounter(
@@ -71,7 +60,7 @@ public class BlobCacheMetrics {
             meterRegistry.registerDoubleHistogram(
                 "es.blob_cache.populate_throughput.histogram",
                 "The throughput when populating the blob store from the cache",
-                "MB/second"
+                "MiB/second"
             ),
             meterRegistry.registerLongCounter(
                 "es.blob_cache.populate_bytes.total",
@@ -149,21 +138,21 @@ public class BlobCacheMetrics {
 
         // This is almost certainly paranoid, but if we had a very fast/small copy with a very coarse nanosecond timer it might happen?
         if (totalCopyTimeNanos > 0) {
-            cachePopulateThroughput.record(toMegabytesPerSecond(totalBytesCopied, totalCopyTimeNanos), metricAttributes);
+            cachePopulateThroughput.record(toMebibytesPerSecond(totalBytesCopied, totalCopyTimeNanos), metricAttributes);
             cachePopulationTime.incrementBy(TimeUnit.NANOSECONDS.toMillis(totalCopyTimeNanos), metricAttributes);
         }
     }
 
     /**
-     * Calculate throughput as megabytes/second
+     * Calculate throughput as MiB/second
      *
      * @param totalBytes The total number of bytes transferred
      * @param totalNanoseconds The time to transfer in nanoseconds
-     * @return The throughput as megabytes/second
+     * @return The throughput as MiB/second
      */
-    private double toMegabytesPerSecond(int totalBytes, long totalNanoseconds) {
+    private double toMebibytesPerSecond(int totalBytes, long totalNanoseconds) {
         double totalSeconds = totalNanoseconds / 1_000_000_000.0;
-        double totalMegabytes = totalBytes / 1_000_000.0;
+        double totalMegabytes = totalBytes / 1_048_576.0;
         return totalMegabytes / totalSeconds;
     }
 }

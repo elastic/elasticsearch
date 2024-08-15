@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Tuple;
@@ -57,6 +58,13 @@ public final class DiffableUtils {
      */
     public static KeySerializer<Integer> getVIntKeySerializer() {
         return VIntKeySerializer.INSTANCE;
+    }
+
+    /**
+     * Returns a map key serializer for {@link Writeable} keys.
+     */
+    public static <W extends Writeable> KeySerializer<W> getWriteableKeySerializer(Writeable.Reader<W> reader) {
+        return new WriteableKeySerializer<>(reader);
     }
 
     /**
@@ -571,6 +579,27 @@ public final class DiffableUtils {
         @Override
         public Integer readKey(StreamInput in) throws IOException {
             return in.readVInt();
+        }
+    }
+
+    /**
+     * Serializes Writeable keys of a map. Requires keys to be non-null.
+     */
+    private static class WriteableKeySerializer<W extends Writeable> implements KeySerializer<W> {
+        private final Reader<W> reader;
+
+        WriteableKeySerializer(Reader<W> reader) {
+            this.reader = reader;
+        }
+
+        @Override
+        public void writeKey(W key, StreamOutput out) throws IOException {
+            out.writeWriteable(key);
+        }
+
+        @Override
+        public W readKey(StreamInput in) throws IOException {
+            return reader.read(in);
         }
     }
 

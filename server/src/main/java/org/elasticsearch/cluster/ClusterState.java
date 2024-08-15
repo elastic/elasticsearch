@@ -45,6 +45,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -809,7 +810,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         private long version = 0;
         private String uuid = UNKNOWN_UUID;
         private Metadata metadata = Metadata.EMPTY_METADATA;
-        private GlobalRoutingTable routingTable = GlobalRoutingTable.EMPTY_ROUTING_TABLE;
+        private GlobalRoutingTable routingTable = null;
         private DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
         private final Map<String, CompatibilityVersions> compatibilityVersions;
         private final Map<String, Set<String>> nodeFeatures;
@@ -915,12 +916,16 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return this;
         }
 
+        @Deprecated
         public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
             return routingTable(routingTableBuilder.build());
         }
 
+        @Deprecated
         public Builder routingTable(RoutingTable routingTable) {
-            return routingTable(new GlobalRoutingTable(routingTable.version(), routingTable));
+            return routingTable(
+                new GlobalRoutingTable(routingTable.version(), ImmutableOpenMap.builder(Metadata.DEFAULT_PROJECT_ID, routingTable).build())
+            );
         }
 
         public Builder routingTable(GlobalRoutingTable routingTable) {
@@ -1006,6 +1011,18 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 }
             }
 
+            // Build routing table if required
+            if (metadata == null) {
+                if (routingTable == null) {
+                    routingTable = GlobalRoutingTable.EMPTY_ROUTING_TABLE;
+                }
+            } else if (routingTable == null) {
+                var projectRouting = Maps.transformValues(metadata.projects(), ignore -> RoutingTable.EMPTY_ROUTING_TABLE);
+                routingTable = new GlobalRoutingTable(0, ImmutableOpenMap.builder(projectRouting).build());
+            } else {
+                routingTable = routingTable.initializeProjects(metadata.projects().keySet());
+            }
+
             return new ClusterState(
                 clusterName,
                 version,
@@ -1058,7 +1075,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             builder.routingTable = GlobalRoutingTable.readFrom(in);
         } else {
             final RoutingTable rt = RoutingTable.readFrom(in);
-            builder.routingTable = new GlobalRoutingTable(rt.version(), rt);
+            builder.routingTable = new GlobalRoutingTable(
+                rt.version(),
+                ImmutableOpenMap.builder(Map.of(Metadata.DEFAULT_PROJECT_ID, rt)).build()
+            );
         }
         builder.nodes = DiscoveryNodes.readFrom(in, localNode);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {

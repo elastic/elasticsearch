@@ -368,6 +368,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
         @Override
         public RoutingTable apply(RoutingTable part) {
+            if (part == null) {
+                part = EMPTY_ROUTING_TABLE;
+            }
             final ImmutableOpenMap<String, IndexRoutingTable> updatedRouting = indicesRouting.apply(part.indicesRouting);
             if (part.version == version && updatedRouting == part.indicesRouting) {
                 return part;

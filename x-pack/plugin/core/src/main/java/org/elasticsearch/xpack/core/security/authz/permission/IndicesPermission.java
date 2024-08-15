@@ -279,6 +279,9 @@ public final class IndicesPermission {
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
         boolean allMatch = true;
+        Map<Automaton, Automaton> indexGroupAutomatons = indexGroupAutomatons(
+            combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex)
+        );
         for (String forIndexPattern : checkForIndexPatterns) {
             Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
             if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
@@ -286,7 +289,7 @@ public final class IndicesPermission {
             }
             if (false == Operations.isEmpty(checkIndexAutomaton)) {
                 Automaton allowedIndexPrivilegesAutomaton = null;
-                for (var indexAndPrivilegeAutomaton : indexGroupAutomatons(combineIndexGroups).entrySet()) {
+                for (var indexAndPrivilegeAutomaton : indexGroupAutomatons.entrySet()) {
                     if (Operations.subsetOf(checkIndexAutomaton, indexAndPrivilegeAutomaton.getValue())) {
                         if (allowedIndexPrivilegesAutomaton != null) {
                             allowedIndexPrivilegesAutomaton = Automatons.unionAndMinimize(
@@ -697,6 +700,7 @@ public final class IndicesPermission {
      * @return a map of all index and privilege pattern automaton
      */
     private Map<Automaton, Automaton> indexGroupAutomatons(boolean combine) {
+        // Map of privilege automaton object references (cached by IndexPrivilege::CACHE)
         Map<Automaton, Automaton> allAutomatons = new HashMap<>();
         for (Group group : groups) {
             Automaton indexAutomaton = group.getIndexMatcherAutomaton();
@@ -706,14 +710,14 @@ public final class IndicesPermission {
             );
             if (combine) {
                 List<Tuple<Automaton, Automaton>> combinedAutomatons = new ArrayList<>();
-                for (var indexAndPrivilegeAutomaton : allAutomatons.entrySet()) {
+                for (var indexAndPrivilegeAutomatons : allAutomatons.entrySet()) {
                     Automaton intersectingPrivileges = Operations.intersection(
-                        indexAndPrivilegeAutomaton.getKey(),
+                        indexAndPrivilegeAutomatons.getKey(),
                         group.privilege().getAutomaton()
                     );
                     if (Operations.isEmpty(intersectingPrivileges) == false) {
                         Automaton indexPatternAutomaton = Automatons.unionAndMinimize(
-                            List.of(indexAndPrivilegeAutomaton.getValue(), indexAutomaton)
+                            List.of(indexAndPrivilegeAutomatons.getValue(), indexAutomaton)
                         );
                         combinedAutomatons.add(new Tuple<>(intersectingPrivileges, indexPatternAutomaton));
                     }

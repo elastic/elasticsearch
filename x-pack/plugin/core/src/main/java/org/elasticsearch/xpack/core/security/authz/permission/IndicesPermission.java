@@ -673,14 +673,14 @@ public final class IndicesPermission {
     }
 
     /**
-     * Combine index groups to enable checking if a set of index patterns specified using a regular expression grants a set of index
-     * privileges.
+     * Get all automatons for the index groups in this permission and optionally combine the index groups to enable checking if a set of
+     * index patterns specified using a regular expression grants a set of index privileges.
      *
      * <p>An index group is defined as a set of index patterns and a set of privileges (excluding field permissions and DLS queries).
-     * {@link IndicesPermission} consist of a set of index groups. For non-regular expression checks, an index pattern is checked against
-     * each index group, to see if it's a sub-pattern of the index pattern for the group and then if that group grants some or all of the
-     * privileges requested. For regular expressions it's not sufficient to check per group since the index patterns covered by a group can
-     * be distinct sets and a regular expressions can cover several distinct sets.
+     * {@link IndicesPermission} consist of a set of index groups. For non-regular expression privilege checks, an index pattern is checked
+     * against each index group, to see if it's a sub-pattern of the index pattern for the group and then if that group grants some or all
+     * of the privileges requested. For regular expressions it's not sufficient to check per group since the index patterns covered by a
+     * group can be distinct sets and a regular expression can cover several distinct sets.
      *
      * <p>For example the two index groups: {"names": ["a"], "privileges": ["read", "create"]} and {"names": ["b"],
      * "privileges": ["read","delete"]} will not match on ["\[ab]\"], while a single index group:
@@ -693,7 +693,7 @@ public final class IndicesPermission {
      *
      * @return a list of tuples of all index and privilege pattern automaton
      */
-    public List<Tuple<Automaton, Automaton>> indexGroupAutomatons(boolean combine) {
+    private List<Tuple<Automaton, Automaton>> indexGroupAutomatons(boolean combine) {
         if (groups.length == 0) {
             return List.of();
         }

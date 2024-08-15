@@ -110,8 +110,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             listener.onFailure(
                 new ElasticsearchStatusException(
                     format(
-                        "The [allow_partial_search_results] parameter cannot be used while the cluster is still upgrading. " +
-                                "Please wait until the upgrade is fully completed and try again."
+                        "The [allow_partial_search_results] parameter cannot be used while the cluster is still upgrading. "
+                            + "Please wait until the upgrade is fully completed and try again."
                     ),
                     RestStatus.BAD_REQUEST
                 )

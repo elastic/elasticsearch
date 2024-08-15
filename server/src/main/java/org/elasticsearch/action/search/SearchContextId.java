@@ -63,8 +63,9 @@ public final class SearchContextId {
         ShardSearchFailure[] shardFailures
     ) {
         assert shardFailures.length == 0 || version.onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)
-                : "[allow_partial_search_results] cannot be enabled on a cluster that has not been fully upgraded to version ["
-                + TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT + "] or higher.";
+            : "[allow_partial_search_results] cannot be enabled on a cluster that has not been fully upgraded to version ["
+                + TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT
+                + "] or higher.";
         try (var out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             TransportVersion.writeVersion(version, out);

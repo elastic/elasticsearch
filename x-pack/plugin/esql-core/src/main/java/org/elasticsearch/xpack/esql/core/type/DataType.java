@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.type;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -193,6 +194,16 @@ public enum DataType {
      */
     PARTIAL_AGG(builder().esType("partial_agg").unknownSize());
 
+    /**
+     * Types that are actively being built. These types are not returned
+     * from Elasticsearch if their associated {@link FeatureFlag} is disabled.
+     * They aren't included in generated documentation. And the tests don't
+     * check that sending them to a function produces a sane error message.
+     */
+    public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
+        Map.entry(DATE_NANOS, EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG)
+    );
+
     private final String typeName;
 
     private final String name;
@@ -290,10 +301,14 @@ public enum DataType {
 
     public static DataType fromEs(String name) {
         DataType type = ES_TO_TYPE.get(name);
-        if (type == DATE_NANOS && EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG.isEnabled() == false) {
-            type = UNSUPPORTED;
+        if (type == null) {
+            return UNSUPPORTED;
         }
-        return type != null ? type : UNSUPPORTED;
+        FeatureFlag underConstruction = UNDER_CONSTRUCTION.get(type);
+        if (underConstruction != null && underConstruction.isEnabled() == false) {
+            return UNSUPPORTED;
+        }
+        return type;
     }
 
     public static DataType fromJava(Object value) {

@@ -227,6 +227,11 @@ public class EsqlCapabilities {
         COMBINE_DISJUNCTIVE_CIDRMATCHES,
 
         /**
+         * Consider the upper bound when computing the interval in BUCKET auto mode.
+         */
+        BUCKET_INCLUSIVE_UPPER_BOUND,
+
+        /**
          * Support for the whole number spans in BUCKET function.
          */
         BUCKET_WHOLE_NUMBER_AS_SPAN;

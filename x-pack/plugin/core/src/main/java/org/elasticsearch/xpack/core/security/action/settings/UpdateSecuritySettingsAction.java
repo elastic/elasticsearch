@@ -27,7 +27,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -55,11 +57,18 @@ public class UpdateSecuritySettingsAction {
             (it, ex) -> ex, // no additional validation
             DataTier.TIER_PREFERENCE,
             (it, ex) -> {
-                if (it instanceof String preference && preference.contains(DataTier.DATA_FROZEN)) {
-                    return ValidateActions.addValidationError(
-                        "security indices may not be assigned a preference for " + DataTier.DATA_FROZEN,
-                        ex
-                    );
+                Set<String> allowedTiers = Set.of(DataTier.DATA_CONTENT, DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD);
+                if (it instanceof String preference) {
+                    String disallowedTiers = DataTier.parseTierList(preference)
+                        .stream()
+                        .filter(tier -> allowedTiers.contains(tier) == false)
+                        .collect(Collectors.joining(","));
+                    if (disallowedTiers.isEmpty() == false) {
+                        return ValidateActions.addValidationError(
+                            "disallowed data tiers [" + disallowedTiers + "] found, allowed tiers are [" + String.join(",", allowedTiers),
+                            ex
+                        );
+                    }
                 }
                 return ex;
             }

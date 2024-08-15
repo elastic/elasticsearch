@@ -13,6 +13,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Random;
 
 /**
  * A {@code RankFeaturePhaseRankCoordinatorContext} that performs a rerank inference call to determine relevance scores for documents within
@@ -26,10 +27,12 @@ public class RandomRankFeaturePhaseRankCoordinatorContext extends RankFeaturePha
 
     @Override
     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
-        // Generate random scores
+        // Generate random scores seeded by doc
         float[] scores = new float[featureDocs.length];
         for (int i = 0; i < featureDocs.length; i++) {
-            scores[i] = (float) Math.random();
+            RankFeatureDoc featureDoc = featureDocs[i];
+            int doc = featureDoc.doc;
+            scores[i] = new Random(doc).nextFloat();
         }
         scoreListener.onResponse(scores);
     }

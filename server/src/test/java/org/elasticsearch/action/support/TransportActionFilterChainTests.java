@@ -55,7 +55,8 @@ public class TransportActionFilterChainTests extends ESTestCase {
         counter = new AtomicInteger();
         threadPool = new ThreadPool(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "TransportActionFilterChainTests").build(),
-            MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
         );
     }
 

@@ -230,7 +230,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      * @param customBuilders a list of additional thread pool builders that were defined elsewhere (like a Plugin).
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public ThreadPool(final Settings settings, MeterRegistry meterRegistry, BuiltInExecutorBuilders builtInExecutorBuilders, final ExecutorBuilder<?>... customBuilders) {
+    public ThreadPool(
+        final Settings settings,
+        MeterRegistry meterRegistry,
+        BuiltInExecutorBuilders builtInExecutorBuilders,
+        final ExecutorBuilder<?>... customBuilders
+    ) {
         assert Node.NODE_NAME_SETTING.exists(settings);
 
         final Map<String, ArrayList<Instrument>> instruments = new HashMap<>();

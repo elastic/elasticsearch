@@ -93,7 +93,11 @@ public class GeoIpDownloaderTests extends ESTestCase {
         httpClient = mock(HttpClient.class);
         when(httpClient.getBytes(anyString())).thenReturn("[]".getBytes(StandardCharsets.UTF_8));
         clusterService = mock(ClusterService.class);
-        threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(), MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        threadPool = new ThreadPool(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        );
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(
                 Settings.EMPTY,

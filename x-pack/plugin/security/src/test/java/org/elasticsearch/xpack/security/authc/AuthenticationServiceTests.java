@@ -263,7 +263,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         client = mock(Client.class);
         threadPool = new ThreadPool(
             settings,
-            MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders(),
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders(),
             new FixedExecutorBuilder(
                 settings,
                 THREAD_POOL_NAME,

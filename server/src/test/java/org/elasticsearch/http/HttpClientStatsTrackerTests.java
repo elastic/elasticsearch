@@ -439,7 +439,11 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
         private final long absoluteTimeOffset = randomLong();
 
         FakeTimeThreadPool() {
-            super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(), MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+            super(
+                Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
+                MeterRegistry.NOOP,
+                new DefaultBuiltInExecutorBuilders()
+            );
             stopCachedTimeThread();
             setRandomTime();
         }

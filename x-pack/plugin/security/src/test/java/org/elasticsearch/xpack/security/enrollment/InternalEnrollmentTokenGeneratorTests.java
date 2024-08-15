@@ -85,7 +85,8 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         final Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "InternalEnrollmentTokenGeneratorTests").build();
         threadPool = new ThreadPool(
             settings,
-            MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders(),
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders(),
             new FixedExecutorBuilder(
                 settings,
                 TokenService.THREAD_POOL_NAME,

@@ -33,14 +33,29 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
         );
         builders.put(
             ThreadPool.Names.WRITE,
-            new FixedExecutorBuilder(settings, ThreadPool.Names.WRITE, allocatedProcessors, 10000, new EsExecutors.TaskTrackingConfig(true, 0.1))
+            new FixedExecutorBuilder(
+                settings,
+                ThreadPool.Names.WRITE,
+                allocatedProcessors,
+                10000,
+                new EsExecutors.TaskTrackingConfig(true, 0.1)
+            )
         );
         int searchOrGetThreadPoolSize = Util.searchOrGetThreadPoolSize(allocatedProcessors);
         builders.put(
             ThreadPool.Names.GET,
-            new FixedExecutorBuilder(settings, ThreadPool.Names.GET, searchOrGetThreadPoolSize, 1000, EsExecutors.TaskTrackingConfig.DO_NOT_TRACK)
+            new FixedExecutorBuilder(
+                settings,
+                ThreadPool.Names.GET,
+                searchOrGetThreadPoolSize,
+                1000,
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
         );
-        builders.put(ThreadPool.Names.ANALYZE, new FixedExecutorBuilder(settings, ThreadPool.Names.ANALYZE, 1, 16, EsExecutors.TaskTrackingConfig.DO_NOT_TRACK));
+        builders.put(
+            ThreadPool.Names.ANALYZE,
+            new FixedExecutorBuilder(settings, ThreadPool.Names.ANALYZE, 1, 16, EsExecutors.TaskTrackingConfig.DO_NOT_TRACK)
+        );
         builders.put(
             ThreadPool.Names.SEARCH,
             new FixedExecutorBuilder(
@@ -53,7 +68,13 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
         );
         builders.put(
             ThreadPool.Names.SEARCH_WORKER,
-            new FixedExecutorBuilder(settings, ThreadPool.Names.SEARCH_WORKER, searchOrGetThreadPoolSize, -1, EsExecutors.TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(
+                settings,
+                ThreadPool.Names.SEARCH_WORKER,
+                searchOrGetThreadPoolSize,
+                -1,
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            )
         );
         builders.put(
             ThreadPool.Names.SEARCH_COORDINATION,
@@ -67,7 +88,13 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
         );
         builders.put(
             ThreadPool.Names.AUTO_COMPLETE,
-            new FixedExecutorBuilder(settings, ThreadPool.Names.AUTO_COMPLETE, Math.max(allocatedProcessors / 4, 1), 100, EsExecutors.TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(
+                settings,
+                ThreadPool.Names.AUTO_COMPLETE,
+                Math.max(allocatedProcessors / 4, 1),
+                100,
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            )
         );
         builders.put(
             ThreadPool.Names.SEARCH_THROTTLED,
@@ -75,15 +102,33 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
         );
         builders.put(
             ThreadPool.Names.MANAGEMENT,
-            new ScalingExecutorBuilder(ThreadPool.Names.MANAGEMENT, 1, Util.boundedBy(allocatedProcessors, 1, 5), TimeValue.timeValueMinutes(5), false)
+            new ScalingExecutorBuilder(
+                ThreadPool.Names.MANAGEMENT,
+                1,
+                Util.boundedBy(allocatedProcessors, 1, 5),
+                TimeValue.timeValueMinutes(5),
+                false
+            )
         );
-        builders.put(ThreadPool.Names.FLUSH, new ScalingExecutorBuilder(ThreadPool.Names.FLUSH, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false));
+        builders.put(
+            ThreadPool.Names.FLUSH,
+            new ScalingExecutorBuilder(ThreadPool.Names.FLUSH, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false)
+        );
         // TODO: remove (or refine) this temporary stateless custom refresh pool sizing once ES-7631 is solved.
         final int refreshThreads = DiscoveryNode.isStateless(settings) ? allocatedProcessors : halfProcMaxAt10;
-        builders.put(ThreadPool.Names.REFRESH, new ScalingExecutorBuilder(ThreadPool.Names.REFRESH, 1, refreshThreads, TimeValue.timeValueMinutes(5), false));
-        builders.put(ThreadPool.Names.WARMER, new ScalingExecutorBuilder(ThreadPool.Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false));
+        builders.put(
+            ThreadPool.Names.REFRESH,
+            new ScalingExecutorBuilder(ThreadPool.Names.REFRESH, 1, refreshThreads, TimeValue.timeValueMinutes(5), false)
+        );
+        builders.put(
+            ThreadPool.Names.WARMER,
+            new ScalingExecutorBuilder(ThreadPool.Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false)
+        );
         final int maxSnapshotCores = Util.getMaxSnapshotThreadPoolSize(allocatedProcessors);
-        builders.put(ThreadPool.Names.SNAPSHOT, new ScalingExecutorBuilder(ThreadPool.Names.SNAPSHOT, 1, maxSnapshotCores, TimeValue.timeValueMinutes(5), false));
+        builders.put(
+            ThreadPool.Names.SNAPSHOT,
+            new ScalingExecutorBuilder(ThreadPool.Names.SNAPSHOT, 1, maxSnapshotCores, TimeValue.timeValueMinutes(5), false)
+        );
         builders.put(
             ThreadPool.Names.SNAPSHOT_META,
             new ScalingExecutorBuilder(
@@ -96,7 +141,13 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
         );
         builders.put(
             ThreadPool.Names.FETCH_SHARD_STARTED,
-            new ScalingExecutorBuilder(ThreadPool.Names.FETCH_SHARD_STARTED, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5), false)
+            new ScalingExecutorBuilder(
+                ThreadPool.Names.FETCH_SHARD_STARTED,
+                1,
+                2 * allocatedProcessors,
+                TimeValue.timeValueMinutes(5),
+                false
+            )
         );
         builders.put(
             ThreadPool.Names.FORCE_MERGE,
@@ -118,19 +169,43 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
         );
         builders.put(
             ThreadPool.Names.SYSTEM_READ,
-            new FixedExecutorBuilder(settings, ThreadPool.Names.SYSTEM_READ, halfProcMaxAt5, 2000, EsExecutors.TaskTrackingConfig.DO_NOT_TRACK)
+            new FixedExecutorBuilder(
+                settings,
+                ThreadPool.Names.SYSTEM_READ,
+                halfProcMaxAt5,
+                2000,
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
         );
         builders.put(
             ThreadPool.Names.SYSTEM_WRITE,
-            new FixedExecutorBuilder(settings, ThreadPool.Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, new EsExecutors.TaskTrackingConfig(true, 0.1))
+            new FixedExecutorBuilder(
+                settings,
+                ThreadPool.Names.SYSTEM_WRITE,
+                halfProcMaxAt5,
+                1000,
+                new EsExecutors.TaskTrackingConfig(true, 0.1)
+            )
         );
         builders.put(
             ThreadPool.Names.SYSTEM_CRITICAL_READ,
-            new FixedExecutorBuilder(settings, ThreadPool.Names.SYSTEM_CRITICAL_READ, halfProcMaxAt5, 2000, EsExecutors.TaskTrackingConfig.DO_NOT_TRACK)
+            new FixedExecutorBuilder(
+                settings,
+                ThreadPool.Names.SYSTEM_CRITICAL_READ,
+                halfProcMaxAt5,
+                2000,
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
         );
         builders.put(
             ThreadPool.Names.SYSTEM_CRITICAL_WRITE,
-            new FixedExecutorBuilder(settings, ThreadPool.Names.SYSTEM_CRITICAL_WRITE, halfProcMaxAt5, 1500, new EsExecutors.TaskTrackingConfig(true, 0.1))
+            new FixedExecutorBuilder(
+                settings,
+                ThreadPool.Names.SYSTEM_CRITICAL_WRITE,
+                halfProcMaxAt5,
+                1500,
+                new EsExecutors.TaskTrackingConfig(true, 0.1)
+            )
         );
     }
 }

@@ -42,7 +42,8 @@ public class TransportActionTests extends ESTestCase {
     public void init() throws Exception {
         threadPool = new ThreadPool(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "TransportActionTests").build(),
-            MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
         );
     }
 

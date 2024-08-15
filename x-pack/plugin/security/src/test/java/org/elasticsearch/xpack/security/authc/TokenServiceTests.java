@@ -271,7 +271,8 @@ public class TokenServiceTests extends ESTestCase {
     public static void startThreadPool() throws IOException {
         threadPool = new ThreadPool(
             settings,
-            MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders(),
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders(),
             new FixedExecutorBuilder(
                 settings,
                 TokenService.THREAD_POOL_NAME,

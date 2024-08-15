@@ -51,7 +51,11 @@ public class EnterpriseGeoIpDownloaderLicenseListenerTests extends ESTestCase {
 
     @Before
     public void setup() {
-        threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(), MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        threadPool = new ThreadPool(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        );
     }
 
     @After

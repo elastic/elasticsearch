@@ -39,7 +39,8 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                     .put("node.name", "testCorrectThreadPoolTypePermittedInSettings")
                     .put("thread_pool." + threadPoolName + ".type", correctThreadPoolType.getType())
                     .build(),
-                MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()
+                MeterRegistry.NOOP,
+                new DefaultBuiltInExecutorBuilders()
             );
             assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), correctThreadPoolType);
         } finally {
@@ -60,7 +61,8 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                         .put("node.name", "testIndexingThreadPoolsMaxSize")
                         .put("thread_pool." + Names.WRITE + ".size", tooBig)
                         .build(),
-                    MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()
+                    MeterRegistry.NOOP,
+                    new DefaultBuiltInExecutorBuilders()
                 );
             } finally {
                 terminateThreadPoolIfNeeded(tp);
@@ -184,7 +186,8 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
 
             threadPool = new ThreadPool(
                 Settings.builder().put("node.name", "testCustomThreadPool").build(),
-                MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders(),
+                MeterRegistry.NOOP,
+                new DefaultBuiltInExecutorBuilders(),
                 scaling,
                 fixed
             );

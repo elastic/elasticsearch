@@ -46,16 +46,7 @@ public class BlobCacheMetricsTests extends ESTestCase {
             .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, "es.blob_cache.population.throughput.histogram")
             .get(0);
         assertEquals(throughputMeasurement.getDouble(), (double) mebiBytesSent / secondsTaken, 0.0);
-        assertEquals(throughputMeasurement.attributes().get(BlobCacheMetrics.SHARD_ID_ATTRIBUTE_KEY), shardId);
-        assertEquals(throughputMeasurement.attributes().get(BlobCacheMetrics.INDEX_ATTRIBUTE_KEY), indexName);
-        assertEquals(
-            throughputMeasurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_REASON_ATTRIBUTE_KEY),
-            cachePopulationReason.name()
-        );
-        assertEquals(
-            throughputMeasurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY),
-            cachePopulationSource.name()
-        );
+        assertExpectedAttributesPresent(throughputMeasurement, shardId, indexName, cachePopulationReason, cachePopulationSource);
     }
 
     public void testRecordCachePopulationMetricsRecordsTotalBytes() {
@@ -77,16 +68,7 @@ public class BlobCacheMetricsTests extends ESTestCase {
             .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.population.bytes.total")
             .get(0);
         assertEquals(totalBytesMeasurement.getLong(), ByteSizeValue.ofMb(mebiBytesSent).getBytes());
-        assertEquals(totalBytesMeasurement.attributes().get(BlobCacheMetrics.SHARD_ID_ATTRIBUTE_KEY), shardId);
-        assertEquals(totalBytesMeasurement.attributes().get(BlobCacheMetrics.INDEX_ATTRIBUTE_KEY), indexName);
-        assertEquals(
-            totalBytesMeasurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_REASON_ATTRIBUTE_KEY),
-            cachePopulationReason.name()
-        );
-        assertEquals(
-            totalBytesMeasurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY),
-            cachePopulationSource.name()
-        );
+        assertExpectedAttributesPresent(totalBytesMeasurement, shardId, indexName, cachePopulationReason, cachePopulationSource);
     }
 
     public void testRecordCachePopulationMetricsRecordsTotalTime() {
@@ -108,14 +90,24 @@ public class BlobCacheMetricsTests extends ESTestCase {
             .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.population.time.total")
             .get(0);
         assertEquals(totalTimeMeasurement.getLong(), TimeUnit.SECONDS.toMillis(secondsTaken));
-        assertEquals(totalTimeMeasurement.attributes().get(BlobCacheMetrics.SHARD_ID_ATTRIBUTE_KEY), shardId);
-        assertEquals(totalTimeMeasurement.attributes().get(BlobCacheMetrics.INDEX_ATTRIBUTE_KEY), indexName);
+        assertExpectedAttributesPresent(totalTimeMeasurement, shardId, indexName, cachePopulationReason, cachePopulationSource);
+    }
+
+    private static void assertExpectedAttributesPresent(
+        Measurement measurement,
+        int shardId,
+        String indexName,
+        BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+        CachePopulationSource cachePopulationSource
+    ) {
+        assertEquals(measurement.attributes().get(BlobCacheMetrics.SHARD_ID_ATTRIBUTE_KEY), shardId);
+        assertEquals(measurement.attributes().get(BlobCacheMetrics.INDEX_ATTRIBUTE_KEY), indexName);
         assertEquals(
-            totalTimeMeasurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_REASON_ATTRIBUTE_KEY),
+            measurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_REASON_ATTRIBUTE_KEY),
             cachePopulationReason.name()
         );
         assertEquals(
-            totalTimeMeasurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY),
+            measurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY),
             cachePopulationSource.name()
         );
     }

@@ -152,6 +152,18 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
         assertAllowedIndexPatterns(permission, new String[] { "/[f]/" }, new String[] { "read", "manage" }, true);
     }
 
+    public void testEmptyPrivileges() {
+        new ReservedRolesStore();
+
+        final ManageRolesPrivilege privilege = new ManageRolesPrivilege(List.of());
+
+        final ClusterPermission permission = privilege.buildPermission(
+            new ClusterPermission.Builder(new RestrictedIndices(TestRestrictedIndices.RESTRICTED_INDICES.getAutomaton()))
+        ).build();
+
+        assertAllowedIndexPatterns(permission, new String[] { "test" }, new String[] { "all" }, false);
+    }
+
     public void testRestrictedIndexPutRoleRequest() {
         new ReservedRolesStore();
 
@@ -219,7 +231,9 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
                 );
                 break;
             case 3:
-                putRoleRequest.addRemoteIndex(new RoleDescriptor.RemoteIndicesPrivileges.Builder("test-cluster").privileges("all").build());
+                putRoleRequest.addRemoteIndex(
+                    new RoleDescriptor.RemoteIndicesPrivileges.Builder("test-cluster").privileges("all").indices("test*").build()
+                );
                 break;
             case 4:
                 putRoleRequest.putRemoteCluster(

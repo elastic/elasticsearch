@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
@@ -32,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -283,14 +286,14 @@ public final class IndicesPermission {
             }
             if (false == Operations.isEmpty(checkIndexAutomaton)) {
                 Automaton allowedIndexPrivilegesAutomaton = null;
-                for (var indexAndPrivilegeAutomaton : indexGroupAutomatons(combineIndexGroups)) {
-                    if (Operations.subsetOf(checkIndexAutomaton, indexAndPrivilegeAutomaton.v1())) {
+                for (var indexAndPrivilegeAutomaton : indexGroupAutomatons(combineIndexGroups).entrySet()) {
+                    if (Operations.subsetOf(checkIndexAutomaton, indexAndPrivilegeAutomaton.getValue())) {
                         if (allowedIndexPrivilegesAutomaton != null) {
                             allowedIndexPrivilegesAutomaton = Automatons.unionAndMinimize(
-                                Arrays.asList(allowedIndexPrivilegesAutomaton, indexAndPrivilegeAutomaton.v2())
+                                Arrays.asList(allowedIndexPrivilegesAutomaton, indexAndPrivilegeAutomaton.getKey())
                             );
                         } else {
-                            allowedIndexPrivilegesAutomaton = indexAndPrivilegeAutomaton.v2();
+                            allowedIndexPrivilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
                         }
                     }
                 }
@@ -691,38 +694,42 @@ public final class IndicesPermission {
      *
      * @param combine combine index groups to allow for checking against regular expressions
      *
-     * @return a list of tuples of all index and privilege pattern automaton
+     * @return a map of all index and privilege pattern automaton
      */
-    private List<Tuple<Automaton, Automaton>> indexGroupAutomatons(boolean combine) {
-        if (groups.length == 0) {
-            return List.of();
-        }
-
-        List<Tuple<Automaton, Automaton>> allAutomatons = new ArrayList<>();
-        allAutomatons.add(new Tuple<>(groups[0].getIndexMatcherAutomaton(), groups[0].privilege().getAutomaton()));
-
+    private Map<Automaton, Automaton> indexGroupAutomatons(boolean combine) {
+        Map<Automaton, Automaton> allAutomatons = new HashMap<>();
         for (Group group : groups) {
             Automaton indexAutomaton = group.getIndexMatcherAutomaton();
+            allAutomatons.compute(
+                group.privilege().getAutomaton(),
+                (key, value) -> value == null ? indexAutomaton : Automatons.unionAndMinimize(List.of(value, indexAutomaton))
+            );
             if (combine) {
                 List<Tuple<Automaton, Automaton>> combinedAutomatons = new ArrayList<>();
-                for (var indexAndPrivilegeAutomaton : allAutomatons) {
+                for (var indexAndPrivilegeAutomaton : allAutomatons.entrySet()) {
                     Automaton intersectingPrivileges = Operations.intersection(
-                        indexAndPrivilegeAutomaton.v2(),
+                        indexAndPrivilegeAutomaton.getKey(),
                         group.privilege().getAutomaton()
                     );
                     if (Operations.isEmpty(intersectingPrivileges) == false) {
                         Automaton indexPatternAutomaton = Automatons.unionAndMinimize(
-                            List.of(indexAndPrivilegeAutomaton.v1(), indexAutomaton)
+                            List.of(indexAndPrivilegeAutomaton.getValue(), indexAutomaton)
                         );
-                        combinedAutomatons.add(new Tuple<>(indexPatternAutomaton, intersectingPrivileges));
+                        combinedAutomatons.add(new Tuple<>(intersectingPrivileges, indexPatternAutomaton));
                     }
                 }
-                allAutomatons.addAll(combinedAutomatons);
+                combinedAutomatons.forEach(
+                    automatons -> allAutomatons.compute(
+                        automatons.v1(),
+                        (key, value) -> value == null ? automatons.v2() : Automatons.unionAndMinimize(List.of(value, automatons.v2()))
+                    )
+                );
             }
-            allAutomatons.add(new Tuple<>(indexAutomaton, group.privilege().getAutomaton()));
         }
         return allAutomatons;
     }
+
+    private static final Logger logger = LogManager.getLogger(IndicesPermission.class);
 
     public static class Group {
         public static final Group[] EMPTY_ARRAY = new Group[0];

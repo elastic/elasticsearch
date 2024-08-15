@@ -106,7 +106,7 @@ public class SecuritySettingsIT extends SecurityInBasicRestTestCase {
         ResponseException ex = expectThrows(ResponseException.class, () -> adminClient().performRequest(req));
         assertThat(
             EntityUtils.toString(ex.getResponse().getEntity()),
-            containsString("illegal settings for index [security]: " + "[index.max_ngram_diff], these settings may not be configured.")
+            containsString("illegal setting for index [security]: " + "[index.max_ngram_diff], this setting may not be configured.")
         );
     }
 

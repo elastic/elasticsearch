@@ -1032,7 +1032,8 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     /**
      * Older versions of Elasticsearch don't record in {@link RepositoryData} all the details needed for the get-snapshots API to pick out
      * the right snapshots, so in this case the API must fall back to reading those details from each candidate {@link SnapshotInfo} blob.
-     * Simulate this situation by manipulating the {@link RepositoryData} blob directly.
+     * Simulate this situation by manipulating the {@link RepositoryData} blob directly to remove all the optional details from some subset
+     * of its snapshots.
      */
     private static void removeDetailsForRandomSnapshots(String repositoryName, ActionListener<Void> listener) {
         final Set<SnapshotId> snapshotsWithoutDetails = ConcurrentCollections.newConcurrentSet();

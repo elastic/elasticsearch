@@ -1,0 +1,6 @@
+pr: 111936
+summary: Teach XContentGenerator#copyCurrentEvent to handle `BigInteger` and `BigDecimal`
+area: Logs
+type: bug
+issues:
+ - 111812

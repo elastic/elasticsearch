@@ -30,7 +30,7 @@ public class BlobCacheMetricsTests extends ESTestCase {
     public void testRecordCachePopulationMetricsRecordsThroughput() {
         int mebiBytesSent = randomIntBetween(1, 4);
         int secondsTaken = randomIntBetween(1, 5);
-        String indexName = randomAlphaOfLength(10);
+        String indexName = randomIdentifier();
         int shardId = randomIntBetween(0, 10);
         BlobCacheMetrics.CachePopulationReason cachePopulationReason = randomFrom(BlobCacheMetrics.CachePopulationReason.values());
         CachePopulationSource cachePopulationSource = randomFrom(CachePopulationSource.values());
@@ -42,50 +42,22 @@ public class BlobCacheMetricsTests extends ESTestCase {
             cachePopulationReason,
             cachePopulationSource
         );
+
+        // throughput histogram
         Measurement throughputMeasurement = recordingMeterRegistry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, "es.blob_cache.population.throughput.histogram")
             .get(0);
         assertEquals(throughputMeasurement.getDouble(), (double) mebiBytesSent / secondsTaken, 0.0);
         assertExpectedAttributesPresent(throughputMeasurement, shardId, indexName, cachePopulationReason, cachePopulationSource);
-    }
 
-    public void testRecordCachePopulationMetricsRecordsTotalBytes() {
-        int mebiBytesSent = randomIntBetween(1, 4);
-        int secondsTaken = randomIntBetween(1, 5);
-        String indexName = randomAlphaOfLength(10);
-        int shardId = randomIntBetween(0, 10);
-        BlobCacheMetrics.CachePopulationReason cachePopulationReason = randomFrom(BlobCacheMetrics.CachePopulationReason.values());
-        CachePopulationSource cachePopulationSource = randomFrom(CachePopulationSource.values());
-        metrics.recordCachePopulationMetrics(
-            Math.toIntExact(ByteSizeValue.ofMb(mebiBytesSent).getBytes()),
-            TimeUnit.SECONDS.toNanos(secondsTaken),
-            indexName,
-            shardId,
-            cachePopulationReason,
-            cachePopulationSource
-        );
+        // bytes counter
         Measurement totalBytesMeasurement = recordingMeterRegistry.getRecorder()
             .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.population.bytes.total")
             .get(0);
         assertEquals(totalBytesMeasurement.getLong(), ByteSizeValue.ofMb(mebiBytesSent).getBytes());
         assertExpectedAttributesPresent(totalBytesMeasurement, shardId, indexName, cachePopulationReason, cachePopulationSource);
-    }
 
-    public void testRecordCachePopulationMetricsRecordsTotalTime() {
-        int mebiBytesSent = randomIntBetween(1, 4);
-        int secondsTaken = randomIntBetween(1, 5);
-        String indexName = randomAlphaOfLength(10);
-        int shardId = randomIntBetween(0, 10);
-        BlobCacheMetrics.CachePopulationReason cachePopulationReason = randomFrom(BlobCacheMetrics.CachePopulationReason.values());
-        CachePopulationSource cachePopulationSource = randomFrom(CachePopulationSource.values());
-        metrics.recordCachePopulationMetrics(
-            Math.toIntExact(ByteSizeValue.ofMb(mebiBytesSent).getBytes()),
-            TimeUnit.SECONDS.toNanos(secondsTaken),
-            indexName,
-            shardId,
-            cachePopulationReason,
-            cachePopulationSource
-        );
+        // time counter
         Measurement totalTimeMeasurement = recordingMeterRegistry.getRecorder()
             .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.population.time.total")
             .get(0);

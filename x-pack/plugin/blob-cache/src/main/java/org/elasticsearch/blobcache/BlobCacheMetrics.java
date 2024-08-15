@@ -7,6 +7,8 @@
 
 package org.elasticsearch.blobcache;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
@@ -17,6 +19,9 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class BlobCacheMetrics {
+    private static final Logger logger = LogManager.getLogger(BlobCacheMetrics.class);
+
+    private static final double BYTES_PER_NANOSECONDS_TO_MEBIBYTES_PER_SECOND = 1e9D / (1 << 20);
     public static final String CACHE_POPULATION_REASON_ATTRIBUTE_KEY = "reason";
     public static final String CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY = "source";
     public static final String SHARD_ID_ATTRIBUTE_KEY = "shard_id";
@@ -25,7 +30,7 @@ public class BlobCacheMetrics {
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
     private final LongHistogram cacheMissLoadTimes;
-    private final DoubleHistogram cachePopulateThroughput;
+    private final DoubleHistogram cachePopulationThroughput;
     private final LongCounter cachePopulationBytes;
     private final LongCounter cachePopulationTime;
 
@@ -59,12 +64,12 @@ public class BlobCacheMetrics {
             ),
             meterRegistry.registerDoubleHistogram(
                 "es.blob_cache.population.throughput.histogram",
-                "The throughput when populating the blob store from the cache",
+                "The throughput observed when populating the the cache",
                 "MiB/second"
             ),
             meterRegistry.registerLongCounter(
                 "es.blob_cache.population.bytes.total",
-                "The number of bytes that have been loaded into the cache",
+                "The number of bytes that have been copied into the cache",
                 "bytes"
             ),
             meterRegistry.registerLongCounter(
@@ -79,14 +84,14 @@ public class BlobCacheMetrics {
         LongCounter cacheMissCounter,
         LongCounter evictedCountNonZeroFrequency,
         LongHistogram cacheMissLoadTimes,
-        DoubleHistogram cachePopulateThroughput,
+        DoubleHistogram cachePopulationThroughput,
         LongCounter cachePopulationBytes,
         LongCounter cachePopulationTime
     ) {
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
         this.cacheMissLoadTimes = cacheMissLoadTimes;
-        this.cachePopulateThroughput = cachePopulateThroughput;
+        this.cachePopulationThroughput = cachePopulationThroughput;
         this.cachePopulationBytes = cachePopulationBytes;
         this.cachePopulationTime = cachePopulationTime;
     }
@@ -108,16 +113,16 @@ public class BlobCacheMetrics {
     /**
      * Record the various cache population metrics after a chunk is copied to the cache
      *
-     * @param totalBytesCopied The total number of bytes copied
-     * @param totalCopyTimeNanos The time taken to copy the bytes in nanoseconds
+     * @param bytesCopied The number of bytes copied
+     * @param copyTimeNanos The time taken to copy the bytes in nanoseconds
      * @param index The index being loaded
      * @param shardId The ID of the shard being loaded
      * @param cachePopulationReason The reason for the cache being populated
      * @param cachePopulationSource The source from which the data is being loaded
      */
     public void recordCachePopulationMetrics(
-        int totalBytesCopied,
-        long totalCopyTimeNanos,
+        int bytesCopied,
+        long copyTimeNanos,
         String index,
         int shardId,
         CachePopulationReason cachePopulationReason,
@@ -133,26 +138,26 @@ public class BlobCacheMetrics {
             CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY,
             cachePopulationSource.name()
         );
-        assert totalBytesCopied > 0 : "We shouldn't be recording zero-sized copies";
-        cachePopulationBytes.incrementBy(totalBytesCopied, metricAttributes);
+        assert bytesCopied > 0 : "We shouldn't be recording zero-sized copies";
+        cachePopulationBytes.incrementBy(bytesCopied, metricAttributes);
 
         // This is almost certainly paranoid, but if we had a very fast/small copy with a very coarse nanosecond timer it might happen?
-        if (totalCopyTimeNanos > 0) {
-            cachePopulateThroughput.record(toMebibytesPerSecond(totalBytesCopied, totalCopyTimeNanos), metricAttributes);
-            cachePopulationTime.incrementBy(TimeUnit.NANOSECONDS.toMillis(totalCopyTimeNanos), metricAttributes);
+        if (copyTimeNanos > 0) {
+            cachePopulationThroughput.record(toMebibytesPerSecond(bytesCopied, copyTimeNanos), metricAttributes);
+            cachePopulationTime.incrementBy(TimeUnit.NANOSECONDS.toMillis(copyTimeNanos), metricAttributes);
+        } else {
+            logger.warn("Zero-time copy being reported, ignoring");
         }
     }
 
     /**
      * Calculate throughput as MiB/second
      *
-     * @param totalBytes The total number of bytes transferred
-     * @param totalNanoseconds The time to transfer in nanoseconds
+     * @param numberOfBytes The number of bytes transferred
+     * @param timeInNanoseconds The time taken to transfer in nanoseconds
      * @return The throughput as MiB/second
      */
-    private double toMebibytesPerSecond(int totalBytes, long totalNanoseconds) {
-        double totalSeconds = totalNanoseconds / 1_000_000_000.0;
-        double totalMegabytes = totalBytes / 1_048_576.0;
-        return totalMegabytes / totalSeconds;
+    private double toMebibytesPerSecond(int numberOfBytes, long timeInNanoseconds) {
+        return ((double) numberOfBytes / timeInNanoseconds) * BYTES_PER_NANOSECONDS_TO_MEBIBYTES_PER_SECOND;
     }
 }

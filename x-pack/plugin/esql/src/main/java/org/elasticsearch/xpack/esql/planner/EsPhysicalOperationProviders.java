@@ -138,7 +138,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         if (unionTypes != null) {
             String indexName = shardContext.ctx.index().getName();
             Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
-            return new TypeConvertingBlockLoader(blockLoader, (AbstractConvertFunction) conversion);
+            return conversion == null
+                ? BlockLoader.CONSTANT_NULLS
+                : new TypeConvertingBlockLoader(blockLoader, (AbstractConvertFunction) conversion);
         }
         return blockLoader;
     }

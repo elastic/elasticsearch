@@ -20,14 +20,15 @@ public class RandomRankBuilderTests extends AbstractXContentSerializingTestCase<
 
     @Override
     protected RandomRankBuilder createTestInstance() {
-        return new RandomRankBuilder(randomIntBetween(1, 1000), "my-field");
+        return new RandomRankBuilder(randomIntBetween(1, 1000), "my-field", randomBoolean() ? randomIntBetween(1, 1000) : null);
     }
 
     @Override
     protected RandomRankBuilder mutateInstance(RandomRankBuilder instance) throws IOException {
         String field = instance.field() + randomAlphaOfLength(2);
         int rankWindowSize = randomValueOtherThan(instance.rankWindowSize(), this::randomRankWindowSize);
-        return new RandomRankBuilder(rankWindowSize, field);
+        Integer seed = randomBoolean() ? randomIntBetween(1, 1000) : null;
+        return new RandomRankBuilder(rankWindowSize, field, seed);
     }
 
     @Override

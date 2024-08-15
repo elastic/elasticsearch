@@ -34,6 +34,7 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder.FIELD_FIELD;
+import static org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder.SEED_FIELD;
 
 /**
  * A {@code RankBuilder} that performs reranking with random scores, used for testing.
@@ -45,18 +46,21 @@ public class RandomRankBuilder extends RankBuilder {
     static final ConstructingObjectParser<RandomRankBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
         Integer rankWindowSize = args[0] == null ? DEFAULT_RANK_WINDOW_SIZE : (Integer) args[0];
         String field = (String) args[1];
+        Integer seed = (Integer) args[2];
 
-        return new RandomRankBuilder(rankWindowSize, field);
+        return new RandomRankBuilder(rankWindowSize, field, seed);
     });
 
     static {
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareString(constructorArg(), FIELD_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), SEED_FIELD);
     }
 
     private final String field;
+    private final Integer seed;
 
-    public RandomRankBuilder(int rankWindowSize, String field) {
+    public RandomRankBuilder(int rankWindowSize, String field, Integer seed) {
         super(rankWindowSize);
 
         if (field == null || field.isEmpty()) {
@@ -64,12 +68,14 @@ public class RandomRankBuilder extends RankBuilder {
         }
 
         this.field = field;
+        this.seed = seed;
     }
 
     public RandomRankBuilder(StreamInput in) throws IOException {
         super(in);
         // rankWindowSize deserialization is handled by the parent class RankBuilder
         this.field = in.readString();
+        this.seed = in.readOptionalInt();
     }
 
     @Override
@@ -86,12 +92,16 @@ public class RandomRankBuilder extends RankBuilder {
     public void doWriteTo(StreamOutput out) throws IOException {
         // rankWindowSize serialization is handled by the parent class RankBuilder
         out.writeString(field);
+        out.writeOptionalInt(seed);
     }
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         // rankWindowSize serialization is handled by the parent class RankBuilder
         builder.field(FIELD_FIELD.getPreferredName(), field);
+        if (seed != null) {
+            builder.field(SEED_FIELD.getPreferredName(), seed);
+        }
     }
 
     @Override
@@ -113,7 +123,7 @@ public class RandomRankBuilder extends RankBuilder {
 
         return Explanation.match(
             rankFeatureDoc.score,
-            "rank after reranking: [" + rankFeatureDoc.rank + "] with score: [" + rankFeatureDoc.score + "]",
+            "rank after reranking: [" + rankFeatureDoc.rank + "] using seed [" + seed + "] with score: [" + rankFeatureDoc.score + "]",
             baseExplanation
         );
     }
@@ -135,7 +145,7 @@ public class RandomRankBuilder extends RankBuilder {
 
     @Override
     public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
-        return new RandomRankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize());
+        return new RandomRankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize(), seed);
     }
 
     public String field() {
@@ -145,11 +155,11 @@ public class RandomRankBuilder extends RankBuilder {
     @Override
     protected boolean doEquals(RankBuilder other) {
         RandomRankBuilder that = (RandomRankBuilder) other;
-        return Objects.equals(field, that.field);
+        return Objects.equals(field, that.field) && Objects.equals(seed, that.seed);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(field);
+        return Objects.hash(field, seed);
     }
 }

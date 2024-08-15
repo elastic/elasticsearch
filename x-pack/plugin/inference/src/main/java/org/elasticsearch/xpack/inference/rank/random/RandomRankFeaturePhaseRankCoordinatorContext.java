@@ -21,8 +21,11 @@ import java.util.Random;
  */
 public class RandomRankFeaturePhaseRankCoordinatorContext extends RankFeaturePhaseRankCoordinatorContext {
 
-    public RandomRankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize) {
+    private final Integer seed;
+
+    public RandomRankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize, Integer seed) {
         super(size, from, rankWindowSize);
+        this.seed = seed;
     }
 
     @Override
@@ -32,7 +35,8 @@ public class RandomRankFeaturePhaseRankCoordinatorContext extends RankFeaturePha
         for (int i = 0; i < featureDocs.length; i++) {
             RankFeatureDoc featureDoc = featureDocs[i];
             int doc = featureDoc.doc;
-            scores[i] = new Random(doc).nextFloat();
+            int docSeed = seed != null ? seed + doc : doc;
+            scores[i] = new Random(docSeed).nextFloat();
         }
         scoreListener.onResponse(scores);
     }

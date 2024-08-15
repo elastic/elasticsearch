@@ -79,7 +79,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     public static final Runnable ON_NEXT_INDEX_FIND_MAPPINGS_NOOP = () -> {};
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
-    private static final ProjectId DEFAULT_PROJECT_ID = new ProjectId("default");
+    public static final ProjectId DEFAULT_PROJECT_ID = new ProjectId("default");
 
     public enum XContentContext {
         /* Custom metadata should be returned as part of API call */
@@ -418,6 +418,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
     public CoordinationMetadata coordinationMetadata() {
         return this.coordinationMetadata;
+    }
+
+    public Map<ProjectId, ProjectMetadata> projects() {
+        return this.projectMetadata;
     }
 
     public ProjectMetadata getProject() {

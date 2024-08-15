@@ -233,14 +233,14 @@ public class NativePrivilegeStore {
     ) {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
         final Consumer<Exception> maybeRetryOnShardNotAvailableFailure = ex -> {
-            if (false == isShardNotAvailableException(ex)) {
-                logger.debug("non-retryable exception encountered, won't retry privilege query request");
+            if (false == backoff.hasNext()) {
+                logger.info("failed to query privileges after all retries");
                 listener.onFailure(ex);
                 return;
             }
 
-            if (false == backoff.hasNext()) {
-                logger.info("failed to query privileges after all retries");
+            if (false == isShardNotAvailableException(ex)) {
+                logger.debug("non-retryable exception encountered, won't retry privilege query request");
                 listener.onFailure(ex);
                 return;
             }

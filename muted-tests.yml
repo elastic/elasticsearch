@@ -149,6 +149,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: "test {p0=esql/26_aggs_bucket/friendlier BUCKET interval: monthly #110916}"
   issue: https://github.com/elastic/elasticsearch/issues/111902
+- class: org.elasticsearch.xpack.sql.qa.security.JdbcCsvSpecIT
+  method: test {agg-ordering.testHistogramDateTimeWithCountAndOrder_1}
+  issue: https://github.com/elastic/elasticsearch/issues/111918
 
 # Examples:
 #

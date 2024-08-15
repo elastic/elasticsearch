@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.logging.LogManager;
@@ -626,6 +627,26 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
+     * Generate positive test cases for a unary function operating on an {@link DataType#DATE_NANOS}.
+     */
+    public static void forUnaryDateNanos(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            dateNanosCases(),
+            expectedType,
+            n -> expectedValue.apply(DateUtils.toInstant((long) n)),
+            warnings
+        );
+    }
+
+    /**
      * Generate positive test cases for a unary function operating on an {@link DataType#GEO_POINT}.
      */
     public static void forUnaryGeoPoint(
@@ -1026,6 +1047,27 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 // very close to +292278994-08-17T07:12:55.807Z, the maximum supported millis since epoch
                 () -> ESTestCase.randomLongBetween(Long.MAX_VALUE / 100 * 99, Long.MAX_VALUE),
                 DataType.DATETIME
+            )
+        );
+    }
+
+    /**
+     * Generate cases for {@link DataType#DATE_NANOS}.
+     *
+     */
+    public static List<TypedDataSupplier> dateNanosCases() {
+        return List.of(
+            new TypedDataSupplier("<1970-01-01T00:00:00.000000000Z>", () -> 0L, DataType.DATE_NANOS),
+            new TypedDataSupplier("<date nanos>", () -> ESTestCase.randomLongBetween(0, 10 * (long) 10e11), DataType.DATE_NANOS),
+            new TypedDataSupplier(
+                "<far future date nanos>",
+                () -> ESTestCase.randomLongBetween(10 * (long) 10e11, Long.MAX_VALUE),
+                DataType.DATE_NANOS
+            ),
+            new TypedDataSupplier(
+                "<nanos near the end of time>",
+                () -> ESTestCase.randomLongBetween(Long.MAX_VALUE / 100 * 99, Long.MAX_VALUE),
+                DataType.DATE_NANOS
             )
         );
     }

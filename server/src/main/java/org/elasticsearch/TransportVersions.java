@@ -189,6 +189,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_ORIGINAL_INDICES = def(8_719_00_0);
     public static final TransportVersion ML_INFERENCE_EIS_INTEGRATION_ADDED = def(8_720_00_0);
     public static final TransportVersion INGEST_PIPELINE_EXCEPTION_ADDED = def(8_721_00_0);
+    public static final TransportVersion ZDT_NANOS_SUPPORT = def(8_722_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

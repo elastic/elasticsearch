@@ -183,6 +183,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111919
 - class: org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.JdbcCsvSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/111923
+- class: org.elasticsearch.xpack.sql.qa.security.JdbcCsvSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/111923
 
 # Examples:
 #

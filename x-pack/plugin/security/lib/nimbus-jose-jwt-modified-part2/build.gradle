@@ -8,16 +8,15 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'com.github.johnrengelman.shadow'
 
+// See the build.gradle file in the parent directory for an explanation of this unusual build
+
 dependencies {
-  implementation "com.nimbusds:nimbus-jose-jwt:9.37.3"
+  implementation project(path: xpackModule('security:lib:nimbus-jose-jwt-modified-part1'), configuration: 'shadow')
 }
 
 tasks.named('shadowJar').configure {
-  // Attempting to exclude all of the classes we *don't* move here ought to be possible per the
-  // shadowJar docs, but actually attempting to do so results in an empty JAR. So we'll do that as a
-  // separate step (see njj-moved-utils-only)
-  relocate 'com.nimbusds.jose.util.JSONObjectUtils', 'org.elasticsearch.nimbus.jose.util.JSONObjectUtils'
-  relocate 'com.nimbusds.jose.util.JSONStringUtils', 'org.elasticsearch.nimbus.jose.util.JSONStringUtils'
+  // Drop everything in the original namespace, as the classes we want to modify have already been moved to another package by part 1
+  exclude 'com/nimbusds/'
 }
 
 ['jarHell', 'thirdPartyAudit', 'forbiddenApisMain', 'splitPackagesAudit', 'licenseHeaders'].each {
@@ -25,4 +24,3 @@ tasks.named('shadowJar').configure {
     enabled = false
   }
 }
-

@@ -52,7 +52,7 @@ grant codeBase "${codebase.netty-transport}" {
    permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
 };
 
-grant codeBase "${codebase.nimbus-jose-jwt-fixed}" {
+grant codeBase "${codebase.nimbus-jose-jwt-modified}" {
     // for JSON serialization based on a shaded GSON dependency
     permission java.lang.RuntimePermission "accessDeclaredMembers";
     permission java.lang.reflect.ReflectPermission "suppressAccessChecks";

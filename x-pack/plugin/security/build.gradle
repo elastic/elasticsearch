@@ -80,13 +80,13 @@ dependencies {
 
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:11.10.1"
-  api project(path: xpackModule('security:lib:nimbus-jose-jwt-fixed'), configuration: 'shadow')
+  api project(path: xpackModule('security:lib:nimbus-jose-jwt-modified'), configuration: 'shadow')
   if (isEclipse) {
     /*
-     * Eclipse can't pick up the shadow dependency so we point it at *something*
+     * Eclipse can't pick up the shadow dependency so we point it at the unmodified version of the library
      * so it can compile things.
      */
-    api project(xpackModule('security:lib:nimbus-jose-jwt-fixed'))
+    api "com.nimbusds:nimbus-jose-jwt:9.37.3"
   }
   api "com.nimbusds:lang-tag:1.4.4"
   api "com.sun.mail:jakarta.mail:1.6.3"

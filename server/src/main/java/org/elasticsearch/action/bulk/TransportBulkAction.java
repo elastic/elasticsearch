@@ -60,6 +60,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -318,6 +319,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             return;
         }
         final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
+        Map<String, Exception> indexOrDataStreamVsException = new ConcurrentHashMap<>();
         Runnable executeBulkRunnable = () -> executor.execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
@@ -325,20 +327,23 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             }
         });
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
-            createIndices(bulkRequest, indicesToAutoCreate, indicesThatCannotBeCreated, responses, refs);
-            rollOverDataStreams(bulkRequest, dataStreamsToBeRolledOver, false, responses, refs);
-            rollOverDataStreams(bulkRequest, failureStoresToBeRolledOver, true, responses, refs);
+            indexOrDataStreamVsException.putAll(
+                createIndices(bulkRequest, indicesToAutoCreate, indicesThatCannotBeCreated, responses, refs)
+            );
+            indexOrDataStreamVsException.putAll(rollOverDataStreams(bulkRequest, dataStreamsToBeRolledOver, false, responses, refs));
+            indexOrDataStreamVsException.putAll(rollOverDataStreams(bulkRequest, failureStoresToBeRolledOver, true, responses, refs));
         }
+        failRequestsWhenPrerequisiteActionFailed(indexOrDataStreamVsException, bulkRequest, responses);
     }
 
-    private void createIndices(
+    private Map<String, Exception> createIndices(
         BulkRequest bulkRequest,
         Map<String, CreateIndexRequest> indicesToAutoCreate,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         AtomicArray<BulkItemResponse> responses,
         RefCountingRunnable refs
     ) {
-        Map<String, Exception> indexVsException = new HashMap<>();
+        Map<String, Exception> indexVsException = new ConcurrentHashMap<>();
         for (Map.Entry<String, CreateIndexRequest> indexEntry : indicesToAutoCreate.entrySet()) {
             final String index = indexEntry.getKey();
             createIndex(indexEntry.getValue(), ActionListener.releaseAfter(new ActionListener<>() {
@@ -359,17 +364,17 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 }
             }, refs.acquire()));
         }
-        failRequestsWhenPrerequisiteActionFailed(indexVsException, bulkRequest, responses);
+        return indexVsException;
     }
 
-    private void rollOverDataStreams(
+    private Map<String, Exception> rollOverDataStreams(
         BulkRequest bulkRequest,
         Set<String> dataStreamsToBeRolledOver,
         boolean targetFailureStore,
         AtomicArray<BulkItemResponse> responses,
         RefCountingRunnable refs
     ) {
-        Map<String, Exception> dataStreamVsException = new HashMap<>();
+        Map<String, Exception> dataStreamVsException = new ConcurrentHashMap<>();
         for (String dataStream : dataStreamsToBeRolledOver) {
             RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
             rolloverRequest.masterNodeTimeout(bulkRequest.timeout);
@@ -401,7 +406,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 }
             }, refs.acquire()));
         }
-        failRequestsWhenPrerequisiteActionFailed(dataStreamVsException, bulkRequest, responses);
+        return dataStreamVsException;
     }
 
     /**

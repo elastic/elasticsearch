@@ -155,6 +155,9 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcCsvSpecIT
   method: test {agg-ordering.testHistogramDateTimeWithCountAndOrder_2}
   issue: https://github.com/elastic/elasticsearch/issues/111919
+- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcCsvSpecIT
+  method: test {agg-ordering.testHistogramDateTimeWithCountAndOrder_2}
+  issue: https://github.com/elastic/elasticsearch/issues/111919
 
 # Examples:
 #

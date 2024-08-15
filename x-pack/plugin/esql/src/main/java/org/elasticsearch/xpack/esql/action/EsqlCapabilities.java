@@ -229,7 +229,12 @@ public class EsqlCapabilities {
         /**
          * Consider the upper bound when computing the interval in BUCKET auto mode.
          */
-        BUCKET_INCLUSIVE_UPPER_BOUND;
+        BUCKET_INCLUSIVE_UPPER_BOUND,
+
+        /**
+         * Allow mixed numeric types in coalesce
+         */
+        MIXED_NUMERIC_TYPES_IN_COALESCE;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

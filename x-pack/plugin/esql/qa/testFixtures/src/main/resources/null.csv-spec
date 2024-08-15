@@ -142,3 +142,35 @@ emp_no:integer | first_name:keyword | foo:boolean
          10002 | Bezalel            | true
          10003 | Parto              | true
 ;
+
+coalesceMixedNumeric
+required_capability: mixed_numeric_types_in_coalesce
+FROM employees
+| WHERE emp_no <= 10021 and emp_no >= 10018
+| EVAL x = coalesce(languages.long, 0.0), y = coalesce(languages.long, 0), z = coalesce(languages, 0.0), w = coalesce(height, 0)
+| SORT emp_no ASC
+| KEEP emp_no, languages.long, x, y, z, w
+;
+
+emp_no:integer | languages.long:long | x:double | y:long | z:double | w:double
+         10018 | 2                   | 2.0      | 2      | 2.0      | 1.97
+         10019 | 1                   | 1.0      | 1      | 1.0      | 2.06
+         10020 | null                | 0.0      | 0      | 0.0      | 1.41
+         10021 | null                | 0.0      | 0      | 0.0      | 1.47
+;
+
+coalesceMixedNumericWithNull
+required_capability: mixed_numeric_types_in_coalesce
+FROM employees
+| WHERE emp_no <= 10021 and emp_no >= 10018
+| EVAL x = coalesce(languages.long, null, 0.0), y = coalesce(languages.long, null, 0), z = coalesce(languages, 0.0), w = coalesce(height, 0)
+| SORT emp_no ASC
+| KEEP emp_no, languages.long, x, y, z, w
+;
+
+emp_no:integer | languages.long:long | x:double | y:long | z:double | w:double
+         10018 | 2                   | 2.0      | 2      | 2.0      | 1.97
+         10019 | 1                   | 1.0      | 1      | 1.0      | 2.06
+         10020 | null                | 0.0      | 0      | 0.0      | 1.41
+         10021 | null                | 0.0      | 0      | 0.0      | 1.47
+;

@@ -1014,7 +1014,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression from = Literal.NULL;
 
             if (left.dataType() == KEYWORD && left.foldable() && (left instanceof EsqlScalarFunction == false)) {
-                if (supportsImplicitCasting(right.dataType())) {
+                if (supportsStringImplicitCasting(right.dataType())) {
                     targetDataType = right.dataType();
                     from = left;
                 } else if (supportsImplicitTemporalCasting(right, o)) {
@@ -1023,7 +1023,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             if (right.dataType() == KEYWORD && right.foldable() && (right instanceof EsqlScalarFunction == false)) {
-                if (supportsImplicitCasting(left.dataType())) {
+                if (supportsStringImplicitCasting(left.dataType())) {
                     targetDataType = left.dataType();
                     from = right;
                 } else if (supportsImplicitTemporalCasting(left, o)) {
@@ -1045,7 +1045,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Expression> right = in.list();
             DataType targetDataType = left.dataType();
 
-            if (left.resolved() == false || supportsImplicitCasting(targetDataType) == false) {
+            if (left.resolved() == false
+                || (supportsStringImplicitCasting(targetDataType) == false && targetDataType.isNumeric() == false)) {
                 return in;
             }
 
@@ -1055,11 +1056,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             boolean castNumericArgs = false;
 
             for (Expression value : right) {
-                if (value.resolved() && value.dataType() == KEYWORD && value.foldable()) {
+                if (value.resolved() && value.dataType() == KEYWORD && value.foldable() && supportsStringImplicitCasting(targetDataType)) {
                     Expression e = castStringLiteral(value, targetDataType);
                     newChildren.add(e);
                     childrenChanged = true;
-                } else if (value.resolved() && value.dataType().isNumeric()) {
+                } else if (value.resolved() && value.dataType().isNumeric() && targetDataType.isNumeric()) {
                     if (commonNumericType == DataType.NULL) {
                         commonNumericType = value.dataType();
                     } else if (commonNumericType != value.dataType()) {
@@ -1109,7 +1110,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return isTemporalAmount(e.dataType()) && (o instanceof DateTimeArithmeticOperation);
         }
 
-        private static boolean supportsImplicitCasting(DataType type) {
+        private static boolean supportsStringImplicitCasting(DataType type) {
             return type == DATETIME || type == IP || type == VERSION || type == BOOLEAN;
         }
 

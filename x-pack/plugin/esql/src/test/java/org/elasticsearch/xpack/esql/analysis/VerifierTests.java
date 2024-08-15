@@ -488,17 +488,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testMixedNumericalNonConvertibleTypesInIn() {
-        assertEquals(
-            "1:19: 2nd argument of [3 in (1, to_ul(3))] must be [integer], found value [to_ul(3)] type [unsigned_long]",
-            error("from test | where 3 in (1, to_ul(3))")
-        );
-        assertEquals(
-            "1:19: 1st argument of [to_ul(3) in (1, 3)] must be [unsigned_long], found value [1] type [integer]",
-            error("from test | where to_ul(3) in (1, 3)")
-        );
-    }
-
     public void testUnsignedLongTypeMixInComparisons() {
         List<String> types = DataType.types()
             .stream()

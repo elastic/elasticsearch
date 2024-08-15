@@ -174,3 +174,19 @@ emp_no:integer | languages.long:long | x:double | y:long | z:double | w:double
          10020 | null                | 0.0      | 0      | 0.0      | 1.41
          10021 | null                | 0.0      | 0      | 0.0      | 1.47
 ;
+
+coalesceMixedNumericFields
+required_capability: mixed_numeric_types_in_coalesce
+FROM employees
+| WHERE emp_no <= 10021 and emp_no >= 10018
+| EVAL x = coalesce(languages.long, height, 0.0), y = coalesce(languages, null, height, 0.0)
+| SORT emp_no ASC
+| KEEP emp_no, languages, height, x, y
+;
+
+emp_no:integer | languages:integer | height:double | x:double | y:double
+         10018 | 2                 | 1.97          | 2.0      | 2.0
+         10019 | 1                 | 2.06          | 1.0      | 1.0
+         10020 | null              | 1.41          | 1.41     | 1.41
+         10021 | null              | 1.47          | 1.47     | 1.47
+;

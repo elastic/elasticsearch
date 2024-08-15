@@ -425,7 +425,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         try {
             final String test = Thread.currentThread().getStackTrace()[2].getMethodName();
             final Settings nodeSettings = Settings.builder().put(settings).put("node.name", test).build();
-            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP);
+            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
             final ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             consumer.accept(clusterSettings, threadPool);
         } finally {

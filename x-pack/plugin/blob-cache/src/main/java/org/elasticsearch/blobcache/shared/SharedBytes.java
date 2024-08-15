@@ -172,7 +172,6 @@ public class SharedBytes extends AbstractRefCounted {
      * @param buf bytebuffer to use for writing
      * @throws IOException on failure
      */
-    // TODO: Support BlobCachePopulationListener when required
     public static void copyToCacheFileAligned(
         IO fc,
         InputStream input,
@@ -213,19 +212,11 @@ public class SharedBytes extends AbstractRefCounted {
      * @param fileChannelPos position in {@code fc} to write to
      * @param progressUpdater callback to invoke with the number of copied bytes as they are copied
      * @param buffer bytebuffer to use for writing
-     * @param populationListener a listener that will be notified upon completion of the copy
      * @return the number of bytes copied
      * @throws IOException on failure
      */
-    public static int copyToCacheFileAligned(
-        IO fc,
-        InputStream input,
-        int fileChannelPos,
-        IntConsumer progressUpdater,
-        ByteBuffer buffer,
-        BlobCachePopulationListener populationListener
-    ) throws IOException {
-        final long copyStartTime = System.nanoTime();
+    public static int copyToCacheFileAligned(IO fc, InputStream input, int fileChannelPos, IntConsumer progressUpdater, ByteBuffer buffer)
+        throws IOException {
         int bytesCopied = 0;
         while (true) {
             final int bytesRead = Streams.read(input, buffer, buffer.remaining());
@@ -234,10 +225,6 @@ public class SharedBytes extends AbstractRefCounted {
             }
             bytesCopied += copyBufferToCacheFileAligned(fc, fileChannelPos + bytesCopied, buffer);
             progressUpdater.accept(bytesCopied);
-        }
-        if (bytesCopied > 0) {
-            long elapsedTimeNanos = System.nanoTime() - copyStartTime;
-            populationListener.onCachePopulation(bytesCopied, elapsedTimeNanos);
         }
         return bytesCopied;
     }

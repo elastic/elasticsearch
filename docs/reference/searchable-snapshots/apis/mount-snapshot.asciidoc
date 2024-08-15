@@ -7,19 +7,6 @@
 
 Mount a snapshot as a searchable snapshot index.
 
-WARNING: Manual Snapshot Mounting
-====
-When manually mounting a snapshot that was captured by an Index Lifecycle Management (ILM) policy, be aware of the following:
-
-* **ILM Managed Snapshots:** Snapshots taken by ILM policies are handled automatically by ILM. If you manually mount these snapshots, it can interfere with ILM's automated processes, such as managing or deleting snapshots.
-
-* **Potential Issues:** Manually mounting a snapshot can disrupt ILM actions, like deletions or phase transitions. This can lead to data loss or complications in managing your snapshots.
-
-* **Best Practice:** It's best to let ILM manage your snapshots. If you must manually mount a snapshot, make sure you understand how this affects ILM and manage the snapshot lifecycle separately.
-
-Always review the documentation and consider the impact on your data management before manually handling snapshots managed by ILM.
-====
-
 [[searchable-snapshots-api-mount-request]]
 ==== {api-request-title}
 
@@ -36,6 +23,8 @@ For more information, see <<security-privileges>>.
 [[searchable-snapshots-api-mount-desc]]
 ==== {api-description-title}
 
+This API mounts a snapshot as a searchable snapshot index. 
+Note that manually mounting {ilm-init}-managed snapshots can <<manually-mounting-snapshots,interfere>> with <<index-lifecycle-management,{ilm-init} processes>>.
 
 [[searchable-snapshots-api-mount-path-params]]
 ==== {api-path-parms-title}

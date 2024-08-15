@@ -61,6 +61,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.containsString;
@@ -246,7 +247,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         majoritySide.remove(oldMasterNode);
 
         // Keeps track of the previous and current master when a master node transition took place on each node on the majority side:
-        final Map<String, List<Tuple<String, String>>> masters = Collections.synchronizedMap(new HashMap<>());
+        final ConcurrentHashMap<String, List<Tuple<String, String>>> masters = new ConcurrentHashMap<>();
         for (final String node : majoritySide) {
             masters.put(node, new ArrayList<>());
             internalCluster().getInstance(ClusterService.class, node).addListener(event -> {
@@ -358,7 +359,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             majoritySide.remove(oldMasterNode);
 
             // Keeps track of the previous and current master when a master node transition took place on each node on the majority side:
-            final Map<String, List<Tuple<String, String>>> masters = Collections.synchronizedMap(new HashMap<>());
+            final ConcurrentHashMap<String, List<Tuple<String, String>>> masters = new ConcurrentHashMap<>();
             for (final String node : majoritySide) {
                 masters.put(node, new ArrayList<>());
                 internalCluster().getInstance(ClusterService.class, node).addListener(event -> {

@@ -59,6 +59,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
@@ -641,8 +642,8 @@ public class ReplicationOperationTests extends ESTestCase {
         final long maxSeqNoOfUpdatesOrDeletes;
         final Supplier<ReplicationGroup> replicationGroupSupplier;
         final PendingReplicationActions pendingReplicationActions;
-        final Map<String, Long> knownLocalCheckpoints = Collections.synchronizedMap(new HashMap<>());
-        final Map<String, Long> knownGlobalCheckpoints = Collections.synchronizedMap(new HashMap<>());
+        final ConcurrentHashMap<String, Long> knownLocalCheckpoints = new ConcurrentHashMap<>();
+        final ConcurrentHashMap<String, Long> knownGlobalCheckpoints = new ConcurrentHashMap<>();
 
         TestPrimary(ShardRouting routing, Supplier<ReplicationGroup> replicationGroupSupplier, ThreadPool threadPool) {
             this.routing = routing;

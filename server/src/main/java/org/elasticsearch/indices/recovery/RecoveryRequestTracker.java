@@ -16,12 +16,13 @@ import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
 public class RecoveryRequestTracker {
 
-    private final Map<Long, ListenableFuture<Void>> ongoingRequests = Collections.synchronizedMap(new HashMap<>());
+    private final ConcurrentHashMap<Long, ListenableFuture<Void>> ongoingRequests = new ConcurrentHashMap<>();
     private final LocalCheckpointTracker checkpointTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
 
     /**

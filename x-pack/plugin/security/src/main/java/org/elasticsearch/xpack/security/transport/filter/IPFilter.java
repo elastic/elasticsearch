@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PREFIX;
@@ -205,8 +206,8 @@ public class IPFilter {
     private final SetOnce<BoundTransportAddress> boundTransportAddress = new SetOnce<>();
     private final SetOnce<BoundTransportAddress> boundHttpTransportAddress = new SetOnce<>();
     private final SetOnce<Map<String, BoundTransportAddress>> profileBoundAddress = new SetOnce<>();
-    private final Map<String, List<String>> profileAllowRules = Collections.synchronizedMap(new HashMap<>());
-    private final Map<String, List<String>> profileDenyRules = Collections.synchronizedMap(new HashMap<>());
+    private final ConcurrentHashMap<String, List<String>> profileAllowRules = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, List<String>> profileDenyRules = new ConcurrentHashMap<>();
 
     public IPFilter(
         final Settings settings,

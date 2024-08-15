@@ -64,6 +64,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
@@ -157,9 +158,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
         checkIndexBlocks(clusterState, concreteIndices);
         final FailureCollector indexFailures = new FailureCollector();
-        final Map<String, FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedMap(new HashMap<>());
+        final ConcurrentHashMap<String, FieldCapabilitiesIndexResponse> indexResponses = new ConcurrentHashMap<>();
         // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.
-        final Map<String, FieldCapabilitiesIndexResponse> indexMappingHashToResponses = Collections.synchronizedMap(new HashMap<>());
+        final ConcurrentHashMap<String, FieldCapabilitiesIndexResponse> indexMappingHashToResponses = new ConcurrentHashMap<>();
         final Runnable releaseResourcesOnCancel = () -> {
             LOGGER.trace("clear index responses on cancellation");
             indexFailures.clear();
@@ -508,7 +509,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
      * list, these failures will be skipped because they have no affect on the final response.
      */
     private static final class FailureCollector {
-        private final Map<String, Exception> failuresByIndex = Collections.synchronizedMap(new HashMap<>());
+        private final ConcurrentHashMap<String, Exception> failuresByIndex = new ConcurrentHashMap<>();
 
         List<FieldCapabilitiesFailure> build(Set<String> successfulIndices) {
             Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures = new HashMap<>();

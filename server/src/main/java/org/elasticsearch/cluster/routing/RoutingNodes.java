@@ -41,6 +41,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
@@ -72,8 +73,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private int relocatingShards = 0;
 
-    private final Map<String, Set<String>> attributeValuesByAttribute;
-    private final Map<String, Recoveries> recoveriesPerNode;
+    private final ConcurrentHashMap<String, Set<String>> attributeValuesByAttribute;
+    private final ConcurrentHashMap<String, Recoveries> recoveriesPerNode;
 
     /**
      * Creates an immutable instance from the {@link RoutingTable} and {@link DiscoveryNodes} found in a cluster state. Used to initialize
@@ -94,7 +95,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         final int indexCount = routingTable.indicesRouting().size();
         this.assignedShards = Maps.newMapWithExpectedSize(indexCount);
         this.unassignedShards = new UnassignedShards(this);
-        this.attributeValuesByAttribute = Collections.synchronizedMap(new HashMap<>());
+        this.attributeValuesByAttribute = new ConcurrentHashMap<>();
 
         nodesToShards = Maps.newMapWithExpectedSize(discoveryNodes.getDataNodes().size());
         // fill in the nodeToShards with the "live" nodes

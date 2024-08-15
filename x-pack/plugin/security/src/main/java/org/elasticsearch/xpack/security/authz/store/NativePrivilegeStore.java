@@ -124,7 +124,7 @@ public class NativePrivilegeStore {
     private volatile boolean allowExpensiveQueries;
     private final DescriptorsAndApplicationNamesCache descriptorsAndApplicationNamesCache;
     @Nullable
-    private final BackoffPolicy backoffPolicy;
+    private BackoffPolicy backoffPolicy;
 
     public NativePrivilegeStore(
         Settings settings,
@@ -166,6 +166,15 @@ public class NativePrivilegeStore {
         } else {
             descriptorsAndApplicationNamesCache = null;
         }
+        this.backoffPolicy = backoffPolicy;
+    }
+
+    public BackoffPolicy getBackoffPolicy() {
+        return backoffPolicy;
+    }
+
+    // TODO don't do this
+    public void setBackoffPolicy(BackoffPolicy backoffPolicy) {
         this.backoffPolicy = backoffPolicy;
     }
 

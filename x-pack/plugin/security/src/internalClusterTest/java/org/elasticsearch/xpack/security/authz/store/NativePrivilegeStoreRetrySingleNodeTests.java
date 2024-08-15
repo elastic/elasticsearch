@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -100,6 +102,11 @@ public class NativePrivilegeStoreRetrySingleNodeTests extends SecuritySingleNode
         // than the first request comes in
         // we should make this more robust
         logger.info("Max retries configured [{}]", System.getProperty("es.xpack.security.authz.store.get_privileges.max_retries", "0"));
+        // TODO should not need to do this...
+        getInstanceFromNode(NativePrivilegeStore.class).setBackoffPolicy(
+            BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(50), MAX_RETRIES)
+        );
+
         // TODO make this work with the main security index alias
         String indexName = ".security-7";
         failShardOnIndex(indexName);

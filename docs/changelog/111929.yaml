@@ -1,0 +1,5 @@
+pr: 111929
+summary: Updated Function Score Query Test with Explain Fixes for 8.15.1
+area: Search
+type: bug
+issues: []

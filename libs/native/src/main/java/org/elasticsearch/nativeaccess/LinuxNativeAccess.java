@@ -94,8 +94,10 @@ class LinuxNativeAccess extends PosixNativeAccess {
         this.linuxLibc = libraryProvider.getLibrary(LinuxCLibrary.class);
         String socketPath = System.getenv("NOTIFY_SOCKET");
         if (socketPath == null) {
+            logger.info("Not running under systemd");
             this.systemd = null; // not running under systemd
         } else {
+            logger.info("Running under systemd, setting up systemd notification");
             var buffer = newBuffer(64);
             this.systemd = new Systemd(libraryProvider.getLibrary(PosixCLibrary.class), socketPath, buffer);
         }

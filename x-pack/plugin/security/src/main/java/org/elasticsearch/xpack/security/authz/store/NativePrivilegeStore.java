@@ -232,7 +232,8 @@ public class NativePrivilegeStore {
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
     ) {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
-        final Consumer<Exception> maybeRetryOnShardNotAvailableFailure = ex -> {
+        // If we didn't configure retries, just pass through to onFailure to avoid unnecessary checks and confusing log messages
+        final Consumer<Exception> maybeRetryOnShardNotAvailableFailure = MAX_NUMBER_OF_RETRIES == 0 ? listener::onFailure : ex -> {
             if (false == backoff.hasNext()) {
                 logger.info("failed to query privileges after all retries");
                 listener.onFailure(ex);

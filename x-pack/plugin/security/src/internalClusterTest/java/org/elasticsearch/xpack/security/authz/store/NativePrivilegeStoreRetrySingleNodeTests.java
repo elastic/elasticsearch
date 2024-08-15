@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -40,6 +41,7 @@ public class NativePrivilegeStoreRetrySingleNodeTests extends SecuritySingleNode
     private static final int MAX_RETRIES = 10;
 
     @BeforeClass
+    @SuppressForbidden(reason = "configured max retry system property as part of test setup")
     public static void setup() {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             System.setProperty("es.xpack.security.authz.store.get_privileges.max_retries", String.valueOf(MAX_RETRIES));
@@ -48,6 +50,7 @@ public class NativePrivilegeStoreRetrySingleNodeTests extends SecuritySingleNode
     }
 
     @AfterClass
+    @SuppressForbidden(reason = "clears max retry system property as part of test setup")
     public static void teardown() {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             System.clearProperty("es.xpack.security.authz.store.get_privileges.max_retries");

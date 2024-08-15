@@ -837,7 +837,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         });
 
         if (randomBoolean()) {
-            // Sometimes also
+            // Sometimes also simulate bwc repository contents where some details are missing from the root blob
             safeAwait(l -> {
                 try (var listeners = new RefCountingListener(l.map(v -> null))) {
                     for (final var repositoryName : randomSubsetOf(repositories)) {
@@ -1040,10 +1040,12 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final var repository = asInstanceOf(FsRepository.class, masterRepositoriesService.repository(repositoryName));
         final var repositoryMetadata = repository.getMetadata();
         final var repositorySettings = repositoryMetadata.settings();
-        final var rootPath = asInstanceOf(FsBlobStore.class, repository.blobStore()).path();
+        final var repositoryDataBlobPath = asInstanceOf(FsBlobStore.class, repository.blobStore()).path()
+            .resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryMetadata.generation());
 
         SubscribableListener
 
+            // unregister the repository while we're mucking around with its internals
             .<AcknowledgedResponse>newForked(
                 l -> client().execute(
                     TransportDeleteRepositoryAction.TYPE,
@@ -1052,17 +1054,21 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 )
             )
             .andThenAccept(ElasticsearchAssertions::assertAcked)
+
+            // rewrite the RepositoryData blob with some details removed
             .andThenAccept(ignored -> {
-                final var repoDataBlobPath = rootPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryMetadata.generation());
-                final var repoDataBytes = Files.readAllBytes(repoDataBlobPath);
-                final var repoDataMap = XContentHelper.convertToMap(
+                // load the existing RepositoryData JSON blob as raw maps/lists/etc.
+                final var repositoryDataBytes = Files.readAllBytes(repositoryDataBlobPath);
+                final var repositoryDataMap = XContentHelper.convertToMap(
                     JsonXContent.jsonXContent,
-                    repoDataBytes,
+                    repositoryDataBytes,
                     0,
-                    repoDataBytes.length,
+                    repositoryDataBytes.length,
                     true
                 );
-                final var snapshotsList = asInstanceOf(List.class, repoDataMap.get("snapshots"));
+
+                // modify the contents
+                final var snapshotsList = asInstanceOf(List.class, repositoryDataMap.get("snapshots"));
                 for (final var snapshotObj : snapshotsList) {
                     if (randomBoolean()) {
                         continue;
@@ -1074,19 +1080,25 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                             asInstanceOf(String.class, snapshotMap.get("uuid"))
                         )
                     );
+
+                    // remove the optional details fields
                     assertNotNull(snapshotMap.remove("start_time_millis"));
                     assertNotNull(snapshotMap.remove("end_time_millis"));
                     assertNotNull(snapshotMap.remove("slm_policy"));
                 }
-                final var updatedRepoDataBytes = XContentTestUtils.convertToXContent(repoDataMap, XContentType.JSON);
-                try (var outputStream = Files.newOutputStream(repoDataBlobPath)) {
+
+                // overwrite the RepositoryData JSON blob with its new contents
+                final var updatedRepositoryDataBytes = XContentTestUtils.convertToXContent(repositoryDataMap, XContentType.JSON);
+                try (var outputStream = Files.newOutputStream(repositoryDataBlobPath)) {
                     BytesRef bytesRef;
-                    final var iterator = updatedRepoDataBytes.iterator();
+                    final var iterator = updatedRepositoryDataBytes.iterator();
                     while ((bytesRef = iterator.next()) != null) {
                         outputStream.write(bytesRef.bytes, bytesRef.offset, bytesRef.length);
                     }
                 }
             })
+
+            // re-register the repository
             .<AcknowledgedResponse>andThen(
                 l -> client().execute(
                     TransportPutRepositoryAction.TYPE,
@@ -1096,6 +1108,8 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 )
             )
             .andThenAccept(ElasticsearchAssertions::assertAcked)
+
+            // verify that the details are indeed now missing
             .<RepositoryData>andThen(
                 l -> masterRepositoriesService.repository(repositoryName).getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l)
             )
@@ -1108,6 +1122,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                     );
                 }
             })
+
             .addListener(listener);
     }
 }

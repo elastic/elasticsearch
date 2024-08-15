@@ -70,6 +70,7 @@ public class SecuritySettingsIT extends SecurityInBasicRestTestCase {
         assertOK(getResp);
         final XContentTestUtils.JsonMapView mapView = createJsonMapView(getResp.getEntity().getContent());
         assertThat(mapView.get("security.index.auto_expand_replicas"), equalTo("0-all"));
+        assertThat(mapView.get("security-profile.index.auto_expand_replicas"), equalTo("0-all"));
     }
 
     public void testTierPreference() throws IOException {
@@ -91,6 +92,8 @@ public class SecuritySettingsIT extends SecurityInBasicRestTestCase {
         assertOK(getResp);
         final XContentTestUtils.JsonMapView mapView = createJsonMapView(getResp.getEntity().getContent());
         assertThat(mapView.get("security.index.routing.allocation.include._tier_preference"), equalTo("data_hot"));
+        assertThat(mapView.get("security-profile.index.routing.allocation.include._tier_preference"), equalTo("data_hot"));
+
     }
 
     public void testNoUpdatesThrowsException() throws IOException {

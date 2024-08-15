@@ -34,23 +34,20 @@ public class RandomRankRetrieverBuilder extends RetrieverBuilder {
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
-    public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
 
     public static final ConstructingObjectParser<RandomRankRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(RandomRankBuilder.NAME, args -> {
             RetrieverBuilder retrieverBuilder = (RetrieverBuilder) args[0];
             String field = (String) args[1];
             int rankWindowSize = args[2] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[2];
-            Float minScore = (Float) args[3];
 
-            return new RandomRankRetrieverBuilder(retrieverBuilder, field, rankWindowSize, minScore);
+            return new RandomRankRetrieverBuilder(retrieverBuilder, field, rankWindowSize);
         });
 
     static {
         PARSER.declareNamedObject(constructorArg(), (p, c, n) -> p.namedObject(RetrieverBuilder.class, n, c), RETRIEVER_FIELD);
         PARSER.declareString(optionalConstructorArg(), FIELD_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
-        PARSER.declareFloat(optionalConstructorArg(), MIN_SCORE_FIELD);
 
         RetrieverBuilder.declareBaseParserFields(RandomRankBuilder.NAME, PARSER);
     }
@@ -65,13 +62,11 @@ public class RandomRankRetrieverBuilder extends RetrieverBuilder {
     private final RetrieverBuilder retrieverBuilder;
     private final String field;
     private final int rankWindowSize;
-    private final Float minScore;
 
-    public RandomRankRetrieverBuilder(RetrieverBuilder retrieverBuilder, String field, int rankWindowSize, Float minScore) {
+    public RandomRankRetrieverBuilder(RetrieverBuilder retrieverBuilder, String field, int rankWindowSize) {
         this.retrieverBuilder = retrieverBuilder;
         this.field = field;
         this.rankWindowSize = rankWindowSize;
-        this.minScore = minScore;
     }
 
     @Override
@@ -83,7 +78,7 @@ public class RandomRankRetrieverBuilder extends RetrieverBuilder {
             throw new IllegalArgumentException("random rank builder cannot be combined with other rank builders");
         }
 
-        searchSourceBuilder.rankBuilder(new RandomRankBuilder(this.rankWindowSize, this.field, this.minScore));
+        searchSourceBuilder.rankBuilder(new RandomRankBuilder(this.rankWindowSize, this.field));
     }
 
     @Override
@@ -103,9 +98,6 @@ public class RandomRankRetrieverBuilder extends RetrieverBuilder {
         builder.endObject();
         builder.field(FIELD_FIELD.getPreferredName(), field);
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
-        if (minScore != null) {
-            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
-        }
     }
 
     @Override
@@ -113,12 +105,11 @@ public class RandomRankRetrieverBuilder extends RetrieverBuilder {
         RandomRankRetrieverBuilder that = (RandomRankRetrieverBuilder) other;
         return Objects.equals(retrieverBuilder, that.retrieverBuilder)
             && Objects.equals(field, that.field)
-            && Objects.equals(rankWindowSize, that.rankWindowSize)
-            && Objects.equals(minScore, that.minScore);
+            && Objects.equals(rankWindowSize, that.rankWindowSize);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(retrieverBuilder, field, rankWindowSize, minScore);
+        return Objects.hash(retrieverBuilder, field, rankWindowSize);
     }
 }

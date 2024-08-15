@@ -20,23 +20,14 @@ public class RandomRankBuilderTests extends AbstractXContentSerializingTestCase<
 
     @Override
     protected RandomRankBuilder createTestInstance() {
-        return new RandomRankBuilder(randomIntBetween(1, 1000), "my-field", randomBoolean() ? null : randomFloat());
+        return new RandomRankBuilder(randomIntBetween(1, 1000), "my-field");
     }
 
     @Override
     protected RandomRankBuilder mutateInstance(RandomRankBuilder instance) throws IOException {
-        String field = instance.field();
-        int rankWindowSize = instance.rankWindowSize();
-        Float minScore = instance.minScore();
-
-        int mutate = randomIntBetween(0, 2);
-        switch (mutate) {
-            case 0 -> field = field + randomAlphaOfLength(2);
-            case 1 -> rankWindowSize = randomValueOtherThan(instance.rankWindowSize(), this::randomRankWindowSize);
-            case 2 -> minScore = randomValueOtherThan(instance.minScore(), this::randomMinScore);
-            default -> throw new IllegalStateException("Requested to modify more than available parameters.");
-        }
-        return new RandomRankBuilder(rankWindowSize, field, minScore);
+        String field = instance.field() + randomAlphaOfLength(2);
+        int rankWindowSize = randomValueOtherThan(instance.rankWindowSize(), this::randomRankWindowSize);
+        return new RandomRankBuilder(rankWindowSize, field);
     }
 
     @Override
@@ -61,10 +52,6 @@ public class RandomRankBuilderTests extends AbstractXContentSerializingTestCase<
 
     private int randomRankWindowSize() {
         return randomIntBetween(0, 1000);
-    }
-
-    private float randomMinScore() {
-        return randomFloatBetween(-1.0f, 1.0f, true);
     }
 
     public void testParserDefaults() throws IOException {

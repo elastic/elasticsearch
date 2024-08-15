@@ -34,7 +34,6 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder.FIELD_FIELD;
-import static org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder.MIN_SCORE_FIELD;
 
 /**
  * A {@code RankBuilder} that performs reranking with random scores, used for testing.
@@ -46,31 +45,26 @@ public class RandomRankBuilder extends RankBuilder {
     static final ConstructingObjectParser<RandomRankBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
         Integer rankWindowSize = args[0] == null ? DEFAULT_RANK_WINDOW_SIZE : (Integer) args[0];
         String field = (String) args[1];
-        Float minScore = (Float) args[2];
 
-        return new RandomRankBuilder(rankWindowSize, field, minScore);
+        return new RandomRankBuilder(rankWindowSize, field);
     });
 
     static {
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareString(constructorArg(), FIELD_FIELD);
-        PARSER.declareFloat(optionalConstructorArg(), MIN_SCORE_FIELD);
     }
 
     private final String field;
-    private final Float minScore;
 
-    public RandomRankBuilder(int rankWindowSize, String field, Float minScore) {
+    public RandomRankBuilder(int rankWindowSize, String field) {
         super(rankWindowSize);
         this.field = field;
-        this.minScore = minScore;
     }
 
     public RandomRankBuilder(StreamInput in) throws IOException {
         super(in);
         // rankWindowSize deserialization is handled by the parent class RankBuilder
         this.field = in.readOptionalString();
-        this.minScore = in.readOptionalFloat();
     }
 
     @Override
@@ -87,16 +81,12 @@ public class RandomRankBuilder extends RankBuilder {
     public void doWriteTo(StreamOutput out) throws IOException {
         // rankWindowSize serialization is handled by the parent class RankBuilder
         out.writeOptionalString(field);
-        out.writeOptionalFloat(minScore);
     }
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         // rankWindowSize serialization is handled by the parent class RankBuilder
         builder.field(FIELD_FIELD.getPreferredName(), field);
-        if (minScore != null) {
-            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
-        }
     }
 
     @Override
@@ -140,25 +130,21 @@ public class RandomRankBuilder extends RankBuilder {
 
     @Override
     public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
-        return new RandomRankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize(), minScore);
+        return new RandomRankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize());
     }
 
     public String field() {
         return field;
     }
 
-    public Float minScore() {
-        return minScore;
-    }
-
     @Override
     protected boolean doEquals(RankBuilder other) {
         RandomRankBuilder that = (RandomRankBuilder) other;
-        return Objects.equals(field, that.field) && Objects.equals(minScore, that.minScore);
+        return Objects.equals(field, that.field);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(field, minScore);
+        return Objects.hash(field);
     }
 }

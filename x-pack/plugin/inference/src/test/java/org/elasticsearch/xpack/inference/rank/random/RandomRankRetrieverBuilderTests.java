@@ -37,8 +37,7 @@ public class RandomRankRetrieverBuilderTests extends AbstractXContentTestCase<Ra
         return new RandomRankRetrieverBuilder(
             TestRetrieverBuilder.createRandomTestRetrieverBuilder(),
             randomAlphaOfLength(10),
-            randomIntBetween(1, 10000),
-            randomBoolean() ? null : randomFloatBetween(-1.0f, 1.0f, true)
+            randomIntBetween(1, 10000)
         );
     }
 

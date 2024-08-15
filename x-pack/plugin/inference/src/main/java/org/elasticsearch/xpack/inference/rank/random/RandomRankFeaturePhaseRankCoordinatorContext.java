@@ -20,11 +20,8 @@ import java.util.Comparator;
  */
 public class RandomRankFeaturePhaseRankCoordinatorContext extends RankFeaturePhaseRankCoordinatorContext {
 
-    protected final Float minScore;
-
-    public RandomRankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize, Float minScore) {
+    public RandomRankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize) {
         super(size, from, rankWindowSize);
-        this.minScore = minScore;
     }
 
     @Override
@@ -44,7 +41,6 @@ public class RandomRankFeaturePhaseRankCoordinatorContext extends RankFeaturePha
     @Override
     protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
         return Arrays.stream(originalDocs)
-            .filter(doc -> minScore == null || doc.score >= minScore)
             .sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed())
             .toArray(RankFeatureDoc[]::new);
     }

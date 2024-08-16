@@ -45,6 +45,7 @@ public class Systemd {
     }
 
     private void notify(String state, boolean warnOnError) {
+        logger.info("Opening unix socket");
         int sockfd = libc.socket(PosixCLibrary.AF_UNIX, PosixCLibrary.SOCK_DGRAM, 0);
         if (sockfd < 0) {
             throwOrLog("Could not open systemd socket: " + libc.strerror(libc.errno()), warnOnError);
@@ -52,7 +53,9 @@ public class Systemd {
         }
         RuntimeException error = null;
         try {
+            logger.info("Creating unix socket struct with path [{}]", socketPath);
             var sockAddr = libc.newUnixSockAddr(socketPath);
+            logger.info("Connecting to socket");
             if (libc.connect(sockfd, sockAddr) != 0) {
                 throwOrLog("Could not connect to systemd socket: " + libc.strerror(libc.errno()), warnOnError);
                 return;
@@ -91,6 +94,7 @@ public class Systemd {
         if (warnOnError) {
             logger.warn(message);
         } else {
+            logger.error(message);
             throw new RuntimeException(message);
         }
     }

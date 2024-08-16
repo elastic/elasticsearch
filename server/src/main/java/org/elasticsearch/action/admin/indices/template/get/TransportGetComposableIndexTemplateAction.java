@@ -16,14 +16,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionProvider;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,7 +36,7 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
     GetComposableIndexTemplateAction.Response> {
 
     private final ClusterSettings clusterSettings;
-    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
+    private final DataStreamGlobalRetentionProvider globalRetentionResolver;
 
     @Inject
     public TransportGetComposableIndexTemplateAction(
@@ -45,7 +45,7 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DataStreamGlobalRetentionResolver globalRetentionResolver
+        DataStreamGlobalRetentionProvider globalRetentionResolver
     ) {
         super(
             GetComposableIndexTemplateAction.NAME,
@@ -99,11 +99,11 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
                 new GetComposableIndexTemplateAction.Response(
                     results,
                     clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),
-                    globalRetentionResolver.resolve(state)
+                    globalRetentionResolver.provide()
                 )
             );
         } else {
-            listener.onResponse(new GetComposableIndexTemplateAction.Response(results, globalRetentionResolver.resolve(state)));
+            listener.onResponse(new GetComposableIndexTemplateAction.Response(results, globalRetentionResolver.provide()));
         }
     }
 }

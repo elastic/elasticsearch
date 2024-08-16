@@ -1,5 +1,0 @@
-pr: 110146
-summary: Fix trailing slash in `ml.get_categories` specification
-area: Machine Learning
-type: bug
-issues: []

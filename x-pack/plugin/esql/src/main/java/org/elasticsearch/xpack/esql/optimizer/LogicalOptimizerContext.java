@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.Objects;
 
 public class LogicalOptimizerContext {
-    private final EsqlConfiguration configuration;
+    private final Configuration configuration;
 
-    public LogicalOptimizerContext(EsqlConfiguration configuration) {
+    public LogicalOptimizerContext(Configuration configuration) {
         this.configuration = configuration;
     }
 
-    public EsqlConfiguration configuration() {
+    public Configuration configuration() {
         return configuration;
     }
 

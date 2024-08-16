@@ -75,7 +75,7 @@ for these searches, use the <<tasks,task management API>>.
 
 [source,console]
 ----
-GET _tasks?actions=*search&detailed=true
+GET _tasks?actions=*search&detailed
 ----
 
 The response's `description` contains the search request and its queries.

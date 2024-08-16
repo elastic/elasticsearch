@@ -73,12 +73,12 @@ The API response may contain additional tasks columns, including `description` a
 **Look for long running cluster tasks**
 
 A task backlog might also appear as a delay in synchronizing the cluster state. You
-can use the <<cat-pending-tasks,cat pending tasks API>> to get information
+can use the <<cluster-pending,cluster pending tasks API>> to get information
 about the pending cluster state sync tasks that are running. 
 
 [source,console]
 ----
-GET /_cat/pending_tasks?v=true
+GET /_cluster/pending_tasks?detailed
 ----
 
 Check the `timeInQueue` to identify tasks that are taking an excessive amount 

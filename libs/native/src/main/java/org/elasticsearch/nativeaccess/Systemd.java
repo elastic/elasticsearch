@@ -68,7 +68,7 @@ public class Systemd {
             if (bytesSent == -1) {
                 throwOrLog("Failed to send message (" + state + ") to systemd socket: " + libc.strerror(libc.errno()), warnOnError);
             } else if (bytesSent != bytes.length) {
-                throwOrLog("Not all bytes of message (" + state + ") sent to systemd socket", warnOnError);
+                throwOrLog("Not all bytes of message (" + state + ") sent to systemd socket (sent " + bytesSent + ")", warnOnError);
             } else {
                 logger.info("Message (" + state + ") sent to systemd socket");
             }

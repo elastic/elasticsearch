@@ -26,11 +26,11 @@ To check the number of rejected tasks for each thread pool, use the
 GET /_cat/thread_pool?v=true&h=id,name,queue,active,rejected,completed
 ----
 
-The `write` thread pool rejections frequently surface in the erring API and
+`write` thread pool rejections frequently appear in the erring API and
 correlating log as `EsRejectedExecutionException` with either
 `QueueResizingEsThreadPoolExecutor` or `queue capacity`.
 
-This frequently relates to <<task-queue-backlog,backlogged tasks>>
+These errors are often related to <<task-queue-backlog,backlogged tasks>>.
 
 [discrete]
 [[check-circuit-breakers]]
@@ -44,7 +44,7 @@ To check the number of tripped <<circuit-breaker,circuit breakers>>, use the
 GET /_nodes/stats/breaker
 ----
 
-These statistics are cumulative from node start up. For more information, see
+These statistics are cumulative from node startup. For more information, see
 <<circuit-breaker,circuit breaker errors>>.
 
 [discrete]
@@ -52,19 +52,21 @@ These statistics are cumulative from node start up. For more information, see
 ==== Check indexing pressure
 
 To check the number of <<index-modules-indexing-pressure,indexing pressure>>
-rejections, use the <<cluster-nodes-stats,node stats API>>
+rejections, use the <<cluster-nodes-stats,node stats API>>.
 
 [source,console]
 ----
 GET _nodes/stats?human=true&filter_path=nodes.*.indexing_pressure
 ----
 
-The statistics are cumulative from node start up. Related API errors would
-include `EsRejectedExecutionException` sub sections calling out rejected due
+These stats are cumulative from node startup. 
+
+Indexing pressure rejections appear as an
+`EsRejectedExecutionException`, and indicate that they were rejected due
 to `coordinating_and_primary_bytes`, `coordinating`, `primary`, or `replica`.
 
-This frequently relates to <<task-queue-backlog,backlogged tasks>>,
-<<docs-bulk,bulk index>> sizing, and/or the ingest target's
+These errors are often related to <<task-queue-backlog,backlogged tasks>>,
+<<docs-bulk,bulk index>> sizing, or the ingest target's
 <<index-modules,`refresh_interval` setting>>.
 
 [discrete]

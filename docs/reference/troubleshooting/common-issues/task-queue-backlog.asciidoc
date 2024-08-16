@@ -27,7 +27,7 @@ GET /_cat/thread_pool?v&s=t,n&h=type,name,node_name,active,queue,rejected,comple
 ----
 
 The `active` and `queue` statistics are instantaneous while the `rejected` and
-`completed` statistics are cumulative from node start up.
+`completed` statistics are cumulative from node startup.
 
 **Inspect the hot threads on each node**
 
@@ -52,28 +52,27 @@ excessive amount of time to complete.
 GET /_tasks?pretty=true&human=true&detailed=true
 ----
 
-If a particular `action` is suspected, you can filter in further. Most common are: 
+If a particular `action` is suspected, you can filter the tasks further. The most common long-running tasks are <<docs-bulk,bulk index>>- or search-related.
 
-* <<docs-bulk,bulk index>> related
+* Filter for <<docs-bulk,bulk index>> actions:
 +
 [source,console]
 ----
 GET /_tasks?pretty=true&human=true&detailed=true&actions=indices:data/write/bulk
 ----
 
-* search related
+* Filter for search actions:
 +
 [source,console]
 ----
 GET /_tasks?pretty=true&human=true&detailed=true&actions=indices:data/write/search
 ----
 
-Note the API response may contain tasks columns `description` and `header` 
-which enable futher diagnosising task parameters, target, and requestor. 
+The API response may contain additional tasks columns, including `description` and `header`, which provides the task parameters, target, and requestor. You can use this information to perform further diagnosis.
 
 **Look for long running cluster tasks**
 
-Back up may also surface as a delay in synchronizing the cluster state. You
+A task backlog might also appear as a delay in synchronizing the cluster state. You
 can use the <<cat-pending-tasks,cat pending tasks API>> to get information
 about the pending cluster state sync tasks that are running. 
 

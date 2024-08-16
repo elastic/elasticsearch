@@ -314,8 +314,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IntervalsSource rangeIntervals(BytesRef lowerTerm, BytesRef upperTerm,
-                                              boolean includeLower, boolean includeUpper, SearchExecutionContext context) {
+        public IntervalsSource rangeIntervals(
+            BytesRef lowerTerm,
+            BytesRef upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
             return toIntervalsSource(
                 Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper),
                 new MatchAllDocsQuery(), // range queries can be expensive, what should the approximation be?

@@ -488,6 +488,17 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testMixedNumericalNonConvertibleTypesInIn() {
+        assertEquals(
+            "1:19: 2nd argument of [3 in (1, to_ul(3))] must be [integer], found value [to_ul(3)] type [unsigned_long]",
+            error("from test | where 3 in (1, to_ul(3))")
+        );
+        assertEquals(
+            "1:19: 1st argument of [to_ul(3) in (1, 3)] must be [unsigned_long], found value [1] type [integer]",
+            error("from test | where to_ul(3) in (1, 3)")
+        );
+    }
+
     public void testUnsignedLongTypeMixInComparisons() {
         List<String> types = DataType.types()
             .stream()
@@ -854,6 +865,35 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:27: MATCH cannot be used after KEEP", error("from test | keep emp_no | match \"Anna\""));
 
         // TODO Keep adding tests for all unsupported commands
+    }
+
+    public void testCoalesceWithMixedNumericTypes() {
+        assertEquals(
+            "1:22: second argument of [coalesce(languages, height)] must be [integer], " + "found value [height] type [double]",
+            error("from test | eval x = coalesce(languages, height)")
+        );
+        assertEquals(
+            "1:22: second argument of [coalesce(languages.long, height)] must be [long], " + "found value [height] type [double]",
+            error("from test | eval x = coalesce(languages.long, height)")
+        );
+        assertEquals(
+            "1:22: second argument of [coalesce(salary, languages.long)] must be [integer], " + "found value [languages.long] type [long]",
+            error("from test | eval x = coalesce(salary, languages.long)")
+        );
+
+        assertEquals(
+            "1:22: third argument of [coalesce(null, languages, height)] must be [integer], " + "found value [height] type [double]",
+            error("from test | eval x = coalesce(null, languages, height)")
+        );
+        assertEquals(
+            "1:22: third argument of [coalesce(null, languages.long, height)] must be [long], " + "found value [height] type [double]",
+            error("from test | eval x = coalesce(null, languages.long, height)")
+        );
+        assertEquals(
+            "1:22: third argument of [coalesce(null, salary, languages.long)] must be [integer], "
+                + "found value [languages.long] type [long]",
+            error("from test | eval x = coalesce(null, salary, languages.long)")
+        );
     }
 
     private String error(String query) {

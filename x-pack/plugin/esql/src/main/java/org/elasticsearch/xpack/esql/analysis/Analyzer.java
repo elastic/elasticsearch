@@ -117,6 +117,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
@@ -971,7 +972,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             boolean childrenChanged = false;
             DataType targetDataType = DataType.NULL;
             Expression arg;
-            DataType commonNumericType = DataType.NULL;
+            DataType targetNumericType = DataType.NULL;
             boolean castNumericArgs = false;
             for (int i = 0; i < args.size(); i++) {
                 arg = args.get(i);
@@ -987,18 +988,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
                 if (castMixedNumericTypes(f) && arg.resolved() && arg.dataType().isNumeric()) {
-                    if (commonNumericType.isNumeric() == false) {
-                        commonNumericType = arg.dataType();
-                    } else if (arg.dataType() != commonNumericType) {
-                        castNumericArgs = true;
-                        commonNumericType = EsqlDataTypeConverter.commonType(commonNumericType, arg.dataType());
+                    if (targetNumericType.isNumeric() == false) {
+                        targetNumericType = arg.dataType();  // target data type is the first numeric data type
+                    } else if (arg.dataType() != targetNumericType) {
+                        if (canCastNumeric(arg.dataType(), targetNumericType)) {
+                            castNumericArgs = true;
+                        } else {
+                            castNumericArgs = false;
+                        }
                     }
                 }
                 newChildren.add(args.get(i));
             }
             Expression resultF = childrenChanged ? f.replaceChildren(newChildren) : f;
-            return castNumericArgs && commonNumericType.isNumeric()
-                ? castMixedNumericTypes((EsqlScalarFunction) resultF, commonNumericType)
+            return castNumericArgs && targetNumericType.isNumeric()
+                ? castMixedNumericTypes((EsqlScalarFunction) resultF, targetNumericType)
                 : resultF;
         }
 
@@ -1045,61 +1049,70 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Expression> right = in.list();
             DataType targetDataType = left.dataType();
 
-            if (left.resolved() == false
-                || (supportsStringImplicitCasting(targetDataType) == false && targetDataType.isNumeric() == false)) {
+            if (left.resolved() == false || supportsStringImplicitCasting(targetDataType) == false) {
                 return in;
             }
 
             List<Expression> newChildren = new ArrayList<>(right.size() + 1);
             boolean childrenChanged = false;
-            DataType commonNumericType = targetDataType.isNumeric() ? targetDataType : DataType.NULL;
-            boolean castNumericArgs = false;
 
             for (Expression value : right) {
-                if (value.resolved() && value.dataType() == KEYWORD && value.foldable() && supportsStringImplicitCasting(targetDataType)) {
+                if (value.resolved() && value.dataType() == KEYWORD && value.foldable()) {
                     Expression e = castStringLiteral(value, targetDataType);
                     newChildren.add(e);
                     childrenChanged = true;
-                } else if (value.resolved() && value.dataType().isNumeric() && targetDataType.isNumeric()) {
-                    if (commonNumericType == DataType.NULL) {
-                        commonNumericType = value.dataType();
-                    } else if (commonNumericType != value.dataType()) {
-                        commonNumericType = EsqlDataTypeConverter.commonType(commonNumericType, value.dataType());
-                        castNumericArgs = true;
-                    }
-                    newChildren.add(value);
                 } else {
                     newChildren.add(value);
                 }
             }
             newChildren.add(left);
-            In resultIn = childrenChanged ? (In) in.replaceChildren(newChildren) : in;
-            return castNumericArgs && commonNumericType.isNumeric() ? castMixedNumericTypes(resultIn, commonNumericType) : resultIn;
+            return childrenChanged ? in.replaceChildren(newChildren) : in;
         }
 
         private static boolean castMixedNumericTypes(EsqlScalarFunction f) {
             return f instanceof Coalesce;
         }
 
-        private static Expression castMixedNumericTypes(EsqlScalarFunction f, DataType commonNumericType) {
+        private static boolean canCastNumeric(DataType from, DataType to) {
+            // only support INTEGER, LONG, UNSIGNED_LONG, DOUBLE
+            if (from.isNumeric() && to.isNumeric()) {
+                if (from == to) {
+                    return true;
+                }
+                if (from == INTEGER) {
+                    return to == LONG || to == DOUBLE || to == UNSIGNED_LONG;
+                }
+                if (from == LONG) {
+                    return to == DOUBLE;
+                }
+                if (from == UNSIGNED_LONG || from == DOUBLE) { // cannot be cast to the other types
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        private static Expression castMixedNumericTypes(EsqlScalarFunction f, DataType targetNumericType) {
             List<Expression> newChildren = new ArrayList<>(f.children().size());
             boolean childrenChanged = false;
             DataType childDataType;
 
             for (Expression e : f.children()) {
                 childDataType = e.dataType();
-                if (childDataType.isNumeric() == false || childDataType == commonNumericType) {
+                if (childDataType.isNumeric() == false
+                    || childDataType == targetNumericType
+                    || canCastNumeric(childDataType, targetNumericType) == false) {
                     newChildren.add(e);
                     continue;
                 }
                 childrenChanged = true;
                 // add a casting function
-                switch (commonNumericType) {
+                switch (targetNumericType) {
                     case INTEGER -> newChildren.add(new ToInteger(e.source(), e));
                     case LONG -> newChildren.add(new ToLong(e.source(), e));
                     case DOUBLE -> newChildren.add(new ToDouble(e.source(), e));
                     case UNSIGNED_LONG -> newChildren.add(new ToUnsignedLong(e.source(), e));
-                    default -> throw new EsqlIllegalArgumentException("unexpected data type: " + commonNumericType);
+                    default -> throw new EsqlIllegalArgumentException("unexpected data type: " + targetNumericType);
                 }
 
             }

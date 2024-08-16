@@ -2068,20 +2068,11 @@ public class AnalyzerTests extends ESTestCase {
     public void testCoalesceWithMixedNumericTypes() {
         LogicalPlan plan = analyze("""
             from test
-            | eval x = coalesce(salary_change, null, 0), y = coalesce(languages, null, 0.0), z = coalesce(languages.long, null, 0.0)
-            | keep x, y
+            | eval x = coalesce(salary_change, null, 0), y = coalesce(languages, null, 0), z = coalesce(languages.long, null, 0)
+            , w = coalesce(salary_change, null, 0::long)
+            | keep x, y, z, w
             """, "mapping-default.json");
         var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(), equalTo(1000));
-    }
-
-    public void testInWithMixedNumericTypes() {
-        LogicalPlan plan = analyze("from test | where 3 in (1, to_ul(3))", "mapping-default.json");
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(), equalTo(1000));
-
-        plan = analyze("from test | where to_ul(3) in (1, 3)", "mapping-default.json");
-        limit = as(plan, Limit.class);
         assertThat(limit.limit().fold(), equalTo(1000));
     }
 

@@ -214,16 +214,3 @@ from employees
 emp_no:integer | languages:integer | height:double
 10037          | 2                 | 2.0
 ;
-
-mixedNumericTypesUL
-required_capability: mixed_numeric_types_in_coalesce
-from employees
-| where 3 in (1, to_ul(3)) and to_ul(3) in (1, 3)
-| stats count = count(*)
-| keep count
-;
-
-count:long
-100
-;
-

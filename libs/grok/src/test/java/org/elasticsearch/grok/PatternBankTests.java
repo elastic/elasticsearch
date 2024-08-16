@@ -13,7 +13,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.TreeMap;
+
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
 public class PatternBankTests extends ESTestCase {
 
@@ -33,7 +34,7 @@ public class PatternBankTests extends ESTestCase {
 
     public void testConstructorValidatesCircularReferences() {
         var e = expectThrows(IllegalArgumentException.class, () -> new PatternBank(Map.of("NAME", "!!!%{NAME}!!!")));
-        assertEquals("circular reference in pattern [NAME][!!!%{NAME}!!!]", e.getMessage());
+        assertEquals("circular reference detected: NAME->NAME", e.getMessage());
     }
 
     public void testExtendWith() {
@@ -49,36 +50,36 @@ public class PatternBankTests extends ESTestCase {
 
     public void testCircularReference() {
         var e = expectThrows(IllegalArgumentException.class, () -> PatternBank.forbidCircularReferences(Map.of("NAME", "!!!%{NAME}!!!")));
-        assertEquals("circular reference in pattern [NAME][!!!%{NAME}!!!]", e.getMessage());
+        assertEquals("circular reference detected: NAME->NAME", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> PatternBank.forbidCircularReferences(Map.of("NAME", "!!!%{NAME:name}!!!")));
-        assertEquals("circular reference in pattern [NAME][!!!%{NAME:name}!!!]", e.getMessage());
+        assertEquals("circular reference detected: NAME->NAME", e.getMessage());
 
         e = expectThrows(
             IllegalArgumentException.class,
             () -> { PatternBank.forbidCircularReferences(Map.of("NAME", "!!!%{NAME:name:int}!!!")); }
         );
-        assertEquals("circular reference in pattern [NAME][!!!%{NAME:name:int}!!!]", e.getMessage());
+        assertEquals("circular reference detected: NAME->NAME", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new TreeMap<>();
+            Map<String, String> bank = new LinkedHashMap<>();
             bank.put("NAME1", "!!!%{NAME2}!!!");
             bank.put("NAME2", "!!!%{NAME1}!!!");
             PatternBank.forbidCircularReferences(bank);
         });
-        assertEquals("circular reference in pattern [NAME2][!!!%{NAME1}!!!] back to pattern [NAME1]", e.getMessage());
+        assertEquals("circular reference detected: NAME1->NAME2->NAME1", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new TreeMap<>();
+            Map<String, String> bank = new LinkedHashMap<>();
             bank.put("NAME1", "!!!%{NAME2}!!!");
             bank.put("NAME2", "!!!%{NAME3}!!!");
             bank.put("NAME3", "!!!%{NAME1}!!!");
             PatternBank.forbidCircularReferences(bank);
         });
-        assertEquals("circular reference in pattern [NAME3][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME2]", e.getMessage());
+        assertEquals("circular reference detected: NAME1->NAME2->NAME3->NAME1", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new TreeMap<>();
+            Map<String, String> bank = new LinkedHashMap<>();
             bank.put("NAME1", "!!!%{NAME2}!!!");
             bank.put("NAME2", "!!!%{NAME3}!!!");
             bank.put("NAME3", "!!!%{NAME4}!!!");
@@ -86,10 +87,7 @@ public class PatternBankTests extends ESTestCase {
             bank.put("NAME5", "!!!%{NAME1}!!!");
             PatternBank.forbidCircularReferences(bank);
         });
-        assertEquals(
-            "circular reference in pattern [NAME5][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME2=>NAME3=>NAME4]",
-            e.getMessage()
-        );
+        assertEquals("circular reference detected: NAME1->NAME2->NAME3->NAME4->NAME5->NAME1", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> {
             Map<String, String> bank = new LinkedHashMap<>();
@@ -98,7 +96,7 @@ public class PatternBankTests extends ESTestCase {
             bank.put("NAME3", "!!!%{NAME2}!!!");
             PatternBank.forbidCircularReferences(bank);
         });
-
+        assertEquals("circular reference detected: NAME2->NAME3->NAME2", e.getMessage());
         {
             Map<String, String> bank = new HashMap<>();
             bank.put("NAME1", "!!!%{NAME2}!!!%{NAME3}%{NAME4}");
@@ -118,10 +116,7 @@ public class PatternBankTests extends ESTestCase {
             bank.put("NAME5", "!!!%{NAME1}!!!");
             PatternBank.forbidCircularReferences(bank);
         });
-        assertEquals(
-            "circular reference in pattern [NAME5][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME4=>NAME5]",
-            e.getMessage()
-        );
+        assertEquals("circular reference detected: NAME1->NAME4->NAME5->NAME1", e.getMessage());
 
         {
             Map<String, String> bank = new HashMap<>();
@@ -139,7 +134,7 @@ public class PatternBankTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> PatternBank.forbidCircularReferences(Map.of("ANOTHER", "%{INT}", "INT", "%{INT}"))
         );
-        assertEquals("circular reference in pattern [INT][%{INT}]", e.getMessage());
+        assertEquals("circular reference detected: INT->INT", e.getMessage());
     }
 
     public void testInvalidPatternReferences() {

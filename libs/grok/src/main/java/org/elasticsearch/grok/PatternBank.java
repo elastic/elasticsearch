@@ -8,12 +8,17 @@
 
 package org.elasticsearch.grok;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class PatternBank {
 
@@ -64,73 +69,89 @@ public class PatternBank {
      * check for a circular reference.
      */
     static void forbidCircularReferences(Map<String, String> bank) {
-        // first ensure that the pattern bank contains no simple circular references (i.e., any pattern
-        // containing an immediate reference to itself) as those can cause the remainder of this algorithm
-        // to recurse infinitely
-        for (Map.Entry<String, String> entry : bank.entrySet()) {
-            if (patternReferencesItself(entry.getValue(), entry.getKey())) {
-                throw new IllegalArgumentException("circular reference in pattern [" + entry.getKey() + "][" + entry.getValue() + "]");
-            }
-        }
-
-        // next, recursively check any other pattern names referenced in each pattern
-        for (Map.Entry<String, String> entry : bank.entrySet()) {
-            String name = entry.getKey();
-            String pattern = entry.getValue();
-            innerForbidCircularReferences(bank, name, new ArrayList<>(), pattern);
-        }
+        detectCycles(buildPatternReferenceGraph(bank));
     }
 
-    private static void innerForbidCircularReferences(Map<String, String> bank, String patternName, List<String> path, String pattern) {
-        if (patternReferencesItself(pattern, patternName)) {
-            String message;
-            if (path.isEmpty()) {
-                message = "circular reference in pattern [" + patternName + "][" + pattern + "]";
-            } else {
-                message = "circular reference in pattern ["
-                    + path.remove(path.size() - 1)
-                    + "]["
-                    + pattern
-                    + "] back to pattern ["
-                    + patternName
-                    + "]";
-                // add rest of the path:
-                if (path.isEmpty() == false) {
-                    message += " via patterns [" + String.join("=>", path) + "]";
+    /**
+     * This builds a map representing a directed graph of all the patterns in the bank. The bank keys are pattern names, and the values are
+     * the actual pattern. This method looks for parts of the pattern that are pattern names. There can be multiple pattern names in a
+     * pattern. The output map's keys are the input pattern names. The values are the pattern names found in the pattern for that pattern
+     * name.
+     * @param bank A pattern bank, mapping pattern names to patterns
+     * @return A map of pattern names to pattern names found in the patterns for that pattern name
+     */
+    private static Map<String, List<String>> buildPatternReferenceGraph(Map<String, String> bank) {
+        Map<String, List<String>> patternReferenceTree = new LinkedHashMap<>(bank.size());
+        for (Map.Entry<String, String> entry : bank.entrySet()) {
+            String patternName = entry.getKey();
+            String pattern = entry.getValue();
+            List<String> patternReferences = new ArrayList<>();
+            for (int i = pattern.indexOf("%{"); i != -1; i = pattern.indexOf("%{", i + 1)) {
+                int begin = i + 2;
+                int bracketIndex = pattern.indexOf('}', begin);
+                int columnIndex = pattern.indexOf(':', begin);
+                int end;
+                if (bracketIndex != -1 && columnIndex == -1) {
+                    end = bracketIndex;
+                } else if (columnIndex != -1 && bracketIndex == -1) {
+                    end = columnIndex;
+                } else if (bracketIndex != -1) {
+                    end = Math.min(bracketIndex, columnIndex);
+                } else {
+                    throw new IllegalArgumentException("pattern [" + pattern + "] has an invalid syntax");
+                }
+                String otherPatternName = pattern.substring(begin, end);
+                if (patternReferences.contains(otherPatternName) == false) {
+                    patternReferences.add(otherPatternName);
+                    String otherPattern = bank.get(otherPatternName);
+                    if (otherPattern == null) {
+                        throw new IllegalArgumentException(
+                            "pattern [" + patternName + "] is referencing a non-existent pattern [" + otherPatternName + "]"
+                        );
+                    }
                 }
             }
-            throw new IllegalArgumentException(message);
+            patternReferenceTree.put(patternName, patternReferences);
         }
-
-        // next check any other pattern names found in the pattern
-        for (int i = pattern.indexOf("%{"); i != -1; i = pattern.indexOf("%{", i + 1)) {
-            int begin = i + 2;
-            int bracketIndex = pattern.indexOf('}', begin);
-            int columnIndex = pattern.indexOf(':', begin);
-            int end;
-            if (bracketIndex != -1 && columnIndex == -1) {
-                end = bracketIndex;
-            } else if (columnIndex != -1 && bracketIndex == -1) {
-                end = columnIndex;
-            } else if (bracketIndex != -1 && columnIndex != -1) {
-                end = Math.min(bracketIndex, columnIndex);
-            } else {
-                throw new IllegalArgumentException("pattern [" + pattern + "] has an invalid syntax");
-            }
-            String otherPatternName = pattern.substring(begin, end);
-            path.add(otherPatternName);
-            String otherPattern = bank.get(otherPatternName);
-            if (otherPattern == null) {
-                throw new IllegalArgumentException(
-                    "pattern [" + patternName + "] is referencing a non-existent pattern [" + otherPatternName + "]"
-                );
-            }
-
-            innerForbidCircularReferences(bank, patternName, path, otherPattern);
-        }
+        return patternReferenceTree;
     }
 
-    private static boolean patternReferencesItself(String pattern, String patternName) {
-        return pattern.contains("%{" + patternName + "}") || pattern.contains("%{" + patternName + ":");
+    /**
+     * This method traverses the directed graph, and throws an IllegalArgementException if any cycles are detected
+     * @param directedGraph A directed graph. The key is a node that has edges to each of the nodes in the value List
+     */
+    private static void detectCycles(Map<String, List<String>> directedGraph) {
+        Set<String> allVisitedNodes = new HashSet<>();
+        Set<String> nodesVisitedMoreThanOnceInAPath = new HashSet<>();
+        // Walk the full path starting at each node in the graph:
+        for (String traversalStartNode : directedGraph.keySet()) {
+            if (nodesVisitedMoreThanOnceInAPath.contains(traversalStartNode) == false && allVisitedNodes.contains(traversalStartNode)) {
+                // If we have seen this node before in a path, and it only appeared once in that path, there is no need to check it again
+                continue;
+            }
+            Set<String> visited = new LinkedHashSet<>();
+            Deque<String> toBeVisited = new ArrayDeque<>();
+            toBeVisited.push(traversalStartNode);
+            while (toBeVisited.isEmpty() == false) {
+                String node = toBeVisited.pop();
+                if (visited.isEmpty() == false && traversalStartNode.equals(node)) {
+                    throw new IllegalArgumentException("circular reference detected: " + String.join("->", visited) + "->" + node);
+                } else if (visited.contains(node)) {
+                    /*
+                     * We are only looking for a cycle starting and ending at traversalStartNode right now. But this node has bee been
+                     * visited more than once in the path rooted at traversalStartNode. This could be because it is a cycle, or could be
+                     * because two nodes in the path both point to it. We add it to nodesVisitedMoreThanOnceInAPath so that we make sure
+                     * to check the path rooted at this node later.
+                     */
+                    nodesVisitedMoreThanOnceInAPath.add(node);
+                    continue;
+                }
+                visited.add(node);
+                for (String neighbor : directedGraph.get(node)) {
+                    toBeVisited.push(neighbor);
+                }
+            }
+            allVisitedNodes.addAll(visited);
+        }
     }
 }

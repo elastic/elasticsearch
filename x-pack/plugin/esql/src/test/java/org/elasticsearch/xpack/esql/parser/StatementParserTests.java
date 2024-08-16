@@ -1014,7 +1014,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "Unknown query parameter [n2], did you mean any of [n3, n1]?"
         );
 
-        expectError("from test | where x < ?_1", List.of(new QueryParam("_1", 5, INTEGER)), "extraneous input '_1' expecting <EOF>");
+        expectError("from test | where x < ?@1", List.of(new QueryParam("@1", 5, INTEGER)), "extraneous input '@1' expecting <EOF>");
 
         expectError("from test | where x < ?#1", List.of(new QueryParam("#1", 5, INTEGER)), "token recognition error at: '#'");
 
@@ -1042,6 +1042,40 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(), is(1));
+
+        stm = statement("row x=?_1, y=?_1", new QueryParams(List.of(new QueryParam(null, 1, INTEGER))));
+        assertThat(stm, instanceOf(Row.class));
+        row = (Row) stm;
+        assertThat(row.fields().size(), is(2));
+
+        field = row.fields().get(0);
+        assertThat(field.name(), is("x"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold(), is(1));
+
+        field = row.fields().get(1);
+        assertThat(field.name(), is("y"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold(), is(1));
+
+        stm = statement("row x=?1, y=?_1", new QueryParams(List.of(new QueryParam(null, 1, INTEGER))));
+        assertThat(stm, instanceOf(Row.class));
+        row = (Row) stm;
+        assertThat(row.fields().size(), is(2));
+
+        field = row.fields().get(0);
+        assertThat(field.name(), is("x"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold(), is(1));
+
+        field = row.fields().get(1);
+        assertThat(field.name(), is("y"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold(), is(1));
     }
 
     public void testInvalidPositionalParams() {
@@ -1052,7 +1086,19 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
 
         expectError(
+            "from test | where x < ?_0",
+            List.of(new QueryParam(null, 5, INTEGER)),
+            "No parameter is defined for position 0, did you mean position 1"
+        );
+
+        expectError(
             "from test | where x < ?2",
+            List.of(new QueryParam(null, 5, INTEGER)),
+            "No parameter is defined for position 2, did you mean position 1"
+        );
+
+        expectError(
+            "from test | where x < ?_2",
             List.of(new QueryParam(null, 5, INTEGER)),
             "No parameter is defined for position 2, did you mean position 1"
         );
@@ -1065,13 +1111,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
 
         expectError(
-            "from test | where x < ?0 and y < ?2",
+            "from test | where x < ?_0 and y < ?_2",
             List.of(new QueryParam(null, 5, INTEGER)),
-            "No parameter is defined for position 2, did you mean position 1"
+            "line 1:24: No parameter is defined for position 0, did you mean position 1?; "
+                + "line 1:36: No parameter is defined for position 2, did you mean position 1?"
         );
 
         expectError(
             "from test | where x < ?0",
+            List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, 10, INTEGER)),
+            "No parameter is defined for position 0, did you mean any position between 1 and 2?"
+        );
+
+        expectError(
+            "from test | where x < ?_0",
             List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, 10, INTEGER)),
             "No parameter is defined for position 0, did you mean any position between 1 and 2?"
         );
@@ -1102,7 +1155,31 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
 
+        plan = statement("from test | where x < ?_n1 |  limit 10", new QueryParams(List.of(new QueryParam("_n1", 5, INTEGER))));
+        assertThat(plan, instanceOf(Limit.class));
+        limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        assertThat(limit.children().size(), equalTo(1));
+        assertThat(limit.children().get(0), instanceOf(Filter.class));
+        w = (Filter) limit.children().get(0);
+        assertThat(((Literal) w.condition().children().get(1)).value(), equalTo(5));
+        assertThat(limit.children().get(0).children().size(), equalTo(1));
+        assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
+
         plan = statement("from test | where x < ?1 |  limit 10", new QueryParams(List.of(new QueryParam(null, 5, INTEGER))));
+        assertThat(plan, instanceOf(Limit.class));
+        limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        assertThat(limit.children().size(), equalTo(1));
+        assertThat(limit.children().get(0), instanceOf(Filter.class));
+        w = (Filter) limit.children().get(0);
+        assertThat(((Literal) w.condition().children().get(1)).value(), equalTo(5));
+        assertThat(limit.children().get(0).children().size(), equalTo(1));
+        assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
+
+        plan = statement("from test | where x < ?_1 |  limit 10", new QueryParams(List.of(new QueryParam(null, 5, INTEGER))));
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -1157,7 +1234,45 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
 
         plan = statement(
+            "from test | where x < ?_n1 | eval y = ?_n2 + ?_n3 |  limit 10",
+            new QueryParams(
+                List.of(new QueryParam("_n1", 5, INTEGER), new QueryParam("_n2", -1, INTEGER), new QueryParam("_n3", 100, INTEGER))
+            )
+        );
+        assertThat(plan, instanceOf(Limit.class));
+        limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        assertThat(limit.children().size(), equalTo(1));
+        assertThat(limit.children().get(0), instanceOf(Eval.class));
+        eval = (Eval) limit.children().get(0);
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left()).value(), equalTo(-1));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right()).value(), equalTo(100));
+        f = (Filter) eval.children().get(0);
+        assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
+        assertThat(f.children().size(), equalTo(1));
+        assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
+
+        plan = statement(
             "from test | where x < ?1 | eval y = ?2 + ?1 |  limit 10",
+            new QueryParams(List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, -1, INTEGER)))
+        );
+        assertThat(plan, instanceOf(Limit.class));
+        limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        assertThat(limit.children().size(), equalTo(1));
+        assertThat(limit.children().get(0), instanceOf(Eval.class));
+        eval = (Eval) limit.children().get(0);
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left()).value(), equalTo(-1));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right()).value(), equalTo(5));
+        f = (Filter) eval.children().get(0);
+        assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
+        assertThat(f.children().size(), equalTo(1));
+        assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
+
+        plan = statement(
+            "from test | where x < ?_1 | eval y = ?_2 + ?_1 |  limit 10",
             new QueryParams(List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, -1, INTEGER)))
         );
         assertThat(plan, instanceOf(Limit.class));
@@ -1227,7 +1342,52 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
 
         plan = statement(
+            "from test | where x < ?_n1 | eval y = ?_n2 + ?_n3 |  stats count(?_n4) by z",
+            new QueryParams(
+                List.of(
+                    new QueryParam("_n1", 5, INTEGER),
+                    new QueryParam("_n2", -1, INTEGER),
+                    new QueryParam("_n3", 100, INTEGER),
+                    new QueryParam("_n4", "*", KEYWORD)
+                )
+            )
+        );
+        assertThat(plan, instanceOf(Aggregate.class));
+        agg = (Aggregate) plan;
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(agg.child(), instanceOf(Eval.class));
+        assertThat(agg.children().size(), equalTo(1));
+        assertThat(agg.children().get(0), instanceOf(Eval.class));
+        eval = (Eval) agg.children().get(0);
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left()).value(), equalTo(-1));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right()).value(), equalTo(100));
+        f = (Filter) eval.children().get(0);
+        assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
+        assertThat(f.children().size(), equalTo(1));
+        assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
+
+        plan = statement(
             "from test | where x < ?1 | eval y = ?2 + ?1 |  stats count(?3) by z",
+            new QueryParams(
+                List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, -1, INTEGER), new QueryParam(null, "*", KEYWORD))
+            )
+        );
+        assertThat(plan, instanceOf(Aggregate.class));
+        agg = (Aggregate) plan;
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(agg.child(), instanceOf(Eval.class));
+        assertThat(agg.children().size(), equalTo(1));
+        assertThat(agg.children().get(0), instanceOf(Eval.class));
+        eval = (Eval) agg.children().get(0);
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left()).value(), equalTo(-1));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right()).value(), equalTo(5));
+        f = (Filter) eval.children().get(0);
+        assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
+        assertThat(f.children().size(), equalTo(1));
+        assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
+
+        plan = statement(
+            "from test | where x < ?_1 | eval y = ?_2 + ?_1 |  stats count(?3) by z",
             new QueryParams(
                 List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, -1, INTEGER), new QueryParam(null, "*", KEYWORD))
             )
@@ -1261,11 +1421,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
 
         expectError(
-            "from test | where x < ?1 | eval y = ?n2 + ?n3 |  limit ?n4",
+            "from test | where x < ? | eval y = ?_n2 + ?n3 |  limit ?_4",
+            List.of(
+                new QueryParam("n1", 5, INTEGER),
+                new QueryParam("_n2", -1, INTEGER),
+                new QueryParam("n3", 100, INTEGER),
+                new QueryParam("n4", 10, INTEGER)
+            ),
+            "Inconsistent parameter declaration, "
+                + "use one of positional, named or anonymous params but not a combination of named and anonymous"
+        );
+
+        expectError(
+            "from test | where x < ?1 | eval y = ?n2 + ?_n3 |  limit ?n4",
             List.of(
                 new QueryParam("n1", 5, INTEGER),
                 new QueryParam("n2", -1, INTEGER),
-                new QueryParam("n3", 100, INTEGER),
+                new QueryParam("_n3", 100, INTEGER),
                 new QueryParam("n4", 10, INTEGER)
             ),
             "Inconsistent parameter declaration, "
@@ -1273,11 +1445,35 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
 
         expectError(
-            "from test | where x < ? | eval y = ?2 + ?n3 |  limit ?n4",
+            "from test | where x < ?_1 | eval y = ?n2 + ?_n3 |  limit ?n4",
+            List.of(
+                new QueryParam("n1", 5, INTEGER),
+                new QueryParam("n2", -1, INTEGER),
+                new QueryParam("_n3", 100, INTEGER),
+                new QueryParam("n4", 10, INTEGER)
+            ),
+            "Inconsistent parameter declaration, "
+                + "use one of positional, named or anonymous params but not a combination of named and positional"
+        );
+
+        expectError(
+            "from test | where x < ? | eval y = ?2 + ?n3 |  limit ?_n4",
             List.of(
                 new QueryParam("n1", 5, INTEGER),
                 new QueryParam("n2", -1, INTEGER),
                 new QueryParam("n3", 100, INTEGER),
+                new QueryParam("_n4", 10, INTEGER)
+            ),
+            "Inconsistent parameter declaration, "
+                + "use one of positional, named or anonymous params but not a combination of positional and anonymous"
+        );
+
+        expectError(
+            "from test | where x < ? | eval y = ?_2 + ?_n3 |  limit ?n4",
+            List.of(
+                new QueryParam("n1", 5, INTEGER),
+                new QueryParam("n2", -1, INTEGER),
+                new QueryParam("_n3", 100, INTEGER),
                 new QueryParam("n4", 10, INTEGER)
             ),
             "Inconsistent parameter declaration, "

@@ -576,7 +576,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             () -> runEsqlSync(
                 requestObjectBuilder().query("row a = 1 | eval x = ?, y = ?")
                     .params(
-                        "[{\"1\": \"v1\"}, {\"1-\": \"v1\"}, {\"_a\": \"v1\"}, {\"@-#\": \"v1\"}, true, 123, "
+                        "[{\"1\": \"v1\"}, {\"1-\": \"v1\"}, {\"-a\": \"v1\"}, {\"@-#\": \"v1\"}, true, 123, "
                             + "{\"type\": \"byte\", \"value\": 5}]"
                     )
             )
@@ -584,13 +584,26 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         String error = EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", "");
         assertThat(error, containsString("[1] is not a valid parameter name"));
         assertThat(error, containsString("[1-] is not a valid parameter name"));
-        assertThat(error, containsString("[_a] is not a valid parameter name"));
+        assertThat(error, containsString("[-a] is not a valid parameter name"));
         assertThat(error, containsString("[@-#] is not a valid parameter name"));
         assertThat(error, containsString("Params cannot contain both named and unnamed parameters"));
         assertThat(error, containsString("Cannot parse more than one key:value pair as parameter"));
         re = expectThrows(
             ResponseException.class,
             () -> runEsqlSync(requestObjectBuilder().query("row a = ?0, b= ?2").params("[{\"n1\": \"v1\"}]"))
+        );
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()),
+            containsString("No parameter is defined for position 0, did you mean position 1")
+        );
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()),
+            containsString("No parameter is defined for position 2, did you mean position 1")
+        );
+
+        expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(requestObjectBuilder().query("row a = ?_0, b= ?_2").params("[{\"n1\": \"v1\"}]"))
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),

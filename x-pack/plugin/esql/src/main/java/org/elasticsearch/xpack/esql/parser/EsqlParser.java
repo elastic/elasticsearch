@@ -25,7 +25,7 @@ import java.util.BitSet;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.isPositionalParam;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 
 public class EsqlParser {
@@ -139,7 +139,9 @@ public class EsqlParser {
             }
 
             if (token.getType() == EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM) {
-                if (isInteger(token.getText().substring(1))) {
+                String nameOrPosition = token.getText().substring(1);
+                if (isPositionalParam(nameOrPosition)) {
+                    // ?1 and ?_1 are both parsed as positional parameters
                     checkPositionalParam(token);
                 } else {
                     checkNamedParam(token);

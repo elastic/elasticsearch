@@ -406,15 +406,22 @@ public final class StringUtils {
     }
 
     public static boolean isValidParamName(String value) {
-        // A valid name starts with a letter and contain only letter, digit or _
-        if (Character.isLetter(value.charAt(0)) == false) {
+        // A valid name starts with a letter or _ followed by a letter
+        if (Character.isLetter(value.charAt(0)) == false
+            && (value.trim().length() > 1 && value.charAt(0) == '_' && Character.isLetter(value.charAt(1))) == false) {
             return false;
         }
+        // contain only letter, digit or _
         for (char c : value.trim().toCharArray()) {
             if (Character.isLetterOrDigit(c) == false && c != '_') {
                 return false;
             }
         }
         return true;
+    }
+
+    public static boolean isPositionalParam(String value) {
+        // A positional parameter name is an integer or an _ followed by an integer
+        return isInteger(value) || (value.startsWith("_") && isInteger(value.substring(1)));
     }
 }

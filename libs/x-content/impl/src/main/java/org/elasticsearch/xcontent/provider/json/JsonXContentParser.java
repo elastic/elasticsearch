@@ -128,7 +128,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         if (currentToken == JsonToken.VALUE_STRING) {
             return text();
         } else if (currentToken == JsonToken.VALUE_NUMBER_INT || currentToken == JsonToken.VALUE_NUMBER_FLOAT) {
-            return parser.getNumberValue();
+            return parser.getNumberValueExact();
         } else if (currentToken == JsonToken.VALUE_TRUE) {
             return Boolean.TRUE;
         } else if (currentToken == JsonToken.VALUE_FALSE) {
@@ -193,7 +193,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     @Override
     public Number numberValue() throws IOException {
         try {
-            return parser.getNumberValue();
+            return parser.getNumberValueExact();
         } catch (InputCoercionException | JsonParseException e) {
             throw newXContentParseException(e);
         }

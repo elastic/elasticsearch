@@ -28,8 +28,6 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.crea
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
 public class AlibabaCloudSearchEmbeddingsAction implements ExecutableAction {
-    private static final Logger logger = LogManager.getLogger(AlibabaCloudSearchEmbeddingsAction.class);
-
     private final AlibabaCloudSearchAccount account;
     private final AlibabaCloudSearchEmbeddingsModel model;
     private final String failedToSendRequestErrorMessage;

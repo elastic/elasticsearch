@@ -41,8 +41,10 @@ public record AlibabaCloudSearchEmbeddingsRequestEntity(
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(TEXTS_FIELD, input);
-        if (taskSettings.getInputType() != null) {
-            builder.field(INPUT_TYPE_FIELD, covertToString(taskSettings.getInputType()));
+
+        String inputType = covertToString(taskSettings.getInputType());
+        if (inputType != null) {
+            builder.field(INPUT_TYPE_FIELD, inputType);
         }
 
         builder.endObject();
@@ -51,6 +53,10 @@ public record AlibabaCloudSearchEmbeddingsRequestEntity(
 
     // default for testing
     static String covertToString(InputType inputType) {
+        if(inputType == null) {
+            return null;
+        }
+
         return switch (inputType) {
             case INGEST -> SEARCH_DOCUMENT;
             case SEARCH -> SEARCH_QUERY;

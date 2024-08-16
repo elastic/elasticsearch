@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
@@ -49,8 +50,7 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     public static final String WORKSPACE_NAME = "workspace";
     public static final String HTTP_SCHEMA_NAME = "http_schema";
 
-    // todo: 确认开放搜索平台的ratelimt
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
 
     public static AlibabaCloudSearchServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -65,6 +65,13 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
         String host = extractRequiredString(map, HOST, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var workspaceName = extractRequiredString(map, WORKSPACE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var httpSchema = extractOptionalString(map, HTTP_SCHEMA_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
+        if (httpSchema != null) {
+            var validSchemas = Set.of("https", "http");
+            if (validSchemas.contains(httpSchema) == false) {
+                validationException.addValidationError("Invalid value for [http_schema]. Must be one of [https, http]");
+            }
+        }
 
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,

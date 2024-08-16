@@ -43,9 +43,7 @@ public class AlibabaCloudSearchEmbeddingsTaskSettings implements TaskSettings {
     static final String INPUT_TYPE = "input_type";
     static final EnumSet<InputType> VALID_REQUEST_VALUES = EnumSet.of(
         InputType.INGEST,
-        InputType.SEARCH,
-        InputType.CLASSIFICATION,
-        InputType.CLUSTERING
+        InputType.SEARCH
     );
 
     public static AlibabaCloudSearchEmbeddingsTaskSettings fromMap(Map<String, Object> map) {

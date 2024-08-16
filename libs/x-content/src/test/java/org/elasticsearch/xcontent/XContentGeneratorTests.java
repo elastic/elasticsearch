@@ -19,11 +19,13 @@ import static org.hamcrest.Matchers.equalTo;
 public class XContentGeneratorTests extends ESTestCase {
 
     public void testCopyCurrentEventRoundtrip() throws Exception {
+        assertTypeCopy("null", "null");
+        assertTypeCopy("string", "\"hi\"");
         assertTypeCopy("integer", "1");
         assertTypeCopy("float", "1.0");
         assertTypeCopy("long", "5000000000");
         assertTypeCopy("double", "1.123456789");
-        // assertTypeCopy("biginteger", "18446744073709551615");
+        assertTypeCopy("biginteger", "18446744073709551615");
         assertTypeCopy("bigdecimal", "1.1234567890123456789");
     }
 

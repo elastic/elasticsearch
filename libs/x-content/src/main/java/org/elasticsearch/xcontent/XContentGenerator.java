@@ -155,8 +155,9 @@ public interface XContentGenerator extends Closeable, Flushable {
                 } else if (n instanceof BigInteger bi) {
                     writeNumber(bi);
                 } else if (n instanceof BigDecimal bd) {
-                    assert false: "finally";
                     writeNumber(bd);
+                } else {
+                    assert false : "unknown number type [" + n.getClass() + "]";
                 }
                 break;
             case VALUE_BOOLEAN:

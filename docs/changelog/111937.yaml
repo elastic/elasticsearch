@@ -1,0 +1,5 @@
+pr: 111937
+summary: Handle `BigInteger` and `BigDecimal` in xcontent copy
+area: Infra/Core
+type: bug
+issues: []

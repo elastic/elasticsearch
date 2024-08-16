@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings;
+package org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
@@ -23,16 +23,15 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<
-    AlibabaCloudSearchEmbeddingsServiceSettings> {
-    public static AlibabaCloudSearchEmbeddingsServiceSettings createRandom() {
+public class AlibabaCloudSearchSparseServiceSettingsTests extends AbstractWireSerializingTestCase<AlibabaCloudSearchSparseServiceSettings> {
+    public static AlibabaCloudSearchSparseServiceSettings createRandom() {
         var commonSettings = AlibabaCloudSearchServiceSettingsTests.createRandom();
-        return new AlibabaCloudSearchEmbeddingsServiceSettings(commonSettings);
+        return new AlibabaCloudSearchSparseServiceSettings(commonSettings);
     }
 
-    public static AlibabaCloudSearchEmbeddingsServiceSettings createRandom(String url) {
+    public static AlibabaCloudSearchSparseServiceSettings createRandom(String url) {
         var commonSettings = AlibabaCloudSearchServiceSettingsTests.createRandom(url);
-        return new AlibabaCloudSearchEmbeddingsServiceSettings(commonSettings);
+        return new AlibabaCloudSearchSparseServiceSettings(commonSettings);
     }
 
     public void testFromMap() {
@@ -44,7 +43,7 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractWi
         var host = "host";
         var workspaceName = "default";
         var httpSchema = "https";
-        var serviceSettings = AlibabaCloudSearchEmbeddingsServiceSettings.fromMap(
+        var serviceSettings = AlibabaCloudSearchSparseServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.URL,
@@ -71,7 +70,7 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractWi
         MatcherAssert.assertThat(
             serviceSettings,
             is(
-                new AlibabaCloudSearchEmbeddingsServiceSettings(
+                new AlibabaCloudSearchSparseServiceSettings(
                     new AlibabaCloudSearchServiceSettings(
                         ServiceUtils.createUri(url),
                         SimilarityMeasure.DOT_PRODUCT,
@@ -89,18 +88,17 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractWi
     }
 
     @Override
-    protected Writeable.Reader<AlibabaCloudSearchEmbeddingsServiceSettings> instanceReader() {
-        return AlibabaCloudSearchEmbeddingsServiceSettings::new;
+    protected Writeable.Reader<AlibabaCloudSearchSparseServiceSettings> instanceReader() {
+        return AlibabaCloudSearchSparseServiceSettings::new;
     }
 
     @Override
-    protected AlibabaCloudSearchEmbeddingsServiceSettings createTestInstance() {
+    protected AlibabaCloudSearchSparseServiceSettings createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected AlibabaCloudSearchEmbeddingsServiceSettings mutateInstance(AlibabaCloudSearchEmbeddingsServiceSettings instance)
-        throws IOException {
+    protected AlibabaCloudSearchSparseServiceSettings mutateInstance(AlibabaCloudSearchSparseServiceSettings instance) throws IOException {
         return null;
     }
 

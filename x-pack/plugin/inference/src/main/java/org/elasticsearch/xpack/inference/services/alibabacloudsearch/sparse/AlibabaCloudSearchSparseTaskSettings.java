@@ -41,10 +41,7 @@ public class AlibabaCloudSearchSparseTaskSettings implements TaskSettings {
     public static final AlibabaCloudSearchSparseTaskSettings EMPTY_SETTINGS = new AlibabaCloudSearchSparseTaskSettings(null, null);
     static final String INPUT_TYPE = "input_type";
     static final String RETURN_TOKEN = "return_token";
-    static final EnumSet<InputType> VALID_REQUEST_VALUES = EnumSet.of(
-        InputType.INGEST,
-        InputType.SEARCH
-    );
+    static final EnumSet<InputType> VALID_REQUEST_VALUES = EnumSet.of(InputType.INGEST, InputType.SEARCH);
 
     public static AlibabaCloudSearchSparseTaskSettings fromMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {

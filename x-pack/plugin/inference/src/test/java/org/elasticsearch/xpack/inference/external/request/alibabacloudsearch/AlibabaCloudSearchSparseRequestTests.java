@@ -13,10 +13,12 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.alibabacloudsearch.AlibabaCloudSearchAccount;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsTaskSettingsTests;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModel;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModelTests;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseTaskSettingsTests;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -28,15 +30,15 @@ import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretS
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class AlibabaCloudSearchEmbeddingsRequestTests extends ESTestCase {
+public class AlibabaCloudSearchSparseRequestTests extends ESTestCase {
     public void testCreateRequest() throws IOException {
         var request = createRequest(
             List.of("abc"),
-            AlibabaCloudSearchEmbeddingsModelTests.createModel(
+            AlibabaCloudSearchSparseModelTests.createModel(
                 "embedding_test",
                 TaskType.TEXT_EMBEDDING,
-                AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, "embeddings_test", "host", "default"),
-                AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
+                AlibabaCloudSearchSparseServiceSettingsTests.getServiceSettingsMap(null, "embeddings_test", "host", "default"),
+                AlibabaCloudSearchSparseTaskSettingsTests.getTaskSettingsMap(null, null),
                 getSecretSettingsMap("secret")
             )
         );
@@ -47,7 +49,7 @@ public class AlibabaCloudSearchEmbeddingsRequestTests extends ESTestCase {
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         MatcherAssert.assertThat(
             httpPost.getURI().toString(),
-            is("https://host/v3/openapi/workspaces/default/text-embedding/embeddings_test")
+            is("https://host/v3/openapi/workspaces/default/text-sparse-embedding/embeddings_test")
         );
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
@@ -59,7 +61,7 @@ public class AlibabaCloudSearchEmbeddingsRequestTests extends ESTestCase {
     public void testCreateRequest_UrlDefined() throws IOException {
         var request = createRequest(
             List.of("abc"),
-            AlibabaCloudSearchEmbeddingsModelTests.createModel(
+            AlibabaCloudSearchSparseModelTests.createModel(
                 "embedding_test",
                 TaskType.TEXT_EMBEDDING,
                 AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "embeddings_test", "host", "default"),
@@ -81,11 +83,11 @@ public class AlibabaCloudSearchEmbeddingsRequestTests extends ESTestCase {
         MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"))));
     }
 
-    public static AlibabaCloudSearchEmbeddingsRequest createRequest(List<String> input, AlibabaCloudSearchEmbeddingsModel model) {
+    public static AlibabaCloudSearchSparseRequest createRequest(List<String> input, AlibabaCloudSearchSparseModel model) {
         var account = new AlibabaCloudSearchAccount(
             model.getServiceSettings().getCommonSettings().getUri(),
             model.getSecretSettings().apiKey()
         );
-        return new AlibabaCloudSearchEmbeddingsRequest(account, input, model);
+        return new AlibabaCloudSearchSparseRequest(account, input, model);
     }
 }

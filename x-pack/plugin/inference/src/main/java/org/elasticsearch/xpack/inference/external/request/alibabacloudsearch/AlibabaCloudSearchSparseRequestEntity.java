@@ -21,6 +21,7 @@ public record AlibabaCloudSearchSparseRequestEntity(
     AlibabaCloudSearchSparseTaskSettings taskSettings,
     @Nullable String model
 ) implements ToXContentObject {
+
     private static final String TEXTS_FIELD = "input";
 
     static final String INPUT_TYPE_FIELD = "input_type";

@@ -53,32 +53,32 @@ public class AlibabaCloudSearchSparseResponseEntity extends AlibabaCloudSearchRe
      *         "index": 0,
      *         "embedding": [
      *           {
-     *             "tokenId": 6,
+     *             "token_id": 6,
      *             "weight": 0.1014404296875,
      *             "token": ""
      *           },
      *           {
-     *             "tokenId": 163040,
+     *             "token_id": 163040,
      *             "weight": 0.2841796875,
      *             "token": "科学技术"
      *           },
      *           {
-     *             "tokenId": 354,
+     *             "token_id": 354,
      *             "weight": 0.1431884765625,
      *             "token": "是"
      *           },
      *           {
-     *             "tokenId": 5998,
+     *             "token_id": 5998,
      *             "weight": 0.1614990234375,
      *             "token": "第一"
      *           },
      *           {
-     *             "tokenId": 8550,
+     *             "token_id": 8550,
      *             "weight": 0.239013671875,
      *             "token": "生产"
      *           },
      *           {
-     *             "tokenId": 2017,
+     *             "token_id": 2017,
      *             "weight": 0.161376953125,
      *             "token": "力"
      *           }
@@ -88,27 +88,27 @@ public class AlibabaCloudSearchSparseResponseEntity extends AlibabaCloudSearchRe
      *         "index": 1,
      *         "embedding": [
      *           {
-     *             "tokenId": 9803,
+     *             "token_id": 9803,
      *             "weight": 0.1949462890625,
      *             "token": "open"
      *           },
      *           {
-     *             "tokenId": 86250,
+     *             "token_id": 86250,
      *             "weight": 0.317138671875,
      *             "token": "search"
      *           },
      *           {
-     *             "tokenId": 5889,
+     *             "token_id": 5889,
      *             "weight": 0.175048828125,
      *             "token": "产品"
      *           },
      *           {
-     *             "tokenId": 2564,
+     *             "token_id": 2564,
      *             "weight": 0.1163330078125,
      *             "token": "文"
      *           },
      *           {
-     *             "tokenId": 59529,
+     *             "token_id": 59529,
      *             "weight": 0.16650390625,
      *             "token": "档"
      *           }

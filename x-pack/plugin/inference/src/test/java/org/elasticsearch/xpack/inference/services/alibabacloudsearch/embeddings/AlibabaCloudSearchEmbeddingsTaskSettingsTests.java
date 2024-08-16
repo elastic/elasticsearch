@@ -17,13 +17,13 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
+import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithIngestAndSearch;
 import static org.hamcrest.Matchers.is;
 
 public class AlibabaCloudSearchEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<
     AlibabaCloudSearchEmbeddingsTaskSettings> {
     public static AlibabaCloudSearchEmbeddingsTaskSettings createRandom() {
-        var inputType = randomBoolean() ? randomWithoutUnspecified() : null;
+        var inputType = randomBoolean() ? randomWithIngestAndSearch() : null;
 
         return new AlibabaCloudSearchEmbeddingsTaskSettings(inputType);
     }

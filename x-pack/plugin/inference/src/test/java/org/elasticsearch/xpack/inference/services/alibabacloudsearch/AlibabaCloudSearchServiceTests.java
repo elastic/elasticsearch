@@ -82,7 +82,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
+                    AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, "service_id", "host", "default"),
                     AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                     getSecretSettingsMap("secret")
                 ),

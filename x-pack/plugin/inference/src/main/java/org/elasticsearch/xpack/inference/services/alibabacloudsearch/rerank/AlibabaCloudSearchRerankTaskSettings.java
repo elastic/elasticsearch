@@ -9,22 +9,15 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 
 /**
  * Defines the task settings for the AlibabaCloudSearch rerank service.
@@ -72,8 +65,7 @@ public class AlibabaCloudSearchRerankTaskSettings implements TaskSettings {
         this();
     }
 
-    public AlibabaCloudSearchRerankTaskSettings() {
-    }
+    public AlibabaCloudSearchRerankTaskSettings() {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -93,8 +85,7 @@ public class AlibabaCloudSearchRerankTaskSettings implements TaskSettings {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-    }
+    public void writeTo(StreamOutput out) throws IOException {}
 
     @Override
     public boolean equals(Object o) {

@@ -53,7 +53,7 @@ public record AlibabaCloudSearchEmbeddingsRequestEntity(
 
     // default for testing
     static String covertToString(InputType inputType) {
-        if(inputType == null) {
+        if (inputType == null) {
             return null;
         }
 

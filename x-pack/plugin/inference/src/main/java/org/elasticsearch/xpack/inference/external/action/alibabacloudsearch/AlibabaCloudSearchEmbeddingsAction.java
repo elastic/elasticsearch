@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.action.alibabacloudsearch;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;

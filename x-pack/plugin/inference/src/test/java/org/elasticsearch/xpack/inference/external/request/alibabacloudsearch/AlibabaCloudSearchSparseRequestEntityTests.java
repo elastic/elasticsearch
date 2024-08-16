@@ -13,7 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseTaskSettings;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -21,11 +21,11 @@ import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
 
-public class AlibabaCloudSearchEmbeddingsRequestEntityTests extends ESTestCase {
+public class AlibabaCloudSearchSparseRequestEntityTests extends ESTestCase {
     public void testXContent_WritesAllFields_WhenTheyAreDefined() throws IOException {
-        var entity = new AlibabaCloudSearchEmbeddingsRequestEntity(
+        var entity = new AlibabaCloudSearchSparseRequestEntity(
             List.of("abc"),
-            new AlibabaCloudSearchEmbeddingsTaskSettings(InputType.INGEST),
+            new AlibabaCloudSearchSparseTaskSettings(InputType.INGEST, true),
             "model"
         );
 
@@ -34,15 +34,11 @@ public class AlibabaCloudSearchEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"input_type":"document"}"""));
+            {"input":["abc"],"input_type":"document","return_token":true}"""));
     }
 
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
-        var entity = new AlibabaCloudSearchEmbeddingsRequestEntity(
-            List.of("abc"),
-            AlibabaCloudSearchEmbeddingsTaskSettings.EMPTY_SETTINGS,
-            null
-        );
+        var entity = new AlibabaCloudSearchSparseRequestEntity(List.of("abc"), AlibabaCloudSearchSparseTaskSettings.EMPTY_SETTINGS, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -50,13 +46,5 @@ public class AlibabaCloudSearchEmbeddingsRequestEntityTests extends ESTestCase {
 
         MatcherAssert.assertThat(xContentResult, is("""
             {"input":["abc"]}"""));
-    }
-
-    public void testConvertToString_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
-        var thrownException = expectThrows(
-            AssertionError.class,
-            () -> AlibabaCloudSearchEmbeddingsRequestEntity.covertToString(InputType.UNSPECIFIED)
-        );
-        MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
     }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.grok;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -89,6 +90,48 @@ public class PatternBankTests extends ESTestCase {
             "circular reference in pattern [NAME5][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME2=>NAME3=>NAME4]",
             e.getMessage()
         );
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new LinkedHashMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!");
+            bank.put("NAME2", "!!!%{NAME3}!!!");
+            bank.put("NAME3", "!!!%{NAME2}!!!");
+            PatternBank.forbidCircularReferences(bank);
+        });
+
+        {
+            Map<String, String> bank = new HashMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!%{NAME3}%{NAME4}");
+            bank.put("NAME2", "!!!%{NAME3}!!!");
+            bank.put("NAME3", "!!!!!!");
+            bank.put("NAME4", "!!!%{NAME5}!!!");
+            bank.put("NAME5", "!!!!!!");
+            PatternBank.forbidCircularReferences(bank);
+        }
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new LinkedHashMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!%{NAME3}%{NAME4}");
+            bank.put("NAME2", "!!!%{NAME3}!!!");
+            bank.put("NAME3", "!!!!!!");
+            bank.put("NAME4", "!!!%{NAME5}!!!");
+            bank.put("NAME5", "!!!%{NAME1}!!!");
+            PatternBank.forbidCircularReferences(bank);
+        });
+        assertEquals(
+            "circular reference in pattern [NAME5][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME4=>NAME5]",
+            e.getMessage()
+        );
+
+        {
+            Map<String, String> bank = new HashMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!");
+            bank.put("NAME2", "!!!%{NAME3}!!!");
+            bank.put("NAME3", "!!!!!!");
+            bank.put("NAME4", "!!!%{NAME5}!!!");
+            bank.put("NAME5", "!!!%{NAME1}!!!");
+            PatternBank.forbidCircularReferences(bank);
+        }
     }
 
     public void testCircularSelfReference() {
@@ -111,5 +154,15 @@ public class PatternBankTests extends ESTestCase {
             () -> PatternBank.forbidCircularReferences(Map.of("VALID", "valid", "NAME", "%{VALID"))
         );
         assertEquals("pattern [%{VALID] has an invalid syntax", e.getMessage());
+    }
+
+    public void testDeepGraphOfPatterns() {
+        Map<String, String> patternBankMap = randomBoolean() ? new HashMap<>() : new LinkedHashMap<>();
+        final int nodeCount = 20000;
+        for (int i = 0; i < nodeCount - 1; i++) {
+            patternBankMap.put("FOO" + i, "%{FOO" + (i + 1) + "}");
+        }
+        patternBankMap.put("FOO" + (nodeCount - 1), "foo");
+        new PatternBank(patternBankMap);
     }
 }

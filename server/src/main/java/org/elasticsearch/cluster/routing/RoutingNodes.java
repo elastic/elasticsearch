@@ -45,8 +45,8 @@ import java.util.stream.StreamSupport;
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
  * It can be either initialized as mutable or immutable allowing or disallowing changes to its elements.
- * (see {@link RoutingNodes#mutable(RoutingTable, DiscoveryNodes)}, {@link RoutingNodes#immutable(RoutingTable, DiscoveryNodes)},
- * and {@link #mutableCopy()})
+ * (see {@link RoutingNodes#mutable(GlobalRoutingTable, DiscoveryNodes)},
+ *      {@link RoutingNodes#immutable(GlobalRoutingTable, DiscoveryNodes)}, and {@link #mutableCopy()})
  *
  * The main methods used to update routing entries are:
  * <ul>
@@ -80,18 +80,18 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * the routing nodes in {@link ClusterState#getRoutingNodes()}. This method should not be used directly, use
      * {@link ClusterState#getRoutingNodes()} instead.
      */
-    public static RoutingNodes immutable(RoutingTable routingTable, DiscoveryNodes discoveryNodes) {
+    public static RoutingNodes immutable(GlobalRoutingTable routingTable, DiscoveryNodes discoveryNodes) {
         return new RoutingNodes(routingTable, discoveryNodes, true);
     }
 
-    public static RoutingNodes mutable(RoutingTable routingTable, DiscoveryNodes discoveryNodes) {
+    public static RoutingNodes mutable(GlobalRoutingTable routingTable, DiscoveryNodes discoveryNodes) {
         return new RoutingNodes(routingTable, discoveryNodes, false);
     }
 
-    private RoutingNodes(RoutingTable routingTable, DiscoveryNodes discoveryNodes, boolean readOnly) {
+    private RoutingNodes(GlobalRoutingTable routingTable, DiscoveryNodes discoveryNodes, boolean readOnly) {
         this.readOnly = readOnly;
         this.recoveriesPerNode = new HashMap<>();
-        final int indexCount = routingTable.indicesRouting().size();
+        final int indexCount = routingTable.totalIndexCount();
         this.assignedShards = Maps.newMapWithExpectedSize(indexCount);
         this.unassignedShards = new UnassignedShards(this);
         this.attributeValuesByAttribute = Collections.synchronizedMap(new HashMap<>());
@@ -108,38 +108,40 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // fill in the inverse of node -> shards allocated
         // also fill replicaSet information
         final Function<String, RoutingNode> createRoutingNode = k -> new RoutingNode(k, discoveryNodes.get(k), sizeGuess);
-        for (IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
-            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
-                IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);
-                assert indexShard.primary != null;
-                for (int copy = 0; copy < indexShard.size(); copy++) {
-                    final ShardRouting shard = indexShard.shard(copy);
-                    // to get all the shards belonging to an index, including the replicas,
-                    // we define a replica set and keep track of it. A replica set is identified
-                    // by the ShardId, as this is common for primary and replicas.
-                    // A replica Set might have one (and not more) replicas with the state of RELOCATING.
-                    if (shard.assignedToNode()) {
-                        // LinkedHashMap to preserve order
-                        nodesToShards.computeIfAbsent(shard.currentNodeId(), createRoutingNode).addWithoutValidation(shard);
-                        assignedShardsAdd(shard);
-                        if (shard.relocating()) {
-                            relocatingShards++;
-                            ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
-                            addInitialRecovery(targetShardRouting, indexShard.primary);
-                            // LinkedHashMap to preserve order.
-                            // Add the counterpart shard with relocatingNodeId reflecting the source from which it's relocating from.
-                            nodesToShards.computeIfAbsent(shard.relocatingNodeId(), createRoutingNode)
-                                .addWithoutValidation(targetShardRouting);
-                            assignedShardsAdd(targetShardRouting);
-                        } else if (shard.initializing()) {
-                            if (shard.primary()) {
-                                inactivePrimaryCount++;
+        for (RoutingTable projectRouting : routingTable) {
+            for (IndexRoutingTable indexRoutingTable : projectRouting.indicesRouting().values()) {
+                for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                    IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);
+                    assert indexShard.primary != null;
+                    for (int copy = 0; copy < indexShard.size(); copy++) {
+                        final ShardRouting shard = indexShard.shard(copy);
+                        // to get all the shards belonging to an index, including the replicas,
+                        // we define a replica set and keep track of it. A replica set is identified
+                        // by the ShardId, as this is common for primary and replicas.
+                        // A replica Set might have one (and not more) replicas with the state of RELOCATING.
+                        if (shard.assignedToNode()) {
+                            // LinkedHashMap to preserve order
+                            nodesToShards.computeIfAbsent(shard.currentNodeId(), createRoutingNode).addWithoutValidation(shard);
+                            assignedShardsAdd(shard);
+                            if (shard.relocating()) {
+                                relocatingShards++;
+                                ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
+                                addInitialRecovery(targetShardRouting, indexShard.primary);
+                                // LinkedHashMap to preserve order.
+                                // Add the counterpart shard with relocatingNodeId reflecting the source from which it's relocating from.
+                                nodesToShards.computeIfAbsent(shard.relocatingNodeId(), createRoutingNode)
+                                    .addWithoutValidation(targetShardRouting);
+                                assignedShardsAdd(targetShardRouting);
+                            } else if (shard.initializing()) {
+                                if (shard.primary()) {
+                                    inactivePrimaryCount++;
+                                }
+                                inactiveShardCount++;
+                                addInitialRecovery(shard, indexShard.primary);
                             }
-                            inactiveShardCount++;
-                            addInitialRecovery(shard, indexShard.primary);
+                        } else {
+                            unassignedShards.add(shard);
                         }
-                    } else {
-                        unassignedShards.add(shard);
                     }
                 }
             }

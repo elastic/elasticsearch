@@ -517,7 +517,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     private RoutingAllocation createRoutingAllocation(ClusterState clusterState) {
         return new RoutingAllocation(
             new AllocationDeciders(List.of()),
-            RoutingNodes.mutable(clusterState.routingTable(), clusterState.nodes()),
+            RoutingNodes.mutable(clusterState.globalRoutingTable(), clusterState.nodes()),
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,

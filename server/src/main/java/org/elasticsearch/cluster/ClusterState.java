@@ -268,7 +268,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         if (routingNodes == null) {
             return true;
         }
-        final RoutingNodes expected = RoutingNodes.immutable(routingTable.getRoutingTable(), nodes);
+        final RoutingNodes expected = RoutingNodes.immutable(routingTable, nodes);
         assert routingNodes.equals(expected)
             : "RoutingNodes [" + routingNodes + "] are not consistent with this cluster state [" + expected + "]";
         return true;
@@ -351,6 +351,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return metadata.coordinationMetadata();
     }
 
+    public GlobalRoutingTable globalRoutingTable() {
+        return routingTable;
+    }
+
     public RoutingTable routingTable() {
         return routingTable.getRoutingTable();
     }
@@ -418,7 +422,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         if (r != null) {
             return r;
         }
-        r = RoutingNodes.immutable(routingTable.getRoutingTable(), nodes);
+        r = RoutingNodes.immutable(routingTable, nodes);
         routingNodes = r;
         return r;
     }
@@ -434,7 +438,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
         // we don't have any routing nodes for this state, likely because it's a temporary state in the reroute logic, don't compute an
         // immutable copy that will never be used and instead directly build a mutable copy
-        return RoutingNodes.mutable(routingTable.getRoutingTable(), this.nodes);
+        return RoutingNodes.mutable(routingTable, this.nodes);
     }
 
     /**

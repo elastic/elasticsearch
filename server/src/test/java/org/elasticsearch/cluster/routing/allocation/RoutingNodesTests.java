@@ -17,9 +17,13 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -44,6 +48,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.oneOf;
@@ -414,6 +419,58 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             }
         }
         assertTrue(shardsByNode.values().stream().allMatch(Set::isEmpty));
+    }
+
+    public void testBuildRoutingNodesForMultipleProjects() {
+        final Metadata.Builder mb = Metadata.builder();
+        final int numberOfProjects = randomIntBetween(2, 10);
+        int shardCount = 0;
+        for (int i = 1; i <= numberOfProjects; i++) {
+            var projectId = new ProjectId("p" + i);
+            mb.put(
+                projectId,
+                ProjectMetadata.builder()
+                    .put(
+                        IndexMetadata.builder("test")
+                            .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
+                            .numberOfShards(i)
+                            .numberOfReplicas(1)
+                    )
+                    .put(
+                        IndexMetadata.builder("test-" + i)
+                            .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
+                            .numberOfShards(1)
+                            .numberOfReplicas(i)
+                    )
+            );
+            shardCount += 2 * i;
+            shardCount += 1 + i;
+        }
+        Metadata metadata = mb.build();
+        assertThat(metadata.projects(), aMapWithSize(numberOfProjects));
+
+        final GlobalRoutingTable initialRoutingTable = GlobalRoutingTableTestHelper.buildRoutingTable(
+            metadata,
+            RoutingTable.Builder::addAsNew
+        );
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
+
+        final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
+        final int numberOfNodes = randomIntBetween(1, 5);
+        for (int i = 1; i <= numberOfNodes; i++) {
+            nodesBuilder.add(newNode("node" + i));
+        }
+        clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
+        RoutingNodes routingNodes = clusterState.getRoutingNodes();
+
+        assertThat(assertShardStats(routingNodes), equalTo(true));
+        assertThat(routingNodes.hasInactiveShards(), equalTo(false));
+        assertThat(routingNodes.hasInactivePrimaries(), equalTo(false));
+        assertThat(routingNodes.hasUnassignedPrimaries(), equalTo(true));
+
+        assertThat(routingNodes.size(), equalTo(numberOfNodes));
+        assertThat(routingNodes.unassigned().size(), equalTo(shardCount));
+        assertThat(routingNodes.getAssignedShards(), aMapWithSize(0));
     }
 
     public void testMoveShardWithDefaultRole() {

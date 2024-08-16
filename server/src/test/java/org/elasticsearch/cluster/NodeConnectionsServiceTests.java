@@ -13,6 +13,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -607,12 +608,12 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
             final CheckedRunnable<Exception> connectionBlock = nodeConnectionBlocks.get(node);
             if (profile == null && randomConnectionExceptions && randomBoolean()) {
-                threadPool.generic().execute(() -> ActionListener.completeWith(listener, () -> {
+                threadPool.generic().execute(ActionRunnable.run(listener, () -> {
                     runConnectionBlock(connectionBlock);
                     throw new ConnectTransportException(node, "simulated");
                 }));
             } else {
-                threadPool.generic().execute(() -> ActionListener.completeWith(listener, () -> {
+                threadPool.generic().execute(ActionRunnable.supply(listener, () -> {
                     runConnectionBlock(connectionBlock);
                     return new Connection() {
                         private final SubscribableListener<Void> closeListener = new SubscribableListener<>();

@@ -1074,22 +1074,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static boolean canCastNumeric(DataType from, DataType to) {
-            // only support INTEGER, LONG, UNSIGNED_LONG, DOUBLE
-            if (from.isNumeric() && to.isNumeric()) {
-                if (from == to) {
-                    return true;
-                }
-                if (from == INTEGER) {
-                    return to == LONG || to == DOUBLE || to == UNSIGNED_LONG;
-                }
-                if (from == LONG) {
-                    return to == DOUBLE;
-                }
-                if (from == UNSIGNED_LONG || from == DOUBLE) { // cannot be cast to the other types
-                    return false;
-                }
-            }
-            return false;
+            DataType commonType = EsqlDataTypeConverter.commonType(from, to);
+            return commonType == to;
         }
 
         private static Expression castMixedNumericTypes(EsqlScalarFunction f, DataType targetNumericType) {

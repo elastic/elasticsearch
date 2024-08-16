@@ -272,8 +272,8 @@ class JdkPosixCLibrary implements PosixCLibrary {
         var nativeBuffer = (JdkCloseableByteBuffer) buffer;
         var segment = nativeBuffer.segment;
         try {
-            logger.info("Sending {} bytes to socket", segment.byteSize());
-            return (long) send$mh.invokeExact(errnoState, sockfd, segment, segment.byteSize(), flags);
+            logger.info("Sending {} bytes to socket", buffer.buffer().remaining());
+            return (long) send$mh.invokeExact(errnoState, sockfd, segment, buffer.buffer().remaining(), flags);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

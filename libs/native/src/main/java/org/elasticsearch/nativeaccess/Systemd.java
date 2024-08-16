@@ -13,6 +13,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.nio.charset.StandardCharsets;
+import java.util.HexFormat;
 
 public class Systemd {
     private static final Logger logger = LogManager.getLogger(Systemd.class);
@@ -61,7 +62,9 @@ public class Systemd {
                 return;
             }
             buffer.buffer().clear();
+            logger.info("Sending message: " + state);
             byte[] bytes = state.getBytes(StandardCharsets.US_ASCII);
+            logger.info("message bytes: " + HexFormat.of().formatHex(bytes));
             buffer.buffer().put(0, bytes);
             buffer.buffer().limit(bytes.length);
             long bytesSent = libc.send(sockfd, buffer, 0);

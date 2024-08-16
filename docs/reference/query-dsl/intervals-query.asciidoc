@@ -193,7 +193,7 @@ For a list of operators supported by the
 `regexp` pattern, see <<regexp-syntax, Regular expression syntax>>.
 
 WARNING: Avoid using wildcard patterns, such as `.*` or `.*?+``. This can
-increase  the iterations needed to find matching terms and slow search
+increase the iterations needed to find matching terms and slow search
 performance.
 --
 `analyzer`::

@@ -185,6 +185,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111923
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcCsvSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/111923
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/111944
 
 # Examples:
 #

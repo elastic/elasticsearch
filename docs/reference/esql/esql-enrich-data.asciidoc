@@ -5,7 +5,7 @@
 <titleabbrev>Data enrichment</titleabbrev>
 ++++
 
-The {esql} <<esql-enrich>> processing command combines, at query-time, data from
+The <<esql,{esql}>> <<esql-enrich>> processing command combines, at query-time, data from
 one or more source indexes with field-value combinations found in {es} enrich
 indexes.
 

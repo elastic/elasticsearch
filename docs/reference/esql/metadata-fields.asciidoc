@@ -5,7 +5,7 @@
 <titleabbrev>Metadata fields</titleabbrev>
 ++++
 
-{esql} can access <<mapping-fields, metadata fields>>. The currently
+<<esql,{esql}>> can access <<mapping-fields, metadata fields>>. The currently
 supported ones are:
 
   * <<mapping-index-field,`_index`>>: the index to which the document belongs.

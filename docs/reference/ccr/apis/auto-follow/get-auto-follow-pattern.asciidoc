@@ -5,7 +5,7 @@
 <titleabbrev>Get auto-follow pattern</titleabbrev>
 ++++
 
-Get auto-follow patterns.
+Get <<xpack-ccr,{ccr}>> auto-follow patterns.
 
 [[ccr-get-auto-follow-pattern-request]]
 ==== {api-request-title}

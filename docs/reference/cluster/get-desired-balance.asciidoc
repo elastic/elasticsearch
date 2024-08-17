@@ -23,7 +23,7 @@ GET /_internal/desired_balance
 --------------------------------------------------
 // TEST[skip:Can't reliably test desired balance]
 
-The API returns the following result:
+The <<shards-rebalancing-heuristics,desired balance>> API returns the following result:
 
 [source,console-result]
 --------------------------------------------------

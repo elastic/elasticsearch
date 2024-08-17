@@ -5,7 +5,7 @@
 <titleabbrev>Using {esql} in {kib}</titleabbrev>
 ++++
 
-You can use {esql} in {kib} to query and aggregate your data, create
+You can use <<esql,{esql}>> in {kib} to query and aggregate your data, create
 visualizations, and set up alerts.
 
 This guide shows you how to use {esql} in Kibana. To follow along with the

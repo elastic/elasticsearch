@@ -20,7 +20,7 @@ DELETE kibana_sample_data_ecommerce
 ////
 
 
-Learn how to failover and failback between two clusters based on uni-directional {ccr}. You can also visit <<ccr-disaster-recovery-bi-directional-tutorial>> to set up replicating data streams that automatically failover and failback without human intervention.
+Learn how to failover and failback between two clusters based on uni-directional <<xpack-ccr,{ccr}>>. You can also visit <<ccr-disaster-recovery-bi-directional-tutorial>> to set up replicating data streams that automatically failover and failback without human intervention.
 
 * Setting up uni-directional {ccr} replicated from `clusterA`
 to `clusterB`.

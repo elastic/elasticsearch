@@ -20,7 +20,7 @@ DELETE /_data_stream/*
 ////
 
 Learn how to set up disaster recovery between two clusters based on
-bi-directional {ccr}. The following tutorial is designed for data streams which support
+bi-directional <<xpack-ccr,{ccr}>>. The following tutorial is designed for data streams which support
 <<update-docs-in-a-data-stream-by-query,update by query>> and <<delete-docs-in-a-data-stream-by-query,delete by query>>. You can only perform these actions on the leader index.
 
 This tutorial works with {ls} as the source of ingestion. It takes advantage of a {ls} feature where {logstash-ref}/plugins-outputs-elasticsearch.html[the {ls} output to {es}] can be load balanced across an array of hosts specified. {beats} and {agents} currently do not

@@ -4,7 +4,7 @@
 <titleabbrev>Put Data Stream Lifecycle</titleabbrev>
 ++++
 
-Configures the data stream lifecycle for the targeted data streams.
+Configures the data stream <<index-lifecycle-management,lifecycle>> for the targeted <<data-streams,data streams>>.
 
 [[put-lifecycle-api-prereqs]]
 ==== {api-prereq-title}

@@ -4,7 +4,7 @@
 <titleabbrev>{esql} reference</titleabbrev>
 ++++
 
-Detailed reference documentation for the {esql} language:
+Detailed reference documentation for the <<esql,{esql}>> language:
 
 * <<esql-syntax>>
 * <<esql-commands>>

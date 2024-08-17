@@ -2,7 +2,7 @@
 [[tutorial-manage-new-data-stream]]
 === Tutorial: Create a data stream with a lifecycle
 
-To create a data stream with a built-in lifecycle, follow these steps:
+To create a <<data-streams,data stream>> with a built-in <<data-stream-lifecycle,lifecycle>>, follow these steps:
 
 . <<create-index-template-with-lifecycle>>
 . <<create-data-stream-with-lifecycle>>

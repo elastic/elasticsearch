@@ -4,7 +4,7 @@
 <titleabbrev>Using {esql} to query multiple indices</titleabbrev>
 ++++
 
-With {esql}, you can execute a single query across multiple indices, data streams, or aliases.
+With <<esql,{esql}>>, you can execute a single query across multiple indices, data streams, or aliases.
 To do so, use wildcards and date arithmetic. The following example uses a comma-separated list and a wildcard:
 
 [source,esql]

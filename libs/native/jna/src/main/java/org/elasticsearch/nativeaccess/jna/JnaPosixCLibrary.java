@@ -273,7 +273,7 @@ class JnaPosixCLibrary implements PosixCLibrary {
     public long send(int sockfd, CloseableByteBuffer buffer, int flags) {
         assert buffer instanceof JnaCloseableByteBuffer;
         var nativeBuffer = (JnaCloseableByteBuffer) buffer;
-        return functions.send(sockfd, nativeBuffer.memory, nativeBuffer.memory.size(), flags);
+        return functions.send(sockfd, nativeBuffer.memory, nativeBuffer.buffer().remaining(), flags);
     }
 
     @Override

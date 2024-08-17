@@ -8,7 +8,19 @@
 
 parser grammar EsqlBaseParser;
 
-options {tokenVocab=EsqlBaseLexer;}
+@header {
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+}
+
+options {
+  superClass=ParserConfig;
+  tokenVocab=EsqlBaseLexer;
+}
 
 singleStatement
     : query EOF
@@ -22,28 +34,30 @@ query
 sourceCommand
     : explainCommand
     | fromCommand
-    | rowCommand
-    | metricsCommand
-    | showCommand
     | metaCommand
+    | rowCommand
+    | showCommand
+    // in development
+    | {devVersion()}? metricsCommand
     ;
 
 processingCommand
     : evalCommand
-    | inlinestatsCommand
-    | limitCommand
-    | lookupCommand
-    | keepCommand
-    | sortCommand
-    | statsCommand
     | whereCommand
+    | keepCommand
+    | limitCommand
+    | statsCommand
+    | sortCommand
     | dropCommand
     | renameCommand
     | dissectCommand
     | grokCommand
     | enrichCommand
     | mvExpandCommand
-    | matchCommand
+    // in development
+    | {devVersion()}? inlinestatsCommand
+    | {devVersion()}? lookupCommand
+    | {devVersion()}? matchCommand
     ;
 
 whereCommand
@@ -153,11 +167,6 @@ evalCommand
 statsCommand
     : STATS stats=fields? (BY grouping=fields)?
     ;
-
-inlinestatsCommand
-    : INLINESTATS stats=fields (BY grouping=fields)?
-    ;
-
 
 qualifiedName
     : identifier (DOT identifier)*
@@ -295,8 +304,15 @@ enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
     ;
 
+//
+// In development
+//
 lookupCommand
     : LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
+    ;
+
+inlinestatsCommand
+    : INLINESTATS stats=fields (BY grouping=fields)?
     ;
 
 matchCommand

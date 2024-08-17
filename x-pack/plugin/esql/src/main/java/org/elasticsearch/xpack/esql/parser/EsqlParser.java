@@ -32,6 +32,16 @@ public class EsqlParser {
 
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
 
+    private EsqlConfig config = new EsqlConfig();
+
+    public EsqlConfig config() {
+        return config;
+    }
+
+    public void setEsqlConfig(EsqlConfig config) {
+        this.config = config;
+    }
+
     public LogicalPlan createStatement(String query) {
         return createStatement(query, new QueryParams());
     }
@@ -50,10 +60,13 @@ public class EsqlParser {
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
         try {
-            EsqlBaseLexer lexer = new EsqlBaseLexer(new CaseChangingCharStream(CharStreams.fromString(query)));
+            // new CaseChangingCharStream()
+            EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(query));
 
             lexer.removeErrorListeners();
             lexer.addErrorListener(ERROR_LISTENER);
+
+            lexer.setEsqlConfig(config);
 
             TokenSource tokenSource = new ParametrizedTokenSource(lexer, params);
             CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
@@ -65,6 +78,8 @@ public class EsqlParser {
             parser.addErrorListener(ERROR_LISTENER);
 
             parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
+
+            parser.setEsqlConfig(config);
 
             ParserRuleContext tree = parseFunction.apply(parser);
 

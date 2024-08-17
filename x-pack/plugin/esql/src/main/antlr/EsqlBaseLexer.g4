@@ -1,5 +1,26 @@
 lexer grammar EsqlBaseLexer;
 
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+@header {
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+}
+
+options {
+  superClass=LexerConfig;
+  caseInsensitive=true;
+}
+
 DISSECT : 'dissect'           -> pushMode(EXPRESSION_MODE);
 DROP : 'drop'                 -> pushMode(PROJECT_MODE);
 ENRICH : 'enrich'             -> pushMode(ENRICH_MODE);
@@ -7,12 +28,9 @@ EVAL : 'eval'                 -> pushMode(EXPRESSION_MODE);
 EXPLAIN : 'explain'           -> pushMode(EXPLAIN_MODE);
 FROM : 'from'                 -> pushMode(FROM_MODE);
 GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
-INLINESTATS : 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
 LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
-LOOKUP : 'lookup'             -> pushMode(LOOKUP_MODE);
 META : 'meta'                 -> pushMode(META_MODE);
-METRICS : 'metrics'           -> pushMode(METRICS_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
@@ -20,8 +38,15 @@ SHOW : 'show'                 -> pushMode(SHOW_MODE);
 SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
-MATCH : 'match'               -> pushMode(EXPRESSION_MODE);
-UNKNOWN_CMD : ~[ \r\n\t[\]/]+ -> pushMode(EXPRESSION_MODE);
+//
+// in development
+//
+INLINESTATS : {devVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
+LOOKUP :      {devVersion()}? 'lookup'        -> pushMode(LOOKUP_MODE);
+MATCH :       {devVersion()}? 'match'         -> pushMode(EXPRESSION_MODE);
+METRICS :     {devVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
+
+UNKNOWN_CMD : ~[ \r\n\t[\]/]+ -> pushMode(EXPRESSION_MODE) ;
 
 LINE_COMMENT
     : '//' ~[\r\n]* '\r'? '\n'? -> channel(HIDDEN)
@@ -68,7 +93,7 @@ fragment DIGIT
     ;
 
 fragment LETTER
-    : [A-Za-z]
+    : [a-z]
     ;
 
 fragment ESCAPE_SEQUENCE
@@ -80,7 +105,7 @@ fragment UNESCAPED_CHARS
     ;
 
 fragment EXPONENT
-    : [Ee] [+-]? DIGIT+
+    : [e] [+-]? DIGIT+
     ;
 
 fragment ASPERAND

@@ -13,6 +13,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -30,7 +31,7 @@ public class XContentGeneratorTests extends ESTestCase {
     }
 
     private void assertTypeCopy(String typename, String value) throws Exception {
-        var input = String.format("{\"%s\":%s,\"%s_in_array\":[%s]}", typename, value, typename, value);
+        var input = String.format(Locale.ROOT, "{\"%s\":%s,\"%s_in_array\":[%s]}", typename, value, typename, value);
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         try (
             var generator = JsonXContent.jsonXContent.createGenerator(outputStream);

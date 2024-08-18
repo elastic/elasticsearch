@@ -57,6 +57,12 @@ You can also specify a format using the `Accept` HTTP header. If you specify
 both this parameter and the `Accept` HTTP header, this parameter takes
 precedence.
 
+`enable_dangerous_snapshot_features`::
+(Optional, boolean) Do not enable snapshot features unless you fully
+understand the risks. Snapshot features are unstable, can be removed without
+notice, and may break your cluster or cause data loss. This parameter may also
+be removed at any time.
+
 [discrete]
 [role="child_attributes"]
 [[esql-query-api-request-body]]

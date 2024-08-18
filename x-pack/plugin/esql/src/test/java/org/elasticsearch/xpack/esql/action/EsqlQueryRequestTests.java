@@ -296,10 +296,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
             """;
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        request.onSnapshotBuild(true);
+        request.allowedSnapshotFeatures(true);
         assertNull(request.validate());
 
-        request.onSnapshotBuild(false);
+        request.allowedSnapshotFeatures(false);
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("[pragma] only allowed in snapshot builds"));
     }
@@ -456,10 +456,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     private void assertTablesOnlyValidOnSnapshot(EsqlQueryRequest request) {
-        request.onSnapshotBuild(true);
+        request.allowedSnapshotFeatures(true);
         assertNull(request.validate());
 
-        request.onSnapshotBuild(false);
+        request.allowedSnapshotFeatures(false);
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("[tables] only allowed in snapshot builds"));
     }

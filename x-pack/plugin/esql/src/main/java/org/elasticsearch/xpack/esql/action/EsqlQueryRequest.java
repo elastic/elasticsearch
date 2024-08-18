@@ -49,7 +49,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;
-    private boolean onSnapshotBuild = Build.current().isSnapshot();
+    private boolean allowedSnapshotFeatures = Build.current().isSnapshot();
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
@@ -78,7 +78,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         if (Strings.hasText(query) == false) {
             validationException = addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", validationException);
         }
-        if (onSnapshotBuild == false) {
+        if (allowedSnapshotFeatures == false) {
             if (pragmas.isEmpty() == false) {
                 validationException = addValidationError(
                     "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
@@ -190,6 +190,10 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.keepOnCompletion = keepOnCompletion;
     }
 
+    public void allowedSnapshotFeatures(boolean allowedSnapshotFeatures) {
+        this.allowedSnapshotFeatures = allowedSnapshotFeatures;
+    }
+
     /**
      * Add a "table" to the request for use with things like {@code LOOKUP}.
      */
@@ -224,10 +228,5 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         // Pass the query as the description
         return new CancellableTask(id, type, action, query, parentTaskId, headers);
-    }
-
-    // Setter for tests
-    void onSnapshotBuild(boolean onSnapshotBuild) {
-        this.onSnapshotBuild = onSnapshotBuild;
     }
 }

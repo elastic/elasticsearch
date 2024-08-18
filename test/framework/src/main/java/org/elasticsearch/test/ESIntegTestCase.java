@@ -1197,23 +1197,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
     @Nullable
     public static DiscoveryNode waitAndGetHealthNode(InternalTestCluster internalCluster) {
         DiscoveryNode[] healthNode = new DiscoveryNode[1];
-        try {
-            waitUntil(() -> {
-                ClusterState state = internalCluster.client()
-                    .admin()
-                    .cluster()
-                    .prepareState()
-                    .clear()
-                    .setMetadata(true)
-                    .setNodes(true)
-                    .get()
-                    .getState();
-                healthNode[0] = HealthNode.findHealthNode(state);
-                return healthNode[0] != null;
-            }, 15, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        waitUntil(() -> {
+            ClusterState state = internalCluster.client()
+                .admin()
+                .cluster()
+                .prepareState()
+                .clear()
+                .setMetadata(true)
+                .setNodes(true)
+                .get()
+                .getState();
+            healthNode[0] = HealthNode.findHealthNode(state);
+            return healthNode[0] != null;
+        }, 15, TimeUnit.SECONDS);
         return healthNode[0];
     }
 
@@ -1645,7 +1641,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return admin().indices();
     }
 
-    public void indexRandom(boolean forceRefresh, String index, int numDocs) throws InterruptedException {
+    public void indexRandom(boolean forceRefresh, String index, int numDocs) {
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
             builders[i] = prepareIndex(index).setSource("field", "value");
@@ -1656,11 +1652,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Convenience method that forwards to {@link #indexRandom(boolean, List)}.
      */
-    public void indexRandom(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+    public void indexRandom(boolean forceRefresh, IndexRequestBuilder... builders) {
         indexRandom(forceRefresh, Arrays.asList(builders));
     }
 
-    public void indexRandom(boolean forceRefresh, boolean dummyDocuments, IndexRequestBuilder... builders) throws InterruptedException {
+    public void indexRandom(boolean forceRefresh, boolean dummyDocuments, IndexRequestBuilder... builders) {
         indexRandom(forceRefresh, dummyDocuments, Arrays.asList(builders));
     }
 
@@ -1679,7 +1675,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param builders     the documents to index.
      * @see #indexRandom(boolean, boolean, java.util.List)
      */
-    public void indexRandom(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException {
+    public void indexRandom(boolean forceRefresh, List<IndexRequestBuilder> builders) {
         indexRandom(forceRefresh, forceRefresh, builders);
     }
 
@@ -1695,7 +1691,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *                       all documents are indexed. This is useful to produce deleted documents on the server side.
      * @param builders       the documents to index.
      */
-    public void indexRandom(boolean forceRefresh, boolean dummyDocuments, List<IndexRequestBuilder> builders) throws InterruptedException {
+    public void indexRandom(boolean forceRefresh, boolean dummyDocuments, List<IndexRequestBuilder> builders) {
         indexRandom(forceRefresh, dummyDocuments, true, builders);
     }
 
@@ -1712,8 +1708,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param maybeFlush     if {@code true} this method may randomly execute full flushes after index operations.
      * @param builders       the documents to index.
      */
-    public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders)
-        throws InterruptedException {
+    public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders) {
         Random random = random();
         Set<String> indices = new HashSet<>();
         builders = new ArrayList<>(builders);
@@ -1771,7 +1766,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         for (CountDownLatch operation : inFlightAsyncOperations) {
-            operation.await();
+            safeAwait(operation);
         }
         final List<Exception> actualErrors = new ArrayList<>();
         for (Tuple<IndexRequestBuilder, Exception> tuple : errors) {
@@ -1839,8 +1834,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Maybe refresh, force merge, or flush then always make sure there aren't too many in flight async operations.
      */
-    private void postIndexAsyncActions(String[] indices, List<CountDownLatch> inFlightAsyncOperations, boolean maybeFlush)
-        throws InterruptedException {
+    private void postIndexAsyncActions(String[] indices, List<CountDownLatch> inFlightAsyncOperations, boolean maybeFlush) {
         if (rarely()) {
             if (rarely()) {
                 indicesAdmin().prepareRefresh(indices)
@@ -1860,7 +1854,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         while (inFlightAsyncOperations.size() > MAX_IN_FLIGHT_ASYNC_INDEXES) {
             int waitFor = between(0, inFlightAsyncOperations.size() - 1);
-            inFlightAsyncOperations.remove(waitFor).await();
+            safeAwait(inFlightAsyncOperations.remove(waitFor));
         }
     }
 

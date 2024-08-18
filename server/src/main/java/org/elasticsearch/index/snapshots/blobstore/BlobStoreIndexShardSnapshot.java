@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -318,7 +319,11 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                     }
                     case WRITER_UUID -> {
                         writerUuid = new BytesRef(parser.binaryValue());
-                        assert writerUuid.length > 0;
+                        assert BlobStoreIndexShardSnapshots.INTEGRITY_ASSERTIONS_ENABLED == false || writerUuid.length > 0;
+                        if (writerUuid.length == 0) {
+                            // we never write UNAVAILABLE_WRITER_UUID, so this must be due to corruption
+                            throw new ElasticsearchParseException("invalid (empty) writer uuid");
+                        }
                     }
                     default -> XContentParserUtils.throwUnknownField(currentFieldName, parser);
                 }
@@ -335,6 +340,12 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                 throw new ElasticsearchParseException("missing or invalid written_by [" + writtenBy + "]");
             } else if (checksum == null) {
                 throw new ElasticsearchParseException("missing checksum for name [" + name + "]");
+            }
+            try {
+                // check for corruption before asserting writtenBy is parseable in the StoreFileMetadata constructor
+                org.apache.lucene.util.Version.parse(writtenBy);
+            } catch (Exception e) {
+                throw new ElasticsearchParseException("invalid written_by [" + writtenBy + "]");
             }
             return new FileInfo(name, new StoreFileMetadata(physicalName, length, checksum, writtenBy, metaHash, writerUuid), partSize);
         }
@@ -564,6 +575,11 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             } else {
                 XContentParserUtils.throwUnknownToken(token, parser);
             }
+        }
+
+        // check for corruption before asserting snapshot != null in the BlobStoreIndexShardSnapshot ctor
+        if (snapshot == null) {
+            throw new CorruptStateException("snapshot missing");
         }
 
         return new BlobStoreIndexShardSnapshot(

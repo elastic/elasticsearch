@@ -13,7 +13,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.nio.charset.StandardCharsets;
-import java.util.HexFormat;
 
 public class Systemd {
     private static final Logger logger = LogManager.getLogger(Systemd.class);
@@ -46,7 +45,6 @@ public class Systemd {
     }
 
     private void notify(String state, boolean warnOnError) {
-        logger.info("Opening unix socket");
         int sockfd = libc.socket(PosixCLibrary.AF_UNIX, PosixCLibrary.SOCK_DGRAM, 0);
         if (sockfd < 0) {
             throwOrLog("Could not open systemd socket: " + libc.strerror(libc.errno()), warnOnError);
@@ -54,17 +52,13 @@ public class Systemd {
         }
         RuntimeException error = null;
         try {
-            logger.info("Creating unix socket struct with path [{}]", socketPath);
             var sockAddr = libc.newUnixSockAddr(socketPath);
-            logger.info("Connecting to socket");
             if (libc.connect(sockfd, sockAddr) != 0) {
                 throwOrLog("Could not connect to systemd socket: " + libc.strerror(libc.errno()), warnOnError);
                 return;
             }
             buffer.buffer().clear();
-            logger.info("Sending message: " + state);
             byte[] bytes = state.getBytes(StandardCharsets.US_ASCII);
-            logger.info("message bytes: " + HexFormat.of().formatHex(bytes));
             buffer.buffer().put(0, bytes);
             buffer.buffer().limit(bytes.length);
             long bytesSent = libc.send(sockfd, buffer, 0);
@@ -73,7 +67,7 @@ public class Systemd {
             } else if (bytesSent != bytes.length) {
                 throwOrLog("Not all bytes of message (" + state + ") sent to systemd socket (sent " + bytesSent + ")", warnOnError);
             } else {
-                logger.info("Message (" + state + ") sent to systemd socket");
+                logger.trace("Message (" + state + ") sent to systemd");
             }
         } catch (RuntimeException e) {
             error = e;
@@ -89,6 +83,8 @@ public class Systemd {
                         throw e;
                     }
                 }
+            } else if (error != null) {
+                throw error;
             }
         }
     }

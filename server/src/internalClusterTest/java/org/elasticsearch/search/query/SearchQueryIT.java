@@ -1638,7 +1638,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                     .startObject("date_field")
                     .field("type", "date")
                     .field("format", "E, d MMM yyyy HH:mm:ss Z")
-                    .field("locale", "de")
+                    .field("locale", "fr")
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1647,19 +1647,19 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         indexRandom(
             true,
-            prepareIndex("test").setId("1").setSource("date_field", "Mi., 06 Dez. 2000 02:55:00 -0800"),
-            prepareIndex("test").setId("2").setSource("date_field", "Do., 07 Dez. 2000 02:55:00 -0800")
+            prepareIndex("test").setId("1").setSource("date_field", "mer., 6 déc. 2000 02:55:00 -0800"),
+            prepareIndex("test").setId("2").setSource("date_field", "jeu., 7 déc. 2000 02:55:00 -0800")
         );
 
         assertHitCount(
             prepareSearch("test").setQuery(
-                QueryBuilders.rangeQuery("date_field").gte("Di., 05 Dez. 2000 02:55:00 -0800").lte("Do., 07 Dez. 2000 00:00:00 -0800")
+                QueryBuilders.rangeQuery("date_field").gte("mar., 5 déc. 2000 02:55:00 -0800").lte("jeu., 7 déc. 2000 00:00:00 -0800")
             ),
             1L
         );
         assertHitCount(
             prepareSearch("test").setQuery(
-                QueryBuilders.rangeQuery("date_field").gte("Di., 05 Dez. 2000 02:55:00 -0800").lte("Fr., 08 Dez. 2000 00:00:00 -0800")
+                QueryBuilders.rangeQuery("date_field").gte("mar., 5 déc. 2000 02:55:00 -0800").lte("ven., 8 déc. 2000 00:00:00 -0800")
             ),
             2L
         );

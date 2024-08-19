@@ -13,9 +13,10 @@ The old syntax using `rule_query` and `ruleset_id` is deprecated and will be rem
 ====
 
 Applies <<query-rules-apis,query rules>> to the query before returning results.
-This feature is used to promote documents in the manner of a <<query-dsl-pinned-query>> based on matching defined rules.
+Query rules can be used to promote documents in the manner of a <<query-dsl-pinned-query>> based on matching defined rules, or to identify specific documents to exclude from a contextual result set.
 If no matching query rules are defined, the "organic" matches for the query are returned.
 All matching rules are applied in the order in which they appear in the query ruleset.
+If the same document matches both an `exclude` rule and a `pinned` rule, the document will be excluded.
 
 [NOTE]
 ====

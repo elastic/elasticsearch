@@ -269,6 +269,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             valuesSourceRegistry,
             allowExpensiveQueries,
             scriptService,
+            null,
             null
         );
         this.shardId = shardId;

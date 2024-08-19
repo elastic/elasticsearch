@@ -62,10 +62,12 @@ public class DeprecatedMessage {
             .field(KEY_FIELD_NAME, key)
             .field("elasticsearch.event.category", category.name().toLowerCase(Locale.ROOT));
 
-        if (Strings.isNullOrEmpty(xOpaqueId)) {
-            return esLogMessage;
+        if (Strings.isNullOrEmpty(xOpaqueId) == false) {
+            esLogMessage.field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
         }
-
-        return esLogMessage.field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId).field(ELASTIC_ORIGIN_FIELD_NAME, productOrigin);
+        if (Strings.isNullOrEmpty(productOrigin) == false) {
+            esLogMessage.field(ELASTIC_ORIGIN_FIELD_NAME, productOrigin);
+        }
+        return esLogMessage;
     }
 }

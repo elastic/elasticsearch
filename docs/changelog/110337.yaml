@@ -1,5 +1,0 @@
-pr: 110337
-summary: Support `ignore_above` on keyword dimensions
-area: TSDB
-type: enhancement
-issues: []

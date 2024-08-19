@@ -12,20 +12,21 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.hamcrest.Matchers.sameInstance;
 
 public abstract class AbstractAttributeTestCase<T extends Attribute> extends AbstractWireSerializingTestCase<
@@ -70,19 +71,14 @@ public abstract class AbstractAttributeTestCase<T extends Attribute> extends Abs
         }
 
         ExtraAttribute(StreamInput in) throws IOException {
-            PlanStreamInput ps = new PlanStreamInput(
-                in,
-                PlanNameRegistry.INSTANCE,
-                in.namedWriteableRegistry(),
-                EsqlConfigurationSerializationTests.randomConfiguration("", Map.of())
-            );
+            PlanStreamInput ps = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), randomConfiguration());
             ps.setTransportVersion(in.getTransportVersion());
             a = ps.readNamedWriteable(Attribute.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeNamedWriteable(a);
+            new PlanStreamOutput(out, new PlanNameRegistry(), EsqlTestUtils.TEST_CFG).writeNamedWriteable(a);
         }
 
         @Override

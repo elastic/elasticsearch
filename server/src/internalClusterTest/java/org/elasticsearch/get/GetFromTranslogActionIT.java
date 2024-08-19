@@ -13,9 +13,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction.Response;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,11 +32,8 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate(INDEX).setMapping("field1", "type=keyword,store=true")
                 .setSettings(
-                    Settings.builder()
-                        .put("index.refresh_interval", -1)
-                        // A GetFromTranslogAction runs only Stateless where there is only one active indexing shard.
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    // A GetFromTranslogAction runs only Stateless where there is only one active indexing shard.
+                    indexSettings(1, 0).put("index.refresh_interval", -1)
                 )
                 .addAlias(new Alias(ALIAS).writeIndex(randomFrom(true, false, null)))
         );

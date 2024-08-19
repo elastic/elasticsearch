@@ -169,6 +169,7 @@ public class TransportVersions {
     public static final TransportVersion VERSIONED_MASTER_NODE_REQUESTS = def(8_701_00_0);
     public static final TransportVersion ML_INFERENCE_AMAZON_BEDROCK_ADDED = def(8_702_00_0);
     public static final TransportVersion ENTERPRISE_GEOIP_DOWNLOADER_BACKPORT_8_15 = def(8_702_00_1);
+    public static final TransportVersion FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15 = def(8_702_00_2);
     public static final TransportVersion ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS = def(8_703_00_0);
     public static final TransportVersion INFERENCE_ADAPTIVE_ALLOCATIONS = def(8_704_00_0);
     public static final TransportVersion INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN = def(8_705_00_0);
@@ -179,6 +180,17 @@ public class TransportVersions {
     public static final TransportVersion MASTER_NODE_METRICS = def(8_710_00_0);
     public static final TransportVersion SEGMENT_LEVEL_FIELDS_STATS = def(8_711_00_0);
     public static final TransportVersion ML_ADD_DETECTION_RULE_PARAMS = def(8_712_00_0);
+    public static final TransportVersion FIX_VECTOR_SIMILARITY_INNER_HITS = def(8_713_00_0);
+    public static final TransportVersion INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN = def(8_714_00_0);
+    public static final TransportVersion ESQL_ATTRIBUTE_CACHED_SERIALIZATION = def(8_715_00_0);
+    public static final TransportVersion REGISTER_SLM_STATS = def(8_716_00_0);
+    public static final TransportVersion ESQL_NESTED_UNSUPPORTED = def(8_717_00_0);
+    public static final TransportVersion ESQL_SINGLE_VALUE_QUERY_SOURCE = def(8_718_00_0);
+    public static final TransportVersion ESQL_ORIGINAL_INDICES = def(8_719_00_0);
+    public static final TransportVersion ML_INFERENCE_EIS_INTEGRATION_ADDED = def(8_720_00_0);
+    public static final TransportVersion INGEST_PIPELINE_EXCEPTION_ADDED = def(8_721_00_0);
+    public static final TransportVersion ZDT_NANOS_SUPPORT = def(8_722_00_0);
+    public static final TransportVersion REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES = def(8_723_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -243,7 +255,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_14_0;
+    public static final TransportVersion MINIMUM_CCS_VERSION = FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 

@@ -1,5 +1,17 @@
 pr: 111972
-summary: "[WIP] Implement data stream global retention using settings"
+summary: Introduce global retention in data stream lifecycle.
 area: Data streams
 type: feature
-issues: []
+issues:
+  - 106169
+highlight:
+  title: Add global retention in data stream lifecycle
+  body: |-
+    Data stream lifecycle now supports configuring retention on a cluster level, namely global retention. Global retention 
+    allows us to configure two different retentions:
+    
+    - `data_streams.lifecycle.retention.default` is applied to all data streams managed by the data stream lifecycle that do not have retention
+    defined on the data stream level.
+    - `data_streams.lifecycle.retention.max` is applied to all data streams managed by the data stream lifecycle and it allows any data stream 
+    data to be deleted after the `max_retention` has passed.
+  notable: true

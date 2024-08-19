@@ -64,9 +64,12 @@ public class VerifierTests extends ESTestCase {
         LinkedHashSet<String> ipIndices = new LinkedHashSet<>();
         ipIndices.add("test1");
         ipIndices.add("test2");
+        ipIndices.add("test3");
+        ipIndices.add("test4");
+        ipIndices.add("test5");
         LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
         typesToIndices.put("ip", ipIndices);
-        typesToIndices.put("keyword", Set.of("test3"));
+        typesToIndices.put("keyword", Set.of("test6"));
         EsField multiTypedField = new InvalidMappedField(multiTyped, typesToIndices);
 
         // Also add an unsupported/multityped field under the names `int` and `double` so we can use `LOOKUP int_number_names ...` and
@@ -85,7 +88,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals(
             "1:22: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
-                + " [ip] in [test1, test2], [keyword] in [test3]",
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | dissect multi_typed \"%{foo}\"", analyzer)
         );
 
@@ -95,7 +98,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals(
             "1:19: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
-                + " [ip] in [test1, test2], [keyword] in [test3]",
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | grok multi_typed \"%{WORD:foo}\"", analyzer)
         );
 
@@ -115,7 +118,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals(
             "1:23: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
-                + " [ip] in [test1, test2], [keyword] in [test3]",
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | eval x = multi_typed", analyzer)
         );
 
@@ -125,7 +128,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals(
             "1:32: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
-                + " [ip] in [test1, test2], [keyword] in [test3]",
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | eval x = to_lower(multi_typed)", analyzer)
         );
 
@@ -135,7 +138,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals(
             "1:32: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
-                + " [ip] in [test1, test2], [keyword] in [test3]",
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | stats count(1) by multi_typed", analyzer)
         );
         if (EsqlCapabilities.Cap.INLINESTATS.isEnabled()) {
@@ -145,7 +148,7 @@ public class VerifierTests extends ESTestCase {
             );
             assertEquals(
                 "1:38: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
-                    + " [ip] in [test1, test2], [keyword] in [test3]",
+                    + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
                 error("from test* | inlinestats count(1) by multi_typed", analyzer)
             );
         }
@@ -156,7 +159,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals(
             "1:27: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
-                + " [ip] in [test1, test2], [keyword] in [test3]",
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | stats values(multi_typed)", analyzer)
         );
         if (EsqlCapabilities.Cap.INLINESTATS.isEnabled()) {
@@ -166,7 +169,7 @@ public class VerifierTests extends ESTestCase {
             );
             assertEquals(
                 "1:33: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
-                    + " [ip] in [test1, test2], [keyword] in [test3]",
+                    + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
                 error("from test* | inlinestats values(multi_typed)", analyzer)
             );
         }
@@ -177,7 +180,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals(
             "1:27: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
-                + " [ip] in [test1, test2], [keyword] in [test3]",
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | stats values(multi_typed)", analyzer)
         );
 
@@ -200,7 +203,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals(
             "1:24: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
-                + " [ip] in [test1, test2], [keyword] in [test3]",
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | mv_expand multi_typed", analyzer)
         );
 
@@ -210,7 +213,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals(
             "1:21: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
-                + " [ip] in [test1, test2], [keyword] in [test3]",
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | rename multi_typed as x", analyzer)
         );
 
@@ -220,7 +223,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals(
             "1:19: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
-                + " [ip] in [test1, test2], [keyword] in [test3]",
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | sort multi_typed desc", analyzer)
         );
 
@@ -230,7 +233,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals(
             "1:20: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
-                + " [ip] in [test1, test2], [keyword] in [test3]",
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | where multi_typed is not null", analyzer)
         );
     }

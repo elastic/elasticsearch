@@ -53,4 +53,16 @@ public class DataStreamGlobalRetentionTests extends AbstractWireSerializingTestC
             withMax == false ? null : TimeValue.timeValueDays(randomIntBetween(1000, 2000))
         );
     }
+
+    public void testValidation() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new DataStreamGlobalRetention(
+                TimeValue.timeValueDays(randomIntBetween(1001, 2000)),
+                TimeValue.timeValueDays(randomIntBetween(1, 1000))
+            )
+        );
+        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(TimeValue.ZERO, null));
+        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(null, TimeValue.ZERO));
+    }
 }

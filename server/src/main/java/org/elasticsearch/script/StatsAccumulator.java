@@ -11,6 +11,12 @@ package org.elasticsearch.script;
 import java.util.Objects;
 import java.util.function.DoubleConsumer;
 
+/**
+ * The {@link StatsAccumulator} class accumulates statistical data for a sequence of double values.
+ *
+ * <p>This class provides statistics such as count, sum, minimum, maximum, and arithmetic mean
+ * of the recorded values.
+ */
 public class StatsAccumulator implements DoubleConsumer {
 
     private long count = 0;
@@ -26,26 +32,45 @@ public class StatsAccumulator implements DoubleConsumer {
         max = max == null ? value : (value > max ? value : max);
     }
 
+    /**
+     * Returns the min for recorded value.
+     */
     public double getMin() {
         return min == null ? 0.0 : min;
     }
 
+    /**
+     * Returns the max for recorded values.
+     */
     public double getMax() {
         return max == null ? 0.0 : max;
     }
 
+    /**
+     * Returns the arithmetic mean for recorded values.
+     */
     public double getAverage() {
         return count == 0.0 ? 0.0 : sum / count;
     }
 
+    /**
+     * Returns the sum of all recorded values.
+     */
     public double getSum() {
         return sum;
     }
 
+    /**
+     * Returns the number of recorded values.
+     */
     public long getCount() {
         return count;
     }
 
+    /**
+     * Resets the accumulator, clearing all accumulated statistics.
+     * After calling this method, the accumulator will be in its initial state.
+     */
     public void reset() {
         count = 0;
         sum = 0d;

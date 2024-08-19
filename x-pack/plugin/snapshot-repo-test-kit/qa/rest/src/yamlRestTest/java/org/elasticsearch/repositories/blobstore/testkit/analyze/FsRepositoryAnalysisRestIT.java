@@ -5,13 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.repositories.blobstore.testkit.rest;
+package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.repositories.blobstore.testkit.AbstractSnapshotRepoTestKitRestTestCase;
 import org.elasticsearch.repositories.fs.FsRepository;
 
-public class FsSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestTestCase {
+public class FsRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTestCase {
 
     @Override
     protected String repositoryType() {

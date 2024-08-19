@@ -5,14 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.repositories.blobstore.testkit;
+package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
-public abstract class AbstractSnapshotRepoTestKitRestTestCase extends ESRestTestCase {
+public abstract class AbstractRepositoryAnalysisRestTestCase extends ESRestTestCase {
 
     protected abstract String repositoryType();
 

@@ -5,14 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.repositories.blobstore.testkit;
+package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.elasticsearch.common.settings.Settings;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
-public abstract class AbstractHdfsSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestTestCase {
+public abstract class AbstractHdfsRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTestCase {
 
     @Override
     protected String repositoryType() {

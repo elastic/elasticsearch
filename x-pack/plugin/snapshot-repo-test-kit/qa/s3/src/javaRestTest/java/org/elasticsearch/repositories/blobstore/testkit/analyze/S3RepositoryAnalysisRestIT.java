@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.repositories.blobstore.testkit;
+package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import fixture.s3.S3HttpFixture;
 
@@ -18,7 +18,7 @@ import org.junit.rules.TestRule;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
-public class S3SnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestTestCase {
+public class S3RepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTestCase {
 
     static final boolean USE_FIXTURE = Boolean.parseBoolean(System.getProperty("tests.use.fixture", "true"));
 

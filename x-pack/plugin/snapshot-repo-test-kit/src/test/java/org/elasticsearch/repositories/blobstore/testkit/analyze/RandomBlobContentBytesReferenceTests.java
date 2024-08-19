@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.repositories.blobstore.testkit;
+package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.elasticsearch.test.ESTestCase;
 
@@ -13,7 +13,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.CRC32;
 
-import static org.elasticsearch.repositories.blobstore.testkit.RandomBlobContent.BUFFER_SIZE;
+import static org.elasticsearch.repositories.blobstore.testkit.analyze.RandomBlobContent.BUFFER_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RandomBlobContentBytesReferenceTests extends ESTestCase {

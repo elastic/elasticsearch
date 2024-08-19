@@ -596,7 +596,6 @@ class NodeConstruction {
         MetadataCreateIndexService metadataCreateIndexService
     ) {
         DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-            settings,
             clusterService.getClusterSettings(),
             DataStreamFactoryRetention.load(pluginsService, clusterService.getClusterSettings())
         );

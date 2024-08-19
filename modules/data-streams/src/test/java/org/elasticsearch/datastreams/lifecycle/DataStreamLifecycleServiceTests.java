@@ -139,7 +139,6 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     private DoExecuteDelegate clientDelegate;
     private ClusterService clusterService;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-        Settings.EMPTY,
         ClusterSettings.createBuiltInClusterSettings(),
         DataStreamFactoryRetention.emptyFactoryRetention()
     );

@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
@@ -91,16 +90,8 @@ public class DataStreamGlobalRetentionSettings {
     @Nullable
     private volatile TimeValue maxRetention;
 
-    // Visible for testing
-    DataStreamGlobalRetentionSettings(Settings settings, DataStreamFactoryRetention factoryRetention) {
+    private DataStreamGlobalRetentionSettings(DataStreamFactoryRetention factoryRetention) {
         this.factoryRetention = factoryRetention;
-        TimeValue defaultRetention = getSettingValueOrNull(DATA_STREAMS_DEFAULT_RETENTION_SETTING.get(settings));
-        TimeValue maxRetention = getSettingValueOrNull(DATA_STREAMS_MAX_RETENTION_SETTING.get(settings));
-        validateIsolatedRetentionValue(defaultRetention, DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey());
-        validateIsolatedRetentionValue(maxRetention, DATA_STREAMS_MAX_RETENTION_SETTING.getKey());
-        validateGlobalRetentionConfiguration(defaultRetention, maxRetention);
-        setDefaultRetention(defaultRetention);
-        setMaxRetention(maxRetention);
     }
 
     @Nullable
@@ -123,19 +114,11 @@ public class DataStreamGlobalRetentionSettings {
 
     /**
      * Creates an instance and initialises the cluster settings listeners
-     * @param settings it will load the settings from here during initialization
      * @param clusterSettings it will register the cluster settings listeners to monitor for changes
      * @param factoryRetention for migration purposes, it will be removed shortly
      */
-    public static DataStreamGlobalRetentionSettings create(
-        Settings settings,
-        ClusterSettings clusterSettings,
-        DataStreamFactoryRetention factoryRetention
-    ) {
-        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = new DataStreamGlobalRetentionSettings(
-            settings,
-            factoryRetention
-        );
+    public static DataStreamGlobalRetentionSettings create(ClusterSettings clusterSettings, DataStreamFactoryRetention factoryRetention) {
+        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = new DataStreamGlobalRetentionSettings(factoryRetention);
         clusterSettings.initializeAndWatch(DATA_STREAMS_DEFAULT_RETENTION_SETTING, dataStreamGlobalRetentionSettings::setDefaultRetention);
         clusterSettings.initializeAndWatch(DATA_STREAMS_MAX_RETENTION_SETTING, dataStreamGlobalRetentionSettings::setMaxRetention);
         return dataStreamGlobalRetentionSettings;

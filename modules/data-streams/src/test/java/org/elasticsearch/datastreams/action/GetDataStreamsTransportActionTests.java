@@ -46,7 +46,6 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
     private final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
     private final SystemIndices systemIndices = new SystemIndices(List.of());
     private final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-        Settings.EMPTY,
         ClusterSettings.createBuiltInClusterSettings(),
         DataStreamFactoryRetention.emptyFactoryRetention()
     );
@@ -343,11 +342,15 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             TimeValue.timeValueDays(randomIntBetween(5, 10))
         );
         DataStreamGlobalRetentionSettings withGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-            Settings.builder()
-                .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(), globalRetention.defaultRetention())
-                .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalRetention.maxRetention())
-                .build(),
-            ClusterSettings.createBuiltInClusterSettings(),
+            ClusterSettings.createBuiltInClusterSettings(
+                Settings.builder()
+                    .put(
+                        DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(),
+                        globalRetention.defaultRetention()
+                    )
+                    .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalRetention.maxRetention())
+                    .build()
+            ),
             DataStreamFactoryRetention.emptyFactoryRetention()
         );
         response = GetDataStreamsTransportAction.innerOperation(

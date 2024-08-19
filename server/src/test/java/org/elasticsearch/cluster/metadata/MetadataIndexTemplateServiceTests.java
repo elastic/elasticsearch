@@ -2503,7 +2503,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
             DataStreamGlobalRetentionSettings.create(
-                Settings.EMPTY,
                 ClusterSettings.createBuiltInClusterSettings(),
                 DataStreamFactoryRetention.emptyFactoryRetention()
             )
@@ -2571,7 +2570,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
             DataStreamGlobalRetentionSettings.create(
-                Settings.EMPTY,
                 ClusterSettings.createBuiltInClusterSettings(),
                 DataStreamFactoryRetention.emptyFactoryRetention()
             )

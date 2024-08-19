@@ -20,8 +20,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class DataStreamGlobalRetentionSettingsTests extends ESTestCase {
 
     public void testDefaults() {
-        DataStreamGlobalRetentionSettings globalRetentionSettings = new DataStreamGlobalRetentionSettings(
-            Settings.EMPTY,
+        DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
+            ClusterSettings.createBuiltInClusterSettings(),
             DataStreamFactoryRetention.emptyFactoryRetention()
         );
 
@@ -31,8 +31,8 @@ public class DataStreamGlobalRetentionSettingsTests extends ESTestCase {
         // Fallback to factory settings
         TimeValue maxFactoryValue = randomPositiveTimeValue();
         TimeValue defaultFactoryValue = randomPositiveTimeValue();
-        DataStreamGlobalRetentionSettings withFactorySettings = new DataStreamGlobalRetentionSettings(
-            Settings.EMPTY,
+        DataStreamGlobalRetentionSettings withFactorySettings = DataStreamGlobalRetentionSettings.create(
+            ClusterSettings.createBuiltInClusterSettings(),
             new DataStreamFactoryRetention() {
                 @Override
                 public TimeValue getMaxRetention() {
@@ -55,43 +55,9 @@ public class DataStreamGlobalRetentionSettingsTests extends ESTestCase {
         assertThat(withFactorySettings.getMaxRetention(), equalTo(maxFactoryValue));
     }
 
-    public void testValidationDuringInitialization() {
-        Settings invalidDefault = Settings.builder()
-            .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(), TimeValue.ZERO)
-            .build();
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new DataStreamGlobalRetentionSettings(invalidDefault, DataStreamFactoryRetention.emptyFactoryRetention())
-        );
-        assertThat(exception.getMessage(), containsString("Setting 'data_streams.lifecycle.retention.default' should be greater than"));
-        Settings invalidMax = Settings.builder()
-            .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), TimeValue.ZERO)
-            .build();
-        exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new DataStreamGlobalRetentionSettings(invalidMax, DataStreamFactoryRetention.emptyFactoryRetention())
-        );
-        assertThat(exception.getMessage(), containsString("Setting 'data_streams.lifecycle.retention.max' should be greater than"));
-        Settings invalidCombo = Settings.builder()
-            .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(), TimeValue.timeValueDays(90))
-            .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), TimeValue.timeValueDays(30))
-            .build();
-        exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new DataStreamGlobalRetentionSettings(invalidCombo, DataStreamFactoryRetention.emptyFactoryRetention())
-        );
-        assertThat(
-            exception.getMessage(),
-            containsString(
-                "Setting [data_streams.lifecycle.retention.default=90d] cannot be greater than [data_streams.lifecycle.retention.max=30d]"
-            )
-        );
-    }
-
     public void testMonitorsDefaultRetention() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
         DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-            Settings.EMPTY,
             clusterSettings,
             DataStreamFactoryRetention.emptyFactoryRetention()
         );
@@ -123,9 +89,8 @@ public class DataStreamGlobalRetentionSettingsTests extends ESTestCase {
     }
 
     public void testMonitorsMaxRetention() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
         DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-            Settings.EMPTY,
             clusterSettings,
             DataStreamFactoryRetention.emptyFactoryRetention()
         );
@@ -154,8 +119,8 @@ public class DataStreamGlobalRetentionSettingsTests extends ESTestCase {
     }
 
     public void testCombinationValidation() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        DataStreamGlobalRetentionSettings.create(Settings.EMPTY, clusterSettings, DataStreamFactoryRetention.emptyFactoryRetention());
+        ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
+        DataStreamGlobalRetentionSettings.create(clusterSettings, DataStreamFactoryRetention.emptyFactoryRetention());
 
         // Test invalid update
         Settings newInvalidSettings = Settings.builder()

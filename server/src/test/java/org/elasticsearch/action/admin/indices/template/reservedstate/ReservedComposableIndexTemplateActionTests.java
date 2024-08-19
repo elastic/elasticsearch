@@ -94,7 +94,6 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         doReturn(indexService).when(indicesService).createIndex(any(), any(), anyBoolean());
 
         globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-            Settings.EMPTY,
             ClusterSettings.createBuiltInClusterSettings(),
             DataStreamFactoryRetention.emptyFactoryRetention()
         );

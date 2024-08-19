@@ -217,7 +217,7 @@ public class ExplainDataStreamLifecycleAction {
                 builder.field(explainIndexDataLifecycle.getIndex());
                 explainIndexDataLifecycle.toXContent(
                     builder,
-                    DataStreamLifecycle.addEffectiveRetentionParams(outerParams),
+                    DataStreamLifecycle.maybeAddEffectiveRetentionParams(outerParams),
                     rolloverConfiguration,
                     globalRetention
                 );

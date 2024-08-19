@@ -232,6 +232,11 @@ public class EsqlCapabilities {
         BUCKET_INCLUSIVE_UPPER_BOUND,
 
         /**
+         * Changed error messages for fields with conflicting types in different indices.
+         */
+        SHORT_ERROR_MESSAGES_FOR_UNSUPPORTED_FIELDS,
+
+        /**
          * Support for the whole number spans in BUCKET function.
          */
         BUCKET_WHOLE_NUMBER_AS_SPAN;

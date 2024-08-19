@@ -12,7 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -487,15 +487,15 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         tasksBuilder.addTask(
             MlTasks.jobTaskId("foo-2"),
             MlTasks.JOB_TASK_NAME,
             new OpenJobAction.JobParams("foo-2"),
-            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
+            new PersistentTasksMetadataSection.Assignment("node-1", "test assignment")
         );
 
-        PersistentTasksCustomMetadata tasks = tasksBuilder.build();
+        PersistentTasksMetadataSection tasks = tasksBuilder.build();
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<SortedSet<String>> jobIdsHolder = new AtomicReference<>();

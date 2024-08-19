@@ -37,7 +37,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -266,9 +266,9 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             );
         }
 
-        PersistentTasksCustomMetadata persistentTasks = current.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection persistentTasks = current.metadata().custom(PersistentTasksMetadataSection.TYPE);
         if (persistentTasks != null) {
-            for (PersistentTasksCustomMetadata.PersistentTask<?> persistentTask : persistentTasks.tasks()) {
+            for (PersistentTasksMetadataSection.PersistentTask<?> persistentTask : persistentTasks.tasks()) {
                 if (persistentTask.getTaskName().equals(ShardFollowTask.NAME)) {
                     ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
                     if (shardFollowTask.getFollowShardId().getIndexName().equals(followerIndex)) {

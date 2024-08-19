@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
@@ -32,13 +32,13 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
 
     @Override
     void innerPerformAction(String followerIndex, ClusterState currentClusterState, ActionListener<Void> listener) {
-        PersistentTasksCustomMetadata persistentTasksMetadata = currentClusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection persistentTasksMetadata = currentClusterState.metadata().custom(PersistentTasksMetadataSection.TYPE);
         if (persistentTasksMetadata == null) {
             listener.onResponse(null);
             return;
         }
 
-        List<PersistentTasksCustomMetadata.PersistentTask<?>> shardFollowTasks = persistentTasksMetadata.tasks()
+        List<PersistentTasksMetadataSection.PersistentTask<?>> shardFollowTasks = persistentTasksMetadata.tasks()
             .stream()
             .filter(persistentTask -> ShardFollowTask.NAME.equals(persistentTask.getTaskName()))
             .filter(persistentTask -> {

@@ -56,9 +56,9 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection.Assignment;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -152,7 +152,7 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
         String type,
         String action,
         TaskId parentTaskId,
-        PersistentTasksCustomMetadata.PersistentTask<ShardFollowTask> taskInProgress,
+        PersistentTasksMetadataSection.PersistentTask<ShardFollowTask> taskInProgress,
         Map<String, String> headers
     ) {
         ShardFollowTask params = taskInProgress.getParams();

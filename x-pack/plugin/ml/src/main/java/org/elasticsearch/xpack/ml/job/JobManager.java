@@ -24,7 +24,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -536,13 +536,13 @@ public class JobManager {
     }
 
     private static boolean isJobOpen(ClusterState clusterState, String jobId) {
-        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection persistentTasks = clusterState.metadata().custom(PersistentTasksMetadataSection.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, persistentTasks);
         return jobState == JobState.OPENED;
     }
 
     private static Set<String> openJobIds(ClusterState clusterState) {
-        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection persistentTasks = clusterState.metadata().custom(PersistentTasksMetadataSection.TYPE);
         return MlTasks.openJobIds(persistentTasks);
     }
 

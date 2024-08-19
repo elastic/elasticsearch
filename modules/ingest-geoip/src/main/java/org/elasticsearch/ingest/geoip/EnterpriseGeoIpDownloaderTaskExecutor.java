@@ -27,8 +27,8 @@ import org.elasticsearch.ingest.EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -126,7 +126,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         String type,
         String action,
         TaskId parentTaskId,
-        PersistentTasksCustomMetadata.PersistentTask<EnterpriseGeoIpTaskParams> taskInProgress,
+        PersistentTasksMetadataSection.PersistentTask<EnterpriseGeoIpTaskParams> taskInProgress,
         Map<String, String> headers
     ) {
         return new EnterpriseGeoIpDownloader(

@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -98,14 +98,14 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
     }
 
     private void removeDatafeedTask(DeleteDatafeedAction.Request request, ClusterState state, ActionListener<Boolean> listener) {
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(request.getDatafeedId(), tasks);
+        PersistentTasksMetadataSection tasks = state.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(request.getDatafeedId(), tasks);
         if (datafeedTask == null) {
             listener.onResponse(true);
         } else {
             persistentTasksService.sendRemoveRequest(datafeedTask.getId(), null, new ActionListener<>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+                public void onResponse(PersistentTasksMetadataSection.PersistentTask<?> persistentTask) {
                     listener.onResponse(Boolean.TRUE);
                 }
 

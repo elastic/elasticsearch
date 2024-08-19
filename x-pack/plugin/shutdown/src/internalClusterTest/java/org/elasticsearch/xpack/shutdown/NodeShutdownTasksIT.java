@@ -28,8 +28,8 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -166,7 +166,7 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(
+        public PersistentTasksMetadataSection.Assignment getAssignment(
             TestTaskParams params,
             Collection<DiscoveryNode> candidateNodes,
             ClusterState clusterState

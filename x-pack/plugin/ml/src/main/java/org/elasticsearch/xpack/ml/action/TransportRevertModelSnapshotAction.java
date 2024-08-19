@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -112,7 +112,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         // 5. Revert the state
         ActionListener<Boolean> annotationsIndexUpdateListener = ActionListener.wrap(r -> {
             ActionListener<Job> jobListener = ActionListener.wrap(job -> {
-                PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+                PersistentTasksMetadataSection tasks = state.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
                 JobState jobState = MlTasks.getJobState(job.getId(), tasks);
                 if (request.isForce() == false && jobState.equals(JobState.CLOSED) == false) {
                     listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT)));

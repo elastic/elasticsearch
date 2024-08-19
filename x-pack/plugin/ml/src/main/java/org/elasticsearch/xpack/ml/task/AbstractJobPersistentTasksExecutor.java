@@ -21,8 +21,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTaskParams;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -124,7 +124,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
     protected void auditRequireMemoryIfNecessary(
         String jobId,
         AbstractAuditor<?> auditor,
-        PersistentTasksCustomMetadata.Assignment assignment,
+        PersistentTasksMetadataSection.Assignment assignment,
         JobNodeSelector jobNodeSelector,
         boolean isMemoryTrackerRecentlyRefreshed
     ) {
@@ -164,7 +164,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         return true;
     }
 
-    public Optional<PersistentTasksCustomMetadata.Assignment> getPotentialAssignment(
+    public Optional<PersistentTasksMetadataSection.Assignment> getPotentialAssignment(
         Params params,
         ClusterState clusterState,
         boolean isMemoryTrackerRecentlyRefreshed
@@ -178,7 +178,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         }
         String jobId = getJobId(params);
 
-        Optional<PersistentTasksCustomMetadata.Assignment> missingIndices = checkRequiredIndices(
+        Optional<PersistentTasksMetadataSection.Assignment> missingIndices = checkRequiredIndices(
             jobId,
             clusterState,
             indicesOfInterest(params)
@@ -186,7 +186,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         if (missingIndices.isPresent()) {
             return missingIndices;
         }
-        Optional<PersistentTasksCustomMetadata.Assignment> staleMemory = checkMemoryFreshness(jobId, isMemoryTrackerRecentlyRefreshed);
+        Optional<PersistentTasksMetadataSection.Assignment> staleMemory = checkMemoryFreshness(jobId, isMemoryTrackerRecentlyRefreshed);
         if (staleMemory.isPresent()) {
             return staleMemory;
         }
@@ -217,7 +217,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         this.maxNodeMemory = maxNodeSize.getBytes();
     }
 
-    public Optional<PersistentTasksCustomMetadata.Assignment> checkRequiredIndices(
+    public Optional<PersistentTasksMetadataSection.Assignment> checkRequiredIndices(
         String jobId,
         ClusterState clusterState,
         String... indicesOfInterest
@@ -235,18 +235,21 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
                 + String.join(",", unavailableIndices)
                 + "]";
             logger.debug(reason);
-            return Optional.of(new PersistentTasksCustomMetadata.Assignment(null, reason));
+            return Optional.of(new PersistentTasksMetadataSection.Assignment(null, reason));
         }
         return Optional.empty();
     }
 
-    public Optional<PersistentTasksCustomMetadata.Assignment> checkMemoryFreshness(String jobId, boolean isMemoryTrackerRecentlyRefreshed) {
+    public Optional<PersistentTasksMetadataSection.Assignment> checkMemoryFreshness(
+        String jobId,
+        boolean isMemoryTrackerRecentlyRefreshed
+    ) {
         if (isMemoryTrackerRecentlyRefreshed == false) {
             boolean scheduledRefresh = memoryTracker.asyncRefresh();
             if (scheduledRefresh) {
                 String reason = "Not opening job [" + jobId + "] because job memory requirements are stale - refresh requested";
                 logger.debug(reason);
-                return Optional.of(new PersistentTasksCustomMetadata.Assignment(null, reason));
+                return Optional.of(new PersistentTasksMetadataSection.Assignment(null, reason));
             }
         }
         return Optional.empty();

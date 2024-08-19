@@ -19,8 +19,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -356,12 +356,12 @@ public class DatafeedRunner {
         return holder.getJobId();
     }
 
-    private static JobState getJobState(PersistentTasksCustomMetadata tasks, String jobId) {
+    private static JobState getJobState(PersistentTasksMetadataSection tasks, String jobId) {
         return MlTasks.getJobStateModifiedForReassignments(jobId, tasks);
     }
 
-    private boolean jobHasOpenAutodetectCommunicator(PersistentTasksCustomMetadata tasks, String jobId) {
-        PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
+    private boolean jobHasOpenAutodetectCommunicator(PersistentTasksMetadataSection tasks, String jobId) {
+        PersistentTasksMetadataSection.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask == null) {
             return false;
         }
@@ -569,7 +569,7 @@ public class DatafeedRunner {
 
         private void closeJob() {
             ClusterState clusterState = clusterService.state();
-            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksMetadataSection tasks = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
             JobState jobState = MlTasks.getJobState(getJobId(), tasks);
             if (jobState != JobState.OPENED) {
                 logger.debug("[{}] No need to auto-close job as job state is [{}]", getJobId(), jobState);
@@ -635,7 +635,7 @@ public class DatafeedRunner {
 
         private void runWhenJobIsOpened(TransportStartDatafeedAction.DatafeedTask datafeedTask, String jobId) {
             ClusterState clusterState = clusterService.state();
-            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksMetadataSection tasks = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
             if (getJobState(tasks, jobId) == JobState.OPENED && jobHasOpenAutodetectCommunicator(tasks, jobId)) {
                 runTask(datafeedTask);
             } else {
@@ -667,8 +667,8 @@ public class DatafeedRunner {
             if (tasksToRun.isEmpty() || event.metadataChanged() == false) {
                 return;
             }
-            PersistentTasksCustomMetadata previousTasks = event.previousState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-            PersistentTasksCustomMetadata currentTasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksMetadataSection previousTasks = event.previousState().getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+            PersistentTasksMetadataSection currentTasks = event.state().getMetadata().custom(PersistentTasksMetadataSection.TYPE);
             if (Objects.equals(previousTasks, currentTasks)) {
                 return;
             }

@@ -16,9 +16,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection.Assignment;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection.PersistentTask;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -56,8 +56,11 @@ public final class TransformNodes {
 
         Set<String> transformIdsSet = new HashSet<>(transformIds);
 
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = TransformTask.findTransformTasks(transformIdsSet, clusterState);
-        for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
+        Collection<PersistentTasksMetadataSection.PersistentTask<?>> tasks = TransformTask.findTransformTasks(
+            transformIdsSet,
+            clusterState
+        );
+        for (PersistentTasksMetadataSection.PersistentTask<?> task : tasks) {
             if (task.isAssigned()) {
                 executorNodes.add(task.getExecutorNode());
                 assigned.add(task.getId());
@@ -87,8 +90,8 @@ public final class TransformNodes {
         Set<String> assigned = new HashSet<>();
         Set<String> waitingForAssignment = new HashSet<>();
 
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = TransformTask.findTransformTasks(transformId, clusterState);
-        for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
+        Collection<PersistentTasksMetadataSection.PersistentTask<?>> tasks = TransformTask.findTransformTasks(transformId, clusterState);
+        for (PersistentTasksMetadataSection.PersistentTask<?> task : tasks) {
             if (task.isAssigned()) {
                 executorNodes.add(task.getExecutorNode());
                 assigned.add(task.getId());
@@ -114,7 +117,7 @@ public final class TransformNodes {
             return task.getAssignment();
         }
 
-        return PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT;
+        return PersistentTasksMetadataSection.INITIAL_ASSIGNMENT;
     }
 
     /**

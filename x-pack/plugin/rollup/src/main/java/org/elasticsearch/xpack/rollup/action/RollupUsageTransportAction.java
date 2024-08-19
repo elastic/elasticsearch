@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,7 +58,7 @@ public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction
 
     static int findNumberOfRollupJobs(ClusterState state) {
         int numberOfRollupJobs = 0;
-        PersistentTasksCustomMetadata persistentTasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection persistentTasks = state.metadata().custom(PersistentTasksMetadataSection.TYPE);
         if (persistentTasks != null) {
             numberOfRollupJobs = persistentTasks.findTasks(RollupJob.NAME, Predicates.always()).size();
         }

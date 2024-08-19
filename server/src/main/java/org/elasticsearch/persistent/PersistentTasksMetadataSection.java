@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataSection;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,7 +53,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 /**
  * A cluster state record that contains a list of all running persistent tasks
  */
-public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+public final class PersistentTasksMetadataSection extends AbstractNamedDiffable<MetadataSection> implements MetadataSection {
 
     public static final String TYPE = "persistent_tasks";
     private static final String API_CONTEXT = Metadata.XContentContext.API.toString();
@@ -62,7 +63,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
     private final Map<String, PersistentTask<?>> tasks;
     private final long lastAllocationId;
 
-    public PersistentTasksCustomMetadata(long lastAllocationId, Map<String, PersistentTask<?>> tasks) {
+    public PersistentTasksMetadataSection(long lastAllocationId, Map<String, PersistentTask<?>> tasks) {
         this.lastAllocationId = lastAllocationId;
         this.tasks = tasks;
     }
@@ -129,8 +130,8 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         );
     }
 
-    public static PersistentTasksCustomMetadata getPersistentTasksCustomMetadata(ClusterState clusterState) {
-        return clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+    public static PersistentTasksMetadataSection getPersistentTasksCustomMetadata(ClusterState clusterState) {
+        return clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
     }
 
     /**
@@ -177,7 +178,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PersistentTasksCustomMetadata that = (PersistentTasksCustomMetadata) o;
+        PersistentTasksMetadataSection that = (PersistentTasksMetadataSection) o;
         return lastAllocationId == that.lastAllocationId && Objects.equals(tasks, that.tasks);
     }
 
@@ -208,13 +209,13 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         return ALL_CONTEXTS;
     }
 
-    public static PersistentTasksCustomMetadata fromXContent(XContentParser parser) {
+    public static PersistentTasksMetadataSection fromXContent(XContentParser parser) {
         return PERSISTENT_TASKS_PARSER.apply(parser, null).build();
     }
 
     @SuppressWarnings("unchecked")
     public static <Params extends PersistentTaskParams> PersistentTask<Params> getTaskWithId(ClusterState clusterState, String taskId) {
-        PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection tasks = clusterState.metadata().custom(PersistentTasksMetadataSection.TYPE);
         if (tasks != null) {
             return (PersistentTask<Params>) tasks.getTask(taskId);
         }
@@ -232,12 +233,12 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
      *          a copy with the modified tasks
      */
     public static ClusterState disassociateDeadNodes(ClusterState clusterState) {
-        PersistentTasksCustomMetadata tasks = getPersistentTasksCustomMetadata(clusterState);
+        PersistentTasksMetadataSection tasks = getPersistentTasksCustomMetadata(clusterState);
         if (tasks == null) {
             return clusterState;
         }
 
-        PersistentTasksCustomMetadata.Builder taskBuilder = PersistentTasksCustomMetadata.builder(tasks);
+        PersistentTasksMetadataSection.Builder taskBuilder = PersistentTasksMetadataSection.builder(tasks);
         for (PersistentTask<?> task : tasks.tasks()) {
             if (task.getAssignment().getExecutorNode() != null
                 && clusterState.nodes().nodeExists(task.getAssignment().getExecutorNode()) == false) {
@@ -531,7 +532,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         return TYPE;
     }
 
-    public PersistentTasksCustomMetadata(StreamInput in) throws IOException {
+    public PersistentTasksMetadataSection(StreamInput in) throws IOException {
         lastAllocationId = in.readLong();
         tasks = in.readMap(PersistentTask::new);
     }
@@ -546,8 +547,8 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         out.writeMap(filteredTasks, StreamOutput::writeWriteable);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(Metadata.Custom.class, TYPE, in);
+    public static NamedDiff<MetadataSection> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(MetadataSection.class, TYPE, in);
     }
 
     @Override
@@ -562,7 +563,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         return new Builder();
     }
 
-    public static Builder builder(PersistentTasksCustomMetadata tasks) {
+    public static Builder builder(PersistentTasksMetadataSection tasks) {
         return new Builder(tasks);
     }
 
@@ -573,7 +574,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
         private Builder() {}
 
-        private Builder(PersistentTasksCustomMetadata tasksInProgress) {
+        private Builder(PersistentTasksMetadataSection tasksInProgress) {
             if (tasksInProgress != null) {
                 tasks.putAll(tasksInProgress.tasks);
                 lastAllocationId = tasksInProgress.lastAllocationId;
@@ -690,8 +691,8 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             return changed;
         }
 
-        public PersistentTasksCustomMetadata build() {
-            return new PersistentTasksCustomMetadata(lastAllocationId, Collections.unmodifiableMap(tasks));
+        public PersistentTasksMetadataSection build() {
+            return new PersistentTasksMetadataSection(lastAllocationId, Collections.unmodifiableMap(tasks));
         }
     }
 }

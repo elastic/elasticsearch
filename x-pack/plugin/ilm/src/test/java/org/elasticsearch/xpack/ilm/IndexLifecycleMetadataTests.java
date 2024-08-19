@@ -10,7 +10,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.Metadata.Custom;
+import org.elasticsearch.cluster.metadata.MetadataSection;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.Maps;
@@ -55,7 +55,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.randomTimeseriesLifecyclePolicy;
 
-public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Custom> {
+public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<MetadataSection> {
 
     @Override
     protected IndexLifecycleMetadata createTestInstance() {
@@ -77,7 +77,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
     }
 
     @Override
-    protected Reader<Metadata.Custom> instanceReader() {
+    protected Reader<MetadataSection> instanceReader() {
         return IndexLifecycleMetadata::new;
     }
 
@@ -144,7 +144,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
     }
 
     @Override
-    protected Metadata.Custom mutateInstance(Custom instance) {
+    protected MetadataSection mutateInstance(MetadataSection instance) {
         IndexLifecycleMetadata metadata = (IndexLifecycleMetadata) instance;
         Map<String, LifecyclePolicyMetadata> policies = metadata.getPolicyMetadatas();
         policies = new TreeMap<>(policies);
@@ -167,12 +167,12 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
     }
 
     @Override
-    protected Custom makeTestChanges(Custom testInstance) {
+    protected MetadataSection makeTestChanges(MetadataSection testInstance) {
         return mutateInstance(testInstance);
     }
 
     @Override
-    protected Reader<Diff<Custom>> diffReader() {
+    protected Reader<Diff<MetadataSection>> diffReader() {
         return IndexLifecycleMetadataDiff::new;
     }
 

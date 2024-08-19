@@ -32,7 +32,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -65,7 +65,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
     private IndexNameExpressionResolver resolver;
     private DiscoveryNodes nodes;
     private ClusterState clusterState;
-    private PersistentTasksCustomMetadata tasks;
+    private PersistentTasksMetadataSection tasks;
     private MlMetadata mlMetadata;
 
     @Before
@@ -89,13 +89,13 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
         tasks = tasksBuilder.build();
 
         givenClusterState("foo", 1, 0);
 
-        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+        PersistentTasksMetadataSection.Assignment result = new DatafeedNodeSelector(
             clusterState,
             resolver,
             df.getId(),
@@ -112,13 +112,13 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
         tasks = tasksBuilder.build();
 
         givenClusterStateWithDatastream("foo", 1, 0, Collections.singletonList(new Tuple<>(0, ShardRoutingState.STARTED)));
 
-        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+        PersistentTasksMetadataSection.Assignment result = new DatafeedNodeSelector(
             clusterState,
             resolver,
             df.getId(),
@@ -135,13 +135,13 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(job.getId(), "node_id", null, tasksBuilder);
         tasks = tasksBuilder.build();
 
         givenClusterState("foo", 1, 0);
 
-        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+        PersistentTasksMetadataSection.Assignment result = new DatafeedNodeSelector(
             clusterState,
             resolver,
             df.getId(),
@@ -160,11 +160,11 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         // Using wildcard index name to test for index resolving as well
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("fo*"));
 
-        tasks = PersistentTasksCustomMetadata.builder().build();
+        tasks = PersistentTasksMetadataSection.builder().build();
 
         givenClusterState("foo", 1, 0);
 
-        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+        PersistentTasksMetadataSection.Assignment result = new DatafeedNodeSelector(
             clusterState,
             resolver,
             df.getId(),
@@ -204,14 +204,14 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         JobState jobState = randomFrom(JobState.FAILED, JobState.CLOSED);
         addJobTask(job.getId(), "node_id", jobState, tasksBuilder);
         tasks = tasksBuilder.build();
 
         givenClusterState("foo", 1, 0);
 
-        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+        PersistentTasksMetadataSection.Assignment result = new DatafeedNodeSelector(
             clusterState,
             resolver,
             df.getId(),
@@ -253,7 +253,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         // Using wildcard index name to test for index resolving as well
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("fo*"));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
         tasks = tasksBuilder.build();
 
@@ -262,7 +262,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
 
         givenClusterState("foo", 1, 0, states);
 
-        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+        PersistentTasksMetadataSection.Assignment result = new DatafeedNodeSelector(
             clusterState,
             resolver,
             df.getId(),
@@ -286,7 +286,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         // Using wildcard index name to test for index resolving as well
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("fo*"));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
         tasks = tasksBuilder.build();
 
@@ -296,7 +296,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
 
         givenClusterState("foo", 2, 0, states);
 
-        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+        PersistentTasksMetadataSection.Assignment result = new DatafeedNodeSelector(
             clusterState,
             resolver,
             df.getId(),
@@ -318,13 +318,13 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("not_foo"));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
         tasks = tasksBuilder.build();
 
         givenClusterState("foo", 1, 0);
 
-        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+        PersistentTasksMetadataSection.Assignment result = new DatafeedNodeSelector(
             clusterState,
             resolver,
             df.getId(),
@@ -394,13 +394,13 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Arrays.asList("missing-*", "foo*"));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
         tasks = tasksBuilder.build();
 
         givenClusterState("foo", 1, 0);
 
-        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+        PersistentTasksMetadataSection.Assignment result = new DatafeedNodeSelector(
             clusterState,
             resolver,
             df.getId(),
@@ -417,13 +417,13 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Arrays.asList("missing-*", "remote:index-*"));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
         tasks = tasksBuilder.build();
 
         givenClusterState("foo", 1, 0);
 
-        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+        PersistentTasksMetadataSection.Assignment result = new DatafeedNodeSelector(
             clusterState,
             resolver,
             df.getId(),
@@ -440,13 +440,13 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("remote:foo"));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
         tasks = tasksBuilder.build();
 
         givenClusterState("foo", 1, 0);
 
-        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+        PersistentTasksMetadataSection.Assignment result = new DatafeedNodeSelector(
             clusterState,
             resolver,
             df.getId(),
@@ -462,7 +462,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
 
         String nodeId = randomBoolean() ? "node_id2" : null;
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(job.getId(), nodeId, JobState.OPENED, tasksBuilder);
         // Set to lower allocationId, so job task is stale:
         tasksBuilder.updateTaskState(MlTasks.jobTaskId(job.getId()), new JobTaskState(JobState.OPENED, 0, null, Instant.now()));
@@ -472,7 +472,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
 
         Collection<DiscoveryNode> candidateNodes = makeCandidateNodes("node_id1", "node_id2", "node_id3");
 
-        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+        PersistentTasksMetadataSection.Assignment result = new DatafeedNodeSelector(
             clusterState,
             resolver,
             df.getId(),
@@ -502,7 +502,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             )
         );
 
-        tasksBuilder = PersistentTasksCustomMetadata.builder();
+        tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(job.getId(), "node_id1", JobState.OPENED, tasksBuilder);
         tasks = tasksBuilder.build();
         givenClusterState("foo", 1, 0);
@@ -526,7 +526,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("not_foo"));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENING, tasksBuilder);
         tasks = tasksBuilder.build();
 
@@ -571,14 +571,14 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
         tasks = tasksBuilder.build();
         mlMetadata = new MlMetadata.Builder().isUpgradeMode(true).build();
 
         givenClusterState("foo", 1, 0);
 
-        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+        PersistentTasksMetadataSection.Assignment result = new DatafeedNodeSelector(
             clusterState,
             resolver,
             df.getId(),
@@ -593,14 +593,14 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
         tasks = tasksBuilder.build();
         mlMetadata = new MlMetadata.Builder().isResetMode(true).build();
 
         givenClusterState("foo", 1, 0);
 
-        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+        PersistentTasksMetadataSection.Assignment result = new DatafeedNodeSelector(
             clusterState,
             resolver,
             df.getId(),
@@ -615,7 +615,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
         tasks = tasksBuilder.build();
         mlMetadata = new MlMetadata.Builder().isUpgradeMode(true).build();
@@ -640,13 +640,13 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
         tasks = tasksBuilder.build();
 
         givenClusterState("foo", 1, 0);
 
-        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+        PersistentTasksMetadataSection.Assignment result = new DatafeedNodeSelector(
             clusterState,
             resolver,
             df.getId(),
@@ -681,7 +681,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
 
         clusterState = ClusterState.builder(new ClusterName("cluster_name"))
             .metadata(
-                new Metadata.Builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasks)
+                new Metadata.Builder().putCustom(PersistentTasksMetadataSection.TYPE, tasks)
                     .putCustom(MlMetadata.TYPE, mlMetadata)
                     .put(indexMetadata, false)
             )
@@ -706,7 +706,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         clusterState = ClusterState.builder(new ClusterName("cluster_name"))
             .metadata(
                 new Metadata.Builder().put(DataStreamTestHelper.newInstance(dataStreamName, Collections.singletonList(index)))
-                    .putCustom(PersistentTasksCustomMetadata.TYPE, tasks)
+                    .putCustom(PersistentTasksMetadataSection.TYPE, tasks)
                     .putCustom(MlMetadata.TYPE, mlMetadata)
                     .put(indexMetadata, false)
             )

@@ -24,7 +24,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -182,13 +182,13 @@ public class JobManagerTests extends ESTestCase {
 
         Job.Builder jobWithoutFilter = buildJobBuilder("job-without-filter");
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask(jobReferencingFilter1.getId(), "node_id", JobState.OPENED, tasksBuilder);
         addJobTask(jobReferencingFilter2.getId(), "node_id", JobState.OPENED, tasksBuilder);
         addJobTask(jobWithoutFilter.getId(), "node_id", JobState.OPENED, tasksBuilder);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            .metadata(Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()))
             .build();
         when(clusterService.state()).thenReturn(clusterState);
 
@@ -250,9 +250,9 @@ public class JobManagerTests extends ESTestCase {
 
         List<BytesReference> docsAsBytes = Collections.singletonList(toBytesReference(jobReferencingFilter.build()));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            .metadata(Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()))
             .build();
         when(clusterService.state()).thenReturn(clusterState);
 
@@ -286,9 +286,9 @@ public class JobManagerTests extends ESTestCase {
         jobReferencingFilter.setAnalysisConfig(filterAnalysisConfig);
         List<BytesReference> docsAsBytes = Collections.singletonList(toBytesReference(jobReferencingFilter.build()));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            .metadata(Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()))
             .build();
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.state()).thenReturn(clusterState);
@@ -311,13 +311,13 @@ public class JobManagerTests extends ESTestCase {
     }
 
     public void testUpdateProcessOnCalendarChanged() {
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask("job-1", "node_id", JobState.OPENED, tasksBuilder);
         addJobTask("job-2", "node_id", JobState.OPENED, tasksBuilder);
         addJobTask("job-3", "node_id", JobState.OPENED, tasksBuilder);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            .metadata(Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()))
             .build();
         when(clusterService.state()).thenReturn(clusterState);
 
@@ -345,13 +345,13 @@ public class JobManagerTests extends ESTestCase {
     }
 
     public void testUpdateProcessOnCalendarChanged_GivenGroups() {
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask("job-1", "node_id", JobState.OPENED, tasksBuilder);
         addJobTask("job-2", "node_id", JobState.OPENED, tasksBuilder);
         addJobTask("job-3", "node_id", JobState.OPENED, tasksBuilder);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            .metadata(Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()))
             .build();
         when(clusterService.state()).thenReturn(clusterState);
 

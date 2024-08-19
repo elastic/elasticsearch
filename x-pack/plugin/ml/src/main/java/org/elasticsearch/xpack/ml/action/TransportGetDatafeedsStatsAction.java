@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
@@ -67,7 +67,7 @@ public class TransportGetDatafeedsStatsAction extends HandledTransportAction<Req
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         logger.trace(() -> "[" + request.getDatafeedId() + "] get stats for datafeed");
         ClusterState state = clusterService.state();
-        final PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksMetadataSection tasksInProgress = state.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
         final Response.Builder responseBuilder = new Response.Builder();
         final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 

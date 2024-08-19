@@ -131,7 +131,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.node.NodeMocksPlugin;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -1174,15 +1174,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Retrieves the persistent tasks with the requested task name from the given cluster state.
      */
-    public static List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, String taskName) {
+    public static List<PersistentTasksMetadataSection.PersistentTask<?>> findTasks(ClusterState clusterState, String taskName) {
         return findTasks(clusterState, Set.of(taskName));
     }
 
     /**
      * Retrieves the persistent tasks with the requested task names from the given cluster state.
      */
-    public static List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, Set<String> taskNames) {
-        PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+    public static List<PersistentTasksMetadataSection.PersistentTask<?>> findTasks(ClusterState clusterState, Set<String> taskNames) {
+        PersistentTasksMetadataSection tasks = clusterState.metadata().custom(PersistentTasksMetadataSection.TYPE);
         if (tasks == null) {
             return List.of();
         }

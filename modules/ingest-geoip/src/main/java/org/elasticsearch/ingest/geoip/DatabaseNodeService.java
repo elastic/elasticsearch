@@ -31,7 +31,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.geoip.stats.CacheStats;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -251,7 +251,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             return;
         }
 
-        PersistentTasksCustomMetadata persistentTasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection persistentTasks = state.metadata().custom(PersistentTasksMetadataSection.TYPE);
         if (persistentTasks == null) {
             logger.trace("Not checking databases because persistent tasks are null");
             return;

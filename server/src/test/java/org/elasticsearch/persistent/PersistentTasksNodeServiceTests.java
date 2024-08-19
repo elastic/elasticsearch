@@ -23,8 +23,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection.Assignment;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection.PersistentTask;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.tasks.Task;
@@ -118,7 +118,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         ClusterState state = createInitialClusterState(nonLocalNodesCount, Settings.EMPTY);
 
-        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasks = PersistentTasksMetadataSection.builder();
         boolean added = false;
         if (nonLocalNodesCount > 0) {
             for (int i = 0; i < randomInt(5); i++) {
@@ -145,7 +145,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         }
 
         Metadata.Builder metadata = Metadata.builder(state.metadata());
-        metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasks.build());
         ClusterState newClusterState = ClusterState.builder(state).metadata(metadata).build();
 
         coordinator.clusterChanged(new ClusterChangedEvent("test", newClusterState, state));
@@ -235,13 +235,13 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         ClusterState state = createInitialClusterState(1, Settings.EMPTY);
 
         PersistentTaskState taskState = new TestPersistentTasksPlugin.State("_test_phase");
-        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasks = PersistentTasksMetadataSection.builder();
         String taskId = UUIDs.base64UUID();
         TestParams taskParams = new TestParams("other_0");
         tasks.addTask(taskId, TestPersistentTasksExecutor.NAME, taskParams, new Assignment("this_node", "test assignment on other node"));
         tasks.updateTaskState(taskId, taskState);
         Metadata.Builder metadata = Metadata.builder(state.metadata());
-        metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasks.build());
         ClusterState newClusterState = ClusterState.builder(state).metadata(metadata).build();
 
         coordinator.clusterChanged(new ClusterChangedEvent("test", newClusterState, state));
@@ -422,7 +422,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         assertThat(capturedTaskId.get(), equalTo(persistentId));
         assertThat(capturedLocalAbortReason.get(), equalTo("testing local abort"));
         // Notify successful unassignment
-        PersistentTasksCustomMetadata persistentTasksMetadata = newClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection persistentTasksMetadata = newClusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
         capturedListener.get().onResponse(persistentTasksMetadata.getTask(persistentId));
 
         // Check the task is now removed from the local task manager
@@ -511,7 +511,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         ClusterState state = createInitialClusterState(0, Settings.EMPTY);
 
-        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasks = PersistentTasksMetadataSection.builder();
 
         tasks.addTask(
             UUIDs.base64UUID(),
@@ -521,7 +521,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         );
 
         Metadata.Builder metadata = Metadata.builder(state.metadata());
-        metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasks.build());
         ClusterState newClusterState = ClusterState.builder(state).metadata(metadata).build();
 
         coordinator.clusterChanged(new ClusterChangedEvent("test", newClusterState, state));
@@ -533,14 +533,14 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
     }
 
     private <Params extends PersistentTaskParams> ClusterState addTask(ClusterState state, String action, Params params, String node) {
-        PersistentTasksCustomMetadata.Builder builder = PersistentTasksCustomMetadata.builder(
-            state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE)
+        PersistentTasksMetadataSection.Builder builder = PersistentTasksMetadataSection.builder(
+            state.getMetadata().custom(PersistentTasksMetadataSection.TYPE)
         );
         return ClusterState.builder(state)
             .metadata(
                 Metadata.builder(state.metadata())
                     .putCustom(
-                        PersistentTasksCustomMetadata.TYPE,
+                        PersistentTasksMetadataSection.TYPE,
                         builder.addTask(UUIDs.base64UUID(), action, params, new Assignment(node, "test assignment")).build()
                     )
             )
@@ -548,15 +548,15 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
     }
 
     private ClusterState reallocateTask(ClusterState state, String taskId, String node) {
-        PersistentTasksCustomMetadata.Builder builder = PersistentTasksCustomMetadata.builder(
-            state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE)
+        PersistentTasksMetadataSection.Builder builder = PersistentTasksMetadataSection.builder(
+            state.getMetadata().custom(PersistentTasksMetadataSection.TYPE)
         );
         assertTrue(builder.hasTask(taskId));
         return ClusterState.builder(state)
             .metadata(
                 Metadata.builder(state.metadata())
                     .putCustom(
-                        PersistentTasksCustomMetadata.TYPE,
+                        PersistentTasksMetadataSection.TYPE,
                         builder.reassignTask(taskId, new Assignment(node, "test assignment")).build()
                     )
             )
@@ -564,12 +564,12 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
     }
 
     private ClusterState removeTask(ClusterState state, String taskId) {
-        PersistentTasksCustomMetadata.Builder builder = PersistentTasksCustomMetadata.builder(
-            state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE)
+        PersistentTasksMetadataSection.Builder builder = PersistentTasksMetadataSection.builder(
+            state.getMetadata().custom(PersistentTasksMetadataSection.TYPE)
         );
         assertTrue(builder.hasTask(taskId));
         return ClusterState.builder(state)
-            .metadata(Metadata.builder(state.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, builder.removeTask(taskId).build()))
+            .metadata(Metadata.builder(state.metadata()).putCustom(PersistentTasksMetadataSection.TYPE, builder.removeTask(taskId).build()))
             .build();
     }
 

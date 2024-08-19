@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  *
  * Stored in the cluster state as custom metadata.
  */
-public class NodesShutdownMetadata implements Metadata.Custom {
+public class NodesShutdownMetadata implements MetadataSection {
     public static final String TYPE = "node_shutdown";
     public static final TransportVersion NODE_SHUTDOWN_VERSION = TransportVersions.V_7_13_0;
     public static final NodesShutdownMetadata EMPTY = new NodesShutdownMetadata(Map.of());
@@ -64,7 +64,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         return PARSER.apply(parser, null);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<MetadataSection> readDiffFrom(StreamInput in) throws IOException {
         return new NodeShutdownMetadataDiff(in);
     }
 
@@ -156,7 +156,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<MetadataSection> diff(MetadataSection previousState) {
         return new NodeShutdownMetadataDiff((NodesShutdownMetadata) previousState, this);
     }
 
@@ -196,7 +196,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     /**
      * Handles diffing and appling diffs for {@link NodesShutdownMetadata} as necessary for the cluster state infrastructure.
      */
-    public static class NodeShutdownMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class NodeShutdownMetadataDiff implements NamedDiff<MetadataSection> {
 
         private final Diff<Map<String, SingleNodeShutdownMetadata>> nodesDiff;
 
@@ -214,7 +214,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public MetadataSection apply(MetadataSection part) {
             TreeMap<String, SingleNodeShutdownMetadata> newNodes = new TreeMap<>(nodesDiff.apply(((NodesShutdownMetadata) part).nodes));
             return new NodesShutdownMetadata(newNodes);
         }

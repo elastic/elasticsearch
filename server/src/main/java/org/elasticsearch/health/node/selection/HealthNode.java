@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.Map;
@@ -34,14 +34,14 @@ public class HealthNode extends AllocatedPersistentTask {
     }
 
     @Nullable
-    public static PersistentTasksCustomMetadata.PersistentTask<?> findTask(ClusterState clusterState) {
-        PersistentTasksCustomMetadata taskMetadata = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+    public static PersistentTasksMetadataSection.PersistentTask<?> findTask(ClusterState clusterState) {
+        PersistentTasksMetadataSection taskMetadata = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
         return taskMetadata == null ? null : taskMetadata.getTask(TASK_NAME);
     }
 
     @Nullable
     public static DiscoveryNode findHealthNode(ClusterState clusterState) {
-        PersistentTasksCustomMetadata.PersistentTask<?> task = findTask(clusterState);
+        PersistentTasksMetadataSection.PersistentTask<?> task = findTask(clusterState);
         if (task == null || task.isAssigned() == false) {
             return null;
         }

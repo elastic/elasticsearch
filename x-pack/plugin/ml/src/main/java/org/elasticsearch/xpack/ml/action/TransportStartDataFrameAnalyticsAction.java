@@ -38,7 +38,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -179,10 +179,10 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         }
 
         // Wait for analytics to be started
-        ActionListener<PersistentTasksCustomMetadata.PersistentTask<TaskParams>> waitForAnalyticsToStart = new ActionListener<
-            PersistentTasksCustomMetadata.PersistentTask<TaskParams>>() {
+        ActionListener<PersistentTasksMetadataSection.PersistentTask<TaskParams>> waitForAnalyticsToStart = new ActionListener<
+            PersistentTasksMetadataSection.PersistentTask<TaskParams>>() {
             @Override
-            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<TaskParams> task) {
+            public void onResponse(PersistentTasksMetadataSection.PersistentTask<TaskParams> task) {
                 waitForAnalyticsStarted(task, request.getTimeout(), listener);
             }
 
@@ -449,7 +449,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
     }
 
     private void waitForAnalyticsStarted(
-        PersistentTasksCustomMetadata.PersistentTask<TaskParams> task,
+        PersistentTasksMetadataSection.PersistentTask<TaskParams> task,
         TimeValue timeout,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
@@ -462,7 +462,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             new PersistentTasksService.WaitForPersistentTaskListener<PersistentTaskParams>() {
 
                 @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask) {
+                public void onResponse(PersistentTasksMetadataSection.PersistentTask<PersistentTaskParams> persistentTask) {
                     if (predicate.exception != null) {
                         // We want to return to the caller without leaving an unassigned persistent task, to match
                         // what would have happened if the error had been detected in the "fast fail" validation
@@ -530,19 +530,19 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private static class AnalyticsPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
+    private static class AnalyticsPredicate implements Predicate<PersistentTasksMetadataSection.PersistentTask<?>> {
 
         private volatile Exception exception;
         private volatile String node = "";
         private volatile String assignmentExplanation;
 
         @Override
-        public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+        public boolean test(PersistentTasksMetadataSection.PersistentTask<?> persistentTask) {
             if (persistentTask == null) {
                 return false;
             }
 
-            PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
+            PersistentTasksMetadataSection.Assignment assignment = persistentTask.getAssignment();
 
             // This means we are awaiting a new node to be spun up, ok to return back to the user to await node creation
             if (assignment != null && assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT)) {
@@ -551,7 +551,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             String reason = "__unknown__";
 
             if (assignment != null
-                && assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false
+                && assignment.equals(PersistentTasksMetadataSection.INITIAL_ASSIGNMENT) == false
                 && assignment.isAssigned() == false) {
                 assignmentExplanation = assignment.getExplanation();
                 // Assignment failed due to primary shard check.
@@ -597,16 +597,16 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
     }
 
     private void cancelAnalyticsStart(
-        PersistentTasksCustomMetadata.PersistentTask<TaskParams> persistentTask,
+        PersistentTasksMetadataSection.PersistentTask<TaskParams> persistentTask,
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
         persistentTasksService.sendRemoveRequest(
             persistentTask.getId(),
             null,
-            new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
+            new ActionListener<PersistentTasksMetadataSection.PersistentTask<?>>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+                public void onResponse(PersistentTasksMetadataSection.PersistentTask<?> task) {
                     // We succeeded in cancelling the persistent task, but the
                     // problem that caused us to cancel it is the overall result
                     listener.onFailure(exception);
@@ -668,7 +668,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             String type,
             String action,
             TaskId parentTaskId,
-            PersistentTasksCustomMetadata.PersistentTask<TaskParams> persistentTask,
+            PersistentTasksMetadataSection.PersistentTask<TaskParams> persistentTask,
             Map<String, String> headers
         ) {
             return new DataFrameAnalyticsTask(
@@ -686,13 +686,13 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(
+        public PersistentTasksMetadataSection.Assignment getAssignment(
             TaskParams params,
             Collection<DiscoveryNode> candidateNodes,
             @SuppressWarnings("HiddenField") ClusterState clusterState
         ) {
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
-            Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(
+            Optional<PersistentTasksMetadataSection.Assignment> optionalAssignment = getPotentialAssignment(
                 params,
                 clusterState,
                 isMemoryTrackerRecentlyRefreshed
@@ -712,7 +712,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             );
             // Pass an effectively infinite value for max concurrent opening jobs, because data frame analytics jobs do
             // not have an "opening" state so would never be rejected for causing too many jobs in the "opening" state
-            PersistentTasksCustomMetadata.Assignment assignment = jobNodeSelector.selectNode(
+            PersistentTasksMetadataSection.Assignment assignment = jobNodeSelector.selectNode(
                 maxOpenJobs,
                 Integer.MAX_VALUE,
                 maxMachineMemoryPercent,

@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -361,13 +361,13 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 return this;
             }
 
-            public Response build(PersistentTasksCustomMetadata tasksInProgress, ClusterState state) {
+            public Response build(PersistentTasksMetadataSection tasksInProgress, ClusterState state) {
                 List<DatafeedStats> stats = statsBuilders.stream().map(statsBuilder -> {
                     final String jobId = datafeedToJobId.get(statsBuilder.datafeedId);
                     DatafeedTimingStats timingStats = jobId == null
                         ? null
                         : timingStatsMap.getOrDefault(jobId, new DatafeedTimingStats(jobId));
-                    PersistentTasksCustomMetadata.PersistentTask<?> maybeTask = MlTasks.getDatafeedTask(
+                    PersistentTasksMetadataSection.PersistentTask<?> maybeTask = MlTasks.getDatafeedTask(
                         statsBuilder.datafeedId,
                         tasksInProgress
                     );

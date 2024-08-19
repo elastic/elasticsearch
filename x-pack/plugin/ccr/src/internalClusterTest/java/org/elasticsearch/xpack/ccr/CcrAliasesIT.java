@@ -20,7 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -397,7 +397,7 @@ public class CcrAliasesIT extends CcrIntegTestCase {
     private CheckedRunnable<Exception> assertShardFollowTask(final int numberOfPrimaryShards) {
         return () -> {
             final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
-            final PersistentTasksCustomMetadata taskMetadata = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            final PersistentTasksMetadataSection taskMetadata = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
             assertNotNull("task metadata for follower should exist", taskMetadata);
 
             final ListTasksRequest listTasksRequest = new ListTasksRequest();
@@ -409,11 +409,11 @@ public class CcrAliasesIT extends CcrIntegTestCase {
 
             final List<TaskInfo> taskInfos = listTasksResponse.getTasks();
             assertThat("expected a task for each shard", taskInfos.size(), equalTo(numberOfPrimaryShards));
-            final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> shardFollowTasks = taskMetadata.findTasks(
+            final Collection<PersistentTasksMetadataSection.PersistentTask<?>> shardFollowTasks = taskMetadata.findTasks(
                 ShardFollowTask.NAME,
                 Objects::nonNull
             );
-            for (final PersistentTasksCustomMetadata.PersistentTask<?> shardFollowTask : shardFollowTasks) {
+            for (final PersistentTasksMetadataSection.PersistentTask<?> shardFollowTask : shardFollowTasks) {
                 TaskInfo taskInfo = null;
                 final String expectedId = "id=" + shardFollowTask.getId();
                 for (final TaskInfo info : taskInfos) {

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataSection;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
@@ -34,7 +35,7 @@ import java.util.Map;
 /**
  * Holds the ingest pipelines that are available in the cluster
  */
-public final class IngestMetadata implements Metadata.Custom {
+public final class IngestMetadata implements MetadataSection {
 
     public static final String TYPE = "ingest";
     private static final ParseField PIPELINES_FIELD = new ParseField("pipeline");
@@ -107,15 +108,15 @@ public final class IngestMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
+    public Diff<MetadataSection> diff(MetadataSection before) {
         return new IngestMetadataDiff((IngestMetadata) before, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<MetadataSection> readDiffFrom(StreamInput in) throws IOException {
         return new IngestMetadataDiff(in);
     }
 
-    static class IngestMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static class IngestMetadataDiff implements NamedDiff<MetadataSection> {
 
         final Diff<Map<String, PipelineConfiguration>> pipelines;
 
@@ -133,7 +134,7 @@ public final class IngestMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public MetadataSection apply(MetadataSection part) {
             return new IngestMetadata(pipelines.apply(((IngestMetadata) part).pipelines));
         }
 

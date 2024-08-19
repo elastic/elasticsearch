@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.HealthStatus;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection.Assignment;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformHealth;
 import org.elasticsearch.xpack.core.transform.transforms.TransformHealthIssue;

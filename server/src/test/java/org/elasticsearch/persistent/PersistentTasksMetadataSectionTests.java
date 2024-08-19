@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.Metadata.Custom;
+import org.elasticsearch.cluster.metadata.MetadataSection;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
@@ -26,9 +26,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Builder;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection.Assignment;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection.Builder;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection.PersistentTask;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.State;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
@@ -58,12 +58,12 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Custom> {
+public class PersistentTasksMetadataSectionTests extends ChunkedToXContentDiffableSerializationTestCase<MetadataSection> {
 
     @Override
-    protected PersistentTasksCustomMetadata createTestInstance() {
+    protected PersistentTasksMetadataSection createTestInstance() {
         int numberOfTasks = randomInt(10);
-        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasks = PersistentTasksMetadataSection.builder();
         for (int i = 0; i < numberOfTasks; i++) {
             String taskId = UUIDs.base64UUID();
             tasks.addTask(taskId, TestPersistentTasksExecutor.NAME, new TestParams(randomAlphaOfLength(10)), randomAssignment());
@@ -76,21 +76,21 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
     }
 
     @Override
-    protected Custom mutateInstance(Custom instance) {
+    protected MetadataSection mutateInstance(MetadataSection instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected Writeable.Reader<Custom> instanceReader() {
-        return PersistentTasksCustomMetadata::new;
+    protected Writeable.Reader<MetadataSection> instanceReader() {
+        return PersistentTasksMetadataSection::new;
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
             Arrays.asList(
-                new Entry(Metadata.Custom.class, PersistentTasksCustomMetadata.TYPE, PersistentTasksCustomMetadata::new),
-                new Entry(NamedDiff.class, PersistentTasksCustomMetadata.TYPE, PersistentTasksCustomMetadata::readDiffFrom),
+                new Entry(MetadataSection.class, PersistentTasksMetadataSection.TYPE, PersistentTasksMetadataSection::new),
+                new Entry(NamedDiff.class, PersistentTasksMetadataSection.TYPE, PersistentTasksMetadataSection::readDiffFrom),
                 new Entry(PersistentTaskParams.class, TestPersistentTasksExecutor.NAME, TestParams::new),
                 new Entry(PersistentTaskState.class, TestPersistentTasksExecutor.NAME, State::new)
             )
@@ -98,8 +98,8 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
     }
 
     @Override
-    protected Custom makeTestChanges(Custom testInstance) {
-        Builder builder = PersistentTasksCustomMetadata.builder((PersistentTasksCustomMetadata) testInstance);
+    protected MetadataSection makeTestChanges(MetadataSection testInstance) {
+        Builder builder = PersistentTasksMetadataSection.builder((PersistentTasksMetadataSection) testInstance);
         switch (randomInt(3)) {
             case 0:
                 addRandomTask(builder);
@@ -130,13 +130,13 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
     }
 
     @Override
-    protected Writeable.Reader<Diff<Custom>> diffReader() {
-        return PersistentTasksCustomMetadata::readDiffFrom;
+    protected Writeable.Reader<Diff<MetadataSection>> diffReader() {
+        return PersistentTasksMetadataSection::readDiffFrom;
     }
 
     @Override
-    protected PersistentTasksCustomMetadata doParseInstance(XContentParser parser) {
-        return PersistentTasksCustomMetadata.fromXContent(parser);
+    protected PersistentTasksMetadataSection doParseInstance(XContentParser parser) {
+        return PersistentTasksMetadataSection.fromXContent(parser);
     }
 
     private String addRandomTask(Builder builder) {
@@ -145,7 +145,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
         return taskId;
     }
 
-    private String pickRandomTask(PersistentTasksCustomMetadata.Builder testInstance) {
+    private String pickRandomTask(PersistentTasksMetadataSection.Builder testInstance) {
         return randomFrom(new ArrayList<>(testInstance.getCurrentTaskIds()));
     }
 
@@ -169,9 +169,9 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
 
     @SuppressWarnings("unchecked")
     public void testSerializationContext() throws Exception {
-        PersistentTasksCustomMetadata testInstance = createTestInstance();
+        PersistentTasksMetadataSection testInstance = createTestInstance();
         for (int i = 0; i < randomInt(10); i++) {
-            testInstance = (PersistentTasksCustomMetadata) makeTestChanges(testInstance);
+            testInstance = (PersistentTasksMetadataSection) makeTestChanges(testInstance);
         }
 
         ToXContent.MapParams params = new ToXContent.MapParams(
@@ -181,7 +181,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference shuffled = toShuffledXContent(asXContent(testInstance), xContentType, params, false);
 
-        PersistentTasksCustomMetadata newInstance;
+        PersistentTasksMetadataSection newInstance;
         try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
             newInstance = doParseInstance(parser);
         }
@@ -205,14 +205,14 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
     }
 
     public void testBuilder() {
-        PersistentTasksCustomMetadata persistentTasks = null;
+        PersistentTasksMetadataSection persistentTasks = null;
         String lastKnownTask = "";
         for (int i = 0; i < randomIntBetween(10, 100); i++) {
             final Builder builder;
             if (randomBoolean()) {
-                builder = PersistentTasksCustomMetadata.builder();
+                builder = PersistentTasksMetadataSection.builder();
             } else {
-                builder = PersistentTasksCustomMetadata.builder(persistentTasks);
+                builder = PersistentTasksMetadataSection.builder(persistentTasks);
             }
             boolean changed = false;
             for (int j = 0; j < randomIntBetween(1, 10); j++) {
@@ -256,7 +256,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
     }
 
     public void testMinVersionSerialization() throws IOException {
-        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasks = PersistentTasksMetadataSection.builder();
 
         TransportVersion minVersion = getFirstVersion();
         TransportVersion streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(TransportVersion.current()));
@@ -287,7 +287,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
 
         final StreamInput input = out.bytes().streamInput();
         input.setTransportVersion(streamVersion);
-        PersistentTasksCustomMetadata read = new PersistentTasksCustomMetadata(
+        PersistentTasksMetadataSection read = new PersistentTasksMetadataSection(
             new NamedWriteableAwareStreamInput(input, getNamedWriteableRegistry())
         );
 
@@ -296,7 +296,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
 
     public void testDisassociateDeadNodes_givenNoPersistentTasks() {
         ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests")).build();
-        ClusterState returnedState = PersistentTasksCustomMetadata.disassociateDeadNodes(originalState);
+        ClusterState returnedState = PersistentTasksMetadataSection.disassociateDeadNodes(originalState);
         assertThat(originalState, sameInstance(returnedState));
     }
 
@@ -308,23 +308,23 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
             .build();
 
         String taskName = "test/task";
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder()
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder()
             .addTask(
                 "task-id",
                 taskName,
                 emptyTaskParams(taskName),
-                new PersistentTasksCustomMetadata.Assignment("node1", "test assignment")
+                new PersistentTasksMetadataSection.Assignment("node1", "test assignment")
             );
 
         ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests"))
             .nodes(nodes)
-            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            .metadata(Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()))
             .build();
-        ClusterState returnedState = PersistentTasksCustomMetadata.disassociateDeadNodes(originalState);
+        ClusterState returnedState = PersistentTasksMetadataSection.disassociateDeadNodes(originalState);
         assertThat(originalState, sameInstance(returnedState));
 
-        PersistentTasksCustomMetadata originalTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(originalState);
-        PersistentTasksCustomMetadata returnedTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(returnedState);
+        PersistentTasksMetadataSection originalTasks = PersistentTasksMetadataSection.getPersistentTasksCustomMetadata(originalState);
+        PersistentTasksMetadataSection returnedTasks = PersistentTasksMetadataSection.getPersistentTasksCustomMetadata(returnedState);
         assertEquals(originalTasks, returnedTasks);
     }
 
@@ -336,34 +336,34 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
             .build();
 
         String taskName = "test/task";
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder()
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder()
             .addTask(
                 "assigned-task",
                 taskName,
                 emptyTaskParams(taskName),
-                new PersistentTasksCustomMetadata.Assignment("node1", "test assignment")
+                new PersistentTasksMetadataSection.Assignment("node1", "test assignment")
             )
             .addTask(
                 "task-on-deceased-node",
                 taskName,
                 emptyTaskParams(taskName),
-                new PersistentTasksCustomMetadata.Assignment("left-the-cluster", "test assignment")
+                new PersistentTasksMetadataSection.Assignment("left-the-cluster", "test assignment")
             );
 
         ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests"))
             .nodes(nodes)
-            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            .metadata(Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()))
             .build();
-        ClusterState returnedState = PersistentTasksCustomMetadata.disassociateDeadNodes(originalState);
+        ClusterState returnedState = PersistentTasksMetadataSection.disassociateDeadNodes(originalState);
         assertThat(originalState, not(sameInstance(returnedState)));
 
-        PersistentTasksCustomMetadata originalTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(originalState);
-        PersistentTasksCustomMetadata returnedTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(returnedState);
+        PersistentTasksMetadataSection originalTasks = PersistentTasksMetadataSection.getPersistentTasksCustomMetadata(originalState);
+        PersistentTasksMetadataSection returnedTasks = PersistentTasksMetadataSection.getPersistentTasksCustomMetadata(returnedState);
         assertNotEquals(originalTasks, returnedTasks);
 
         assertEquals(originalTasks.getTask("assigned-task"), returnedTasks.getTask("assigned-task"));
         assertNotEquals(originalTasks.getTask("task-on-deceased-node"), returnedTasks.getTask("task-on-deceased-node"));
-        assertEquals(PersistentTasksCustomMetadata.LOST_NODE_ASSIGNMENT, returnedTasks.getTask("task-on-deceased-node").getAssignment());
+        assertEquals(PersistentTasksMetadataSection.LOST_NODE_ASSIGNMENT, returnedTasks.getTask("task-on-deceased-node").getAssignment());
     }
 
     private PersistentTaskParams emptyTaskParams(String taskName) {

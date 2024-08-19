@@ -40,7 +40,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), AssertingCustomPlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), AssertingSectionPlugin.class);
     }
 
     private void updateClusterState(ClusterService clusterService, UnaryOperator<ClusterState> updateOperator) {
@@ -67,7 +67,10 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
     public void testClusterStateRestCancellation() throws Exception {
 
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
-        updateClusterState(clusterService, s -> ClusterState.builder(s).putCustom(AssertingCustom.NAME, AssertingCustom.INSTANCE).build());
+        updateClusterState(
+            clusterService,
+            s -> ClusterState.builder(s).putCustom(AssertingSection.NAME, AssertingSection.INSTANCE).build()
+        );
 
         final Request clusterStateRequest = new Request(HttpGet.METHOD_NAME, "/_cluster/state");
         clusterStateRequest.addParameter("wait_for_metadata_version", Long.toString(Long.MAX_VALUE));
@@ -93,13 +96,13 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
             assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.action().equals(ClusterStateAction.NAME)));
         });
 
-        updateClusterState(clusterService, s -> ClusterState.builder(s).removeCustom(AssertingCustom.NAME).build());
+        updateClusterState(clusterService, s -> ClusterState.builder(s).removeCustom(AssertingSection.NAME).build());
     }
 
-    private static class AssertingCustom implements SimpleDiffable<ClusterState.Custom>, ClusterState.Custom {
+    private static class AssertingSection implements SimpleDiffable<ClusterState.Custom>, ClusterState.Custom {
 
         static final String NAME = "asserting";
-        static final AssertingCustom INSTANCE = new AssertingCustom();
+        static final AssertingSection INSTANCE = new AssertingSection();
 
         @Override
         public String getWriteableName() {
@@ -122,11 +125,11 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
         }
     }
 
-    public static class AssertingCustomPlugin extends Plugin {
+    public static class AssertingSectionPlugin extends Plugin {
         @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             return Collections.singletonList(
-                new NamedWriteableRegistry.Entry(ClusterState.Custom.class, AssertingCustom.NAME, in -> AssertingCustom.INSTANCE)
+                new NamedWriteableRegistry.Entry(ClusterState.Custom.class, AssertingSection.NAME, in -> AssertingSection.INSTANCE)
             );
         }
     }

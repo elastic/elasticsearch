@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
@@ -19,11 +19,11 @@ import java.util.List;
 
 public class TransportStopDatafeedActionTests extends ESTestCase {
     public void testSortDatafeedIdsByTaskState_GivenDatafeedId() {
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
 
         addTask("datafeed_1", 0L, "node-1", DatafeedState.STARTED, tasksBuilder);
         addTask("datafeed_2", 0L, "node-1", DatafeedState.STOPPED, tasksBuilder);
-        PersistentTasksCustomMetadata tasks = tasksBuilder.build();
+        PersistentTasksMetadataSection tasks = tasksBuilder.build();
 
         List<String> startedDatafeeds = new ArrayList<>();
         List<String> stoppingDatafeeds = new ArrayList<>();
@@ -55,12 +55,12 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
     }
 
     public void testSortDatafeedIdsByTaskState_GivenAll() {
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
 
         addTask("datafeed_1", 0L, "node-1", DatafeedState.STARTED, tasksBuilder);
         addTask("datafeed_2", 0L, "node-1", DatafeedState.STOPPED, tasksBuilder);
         addTask("datafeed_3", 0L, "node-1", DatafeedState.STOPPING, tasksBuilder);
-        PersistentTasksCustomMetadata tasks = tasksBuilder.build();
+        PersistentTasksMetadataSection tasks = tasksBuilder.build();
 
         List<String> startedDatafeeds = new ArrayList<>();
         List<String> stoppingDatafeeds = new ArrayList<>();
@@ -94,13 +94,13 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
         long startTime,
         String nodeId,
         DatafeedState state,
-        PersistentTasksCustomMetadata.Builder taskBuilder
+        PersistentTasksMetadataSection.Builder taskBuilder
     ) {
         taskBuilder.addTask(
             MlTasks.datafeedTaskId(datafeedId),
             MlTasks.DATAFEED_TASK_NAME,
             new StartDatafeedAction.DatafeedParams(datafeedId, startTime),
-            new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
+            new PersistentTasksMetadataSection.Assignment(nodeId, "test assignment")
         );
         taskBuilder.updateTaskState(MlTasks.datafeedTaskId(datafeedId), state);
     }

@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataSection;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -121,10 +122,10 @@ public class ClusterChangedEvent {
      */
     public Set<String> changedCustomMetadataSet() {
         Set<String> result = new HashSet<>();
-        Map<String, Metadata.Custom> currentCustoms = state.metadata().customs();
-        Map<String, Metadata.Custom> previousCustoms = previousState.metadata().customs();
+        Map<String, MetadataSection> currentCustoms = state.metadata().customs();
+        Map<String, MetadataSection> previousCustoms = previousState.metadata().customs();
         if (currentCustoms.equals(previousCustoms) == false) {
-            for (Map.Entry<String, Metadata.Custom> currentCustomMetadata : currentCustoms.entrySet()) {
+            for (Map.Entry<String, MetadataSection> currentCustomMetadata : currentCustoms.entrySet()) {
                 // new custom md added or existing custom md changed
                 if (previousCustoms.containsKey(currentCustomMetadata.getKey()) == false
                     || currentCustomMetadata.getValue().equals(previousCustoms.get(currentCustomMetadata.getKey())) == false) {
@@ -132,7 +133,7 @@ public class ClusterChangedEvent {
                 }
             }
             // existing custom md deleted
-            for (Map.Entry<String, Metadata.Custom> previousCustomMetadata : previousCustoms.entrySet()) {
+            for (Map.Entry<String, MetadataSection> previousCustomMetadata : previousCustoms.entrySet()) {
                 if (currentCustoms.containsKey(previousCustomMetadata.getKey()) == false) {
                     result.add(previousCustomMetadata.getKey());
                 }

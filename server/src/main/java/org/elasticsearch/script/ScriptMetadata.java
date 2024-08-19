@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataSection;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,7 +38,7 @@ import java.util.Map;
  * {@link ScriptMetadata} is used to store user-defined scripts
  * as part of the {@link ClusterState} using only an id as the key.
  */
-public final class ScriptMetadata implements Metadata.Custom, Writeable {
+public final class ScriptMetadata implements MetadataSection, Writeable {
 
     /**
      * Standard logger used to warn about dropped scripts.
@@ -96,7 +97,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable {
         }
     }
 
-    static final class ScriptMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static final class ScriptMetadataDiff implements NamedDiff<MetadataSection> {
 
         final Diff<Map<String, StoredScriptSource>> pipelines;
 
@@ -119,7 +120,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public MetadataSection apply(MetadataSection part) {
             return new ScriptMetadata(pipelines.apply(((ScriptMetadata) part).scripts));
         }
 
@@ -227,7 +228,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable {
         return new ScriptMetadata(scripts);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<MetadataSection> readDiffFrom(StreamInput in) throws IOException {
         return new ScriptMetadataDiff(in);
     }
 
@@ -271,7 +272,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
+    public Diff<MetadataSection> diff(MetadataSection before) {
         return new ScriptMetadataDiff((ScriptMetadata) before, this);
     }
 

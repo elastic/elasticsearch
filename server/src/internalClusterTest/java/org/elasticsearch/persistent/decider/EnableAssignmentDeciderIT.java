@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
@@ -58,7 +58,7 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
         latch.await();
 
         ClusterService clusterService = internalCluster().clusterService(internalCluster().getMasterName());
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection tasks = clusterService.state().getMetadata().custom(PersistentTasksMetadataSection.TYPE);
         assertEquals(numberOfTasks, tasks.tasks().stream().filter(t -> TestPersistentTasksExecutor.NAME.equals(t.getTaskName())).count());
 
         logger.trace("waiting for the tasks to be running");
@@ -79,7 +79,7 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
             assertEnableAssignmentSetting(Allocation.NONE);
 
             logger.trace("persistent tasks are not assigned");
-            tasks = internalCluster().clusterService().state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            tasks = internalCluster().clusterService().state().getMetadata().custom(PersistentTasksMetadataSection.TYPE);
             assertEquals(
                 numberOfTasks,
                 tasks.tasks()

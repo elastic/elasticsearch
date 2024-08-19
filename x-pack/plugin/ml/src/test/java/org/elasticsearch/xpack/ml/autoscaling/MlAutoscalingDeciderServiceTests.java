@@ -22,7 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
@@ -221,10 +221,10 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         service.onMaster();
 
         String jobId = "a_job";
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         OpenJobPersistentTasksExecutorTests.addJobTask(jobId, randomFrom("ml-1", "ml-2"), JobState.OPENED, tasksBuilder);
         Metadata.Builder metadata = Metadata.builder();
-        metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build());
+        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build());
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .nodes(

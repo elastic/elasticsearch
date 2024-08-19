@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataSection;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,7 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 
-public class MlMetadata implements Metadata.Custom {
+public class MlMetadata implements MetadataSection {
 
     public static final String TYPE = "ml";
     public static final ParseField UPGRADE_MODE = new ParseField("upgrade_mode");
@@ -81,7 +82,7 @@ public class MlMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<MetadataSection> diff(MetadataSection previousState) {
         return new MlMetadataDiff((MlMetadata) previousState, this);
     }
 
@@ -128,7 +129,7 @@ public class MlMetadata implements Metadata.Custom {
         );
     }
 
-    public static class MlMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class MlMetadataDiff implements NamedDiff<MetadataSection> {
 
         final boolean upgradeMode;
         final boolean resetMode;
@@ -158,7 +159,7 @@ public class MlMetadata implements Metadata.Custom {
          * @return The new ML metadata.
          */
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public MetadataSection apply(MetadataSection part) {
             return new MlMetadata(upgradeMode, resetMode);
         }
 

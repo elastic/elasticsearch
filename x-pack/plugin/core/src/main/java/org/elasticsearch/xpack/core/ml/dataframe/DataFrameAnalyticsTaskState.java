@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -115,7 +115,7 @@ public class DataFrameAnalyticsTaskState implements PersistentTaskState, MlTaskS
         return DataFrameAnalyticsState.FAILED.equals(state);
     }
 
-    public boolean isStatusStale(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+    public boolean isStatusStale(PersistentTasksMetadataSection.PersistentTask<?> task) {
         return allocationId != task.getAllocationId();
     }
 

@@ -28,7 +28,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.monitor.os.OsStats;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -129,7 +129,7 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
         if (memoryTracker.isEverRefreshed()) {
             memoryTrackerRefreshListener.onResponse(null);
         } else {
-            memoryTracker.refresh(state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE), memoryTrackerRefreshListener);
+            memoryTracker.refresh(state.getMetadata().custom(PersistentTasksMetadataSection.TYPE), memoryTrackerRefreshListener);
         }
     }
 

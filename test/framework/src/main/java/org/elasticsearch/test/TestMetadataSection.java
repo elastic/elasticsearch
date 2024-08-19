@@ -11,7 +11,7 @@ package org.elasticsearch.test;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataSection;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,10 +22,10 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.function.Function;
 
-public abstract class TestCustomMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+public abstract class TestMetadataSection extends AbstractNamedDiffable<MetadataSection> implements MetadataSection {
     private final String data;
 
-    protected TestCustomMetadata(String data) {
+    protected TestMetadataSection(String data) {
         this.data = data;
     }
 
@@ -40,7 +40,7 @@ public abstract class TestCustomMetadata extends AbstractNamedDiffable<Metadata.
             return false;
         }
 
-        TestCustomMetadata that = (TestCustomMetadata) o;
+        TestMetadataSection that = (TestMetadataSection) o;
 
         if (data.equals(that.data) == false) {
             return false;
@@ -54,12 +54,12 @@ public abstract class TestCustomMetadata extends AbstractNamedDiffable<Metadata.
         return data.hashCode();
     }
 
-    public static <T extends TestCustomMetadata> T readFrom(Function<String, T> supplier, StreamInput in) throws IOException {
+    public static <T extends TestMetadataSection> T readFrom(Function<String, T> supplier, StreamInput in) throws IOException {
         return supplier.apply(in.readString());
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(String name, StreamInput in) throws IOException {
-        return readDiffFrom(Metadata.Custom.class, name, in);
+    public static NamedDiff<MetadataSection> readDiffFrom(String name, StreamInput in) throws IOException {
+        return readDiffFrom(MetadataSection.class, name, in);
     }
 
     @Override
@@ -68,7 +68,7 @@ public abstract class TestCustomMetadata extends AbstractNamedDiffable<Metadata.
     }
 
     @SuppressWarnings("unchecked")
-    public static <T extends Metadata.Custom> T fromXContent(Function<String, T> supplier, XContentParser parser) throws IOException {
+    public static <T extends MetadataSection> T fromXContent(Function<String, T> supplier, XContentParser parser) throws IOException {
         XContentParser.Token token;
         String data = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

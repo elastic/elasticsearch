@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.job.snapshot.upgrader;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
@@ -20,7 +20,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.checkAssignmentState;
 
-public class SnapshotUpgradePredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
+public class SnapshotUpgradePredicate implements Predicate<PersistentTasksMetadataSection.PersistentTask<?>> {
     private final boolean waitForCompletion;
     private final Logger logger;
     private volatile Exception exception;
@@ -50,7 +50,7 @@ public class SnapshotUpgradePredicate implements Predicate<PersistentTasksCustom
     }
 
     @Override
-    public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+    public boolean test(PersistentTasksMetadataSection.PersistentTask<?> persistentTask) {
         // Persistent task being null means it has been removed from state, and is now complete
         if (persistentTask == null) {
             isCompleted = true;
@@ -61,7 +61,7 @@ public class SnapshotUpgradePredicate implements Predicate<PersistentTasksCustom
             ? SnapshotUpgradeState.STOPPED
             : snapshotUpgradeTaskState.getState();
         String reason = snapshotUpgradeTaskState == null ? "" : snapshotUpgradeTaskState.getReason();
-        PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
+        PersistentTasksMetadataSection.Assignment assignment = persistentTask.getAssignment();
         // This logic is only appropriate when opening a job, not when reallocating following a failure,
         // and this is why this class must only be used when opening a job
         SnapshotUpgradeTaskParams params = (SnapshotUpgradeTaskParams) persistentTask.getParams();

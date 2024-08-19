@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
@@ -87,7 +87,7 @@ public class NodeLoadDetector {
         int maxMachineMemoryPercent,
         boolean useAutoMachineMemoryCalculation
     ) {
-        PersistentTasksCustomMetadata persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection persistentTasks = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
         Map<String, String> nodeAttributes = node.getAttributes();
         List<String> errors = new ArrayList<>();
         OptionalLong maxMlMemory = NativeMemoryCalculator.allowedBytesForMl(node, maxMachineMemoryPercent, useAutoMachineMemoryCalculation);
@@ -119,13 +119,13 @@ public class NodeLoadDetector {
         return nodeLoad.build();
     }
 
-    private void updateLoadGivenTasks(NodeLoad.Builder nodeLoad, PersistentTasksCustomMetadata persistentTasks) {
+    private void updateLoadGivenTasks(NodeLoad.Builder nodeLoad, PersistentTasksMetadataSection persistentTasks) {
         if (persistentTasks != null) {
-            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> memoryTrackedTasks = findAllMemoryTrackedTasks(
+            Collection<PersistentTasksMetadataSection.PersistentTask<?>> memoryTrackedTasks = findAllMemoryTrackedTasks(
                 persistentTasks,
                 nodeLoad.getNodeId()
             );
-            for (PersistentTasksCustomMetadata.PersistentTask<?> task : memoryTrackedTasks) {
+            for (PersistentTasksMetadataSection.PersistentTask<?> task : memoryTrackedTasks) {
                 MemoryTrackedTaskState state = MlTasks.getMemoryTrackedTaskState(task);
                 assert state != null : "null MemoryTrackedTaskState for memory tracked task with params " + task.getParams();
                 if (state != null && state.consumesMemory()) {
@@ -153,8 +153,8 @@ public class NodeLoadDetector {
         }
     }
 
-    private static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> findAllMemoryTrackedTasks(
-        PersistentTasksCustomMetadata persistentTasks,
+    private static Collection<PersistentTasksMetadataSection.PersistentTask<?>> findAllMemoryTrackedTasks(
+        PersistentTasksMetadataSection persistentTasks,
         String nodeId
     ) {
         return persistentTasks.tasks()
@@ -164,7 +164,7 @@ public class NodeLoadDetector {
             .collect(Collectors.toList());
     }
 
-    private static boolean isMemoryTrackedTask(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+    private static boolean isMemoryTrackedTask(PersistentTasksMetadataSection.PersistentTask<?> task) {
         return MlTasks.JOB_TASK_NAME.equals(task.getTaskName())
             || MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME.equals(task.getTaskName())
             || MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(task.getTaskName());

@@ -27,7 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -139,10 +139,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             }, listener::onFailure);
 
             // Wait for job to be started
-            ActionListener<PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams>> waitForJobToStart =
+            ActionListener<PersistentTasksMetadataSection.PersistentTask<OpenJobAction.JobParams>> waitForJobToStart =
                 new ActionListener<>() {
                     @Override
-                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> task) {
+                    public void onResponse(PersistentTasksMetadataSection.PersistentTask<OpenJobAction.JobParams> task) {
                         waitForJobStarted(task.getId(), jobParams, clearJobFinishTime);
                     }
 
@@ -254,7 +254,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             jobParams.getTimeout(),
             new PersistentTasksService.WaitForPersistentTaskListener<OpenJobAction.JobParams>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> persistentTask) {
+                public void onResponse(PersistentTasksMetadataSection.PersistentTask<OpenJobAction.JobParams> persistentTask) {
                     if (predicate.exception != null) {
                         if (predicate.shouldCancel) {
                             // We want to return to the caller without leaving an unassigned persistent task, to match
@@ -321,13 +321,13 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     private void cancelJobStart(
-        PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> persistentTask,
+        PersistentTasksMetadataSection.PersistentTask<OpenJobAction.JobParams> persistentTask,
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
         persistentTasksService.sendRemoveRequest(persistentTask.getId(), null, new ActionListener<>() {
             @Override
-            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+            public void onResponse(PersistentTasksMetadataSection.PersistentTask<?> task) {
                 // We succeeded in cancelling the persistent task, but the
                 // problem that caused us to cancel it is the overall result
                 listener.onFailure(exception);
@@ -356,14 +356,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private static class JobPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
+    private static class JobPredicate implements Predicate<PersistentTasksMetadataSection.PersistentTask<?>> {
 
         private volatile Exception exception;
         private volatile String node = "";
         private volatile boolean shouldCancel;
 
         @Override
-        public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+        public boolean test(PersistentTasksMetadataSection.PersistentTask<?> persistentTask) {
             JobState jobState = JobState.CLOSED;
             String reason = null;
             if (persistentTask != null) {
@@ -371,7 +371,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 jobState = jobTaskState == null ? JobState.OPENING : jobTaskState.getState();
                 reason = jobTaskState == null ? null : jobTaskState.getReason();
 
-                PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
+                PersistentTasksMetadataSection.Assignment assignment = persistentTask.getAssignment();
 
                 // This means we are awaiting a new node to be spun up, ok to return back to the user to await node creation
                 if (assignment != null && assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT)) {

@@ -19,7 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -36,7 +36,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
-import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTaskWithId;
+import static org.elasticsearch.persistent.PersistentTasksMetadataSection.getTaskWithId;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -241,7 +241,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
      */
     @Nullable
     static GeoIpTaskState getGeoIpTaskState(ClusterState state) {
-        PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(state, GeoIpDownloader.GEOIP_DOWNLOADER);
+        PersistentTasksMetadataSection.PersistentTask<?> task = getTaskWithId(state, GeoIpDownloader.GEOIP_DOWNLOADER);
         return (task == null) ? null : (GeoIpTaskState) task.getState();
     }
 

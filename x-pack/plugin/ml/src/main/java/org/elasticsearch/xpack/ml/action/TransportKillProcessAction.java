@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -96,13 +96,13 @@ public class TransportKillProcessAction extends TransportTasksAction<
     @Override
     protected void doExecute(Task task, KillProcessAction.Request request, ActionListener<KillProcessAction.Response> listener) {
         DiscoveryNodes nodes = clusterService.state().nodes();
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        List<PersistentTasksCustomMetadata.PersistentTask<?>> jobTasks;
+        PersistentTasksMetadataSection tasks = clusterService.state().getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        List<PersistentTasksMetadataSection.PersistentTask<?>> jobTasks;
         if (Strings.isAllOrWildcard(request.getJobId())) {
             jobTasks = MlTasks.openJobTasks(tasks).stream().filter(t -> t.getExecutorNode() != null).collect(Collectors.toList());
 
         } else {
-            PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(request.getJobId(), tasks);
+            PersistentTasksMetadataSection.PersistentTask<?> jobTask = MlTasks.getJobTask(request.getJobId(), tasks);
             if (jobTask == null || jobTask.getExecutorNode() == null) {
                 jobTasks = Collections.emptyList();
             } else {
@@ -128,7 +128,7 @@ public class TransportKillProcessAction extends TransportTasksAction<
         request.setNodes(
             jobTasks.stream()
                 .filter(t -> t.getExecutorNode() != null && nodes.get(t.getExecutorNode()) != null)
-                .map(PersistentTasksCustomMetadata.PersistentTask::getExecutorNode)
+                .map(PersistentTasksMetadataSection.PersistentTask::getExecutorNode)
                 .toArray(String[]::new)
         );
         super.doExecute(task, request, listener);

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.is;
 public class TransportStopDataFrameAnalyticsActionTests extends ESTestCase {
 
     public void testAnalyticsByTaskState_GivenEmpty() {
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
 
         AnalyticsByTaskState analyticsByTaskState = AnalyticsByTaskState.build(Collections.emptySet(), tasksBuilder.build());
 
@@ -35,7 +35,7 @@ public class TransportStopDataFrameAnalyticsActionTests extends ESTestCase {
     }
 
     public void testAnalyticsByTaskState_GivenAllStates() {
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addAnalyticsTask(tasksBuilder, "starting", "foo-node", null);
         addAnalyticsTask(tasksBuilder, "started", "foo-node", DataFrameAnalyticsState.STARTED);
         addAnalyticsTask(tasksBuilder, "reindexing", "foo-node", DataFrameAnalyticsState.REINDEXING);
@@ -60,7 +60,7 @@ public class TransportStopDataFrameAnalyticsActionTests extends ESTestCase {
     }
 
     private static void addAnalyticsTask(
-        PersistentTasksCustomMetadata.Builder builder,
+        PersistentTasksMetadataSection.Builder builder,
         String analyticsId,
         String nodeId,
         DataFrameAnalyticsState state
@@ -69,7 +69,7 @@ public class TransportStopDataFrameAnalyticsActionTests extends ESTestCase {
     }
 
     private static void addAnalyticsTask(
-        PersistentTasksCustomMetadata.Builder builder,
+        PersistentTasksMetadataSection.Builder builder,
         String analyticsId,
         String nodeId,
         DataFrameAnalyticsState state,
@@ -79,7 +79,7 @@ public class TransportStopDataFrameAnalyticsActionTests extends ESTestCase {
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams(analyticsId, MlConfigVersion.CURRENT, allowLazyStart),
-            new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
+            new PersistentTasksMetadataSection.Assignment(nodeId, "test assignment")
         );
 
         if (state != null) {

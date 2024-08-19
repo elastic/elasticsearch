@@ -17,7 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskInfo;
@@ -280,9 +280,9 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         );
     }
 
-    protected Collection<PersistentTasksCustomMetadata.PersistentTask<?>> analyticsTaskList() {
+    protected Collection<PersistentTasksMetadataSection.PersistentTask<?>> analyticsTaskList() {
         ClusterState masterClusterState = clusterAdmin().prepareState().all().get().getState();
-        PersistentTasksCustomMetadata persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
         return persistentTasks != null
             ? persistentTasks.findTasks(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, task -> true)
             : Collections.emptyList();

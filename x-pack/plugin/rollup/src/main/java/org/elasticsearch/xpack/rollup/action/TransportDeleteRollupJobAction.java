@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -56,7 +56,7 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<
         final DiscoveryNodes nodes = state.nodes();
 
         if (nodes.isLocalNodeElectedMaster()) {
-            PersistentTasksCustomMetadata pTasksMeta = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksMetadataSection pTasksMeta = state.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
             if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null) {
                 super.doExecute(task, request, listener);
             } else {

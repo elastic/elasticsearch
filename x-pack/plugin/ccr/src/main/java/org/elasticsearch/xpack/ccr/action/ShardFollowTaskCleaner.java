@@ -22,7 +22,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.persistent.PersistentTaskResponse;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
@@ -62,10 +62,10 @@ public final class ShardFollowTaskCleaner implements ClusterStateListener {
             return;
         }
         final Metadata metadata = event.state().metadata();
-        final PersistentTasksCustomMetadata persistentTasksMetadata = metadata.custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksMetadataSection persistentTasksMetadata = metadata.custom(PersistentTasksMetadataSection.TYPE);
         final Metadata previousMetadata = event.previousState().metadata();
         if (metadata.indices() == event.previousState().getMetadata().indices()
-            && persistentTasksMetadata == previousMetadata.custom(PersistentTasksCustomMetadata.TYPE)
+            && persistentTasksMetadata == previousMetadata.custom(PersistentTasksMetadataSection.TYPE)
             && event.previousState().nodes().isLocalNodeElectedMaster()
             && event.blocksChanged() == false) {
             // nothing of relevance changed
@@ -75,7 +75,7 @@ public final class ShardFollowTaskCleaner implements ClusterStateListener {
         if (persistentTasksMetadata == null) {
             return;
         }
-        for (PersistentTasksCustomMetadata.PersistentTask<?> persistentTask : persistentTasksMetadata.tasks()) {
+        for (PersistentTasksMetadataSection.PersistentTask<?> persistentTask : persistentTasksMetadata.tasks()) {
             if (ShardFollowTask.NAME.equals(persistentTask.getTaskName()) == false) {
                 // this task is not a shard follow task
                 continue;

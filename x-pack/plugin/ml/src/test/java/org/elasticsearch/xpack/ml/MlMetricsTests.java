@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -45,7 +45,7 @@ public class MlMetricsTests extends ESTestCase {
 
     public void testFindTaskStatuses() {
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         MlMemoryAutoscalingDeciderTests.addJobTask("job1", "node1", JobState.OPENED, tasksBuilder);
         MlMemoryAutoscalingDeciderTests.addJobTask("job2", "node1", JobState.OPENED, tasksBuilder);
         MlMemoryAutoscalingDeciderTests.addJobTask("job3", "node2", JobState.FAILED, tasksBuilder);
@@ -86,7 +86,7 @@ public class MlMetricsTests extends ESTestCase {
 
     public void testFindDfaMemoryUsage() {
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         MlMemoryAutoscalingDeciderTests.addAnalyticsTask("dfa1", "node1", DataFrameAnalyticsState.STARTED, tasksBuilder);
         MlMemoryAutoscalingDeciderTests.addAnalyticsTask("dfa2", "node2", DataFrameAnalyticsState.STARTED, tasksBuilder);
         MlMemoryAutoscalingDeciderTests.addAnalyticsTask("dfa3", "node1", DataFrameAnalyticsState.FAILED, tasksBuilder);
@@ -168,13 +168,13 @@ public class MlMetricsTests extends ESTestCase {
         String datafeedId,
         String nodeId,
         DatafeedState datafeedState,
-        PersistentTasksCustomMetadata.Builder builder
+        PersistentTasksMetadataSection.Builder builder
     ) {
         builder.addTask(
             MlTasks.datafeedTaskId(datafeedId),
             MlTasks.DATAFEED_TASK_NAME,
             new StartDatafeedAction.DatafeedParams(datafeedId, System.currentTimeMillis()),
-            nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
+            nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksMetadataSection.Assignment(nodeId, "test assignment")
         );
         if (datafeedState != null) {
             builder.updateTaskState(MlTasks.datafeedTaskId(datafeedId), datafeedState);

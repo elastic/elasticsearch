@@ -43,7 +43,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -488,7 +488,7 @@ public class JobConfigProvider {
         String expression,
         boolean allowNoMatch,
         boolean excludeDeleting,
-        @Nullable PersistentTasksCustomMetadata tasksCustomMetadata,
+        @Nullable PersistentTasksMetadataSection tasksCustomMetadata,
         boolean allowMissingConfigs,
         @Nullable TaskId parentTaskId,
         ActionListener<SortedSet<String>> listener
@@ -547,10 +547,10 @@ public class JobConfigProvider {
 
     /**
      * The same logic as
-     * {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, TaskId, ActionListener)} but
+     * {@link #expandJobsIds(String, boolean, boolean, PersistentTasksMetadataSection, boolean, TaskId, ActionListener)} but
      * the full anomaly detector job configuration is returned.
      *
-     * See {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, TaskId, ActionListener)}
+     * See {@link #expandJobsIds(String, boolean, boolean, PersistentTasksMetadataSection, boolean, TaskId, ActionListener)}
      *
      * @param expression the expression to resolve
      * @param allowNoMatch if {@code false}, an error is thrown when no name matches the {@code expression}.
@@ -620,7 +620,7 @@ public class JobConfigProvider {
 
     /**
      * Expands the list of job group Ids to the set of jobs which are members of the groups.
-     * Unlike {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, TaskId, ActionListener)} it is not an
+     * Unlike {@link #expandJobsIds(String, boolean, boolean, PersistentTasksMetadataSection, boolean, TaskId, ActionListener)} it is not an
      * error if a group Id does not exist.
      * Wildcard expansion of group Ids is not supported.
      *
@@ -754,7 +754,7 @@ public class JobConfigProvider {
         }, listener::onFailure));
     }
 
-    static Collection<String> matchingJobIdsWithTasks(String[] jobIdPatterns, PersistentTasksCustomMetadata tasksMetadata) {
+    static Collection<String> matchingJobIdsWithTasks(String[] jobIdPatterns, PersistentTasksMetadataSection tasksMetadata) {
         return MlStrings.findMatching(jobIdPatterns, MlTasks.openJobIds(tasksMetadata));
     }
 

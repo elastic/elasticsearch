@@ -25,7 +25,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -118,7 +118,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
         ActionListener<Set<String>> expandedIdsListener = ActionListener.wrap(idsToStop -> {
             logger.debug("Resolved data frame analytics to stop: {}", idsToStop);
 
-            PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksMetadataSection tasks = state.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
             AnalyticsByTaskState analyticsByTaskState = AnalyticsByTaskState.build(idsToStop, tasks);
 
             if (analyticsByTaskState.isEmpty()) {
@@ -165,7 +165,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
     }
 
     private static Set<String> getAllStartedIds(ClusterState clusterState) {
-        PersistentTasksCustomMetadata tasksMetadata = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection tasksMetadata = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
         return tasksMetadata == null
             ? Collections.emptySet()
             : tasksMetadata.tasks()
@@ -204,7 +204,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
         Task task,
         StopDataFrameAnalyticsAction.Request request,
         ActionListener<StopDataFrameAnalyticsAction.Response> listener,
-        PersistentTasksCustomMetadata tasks,
+        PersistentTasksMetadataSection tasks,
         AnalyticsByTaskState analyticsByTaskState
     ) {
         if (analyticsByTaskState.failed.isEmpty() == false) {
@@ -249,7 +249,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
     private void forceStop(
         StopDataFrameAnalyticsAction.Request request,
         ActionListener<StopDataFrameAnalyticsAction.Response> listener,
-        PersistentTasksCustomMetadata tasks,
+        PersistentTasksMetadataSection tasks,
         List<String> nonStoppedAnalytics
     ) {
 
@@ -257,7 +257,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
         final AtomicArray<Exception> failures = new AtomicArray<>(nonStoppedAnalytics.size());
 
         for (String analyticsId : nonStoppedAnalytics) {
-            PersistentTasksCustomMetadata.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(analyticsId, tasks);
+            PersistentTasksMetadataSection.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(analyticsId, tasks);
             if (analyticsTask != null) {
                 persistentTasksService.sendRemoveRequest(analyticsTask.getId(), null, ActionListener.wrap(removedTask -> {
                     auditor.info(analyticsId, Messages.DATA_FRAME_ANALYTICS_AUDIT_FORCE_STOPPED);
@@ -314,10 +314,10 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
         listener.onFailure(e);
     }
 
-    private String[] findAllocatedNodesAndRemoveUnassignedTasks(List<String> analyticsIds, PersistentTasksCustomMetadata tasks) {
+    private String[] findAllocatedNodesAndRemoveUnassignedTasks(List<String> analyticsIds, PersistentTasksMetadataSection tasks) {
         List<String> nodes = new ArrayList<>();
         for (String analyticsId : analyticsIds) {
-            PersistentTasksCustomMetadata.PersistentTask<?> task = MlTasks.getDataFrameAnalyticsTask(analyticsId, tasks);
+            PersistentTasksMetadataSection.PersistentTask<?> task = MlTasks.getDataFrameAnalyticsTask(analyticsId, tasks);
             if (task == null) {
                 // This should not be possible; we filtered started analytics thus the task should exist
                 String msg = "Requested data frame analytics [" + analyticsId + "] be stopped but the task could not be found";
@@ -455,7 +455,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
             return nonStopped;
         }
 
-        static AnalyticsByTaskState build(Set<String> analyticsIds, PersistentTasksCustomMetadata tasks) {
+        static AnalyticsByTaskState build(Set<String> analyticsIds, PersistentTasksMetadataSection tasks) {
             List<String> started = new ArrayList<>();
             List<String> stopping = new ArrayList<>();
             List<String> failed = new ArrayList<>();

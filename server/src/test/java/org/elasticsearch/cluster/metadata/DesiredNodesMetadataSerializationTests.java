@@ -20,9 +20,9 @@ import java.util.Collections;
 import static org.elasticsearch.cluster.metadata.DesiredNodesSerializationTests.mutateDesiredNodes;
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 
-public class DesiredNodesMetadataSerializationTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.Custom> {
+public class DesiredNodesMetadataSerializationTests extends ChunkedToXContentDiffableSerializationTestCase<MetadataSection> {
     @Override
-    protected Metadata.Custom makeTestChanges(Metadata.Custom testInstance) {
+    protected MetadataSection makeTestChanges(MetadataSection testInstance) {
         if (randomBoolean()) {
             return testInstance;
         }
@@ -30,17 +30,17 @@ public class DesiredNodesMetadataSerializationTests extends ChunkedToXContentDif
     }
 
     @Override
-    protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
+    protected Writeable.Reader<Diff<MetadataSection>> diffReader() {
         return DesiredNodesMetadata::readDiffFrom;
     }
 
     @Override
-    protected Metadata.Custom doParseInstance(XContentParser parser) throws IOException {
+    protected MetadataSection doParseInstance(XContentParser parser) throws IOException {
         return DesiredNodesMetadata.fromXContent(parser);
     }
 
     @Override
-    protected Writeable.Reader<Metadata.Custom> instanceReader() {
+    protected Writeable.Reader<MetadataSection> instanceReader() {
         return DesiredNodesMetadata::new;
     }
 
@@ -48,18 +48,18 @@ public class DesiredNodesMetadataSerializationTests extends ChunkedToXContentDif
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
             Collections.singletonList(
-                new NamedWriteableRegistry.Entry(Metadata.Custom.class, DesiredNodesMetadata.TYPE, DesiredNodesMetadata::new)
+                new NamedWriteableRegistry.Entry(MetadataSection.class, DesiredNodesMetadata.TYPE, DesiredNodesMetadata::new)
             )
         );
     }
 
     @Override
-    protected Metadata.Custom createTestInstance() {
+    protected MetadataSection createTestInstance() {
         return randomDesiredNodesMetadata();
     }
 
     @Override
-    protected Metadata.Custom mutateInstance(Metadata.Custom instance) {
+    protected MetadataSection mutateInstance(MetadataSection instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 

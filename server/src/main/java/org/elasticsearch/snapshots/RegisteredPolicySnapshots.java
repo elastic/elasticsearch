@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataSection;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -45,7 +46,7 @@ import static org.elasticsearch.snapshots.SnapshotsService.POLICY_ID_METADATA_FI
  * it will not be removed from the registered set. A subsequent snapshot will then find that a registered snapshot
  * is no longer running and will infer that it failed, updating SnapshotLifecycleStats accordingly.
  */
-public class RegisteredPolicySnapshots implements Metadata.Custom {
+public class RegisteredPolicySnapshots implements MetadataSection {
 
     public static final String TYPE = "registered_snapshots";
     private static final ParseField SNAPSHOTS = new ParseField("snapshots");
@@ -89,7 +90,7 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<MetadataSection> diff(MetadataSection previousState) {
         return new RegisteredSnapshotsDiff((RegisteredPolicySnapshots) previousState, this);
     }
 
@@ -142,7 +143,7 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
         return Objects.equals(snapshots, other.snapshots);
     }
 
-    public static class RegisteredSnapshotsDiff implements NamedDiff<Metadata.Custom> {
+    public static class RegisteredSnapshotsDiff implements NamedDiff<MetadataSection> {
         final List<PolicySnapshot> snapshots;
 
         RegisteredSnapshotsDiff(RegisteredPolicySnapshots before, RegisteredPolicySnapshots after) {
@@ -154,7 +155,7 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public MetadataSection apply(MetadataSection part) {
             return new RegisteredPolicySnapshots(snapshots);
         }
 

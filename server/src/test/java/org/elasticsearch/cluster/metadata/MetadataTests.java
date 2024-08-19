@@ -41,7 +41,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
@@ -1061,7 +1061,7 @@ public class MetadataTests extends ESTestCase {
     public void testBuilderRejectsNullInCustoms() {
         final Metadata.Builder builder = Metadata.builder();
         final String key = randomAlphaOfLength(10);
-        final Map<String, Metadata.Custom> map = new HashMap<>();
+        final Map<String, MetadataSection> map = new HashMap<>();
         map.put(key, null);
         assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
     }
@@ -1077,8 +1077,8 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testBuilderRemoveCustomIf() {
-        var custom1 = new TestCustomMetadata();
-        var custom2 = new TestCustomMetadata();
+        var custom1 = new TestMetadataSection();
+        var custom2 = new TestMetadataSection();
         var builder = Metadata.builder();
         builder.putCustom("custom1", custom1);
         builder.putCustom("custom2", custom2);
@@ -2272,33 +2272,33 @@ public class MetadataTests extends ESTestCase {
         // 1 chunk for each index + 2 to wrap the indices field
         chunkCount += 2 + metadata.indices().size();
 
-        for (Metadata.Custom custom : metadata.customs().values()) {
+        for (MetadataSection section : metadata.customs().values()) {
             chunkCount += 2;
 
-            if (custom instanceof ComponentTemplateMetadata componentTemplateMetadata) {
+            if (section instanceof ComponentTemplateMetadata componentTemplateMetadata) {
                 chunkCount += 2 + componentTemplateMetadata.componentTemplates().size();
-            } else if (custom instanceof ComposableIndexTemplateMetadata composableIndexTemplateMetadata) {
+            } else if (section instanceof ComposableIndexTemplateMetadata composableIndexTemplateMetadata) {
                 chunkCount += 2 + composableIndexTemplateMetadata.indexTemplates().size();
-            } else if (custom instanceof DataStreamMetadata dataStreamMetadata) {
+            } else if (section instanceof DataStreamMetadata dataStreamMetadata) {
                 chunkCount += 4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size();
-            } else if (custom instanceof DesiredNodesMetadata) {
+            } else if (section instanceof DesiredNodesMetadata) {
                 chunkCount += 1;
-            } else if (custom instanceof FeatureMigrationResults featureMigrationResults) {
+            } else if (section instanceof FeatureMigrationResults featureMigrationResults) {
                 chunkCount += 2 + featureMigrationResults.getFeatureStatuses().size();
-            } else if (custom instanceof IndexGraveyard indexGraveyard) {
+            } else if (section instanceof IndexGraveyard indexGraveyard) {
                 chunkCount += 2 + indexGraveyard.getTombstones().size();
-            } else if (custom instanceof IngestMetadata ingestMetadata) {
+            } else if (section instanceof IngestMetadata ingestMetadata) {
                 chunkCount += 2 + ingestMetadata.getPipelines().size();
-            } else if (custom instanceof NodesShutdownMetadata nodesShutdownMetadata) {
+            } else if (section instanceof NodesShutdownMetadata nodesShutdownMetadata) {
                 chunkCount += 2 + nodesShutdownMetadata.getAll().size();
-            } else if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
+            } else if (section instanceof PersistentTasksMetadataSection persistentTasksCustomMetadata) {
                 chunkCount += 3 + persistentTasksCustomMetadata.tasks().size();
-            } else if (custom instanceof RepositoriesMetadata repositoriesMetadata) {
+            } else if (section instanceof RepositoriesMetadata repositoriesMetadata) {
                 chunkCount += repositoriesMetadata.repositories().size();
             } else {
                 // could be anything, we have to just try it
                 chunkCount += Iterables.size(
-                    (Iterable<ToXContent>) (() -> Iterators.map(custom.toXContentChunked(params), Function.identity()))
+                    (Iterable<ToXContent>) (() -> Iterators.map(section.toXContentChunked(params), Function.identity()))
                 );
             }
         }
@@ -2470,7 +2470,7 @@ public class MetadataTests extends ESTestCase {
         }
     }
 
-    private static class TestCustomMetadata implements Metadata.Custom {
+    private static class TestMetadataSection implements MetadataSection {
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
@@ -2478,7 +2478,7 @@ public class MetadataTests extends ESTestCase {
         }
 
         @Override
-        public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+        public Diff<MetadataSection> diff(MetadataSection previousState) {
             return null;
         }
 

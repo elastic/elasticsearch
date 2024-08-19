@@ -26,7 +26,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -363,8 +363,8 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         AnalysisStats analysisStats
     ) {
         ClusterState clusterState = clusterService.state();
-        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        PersistentTasksCustomMetadata.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(concreteAnalyticsId, tasks);
+        PersistentTasksMetadataSection tasks = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(concreteAnalyticsId, tasks);
         DataFrameAnalyticsState analyticsState = MlTasks.getDataFrameAnalyticsState(concreteAnalyticsId, tasks);
         String failureReason = null;
         if (analyticsState == DataFrameAnalyticsState.FAILED) {

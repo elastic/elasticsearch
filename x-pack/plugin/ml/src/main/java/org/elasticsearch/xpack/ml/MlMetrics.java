@@ -19,7 +19,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -319,10 +319,10 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         final ClusterState previousState = event.previousState();
 
         if (firstTime || event.metadataChanged()) {
-            final PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-            final PersistentTasksCustomMetadata oldTasks = firstTime
+            final PersistentTasksMetadataSection tasks = currentState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+            final PersistentTasksMetadataSection oldTasks = firstTime
                 ? null
-                : previousState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+                : previousState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
             if (tasks != null && tasks.equals(oldTasks) == false) {
                 if (hasMasterRole) {
                     mlTaskStatusCounts = findTaskStatuses(tasks);
@@ -390,7 +390,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
      * <p>
      * The caller is expected to cache the returned stats to avoid unnecessary recalculation.
      */
-    static MlTaskStatusCounts findTaskStatuses(PersistentTasksCustomMetadata tasks) {
+    static MlTaskStatusCounts findTaskStatuses(PersistentTasksMetadataSection tasks) {
 
         int adOpeningCount = 0;
         int adOpenedCount = 0;
@@ -406,7 +406,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         int dfaStoppingCount = 0;
         int dfaFailedCount = 0;
 
-        for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks.tasks()) {
+        for (PersistentTasksMetadataSection.PersistentTask<?> task : tasks.tasks()) {
             switch (task.getTaskName()) {
                 case JOB_TASK_NAME:
                     switch (MlTasks.getJobStateModifiedForReassignments(task)) {
@@ -469,7 +469,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
      * Return the memory usage, in bytes, of the data frame analytics jobs that are running on the
      * current node.
      */
-    static long findDfaMemoryUsage(DataFrameAnalyticsManager dataFrameAnalyticsManager, PersistentTasksCustomMetadata tasks) {
+    static long findDfaMemoryUsage(DataFrameAnalyticsManager dataFrameAnalyticsManager, PersistentTasksMetadataSection tasks) {
         return dataFrameAnalyticsManager.getActiveTaskMemoryUsage(tasks).getBytes();
     }
 

@@ -25,7 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -160,7 +160,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                         boolean updateChangesSettings = update.changesSettings(originalConfig);
                         boolean updateChangesHeaders = update.changesHeaders(originalConfig);
                         if (updateChangesSettings || updateChangesHeaders) {
-                            PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
+                            PersistentTasksMetadataSection.PersistentTask<?> transformTask = TransformTask.getTransformTask(
                                 request.getId(),
                                 clusterState
                             );

@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.Metadata.Custom;
+import org.elasticsearch.cluster.metadata.MetadataSection;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -224,7 +224,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             }
 
             // filter out metadata that shouldn't be returned by the API
-            for (Map.Entry<String, Custom> custom : currentState.metadata().customs().entrySet()) {
+            for (Map.Entry<String, MetadataSection> custom : currentState.metadata().customs().entrySet()) {
                 if (custom.getValue().context().contains(Metadata.XContentContext.API) == false) {
                     mdBuilder.removeCustom(custom.getKey());
                 }

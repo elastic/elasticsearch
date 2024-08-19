@@ -28,7 +28,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -149,7 +149,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
             final boolean isForce = request.isForce();
             final TimeValue timeout = request.getCloseTimeout();
 
-            PersistentTasksCustomMetadata tasksMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksMetadataSection tasksMetadata = state.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
             jobConfigProvider.expandJobsIds(
                 request.getJobId(),
                 request.allowNoMatch(),
@@ -181,9 +181,9 @@ public class TransportCloseJobAction extends TransportTasksAction<
                                         forceCloseJob(state, request, jobIdsToForceClose, delegate3);
                                     } else {
                                         Set<String> executorNodes = new HashSet<>();
-                                        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+                                        PersistentTasksMetadataSection tasks = state.metadata().custom(PersistentTasksMetadataSection.TYPE);
                                         for (String resolvedJobId : request.getOpenJobIds()) {
-                                            PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(
+                                            PersistentTasksMetadataSection.PersistentTask<?> jobTask = MlTasks.getJobTask(
                                                 resolvedJobId,
                                                 tasks
                                             );
@@ -258,7 +258,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
     void validate(
         Collection<String> expandedJobIds,
         boolean forceClose,
-        PersistentTasksCustomMetadata tasksMetadata,
+        PersistentTasksMetadataSection tasksMetadata,
         ActionListener<OpenAndClosingIds> listener
     ) {
 
@@ -292,7 +292,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
         OpenAndClosingIds jobIds,
         boolean isForce,
         TimeValue timeout,
-        PersistentTasksCustomMetadata tasksMetadata,
+        PersistentTasksMetadataSection tasksMetadata,
         ActionListener<Boolean> listener
     ) {
         datafeedConfigProvider.findDatafeedIdsForJobIds(jobIds.openJobIds, listener.delegateFailureAndWrap((delegate, datafeedIds) -> {
@@ -384,7 +384,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
 
     static void addJobAccordingToState(
         String jobId,
-        PersistentTasksCustomMetadata tasksMetadata,
+        PersistentTasksMetadataSection tasksMetadata,
         List<String> openJobs,
         List<String> closingJobs,
         List<String> failedJobs
@@ -401,13 +401,13 @@ public class TransportCloseJobAction extends TransportTasksAction<
     static TransportCloseJobAction.WaitForCloseRequest buildWaitForCloseRequest(
         List<String> openJobIds,
         List<String> closingJobIds,
-        PersistentTasksCustomMetadata tasks,
+        PersistentTasksMetadataSection tasks,
         AnomalyDetectionAuditor auditor
     ) {
         TransportCloseJobAction.WaitForCloseRequest waitForCloseRequest = new TransportCloseJobAction.WaitForCloseRequest();
 
         for (String jobId : openJobIds) {
-            PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
+            PersistentTasksMetadataSection.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
             if (jobTask != null) {
                 auditor.info(jobId, Messages.JOB_AUDIT_CLOSING);
                 waitForCloseRequest.persistentTasks.add(jobTask);
@@ -415,7 +415,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
             }
         }
         for (String jobId : closingJobIds) {
-            PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
+            PersistentTasksMetadataSection.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
             if (jobTask != null) {
                 waitForCloseRequest.persistentTasks.add(jobTask);
             }
@@ -507,19 +507,19 @@ public class TransportCloseJobAction extends TransportTasksAction<
         List<String> jobIdsToForceClose,
         ActionListener<CloseJobAction.Response> listener
     ) {
-        PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection tasks = currentState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
 
         final int numberOfJobs = jobIdsToForceClose.size();
         final AtomicInteger counter = new AtomicInteger();
         final AtomicArray<Exception> failures = new AtomicArray<>(numberOfJobs);
 
         for (String jobId : jobIdsToForceClose) {
-            PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
+            PersistentTasksMetadataSection.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
             if (jobTask != null) {
                 auditor.info(jobId, Messages.JOB_AUDIT_FORCE_CLOSING);
                 persistentTasksService.sendRemoveRequest(jobTask.getId(), null, new ActionListener<>() {
                     @Override
-                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+                    public void onResponse(PersistentTasksMetadataSection.PersistentTask<?> task) {
                         if (counter.incrementAndGet() == numberOfJobs) {
                             sendResponseOrFailure(request.getJobId(), listener, failures);
                         }
@@ -571,7 +571,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
         List<String> closingJobIds,
         ActionListener<CloseJobAction.Response> listener
     ) {
-        PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection tasks = currentState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
 
         WaitForCloseRequest waitForCloseRequest = buildWaitForCloseRequest(openJobIds, closingJobIds, tasks, auditor);
 
@@ -585,7 +585,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
 
         ActionListener<CloseJobAction.Response> intermediateListener = listener.delegateFailureAndWrap((delegate, response) -> {
             for (String jobId : movedJobs) {
-                PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
+                PersistentTasksMetadataSection.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
                 persistentTasksService.sendRemoveRequest(
                     jobTask.getId(),
                     null,
@@ -615,7 +615,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
     }
 
     static class WaitForCloseRequest {
-        final List<PersistentTasksCustomMetadata.PersistentTask<?>> persistentTasks = new ArrayList<>();
+        final List<PersistentTasksMetadataSection.PersistentTask<?>> persistentTasks = new ArrayList<>();
         final List<String> jobsToFinalize = new ArrayList<>();
 
         public boolean hasJobsToWaitFor() {
@@ -640,9 +640,9 @@ public class TransportCloseJobAction extends TransportTasksAction<
         Set<String> movedJobs
     ) {
         persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetadata -> {
-            for (PersistentTasksCustomMetadata.PersistentTask<?> originalPersistentTask : waitForCloseRequest.persistentTasks) {
+            for (PersistentTasksMetadataSection.PersistentTask<?> originalPersistentTask : waitForCloseRequest.persistentTasks) {
                 String originalPersistentTaskId = originalPersistentTask.getId();
-                PersistentTasksCustomMetadata.PersistentTask<?> currentPersistentTask = persistentTasksCustomMetadata.getTask(
+                PersistentTasksMetadataSection.PersistentTask<?> currentPersistentTask = persistentTasksCustomMetadata.getTask(
                     originalPersistentTaskId
                 );
                 if (currentPersistentTask != null) {

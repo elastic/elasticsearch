@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
@@ -51,7 +51,7 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
  */
 public class JobNodeSelector {
 
-    public static final PersistentTasksCustomMetadata.Assignment AWAITING_LAZY_ASSIGNMENT = new PersistentTasksCustomMetadata.Assignment(
+    public static final PersistentTasksMetadataSection.Assignment AWAITING_LAZY_ASSIGNMENT = new PersistentTasksMetadataSection.Assignment(
         null,
         "persistent task is awaiting node assignment."
     );
@@ -121,7 +121,7 @@ public class JobNodeSelector {
         return Tuple.tuple(currentCapacityForMl, mostAvailableMemory);
     }
 
-    public PersistentTasksCustomMetadata.Assignment selectNode(
+    public PersistentTasksMetadataSection.Assignment selectNode(
         int dynamicMaxOpenJobs,
         int maxConcurrentJobAllocations,
         int maxMachineMemoryPercent,
@@ -139,7 +139,7 @@ public class JobNodeSelector {
         );
     }
 
-    public PersistentTasksCustomMetadata.Assignment selectNode(
+    public PersistentTasksMetadataSection.Assignment selectNode(
         Long estimatedMemoryFootprint,
         int dynamicMaxOpenJobs,
         int maxConcurrentJobAllocations,
@@ -151,7 +151,7 @@ public class JobNodeSelector {
             memoryTracker.asyncRefresh();
             String reason = "Not opening job [" + jobId + "] because job memory requirements are stale - refresh requested";
             logger.debug(reason);
-            return new PersistentTasksCustomMetadata.Assignment(null, reason);
+            return new PersistentTasksMetadataSection.Assignment(null, reason);
         }
         Map<String, String> reasons = new TreeMap<>();
         long maxAvailableMemory = Long.MIN_VALUE;
@@ -274,7 +274,7 @@ public class JobNodeSelector {
         );
     }
 
-    PersistentTasksCustomMetadata.Assignment createAssignment(
+    PersistentTasksMetadataSection.Assignment createAssignment(
         long estimatedMemoryUsage,
         DiscoveryNode minLoadedNode,
         Collection<String> reasons,
@@ -283,7 +283,7 @@ public class JobNodeSelector {
     ) {
         if (minLoadedNode == null) {
             String explanation = String.join("|", reasons);
-            PersistentTasksCustomMetadata.Assignment currentAssignment = new PersistentTasksCustomMetadata.Assignment(null, explanation);
+            PersistentTasksMetadataSection.Assignment currentAssignment = new PersistentTasksMetadataSection.Assignment(null, explanation);
             logger.debug("no node selected for job [{}], reasons [{}]", jobId, explanation);
             if ((MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + estimatedMemoryUsage) > mostAvailableMemoryForML) {
                 String message = format(
@@ -296,16 +296,16 @@ public class JobNodeSelector {
                 List<String> newReasons = new ArrayList<>(reasons);
                 newReasons.add(message);
                 explanation = String.join("|", newReasons);
-                return new PersistentTasksCustomMetadata.Assignment(null, explanation);
+                return new PersistentTasksMetadataSection.Assignment(null, explanation);
             }
             return considerLazyAssignment(currentAssignment, maxNodeSize);
         }
         logger.debug("selected node [{}] for job [{}]", minLoadedNode, jobId);
-        return new PersistentTasksCustomMetadata.Assignment(minLoadedNode.getId(), "");
+        return new PersistentTasksMetadataSection.Assignment(minLoadedNode.getId(), "");
     }
 
-    PersistentTasksCustomMetadata.Assignment considerLazyAssignment(
-        PersistentTasksCustomMetadata.Assignment currentAssignment,
+    PersistentTasksMetadataSection.Assignment considerLazyAssignment(
+        PersistentTasksMetadataSection.Assignment currentAssignment,
         long maxNodeSize
     ) {
 

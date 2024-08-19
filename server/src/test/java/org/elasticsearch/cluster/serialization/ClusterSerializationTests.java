@@ -378,16 +378,16 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         );
     }
 
-    public static class TestCustomOne extends AbstractNamedDiffable<Custom> implements Custom {
+    public static class TestSectionOne extends AbstractNamedDiffable<Custom> implements Custom {
 
         public static final String TYPE = "test_custom_one";
         private final String strObject;
 
-        public TestCustomOne(String strObject) {
+        public TestSectionOne(String strObject) {
             this.strObject = strObject;
         }
 
-        public TestCustomOne(StreamInput in) throws IOException {
+        public TestSectionOne(StreamInput in) throws IOException {
             this.strObject = in.readString();
         }
 
@@ -421,16 +421,16 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
     }
 
-    public static class TestCustomTwo extends AbstractNamedDiffable<Custom> implements Custom {
+    public static class TestSectionTwo extends AbstractNamedDiffable<Custom> implements Custom {
 
         public static final String TYPE = "test_custom_two";
         private final Integer intObject;
 
-        public TestCustomTwo(Integer intObject) {
+        public TestSectionTwo(Integer intObject) {
             this.intObject = intObject;
         }
 
-        public TestCustomTwo(StreamInput in) throws IOException {
+        public TestSectionTwo(StreamInput in) throws IOException {
             this.intObject = in.readInt();
         }
 
@@ -466,8 +466,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
     public void testCustomSerialization() throws Exception {
         ClusterState.Builder builder = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putCustom(TestCustomOne.TYPE, new TestCustomOne("test_custom_one"))
-            .putCustom(TestCustomTwo.TYPE, new TestCustomTwo(10));
+            .putCustom(TestSectionOne.TYPE, new TestSectionOne("test_custom_one"))
+            .putCustom(TestSectionTwo.TYPE, new TestSectionTwo(10));
 
         ClusterState clusterState = builder.incrementVersion().build();
 
@@ -475,10 +475,10 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         // Add the new customs to named writeables
         final List<NamedWriteableRegistry.Entry> entries = ClusterModule.getNamedWriteables();
-        entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TestCustomOne.TYPE, TestCustomOne::new));
-        entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, TestCustomOne.TYPE, TestCustomOne::readDiffFrom));
-        entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TestCustomTwo.TYPE, TestCustomTwo::new));
-        entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, TestCustomTwo.TYPE, TestCustomTwo::readDiffFrom));
+        entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TestSectionOne.TYPE, TestSectionOne::new));
+        entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, TestSectionOne.TYPE, TestSectionOne::readDiffFrom));
+        entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TestSectionTwo.TYPE, TestSectionTwo::new));
+        entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, TestSectionTwo.TYPE, TestSectionTwo::readDiffFrom));
 
         // serialize with current version
         BytesStreamOutput outStream = new BytesStreamOutput();
@@ -493,8 +493,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         ClusterState stateAfterDiffs = serializedDiffs.apply(ClusterState.EMPTY_STATE);
 
         // Current version - Both the customs are non null
-        assertThat(stateAfterDiffs.custom(TestCustomOne.TYPE), notNullValue());
-        assertThat(stateAfterDiffs.custom(TestCustomTwo.TYPE), notNullValue());
+        assertThat(stateAfterDiffs.custom(TestSectionOne.TYPE), notNullValue());
+        assertThat(stateAfterDiffs.custom(TestSectionTwo.TYPE), notNullValue());
 
         // serialize with minimum compatibile version
         outStream = new BytesStreamOutput();
@@ -509,8 +509,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         stateAfterDiffs = serializedDiffs.apply(ClusterState.EMPTY_STATE);
 
         // Old version - TestCustomOne is null and TestCustomTwo is not null
-        assertThat(stateAfterDiffs.custom(TestCustomOne.TYPE), nullValue());
-        assertThat(stateAfterDiffs.custom(TestCustomTwo.TYPE), notNullValue());
+        assertThat(stateAfterDiffs.custom(TestSectionOne.TYPE), nullValue());
+        assertThat(stateAfterDiffs.custom(TestSectionTwo.TYPE), notNullValue());
     }
 
 }

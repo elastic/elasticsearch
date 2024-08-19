@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataSection;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -167,12 +167,12 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         return Arrays.asList(
             // Custom Metadata
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                MetadataSection.class,
                 new ParseField(SnapshotLifecycleMetadata.TYPE),
                 parser -> SnapshotLifecycleMetadata.PARSER.parse(parser, null)
             ),
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                MetadataSection.class,
                 new ParseField(RegisteredPolicySnapshots.TYPE),
                 RegisteredPolicySnapshots::parse
             )

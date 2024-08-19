@@ -73,7 +73,7 @@ import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
@@ -1651,7 +1651,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {
         return () -> {
             final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
-            final PersistentTasksCustomMetadata taskMetadata = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            final PersistentTasksMetadataSection taskMetadata = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
             assertNotNull(taskMetadata);
 
             ListTasksRequest listTasksRequest = new ListTasksRequest();
@@ -1663,11 +1663,11 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
             List<TaskInfo> taskInfos = listTasksResponse.getTasks();
             assertThat(taskInfos.size(), equalTo(numberOfPrimaryShards));
-            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> shardFollowTasks = taskMetadata.findTasks(
+            Collection<PersistentTasksMetadataSection.PersistentTask<?>> shardFollowTasks = taskMetadata.findTasks(
                 ShardFollowTask.NAME,
                 Objects::nonNull
             );
-            for (PersistentTasksCustomMetadata.PersistentTask<?> shardFollowTask : shardFollowTasks) {
+            for (PersistentTasksMetadataSection.PersistentTask<?> shardFollowTask : shardFollowTasks) {
                 final ShardFollowTask shardFollowTaskParams = (ShardFollowTask) shardFollowTask.getParams();
                 TaskInfo taskInfo = null;
                 String expectedId = "id=" + shardFollowTask.getId();

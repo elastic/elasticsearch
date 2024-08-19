@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataSection;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.mutateAuto
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingMetadata;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicy;
 
-public class AutoscalingMetadataDiffableSerializationTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.Custom> {
+public class AutoscalingMetadataDiffableSerializationTests extends ChunkedToXContentDiffableSerializationTestCase<MetadataSection> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -42,7 +42,7 @@ public class AutoscalingMetadataDiffableSerializationTests extends ChunkedToXCon
     }
 
     @Override
-    protected Writeable.Reader<Metadata.Custom> instanceReader() {
+    protected Writeable.Reader<MetadataSection> instanceReader() {
         return AutoscalingMetadata::new;
     }
 
@@ -52,12 +52,12 @@ public class AutoscalingMetadataDiffableSerializationTests extends ChunkedToXCon
     }
 
     @Override
-    protected Metadata.Custom makeTestChanges(final Metadata.Custom testInstance) {
+    protected MetadataSection makeTestChanges(final MetadataSection testInstance) {
         return mutateInstance(testInstance);
     }
 
     @Override
-    protected Metadata.Custom mutateInstance(final Metadata.Custom instance) {
+    protected MetadataSection mutateInstance(final MetadataSection instance) {
         final AutoscalingMetadata metadata = (AutoscalingMetadata) instance;
         final SortedMap<String, AutoscalingPolicyMetadata> policies = new TreeMap<>(metadata.policies());
         if (policies.size() == 0 || randomBoolean()) {
@@ -74,7 +74,7 @@ public class AutoscalingMetadataDiffableSerializationTests extends ChunkedToXCon
     }
 
     @Override
-    protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
+    protected Writeable.Reader<Diff<MetadataSection>> diffReader() {
         return AutoscalingMetadata.AutoscalingMetadataDiff::new;
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataSection;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
@@ -36,7 +37,7 @@ import java.util.Objects;
 /**
  * Custom {@link Metadata} implementation for storing a map of model aliases that point to model IDs
  */
-public class ModelAliasMetadata implements Metadata.Custom {
+public class ModelAliasMetadata implements MetadataSection {
 
     public static final String NAME = "trained_model_alias";
 
@@ -47,7 +48,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
         return modelAliasMetadata == null ? EMPTY : modelAliasMetadata;
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<MetadataSection> readDiffFrom(StreamInput in) throws IOException {
         return new ModelAliasMetadataDiff(in);
     }
 
@@ -97,7 +98,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<MetadataSection> diff(MetadataSection previousState) {
         return new ModelAliasMetadataDiff((ModelAliasMetadata) previousState, this);
     }
 
@@ -129,7 +130,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
         return entry.modelId;
     }
 
-    static class ModelAliasMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static class ModelAliasMetadataDiff implements NamedDiff<MetadataSection> {
 
         final Diff<Map<String, ModelAliasEntry>> modelAliasesDiff;
 
@@ -147,7 +148,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public MetadataSection apply(MetadataSection part) {
             return new ModelAliasMetadata(modelAliasesDiff.apply(((ModelAliasMetadata) part).modelAliases));
         }
 

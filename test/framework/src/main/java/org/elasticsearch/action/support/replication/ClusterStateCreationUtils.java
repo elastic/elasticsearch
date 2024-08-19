@@ -33,7 +33,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -579,12 +579,12 @@ public class ClusterStateCreationUtils {
     }
 
     private static Metadata.Builder addHealthNode(Metadata.Builder metadataBuilder, DiscoveryNode healthNode) {
-        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
-        PersistentTasksCustomMetadata.Assignment assignment = new PersistentTasksCustomMetadata.Assignment(
+        PersistentTasksMetadataSection.Builder tasks = PersistentTasksMetadataSection.builder();
+        PersistentTasksMetadataSection.Assignment assignment = new PersistentTasksMetadataSection.Assignment(
             healthNode.getId(),
             randomAlphaOfLength(10)
         );
         tasks.addTask(HealthNode.TASK_NAME, HealthNode.TASK_NAME, HealthNodeTaskParams.INSTANCE, assignment);
-        return metadataBuilder.putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        return metadataBuilder.putCustom(PersistentTasksMetadataSection.TYPE, tasks.build());
     }
 }

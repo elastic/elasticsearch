@@ -10,7 +10,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.metadata.Metadata.Custom;
+import org.elasticsearch.cluster.metadata.MetadataSection;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -24,10 +24,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-public class RepositoriesMetadataSerializationTests extends ChunkedToXContentDiffableSerializationTestCase<Custom> {
+public class RepositoriesMetadataSerializationTests extends ChunkedToXContentDiffableSerializationTestCase<MetadataSection> {
 
     @Override
-    protected Custom createTestInstance() {
+    protected MetadataSection createTestInstance() {
         int numberOfRepositories = randomInt(10);
         List<RepositoryMetadata> entries = new ArrayList<>();
         for (int i = 0; i < numberOfRepositories; i++) {
@@ -49,12 +49,12 @@ public class RepositoriesMetadataSerializationTests extends ChunkedToXContentDif
     }
 
     @Override
-    protected Writeable.Reader<Custom> instanceReader() {
+    protected Writeable.Reader<MetadataSection> instanceReader() {
         return RepositoriesMetadata::new;
     }
 
     @Override
-    protected Custom mutateInstance(Custom instance) {
+    protected MetadataSection mutateInstance(MetadataSection instance) {
         List<RepositoryMetadata> entries = new ArrayList<>(((RepositoriesMetadata) instance).repositories());
         boolean addEntry = entries.isEmpty() ? true : randomBoolean();
         if (addEntry) {
@@ -79,7 +79,7 @@ public class RepositoriesMetadataSerializationTests extends ChunkedToXContentDif
     }
 
     @Override
-    protected Custom makeTestChanges(Custom testInstance) {
+    protected MetadataSection makeTestChanges(MetadataSection testInstance) {
         RepositoriesMetadata repositoriesMetadata = (RepositoriesMetadata) testInstance;
         List<RepositoryMetadata> repos = new ArrayList<>(repositoriesMetadata.repositories());
         if (randomBoolean() && repos.size() > 1) {
@@ -98,7 +98,7 @@ public class RepositoriesMetadataSerializationTests extends ChunkedToXContentDif
     }
 
     @Override
-    protected Writeable.Reader<Diff<Custom>> diffReader() {
+    protected Writeable.Reader<Diff<MetadataSection>> diffReader() {
         return RepositoriesMetadata::readDiffFrom;
     }
 
@@ -108,7 +108,7 @@ public class RepositoriesMetadataSerializationTests extends ChunkedToXContentDif
     }
 
     @Override
-    protected Custom doParseInstance(XContentParser parser) throws IOException {
+    protected MetadataSection doParseInstance(XContentParser parser) throws IOException {
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.fromXContent(parser);
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());

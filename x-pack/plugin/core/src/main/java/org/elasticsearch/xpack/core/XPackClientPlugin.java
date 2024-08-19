@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataSection;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -161,7 +161,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 ConfigurableClusterPrivileges.WriteProfileDataPrivileges::createFrom
             ),
             // security : role-mappings
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::new),
+            new NamedWriteableRegistry.Entry(MetadataSection.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::readDiffFrom),
             new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AllExpression.NAME, AllExpression::new),
             new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),
@@ -181,11 +181,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
             // sql
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SQL, SqlFeatureSetUsage::new),
             // watcher
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, WatcherMetadata.TYPE, WatcherMetadata::new),
+            new NamedWriteableRegistry.Entry(MetadataSection.class, WatcherMetadata.TYPE, WatcherMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, WatcherMetadata.TYPE, WatcherMetadata::readDiffFrom),
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.WATCHER, WatcherFeatureSetUsage::new),
             // licensing
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, LicensesMetadata.TYPE, LicensesMetadata::new),
+            new NamedWriteableRegistry.Entry(MetadataSection.class, LicensesMetadata.TYPE, LicensesMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, LicensesMetadata.TYPE, LicensesMetadata::readDiffFrom),
             // rollup
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ROLLUP, RollupFeatureSetUsage::new),
@@ -195,30 +195,30 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
             new NamedWriteableRegistry.Entry(Task.Status.class, DownsampleShardStatus.NAME, DownsampleShardStatus::new),
             // ccr
             new NamedWriteableRegistry.Entry(AutoFollowMetadata.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
+            new NamedWriteableRegistry.Entry(MetadataSection.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
             new NamedWriteableRegistry.Entry(
                 NamedDiff.class,
                 AutoFollowMetadata.TYPE,
-                in -> AutoFollowMetadata.readDiffFrom(Metadata.Custom.class, AutoFollowMetadata.TYPE, in)
+                in -> AutoFollowMetadata.readDiffFrom(MetadataSection.class, AutoFollowMetadata.TYPE, in)
             ),
             // ILM
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.INDEX_LIFECYCLE, IndexLifecycleFeatureSetUsage::new),
             // SLM
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SNAPSHOT_LIFECYCLE, SLMFeatureSetUsage::new),
             // ILM - Custom Metadata
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new),
+            new NamedWriteableRegistry.Entry(MetadataSection.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new),
             new NamedWriteableRegistry.Entry(
                 NamedDiff.class,
                 IndexLifecycleMetadata.TYPE,
                 IndexLifecycleMetadata.IndexLifecycleMetadataDiff::new
             ),
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, LifecycleOperationMetadata.TYPE, LifecycleOperationMetadata::new),
+            new NamedWriteableRegistry.Entry(MetadataSection.class, LifecycleOperationMetadata.TYPE, LifecycleOperationMetadata::new),
             new NamedWriteableRegistry.Entry(
                 NamedDiff.class,
                 LifecycleOperationMetadata.TYPE,
                 LifecycleOperationMetadata.LifecycleOperationMetadataDiff::new
             ),
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata::new),
+            new NamedWriteableRegistry.Entry(MetadataSection.class, SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata::new),
             new NamedWriteableRegistry.Entry(
                 NamedDiff.class,
                 SnapshotLifecycleMetadata.TYPE,
@@ -240,7 +240,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
             new NamedWriteableRegistry.Entry(LifecycleAction.class, SearchableSnapshotAction.NAME, SearchableSnapshotAction::new),
             new NamedWriteableRegistry.Entry(LifecycleAction.class, MigrateAction.NAME, MigrateAction::readFrom),
             // Transforms
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, TransformMetadata.TYPE, TransformMetadata::new),
+            new NamedWriteableRegistry.Entry(MetadataSection.class, TransformMetadata.TYPE, TransformMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, TransformMetadata.TYPE, TransformMetadata.TransformMetadataDiff::new),
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.TRANSFORM, TransformFeatureSetUsage::new),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TransformField.TASK_NAME, TransformTaskParams::new),
@@ -313,7 +313,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
         return Arrays.asList(
             // ML - Custom metadata
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                MetadataSection.class,
                 new ParseField("ml"),
                 parser -> MlMetadata.LENIENT_PARSER.parse(parser, null).build()
             ),
@@ -352,9 +352,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 SnapshotUpgradeTaskState::fromXContent
             ),
             // watcher
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(WatcherMetadata.TYPE), WatcherMetadata::fromXContent),
+            new NamedXContentRegistry.Entry(MetadataSection.class, new ParseField(WatcherMetadata.TYPE), WatcherMetadata::fromXContent),
             // licensing
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(LicensesMetadata.TYPE), LicensesMetadata::fromXContent),
+            new NamedXContentRegistry.Entry(MetadataSection.class, new ParseField(LicensesMetadata.TYPE), LicensesMetadata::fromXContent),
             // rollup
             new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(RollupField.TASK_NAME), RollupJob::fromXContent),
             new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(RollupJobStatus.NAME), RollupJobStatus::fromXContent),
@@ -372,7 +372,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 TransformState::fromXContent
             ),
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                MetadataSection.class,
                 new ParseField(TransformMetadata.TYPE),
                 parser -> TransformMetadata.LENIENT_PARSER.parse(parser, null).build()
             ),
@@ -383,7 +383,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 SecurityMigrationTaskParams::fromXContent
             ),
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                MetadataSection.class,
                 new ParseField(RoleMappingMetadata.TYPE),
                 RoleMappingMetadata::fromXContent
             )

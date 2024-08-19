@@ -18,7 +18,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -333,7 +333,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     e -> logIfNecessary(() -> logger.warn("Failed to refresh job memory requirements", e))
                 );
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                    .execute(() -> refresh(clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE), listener));
+                    .execute(() -> refresh(clusterService.state().getMetadata().custom(PersistentTasksMetadataSection.TYPE), listener));
                 return true;
             } catch (EsRejectedExecutionException e) {
                 logger.warn("Couldn't schedule ML memory update - node might be shutting down", e);
@@ -364,7 +364,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         // Skip the provided job ID in the main refresh, as we unconditionally do it at the end.
         // Otherwise it might get refreshed twice, because it could have both a job task and a snapshot upgrade task.
         refresh(
-            clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE),
+            clusterService.state().getMetadata().custom(PersistentTasksMetadataSection.TYPE),
             Collections.singleton(jobId),
             listener.delegateFailureAndWrap((l, aVoid) -> refreshAnomalyDetectorJobMemory(jobId, l))
         );
@@ -389,7 +389,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
         memoryRequirementByDataFrameAnalyticsJob.put(id, mem + DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes());
 
-        PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksMetadataSection.TYPE);
         refresh(persistentTasks, listener);
     }
 
@@ -399,11 +399,11 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      * to a race where a job was opened part way through the refresh.  (Instead, entries are removed when
      * jobs are deleted.)
      */
-    public void refresh(PersistentTasksCustomMetadata persistentTasks, ActionListener<Void> onCompletion) {
+    public void refresh(PersistentTasksMetadataSection persistentTasks, ActionListener<Void> onCompletion) {
         refresh(persistentTasks, Collections.emptySet(), onCompletion);
     }
 
-    void refresh(PersistentTasksCustomMetadata persistentTasks, Set<String> jobIdsToSkip, ActionListener<Void> onCompletion) {
+    void refresh(PersistentTasksMetadataSection persistentTasks, Set<String> jobIdsToSkip, ActionListener<Void> onCompletion) {
 
         synchronized (fullRefreshCompletionListeners) {
             fullRefreshCompletionListeners.add(onCompletion);
@@ -448,7 +448,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         if (persistentTasks == null) {
             refreshComplete.onResponse(null);
         } else {
-            List<PersistentTasksCustomMetadata.PersistentTask<?>> mlDataFrameAnalyticsJobTasks = persistentTasks.tasks()
+            List<PersistentTasksMetadataSection.PersistentTask<?>> mlDataFrameAnalyticsJobTasks = persistentTasks.tasks()
                 .stream()
                 .filter(task -> MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(task.getTaskName()))
                 .toList();
@@ -491,7 +491,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     }
 
     private void refreshAllDataFrameAnalyticsJobTasks(
-        List<PersistentTasksCustomMetadata.PersistentTask<?>> mlDataFrameAnalyticsJobTasks,
+        List<PersistentTasksMetadataSection.PersistentTask<?>> mlDataFrameAnalyticsJobTasks,
         ActionListener<Void> listener
     ) {
         if (mlDataFrameAnalyticsJobTasks.isEmpty()) {

@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -99,7 +99,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
 
         String transformId = config.getId();
         // quick check whether a transform has already been created under that name
-        if (PersistentTasksCustomMetadata.getTaskWithId(clusterState, transformId) != null) {
+        if (PersistentTasksMetadataSection.getTaskWithId(clusterState, transformId) != null) {
             listener.onFailure(
                 new ResourceAlreadyExistsException(TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformId))
             );

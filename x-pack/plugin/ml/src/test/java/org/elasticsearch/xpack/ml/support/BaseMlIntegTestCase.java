@@ -38,7 +38,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.script.IngestScript;
@@ -515,9 +515,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     protected void assertRecentLastTaskStateChangeTime(String taskId, Duration howRecent, String queryNode) {
         ClusterStateRequest csRequest = new ClusterStateRequest().clear().metadata(true);
         ClusterStateResponse csResponse = client(queryNode).execute(ClusterStateAction.INSTANCE, csRequest).actionGet();
-        PersistentTasksCustomMetadata tasks = csResponse.getState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection tasks = csResponse.getState().getMetadata().custom(PersistentTasksMetadataSection.TYPE);
         assertNotNull(tasks);
-        PersistentTasksCustomMetadata.PersistentTask<?> task = tasks.getTask(taskId);
+        PersistentTasksMetadataSection.PersistentTask<?> task = tasks.getTask(taskId);
         assertNotNull(task);
         assertThat(task.getState(), instanceOf(MlTaskState.class));
         MlTaskState state = (MlTaskState) task.getState();

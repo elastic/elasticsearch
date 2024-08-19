@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -34,9 +34,9 @@ import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIG
 
 class MlAutoscalingContext {
 
-    final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> anomalyDetectionTasks;
-    final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasks;
-    final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> dataframeAnalyticsTasks;
+    final Collection<PersistentTasksMetadataSection.PersistentTask<?>> anomalyDetectionTasks;
+    final Collection<PersistentTasksMetadataSection.PersistentTask<?>> snapshotUpgradeTasks;
+    final Collection<PersistentTasksMetadataSection.PersistentTask<?>> dataframeAnalyticsTasks;
     final Map<String, TrainedModelAssignment> modelAssignments;
 
     final List<String> waitingAnomalyJobs;
@@ -45,19 +45,19 @@ class MlAutoscalingContext {
     final List<String> waitingAllocatedModels;
 
     final List<DiscoveryNode> mlNodes;
-    final PersistentTasksCustomMetadata persistentTasks;
+    final PersistentTasksMetadataSection persistentTasks;
 
     MlAutoscalingContext() {
         this(List.of(), List.of(), List.of(), Map.of(), List.of(), null);
     }
 
     MlAutoscalingContext(
-        final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> anomalyDetectionTasks,
-        final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasks,
-        final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> dataframeAnalyticsTasks,
+        final Collection<PersistentTasksMetadataSection.PersistentTask<?>> anomalyDetectionTasks,
+        final Collection<PersistentTasksMetadataSection.PersistentTask<?>> snapshotUpgradeTasks,
+        final Collection<PersistentTasksMetadataSection.PersistentTask<?>> dataframeAnalyticsTasks,
         final Map<String, TrainedModelAssignment> modelAssignments,
         final List<DiscoveryNode> mlNodes,
-        final PersistentTasksCustomMetadata persistentTasks
+        final PersistentTasksMetadataSection persistentTasks
     ) {
         this.anomalyDetectionTasks = anomalyDetectionTasks;
         this.snapshotUpgradeTasks = snapshotUpgradeTasks;
@@ -73,7 +73,7 @@ class MlAutoscalingContext {
     }
 
     MlAutoscalingContext(ClusterState clusterState) {
-        persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        persistentTasks = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
 
         anomalyDetectionTasks = anomalyDetectionTasks(persistentTasks);
         snapshotUpgradeTasks = snapshotUpgradeTasks(persistentTasks);
@@ -98,7 +98,7 @@ class MlAutoscalingContext {
     }
 
     private static List<String> getWaitingAnalyticsJobs(
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> dataframeAnalyticsTasks
+        Collection<PersistentTasksMetadataSection.PersistentTask<?>> dataframeAnalyticsTasks
     ) {
         return dataframeAnalyticsTasks.stream()
             .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
@@ -107,7 +107,7 @@ class MlAutoscalingContext {
     }
 
     private static List<String> getWaitingSnapshotUpgrades(
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasks
+        Collection<PersistentTasksMetadataSection.PersistentTask<?>> snapshotUpgradeTasks
     ) {
         return snapshotUpgradeTasks.stream()
             .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
@@ -115,15 +115,15 @@ class MlAutoscalingContext {
             .toList();
     }
 
-    private static List<String> waitingAnomalyJobs(Collection<PersistentTasksCustomMetadata.PersistentTask<?>> anomalyDetectionTasks) {
+    private static List<String> waitingAnomalyJobs(Collection<PersistentTasksMetadataSection.PersistentTask<?>> anomalyDetectionTasks) {
         return anomalyDetectionTasks.stream()
             .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
             .map(t -> ((OpenJobAction.JobParams) t.getParams()).getJobId())
             .toList();
     }
 
-    private static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> anomalyDetectionTasks(
-        PersistentTasksCustomMetadata tasksCustomMetadata
+    private static Collection<PersistentTasksMetadataSection.PersistentTask<?>> anomalyDetectionTasks(
+        PersistentTasksMetadataSection tasksCustomMetadata
     ) {
         if (tasksCustomMetadata == null) {
             return List.of();
@@ -132,8 +132,8 @@ class MlAutoscalingContext {
         return tasksCustomMetadata.findTasks(MlTasks.JOB_TASK_NAME, t -> taskStateFilter(getJobStateModifiedForReassignments(t)));
     }
 
-    private static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasks(
-        PersistentTasksCustomMetadata tasksCustomMetadata
+    private static Collection<PersistentTasksMetadataSection.PersistentTask<?>> snapshotUpgradeTasks(
+        PersistentTasksMetadataSection tasksCustomMetadata
     ) {
         if (tasksCustomMetadata == null) {
             return List.of();
@@ -142,8 +142,8 @@ class MlAutoscalingContext {
         return tasksCustomMetadata.findTasks(MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME, t -> taskStateFilter(getSnapshotUpgradeState(t)));
     }
 
-    static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> dataframeAnalyticsTasks(
-        PersistentTasksCustomMetadata tasksCustomMetadata
+    static Collection<PersistentTasksMetadataSection.PersistentTask<?>> dataframeAnalyticsTasks(
+        PersistentTasksMetadataSection tasksCustomMetadata
     ) {
         if (tasksCustomMetadata == null) {
             return List.of();

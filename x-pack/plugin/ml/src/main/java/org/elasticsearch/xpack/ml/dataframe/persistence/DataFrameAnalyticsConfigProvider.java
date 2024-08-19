@@ -35,7 +35,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksMetadataSection;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -205,7 +205,7 @@ public class DataFrameAnalyticsConfigProvider {
         ClusterState clusterState
     ) {
         String analyticsId = update.getId();
-        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksMetadataSection tasks = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
         DataFrameAnalyticsState analyticsState = MlTasks.getDataFrameAnalyticsState(analyticsId, tasks);
         if (DataFrameAnalyticsState.STOPPED.equals(analyticsState)) {
             // Analytics is stopped, therefore it is safe to proceed with the udpate

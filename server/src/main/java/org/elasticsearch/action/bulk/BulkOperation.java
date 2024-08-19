@@ -91,7 +91,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final OriginSettingClient rolloverClient;
     private final Set<String> failureStoresToBeRolledOver = ConcurrentCollections.newConcurrentSet();
     private final Set<Integer> failedRolloverRequests = ConcurrentCollections.newConcurrentSet();
-    private final Map<ShardId, Exception> preexistingShardFailures = new HashMap<>();
+    private final Map<ShardId, Exception> shortCircuitShardFailures = ConcurrentCollections.newConcurrentMap();
 
     BulkOperation(
         Task task,
@@ -157,7 +157,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.observer = observer;
         this.failureStoreDocumentConverter = failureStoreDocumentConverter;
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
-        this.preexistingShardFailures.putAll(bulkRequest.incrementalState().shardLevelFailures());
+        this.shortCircuitShardFailures.putAll(bulkRequest.incrementalState().shardLevelFailures());
     }
 
     @Override
@@ -395,7 +395,12 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     private void completeBulkOperation() {
         listener.onResponse(
-            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
+            new BulkResponse(
+                responses.toArray(new BulkItemResponse[responses.length()]),
+                buildTookInMillis(startTimeNanos),
+                BulkResponse.NO_INGEST_TOOK,
+                new BulkRequest.IncrementalState(shortCircuitShardFailures)
+            )
         );
         // Allow memory for bulk shard request items to be reclaimed before all items have been completed
         bulkRequest = null;
@@ -422,8 +427,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, Releasable releaseOnFinish) {
         ShardId shardId = bulkShardRequest.shardId();
-        if (preexistingShardFailures.containsKey(shardId)) {
-            handleShardFailure(bulkShardRequest, clusterService.state(), preexistingShardFailures.get(shardId));
+
+        // Short circuit the shark level request with the existing shard failure.
+        if (shortCircuitShardFailures.containsKey(shardId)) {
+            handleShardFailure(bulkShardRequest, clusterService.state(), shortCircuitShardFailures.get(shardId));
             releaseOnFinish.close();
         } else {
             client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
@@ -465,8 +472,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
                 @Override
                 public void onFailure(Exception e) {
-                    assert preexistingShardFailures.containsKey(shardId) == false;
-                    preexistingShardFailures.put(shardId, e);
+                    assert shortCircuitShardFailures.containsKey(shardId) == false;
+                    shortCircuitShardFailures.put(shardId, e);
                     handleShardFailure(bulkShardRequest, getClusterState(), e);
                     completeShardOperation();
                 }

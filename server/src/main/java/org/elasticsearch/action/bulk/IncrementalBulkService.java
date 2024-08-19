@@ -47,7 +47,7 @@ public class IncrementalBulkService {
         private final ArrayList<BulkResponse> responses = new ArrayList<>(2);
         private boolean globalFailure = false;
         private boolean incrementalRequestSubmitted = false;
-        private Exception topLevelFailure = null;
+        private Exception bulkActionLevelFailure = null;
         private BulkRequest bulkRequest = null;
 
         private Handler(Client client, @Nullable String waitForActiveShards, @Nullable TimeValue timeout, @Nullable String refresh) {
@@ -59,21 +59,18 @@ public class IncrementalBulkService {
         }
 
         public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
-            if (topLevelFailure != null) {
-                assert releasables.isEmpty();
-                assert bulkRequest == null;
-                if (globalFailure == false) {
-                    addItemLevelFailures(items);
-                }
-                Releasables.close(releasable);
+            if (bulkActionLevelFailure != null) {
+                shortCircuitDueToTopLevelFailure(items, releasable);
                 nextItems.run();
             } else {
+                assert bulkRequest != null;
                 internalAddItems(items, releasable);
 
                 if (shouldBackOff()) {
-                    client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
+                    final boolean isFirstRequest = incrementalRequestSubmitted == false;
+                    incrementalRequestSubmitted = true;
 
-                        private final boolean isFirstRequest = incrementalRequestSubmitted == false;
+                    client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
 
                         @Override
                         public void onResponse(BulkResponse bulkResponse) {
@@ -86,8 +83,7 @@ public class IncrementalBulkService {
                         public void onFailure(Exception e) {
                             handleBulkFailure(isFirstRequest, e);
                         }
-                    }, nextItems));
-                    incrementalRequestSubmitted = true;
+                    }, nextItems::run));
                 } else {
                     nextItems.run();
                 }
@@ -96,19 +92,18 @@ public class IncrementalBulkService {
 
         private boolean shouldBackOff() {
             // TODO: Implement Real Memory Logic
-            return bulkRequest.requests().size() > 16;
+            return bulkRequest.requests().size() >= 16;
         }
 
         public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
-            if (globalFailure) {
-                assert releasables.isEmpty();
-                assert bulkRequest == null;
-                releasable.close();
-                listener.onFailure(topLevelFailure);
+            if (bulkActionLevelFailure != null) {
+                shortCircuitDueToTopLevelFailure(items, releasable);
+                errorResponse(listener);
             } else {
+                assert bulkRequest != null;
                 internalAddItems(items, releasable);
 
-                client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
+                client.bulk(bulkRequest, new ActionListener<>() {
 
                     private final boolean isFirstRequest = incrementalRequestSubmitted == false;
 
@@ -116,30 +111,48 @@ public class IncrementalBulkService {
                     public void onResponse(BulkResponse bulkResponse) {
                         responses.add(bulkResponse);
                         releaseCurrentReferences();
+                        listener.onResponse(combineResponses());
                     }
 
                     @Override
                     public void onFailure(Exception e) {
                         handleBulkFailure(isFirstRequest, e);
+                        errorResponse(listener);
                     }
-                }, () -> listener.onResponse(combineResponses())));
+                });
+            }
+        }
+
+        private void shortCircuitDueToTopLevelFailure(List<DocWriteRequest<?>> items, Releasable releasable) {
+            assert releasables.isEmpty();
+            assert bulkRequest == null;
+            if (globalFailure == false) {
+                addItemLevelFailures(items);
+            }
+            Releasables.close(releasable);
+        }
+
+        private void errorResponse(ActionListener<BulkResponse> listener) {
+            if (globalFailure) {
+                listener.onFailure(bulkActionLevelFailure);
+            } else {
+                listener.onResponse(combineResponses());
             }
         }
 
         private void handleBulkFailure(boolean isFirstRequest, Exception e) {
-            assert topLevelFailure == null;
+            assert bulkActionLevelFailure == null;
             globalFailure = isFirstRequest;
-            topLevelFailure = e;
+            bulkActionLevelFailure = e;
             addItemLevelFailures(bulkRequest.requests());
             releaseCurrentReferences();
-            bulkRequest = null;
         }
 
         private void addItemLevelFailures(List<DocWriteRequest<?>> items) {
             BulkItemResponse[] bulkItemResponses = new BulkItemResponse[items.size()];
             int idx = 0;
             for (DocWriteRequest<?> item : items) {
-                BulkItemResponse.Failure failure = new BulkItemResponse.Failure(item.index(), item.id(), topLevelFailure);
+                BulkItemResponse.Failure failure = new BulkItemResponse.Failure(item.index(), item.id(), bulkActionLevelFailure);
                 bulkItemResponses[idx++] = BulkItemResponse.failure(idx, item.opType(), failure);
             }
 
@@ -167,6 +180,7 @@ public class IncrementalBulkService {
         }
 
         private void releaseCurrentReferences() {
+            bulkRequest = null;
             releasables.forEach(Releasable::close);
             releasables.clear();
         }

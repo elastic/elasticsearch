@@ -27,8 +27,12 @@ libs/logstash-bridge @elastic/logstash
 x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/store/KibanaOwnedReservedRoleDescriptors.java @elastic/kibana-security
 
 # APM Data index templates, etc.
-x-pack/plugin/apm-data/src/main/resources @elastic/apm-server
-x-pack/plugin/apm-data/src/yamlRestTest/resources @elastic/apm-server
+x-pack/plugin/apm-data/src/main/resources @elastic/obs-ds-intake-services
+x-pack/plugin/apm-data/src/yamlRestTest/resources @elastic/obs-ds-intake-services
+
+# OTel
+x-pack/plugin/otel-data/src/main/resources @elastic/obs-ds-intake-services
+x-pack/plugin/otel-data/src/yamlRestTest/resources @elastic/obs-ds-intake-services
 
 # Delivery
 gradle @elastic/es-delivery

@@ -313,3 +313,74 @@ setup:
               query: "octopus comforter smells"
 
   - match: { status: 400 }
+
+---
+"Search on a sparse_vector field with dots in the field names":
+
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: dots in field names allowed starting in in 8.16.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              ml.tokens:
+                type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          ml:
+            tokens:
+              running: 2.4097164
+              good: 2.170997
+              run: 2.052153
+              race: 1.4575411
+              for: 1.1908325
+              5.0k: 2.489943
+
+  - match: { result: "created" }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match:
+      _source:
+        ml:
+          tokens:
+            running: 2.4097164
+            good: 2.170997
+            run: 2.052153
+            race: 1.4575411
+            for: 1.1908325
+            5.0k: 2.489943
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            sparse_vector:
+              field: ml.tokens
+              query_vector:
+                running: 2.4097164
+                good: 2.170997
+                run: 2.052153
+                race: 1.4575411
+                for: 1.1908325
+                5.0k: 2.489943
+
+  - match: { hits.total.value: 1 }
+

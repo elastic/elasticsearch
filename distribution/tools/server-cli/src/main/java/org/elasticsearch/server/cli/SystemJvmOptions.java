@@ -66,11 +66,6 @@ final class SystemJvmOptions {
                 "-Dlog4j2.disable.jmx=true",
                 "-Dlog4j2.formatMsgNoLookups=true",
                 "-Djava.locale.providers=" + getLocaleProviders(),
-                /*
-                 * Temporarily suppress illegal reflective access in searchable snapshots shared cache preallocation; this is temporary
-                 * while we explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
-                 */
-                "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
                 maybeEnableNativeAccess(),
                 maybeOverrideDockerCgroup(distroType),
                 maybeSetActiveProcessorCount(nodeSettings),

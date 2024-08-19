@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 public class LicenseUtils {
 
     public static final String EXPIRED_FEATURE_METADATA = "es.license.expired.feature";
-    public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("EEEE, MMMM dd, yyyy");
+    public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("EEEE, MMMM dd, yyyy").withLocale(Locale.ENGLISH);
 
     /**
      * Exception to be thrown when a feature action requires a valid license, but license

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.apmdata;
+package org.elasticsearch.xpack.oteldata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,34 +21,36 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-public class APMPlugin extends Plugin implements ActionPlugin {
-    private static final Logger logger = LogManager.getLogger(APMPlugin.class);
+public class OTelPlugin extends Plugin implements ActionPlugin {
+    private static final Logger logger = LogManager.getLogger(OTelPlugin.class);
 
-    final SetOnce<APMIndexTemplateRegistry> registry = new SetOnce<>();
+    final SetOnce<OTelIndexTemplateRegistry> registry = new SetOnce<>();
 
     private final boolean enabled;
 
-    // APM_DATA_REGISTRY_ENABLED controls enabling the index template registry.
+    // OTEL_DATA_REGISTRY_ENABLED controls enabling the index template registry.
     //
     // This setting will be ignored if the plugin is disabled.
-    static final Setting<Boolean> APM_DATA_REGISTRY_ENABLED = Setting.boolSetting(
-        "xpack.apm_data.registry.enabled",
-        true,
+    static final Setting<Boolean> OTEL_DATA_REGISTRY_ENABLED = Setting.boolSetting(
+        "xpack.otel_data.registry.enabled",
+        // OTel-data is under development, and we start with opt-in first.
+        // Furthermore, this could help with staged rollout in serverless
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
-    public APMPlugin(Settings settings) {
-        this.enabled = XPackSettings.APM_DATA_ENABLED.get(settings);
+    public OTelPlugin(Settings settings) {
+        this.enabled = XPackSettings.OTEL_DATA_ENABLED.get(settings);
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        logger.info("APM ingest plugin is {}", enabled ? "enabled" : "disabled");
+        logger.info("OTel ingest plugin is {}", enabled ? "enabled" : "disabled");
         Settings settings = services.environment().settings();
         ClusterService clusterService = services.clusterService();
         registry.set(
-            new APMIndexTemplateRegistry(
+            new OTelIndexTemplateRegistry(
                 settings,
                 clusterService,
                 services.threadPool(),
@@ -58,8 +60,8 @@ public class APMPlugin extends Plugin implements ActionPlugin {
             )
         );
         if (enabled) {
-            APMIndexTemplateRegistry registryInstance = registry.get();
-            registryInstance.setEnabled(APM_DATA_REGISTRY_ENABLED.get(settings));
+            OTelIndexTemplateRegistry registryInstance = registry.get();
+            registryInstance.setEnabled(OTEL_DATA_REGISTRY_ENABLED.get(settings));
             registryInstance.initialize();
         }
         return Collections.emptyList();
@@ -72,6 +74,6 @@ public class APMPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(APM_DATA_REGISTRY_ENABLED);
+        return List.of(OTEL_DATA_REGISTRY_ENABLED);
     }
 }

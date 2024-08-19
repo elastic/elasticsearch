@@ -191,6 +191,7 @@ public class TransportVersions {
     public static final TransportVersion INGEST_PIPELINE_EXCEPTION_ADDED = def(8_721_00_0);
     public static final TransportVersion ZDT_NANOS_SUPPORT = def(8_722_00_0);
     public static final TransportVersion REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES = def(8_723_00_0);
+    public static final TransportVersion RANDOM_RERANKER_RETRIEVER = def(8_724_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

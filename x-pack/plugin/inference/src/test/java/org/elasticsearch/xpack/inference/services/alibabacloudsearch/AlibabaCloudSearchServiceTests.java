@@ -120,7 +120,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             Map<String, Object> serviceSettingsMap = new HashMap<>();
-            serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.MODEL_ID, "service_id");
+            serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, "service_id");
             serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, "host");
             serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, "default");
             serviceSettingsMap.put(ServiceFields.URL, getUrl(webServer));
@@ -143,7 +143,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             var result = listener.actionGet(TIMEOUT);
 
             Map<String, Object> expectedServiceSettingsMap = new HashMap<>();
-            expectedServiceSettingsMap.put(AlibabaCloudSearchServiceSettings.MODEL_ID, "service_id");
+            expectedServiceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, "service_id");
             expectedServiceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, "host");
             expectedServiceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, "default");
             expectedServiceSettingsMap.put(ServiceFields.URL, getUrl(webServer));

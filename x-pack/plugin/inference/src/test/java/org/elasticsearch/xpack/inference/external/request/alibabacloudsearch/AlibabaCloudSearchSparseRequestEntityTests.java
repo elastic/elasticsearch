@@ -25,8 +25,7 @@ public class AlibabaCloudSearchSparseRequestEntityTests extends ESTestCase {
     public void testXContent_WritesAllFields_WhenTheyAreDefined() throws IOException {
         var entity = new AlibabaCloudSearchSparseRequestEntity(
             List.of("abc"),
-            new AlibabaCloudSearchSparseTaskSettings(InputType.INGEST, true),
-            "model"
+            new AlibabaCloudSearchSparseTaskSettings(InputType.INGEST, true)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -38,7 +37,7 @@ public class AlibabaCloudSearchSparseRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
-        var entity = new AlibabaCloudSearchSparseRequestEntity(List.of("abc"), AlibabaCloudSearchSparseTaskSettings.EMPTY_SETTINGS, null);
+        var entity = new AlibabaCloudSearchSparseRequestEntity(List.of("abc"), AlibabaCloudSearchSparseTaskSettings.EMPTY_SETTINGS);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);

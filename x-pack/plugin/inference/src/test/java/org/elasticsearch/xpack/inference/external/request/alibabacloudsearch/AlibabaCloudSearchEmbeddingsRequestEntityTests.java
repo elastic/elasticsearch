@@ -25,8 +25,7 @@ public class AlibabaCloudSearchEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_WritesAllFields_WhenTheyAreDefined() throws IOException {
         var entity = new AlibabaCloudSearchEmbeddingsRequestEntity(
             List.of("abc"),
-            new AlibabaCloudSearchEmbeddingsTaskSettings(InputType.INGEST),
-            "model"
+            new AlibabaCloudSearchEmbeddingsTaskSettings(InputType.INGEST)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -38,11 +37,7 @@ public class AlibabaCloudSearchEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
-        var entity = new AlibabaCloudSearchEmbeddingsRequestEntity(
-            List.of("abc"),
-            AlibabaCloudSearchEmbeddingsTaskSettings.EMPTY_SETTINGS,
-            null
-        );
+        var entity = new AlibabaCloudSearchEmbeddingsRequestEntity(List.of("abc"), AlibabaCloudSearchEmbeddingsTaskSettings.EMPTY_SETTINGS);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);

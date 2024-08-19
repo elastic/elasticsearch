@@ -65,7 +65,7 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractWireSerializ
                 Map.of(
                     ServiceFields.URL,
                     url,
-                    AlibabaCloudSearchServiceSettings.MODEL_ID,
+                    AlibabaCloudSearchServiceSettings.SERVICE_ID,
                     model,
                     AlibabaCloudSearchServiceSettings.HOST,
                     host,
@@ -95,7 +95,7 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractWireSerializ
                 Map.of(
                     ServiceFields.URL,
                     url,
-                    AlibabaCloudSearchServiceSettings.MODEL_ID,
+                    AlibabaCloudSearchServiceSettings.SERVICE_ID,
                     model,
                     AlibabaCloudSearchServiceSettings.HOST,
                     host,
@@ -194,7 +194,7 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractWireSerializ
         if (url != null) {
             map.put(ServiceFields.URL, url);
         }
-        map.put(AlibabaCloudSearchServiceSettings.MODEL_ID, serviceId);
+        map.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, serviceId);
         map.put(AlibabaCloudSearchServiceSettings.HOST, host);
         map.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, workspaceName);
         return map;

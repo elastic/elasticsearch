@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.request.alibabacloudsearch;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.AlibabaCloudSearchRerankTaskSettings;
@@ -16,12 +15,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public record AlibabaCloudSearchRerankRequestEntity(
-    String query,
-    List<String> input,
-    AlibabaCloudSearchRerankTaskSettings taskSettings,
-    @Nullable String model
-) implements ToXContentObject {
+public record AlibabaCloudSearchRerankRequestEntity(String query, List<String> input, AlibabaCloudSearchRerankTaskSettings taskSettings)
+    implements
+        ToXContentObject {
 
     private static final String SEARCH_QUERY = "query";
     private static final String TEXTS_FIELD = "docs";

@@ -65,7 +65,7 @@ public class AlibabaCloudSearchSparseRequest extends AlibabaCloudSearchRequest {
         HttpPost httpPost = new HttpPost(uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new AlibabaCloudSearchSparseRequestEntity(input, taskSettings, model)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new AlibabaCloudSearchSparseRequestEntity(input, taskSettings)).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 

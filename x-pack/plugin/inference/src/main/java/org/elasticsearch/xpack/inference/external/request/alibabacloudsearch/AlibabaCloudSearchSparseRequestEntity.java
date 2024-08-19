@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.request.alibabacloudsearch;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseTaskSettings;
@@ -16,11 +15,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public record AlibabaCloudSearchSparseRequestEntity(
-    List<String> input,
-    AlibabaCloudSearchSparseTaskSettings taskSettings,
-    @Nullable String model
-) implements ToXContentObject {
+public record AlibabaCloudSearchSparseRequestEntity(List<String> input, AlibabaCloudSearchSparseTaskSettings taskSettings)
+    implements
+        ToXContentObject {
 
     private static final String TEXTS_FIELD = "input";
 

@@ -60,7 +60,7 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractWi
                     maxInputTokens,
                     AlibabaCloudSearchServiceSettings.HOST,
                     host,
-                    AlibabaCloudSearchServiceSettings.MODEL_ID,
+                    AlibabaCloudSearchServiceSettings.SERVICE_ID,
                     model,
                     AlibabaCloudSearchServiceSettings.WORKSPACE_NAME,
                     workspaceName,

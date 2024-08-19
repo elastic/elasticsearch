@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.request.alibabacloudsearch;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -19,11 +18,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsTaskSettings.invalidInputTypeMessage;
 
-public record AlibabaCloudSearchEmbeddingsRequestEntity(
-    List<String> input,
-    AlibabaCloudSearchEmbeddingsTaskSettings taskSettings,
-    @Nullable String model
-) implements ToXContentObject {
+public record AlibabaCloudSearchEmbeddingsRequestEntity(List<String> input, AlibabaCloudSearchEmbeddingsTaskSettings taskSettings)
+    implements
+        ToXContentObject {
 
     private static final String SEARCH_DOCUMENT = "document";
     private static final String SEARCH_QUERY = "query";

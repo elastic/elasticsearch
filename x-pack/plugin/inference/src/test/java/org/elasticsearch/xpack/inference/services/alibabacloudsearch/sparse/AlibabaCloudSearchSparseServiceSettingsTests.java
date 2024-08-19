@@ -46,7 +46,7 @@ public class AlibabaCloudSearchSparseServiceSettingsTests extends AbstractWireSe
                     url,
                     AlibabaCloudSearchServiceSettings.HOST,
                     host,
-                    AlibabaCloudSearchServiceSettings.MODEL_ID,
+                    AlibabaCloudSearchServiceSettings.SERVICE_ID,
                     model,
                     AlibabaCloudSearchServiceSettings.WORKSPACE_NAME,
                     workspaceName,

@@ -65,7 +65,7 @@ public class AlibabaCloudSearchEmbeddingsRequest extends AlibabaCloudSearchReque
         HttpPost httpPost = new HttpPost(uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new AlibabaCloudSearchEmbeddingsRequestEntity(input, taskSettings, model)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new AlibabaCloudSearchEmbeddingsRequestEntity(input, taskSettings)).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 

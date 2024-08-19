@@ -137,9 +137,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799
-- class: org.elasticsearch.indices.breaker.HierarchyCircuitBreakerTelemetryTests
-  method: testCircuitBreakerTripCountMetric
-  issue: https://github.com/elastic/elasticsearch/issues/111778
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {comparison.RangeVersion SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/111814

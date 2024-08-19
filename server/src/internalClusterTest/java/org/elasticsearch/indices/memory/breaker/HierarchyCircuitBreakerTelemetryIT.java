@@ -6,25 +6,23 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.indices.breaker;
+package org.elasticsearch.indices.memory.breaker;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.Measurement;
-import org.elasticsearch.telemetry.RecordingInstruments;
-import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
-import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
+import org.junit.After;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -41,54 +39,11 @@ import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.R
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, supportsDedicatedMasters = true)
-public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
+public class HierarchyCircuitBreakerTelemetryIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestCircuitBreakerTelemetryPlugin.class);
-    }
-
-    public static class TestCircuitBreakerTelemetryPlugin extends TestTelemetryPlugin {
-        protected final MeterRegistry meter = new RecordingMeterRegistry() {
-            private final LongCounter tripCount = new RecordingInstruments.RecordingLongCounter(
-                CircuitBreakerMetrics.ES_BREAKER_TRIP_COUNT_TOTAL,
-                recorder
-            ) {
-                @Override
-                public void incrementBy(long inc) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public void incrementBy(long inc, Map<String, Object> attributes) {
-                    throw new UnsupportedOperationException();
-                }
-            };
-
-            @Override
-            protected LongCounter buildLongCounter(String name, String description, String unit) {
-                if (name.equals(tripCount.getName())) {
-                    return tripCount;
-                }
-                throw new IllegalArgumentException("Unknown counter metric name [" + name + "]");
-            }
-
-            @Override
-            public LongCounter registerLongCounter(String name, String description, String unit) {
-                assertCircuitBreakerName(name);
-                return super.registerLongCounter(name, description, unit);
-            }
-
-            @Override
-            public LongCounter getLongCounter(String name) {
-                assertCircuitBreakerName(name);
-                return super.getLongCounter(name);
-            }
-
-            private void assertCircuitBreakerName(final String name) {
-                assertThat(name, Matchers.oneOf(CircuitBreakerMetrics.ES_BREAKER_TRIP_COUNT_TOTAL));
-            }
-        };
+        return List.of(TestTelemetryPlugin.class);
     }
 
     public void testCircuitBreakerTripCountMetric() {
@@ -142,37 +97,29 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
         fail("Expected exception not thrown");
     }
 
-    private List<Measurement> getMeasurements(String dataNodeName) {
-        final TestTelemetryPlugin dataNodeTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
-            .filterPlugins(TestCircuitBreakerTelemetryPlugin.class)
+    @After
+    public void resetClusterSetting() {
+        final var circuitBreakerSettings = Settings.builder()
+            .putNull(FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
+            .putNull(FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey())
+            .putNull(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
+            .putNull(REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey())
+            .putNull(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
+            .putNull(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey())
+            .putNull(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
+            .putNull(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey());
+        updateClusterSettings(circuitBreakerSettings);
+    }
+
+    private List<Measurement> getMeasurements(String nodeName) {
+        final TestTelemetryPlugin telemetryPlugin = internalCluster().getInstance(PluginsService.class, nodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
             .toList()
             .get(0);
         return Measurement.combine(
-            Stream.of(dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_TRIP_COUNT_TOTAL).stream())
+            Stream.of(telemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_TRIP_COUNT_TOTAL).stream())
                 .flatMap(Function.identity())
                 .toList()
         );
     }
-
-    // Make sure circuit breaker telemetry on trip count reports the same values as circuit breaker stats
-    private void assertCircuitBreakerTripCount(
-        final HierarchyCircuitBreakerService circuitBreakerService,
-        final String circuitBreakerName,
-        int firstBytesEstimate,
-        int secondBytesEstimate,
-        long expectedTripCountValue
-    ) {
-        try {
-            circuitBreakerService.getBreaker(circuitBreakerName).addEstimateBytesAndMaybeBreak(firstBytesEstimate, randomAlphaOfLength(5));
-            circuitBreakerService.getBreaker(circuitBreakerName).addEstimateBytesAndMaybeBreak(secondBytesEstimate, randomAlphaOfLength(5));
-        } catch (final CircuitBreakingException cbex) {
-            final CircuitBreakerStats circuitBreakerStats = Arrays.stream(circuitBreakerService.stats().getAllStats())
-                .filter(stats -> circuitBreakerName.equals(stats.getName()))
-                .findAny()
-                .get();
-            assertThat(circuitBreakerService.getBreaker(circuitBreakerName).getTrippedCount(), Matchers.equalTo(expectedTripCountValue));
-            assertThat(circuitBreakerStats.getTrippedCount(), Matchers.equalTo(expectedTripCountValue));
-        }
-    }
-
 }

@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.repositories.blobstore.testkit;
+package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import fixture.gcs.GoogleCloudStorageHttpFixture;
 import fixture.gcs.TestUtils;
@@ -23,7 +23,7 @@ import java.nio.charset.StandardCharsets;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
-public class GCSSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestTestCase {
+public class GCSRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.google.fixture", "true"));
 
     private static GoogleCloudStorageHttpFixture fixture = new GoogleCloudStorageHttpFixture(USE_FIXTURE, "bucket", "o/oauth2/token");

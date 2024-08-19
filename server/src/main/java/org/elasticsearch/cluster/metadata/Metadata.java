@@ -171,7 +171,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE)
     );
 
-    public static final String EMPTY_METADATA = builder().build();
+    public static final Metadata EMPTY_METADATA = builder().build();
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
 

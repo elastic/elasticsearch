@@ -224,7 +224,12 @@ public class EsqlCapabilities {
         /**
          * Support CIDRMatch in CombineDisjunctions rule.
          */
-        COMBINE_DISJUNCTIVE_CIDRMATCHES;
+        COMBINE_DISJUNCTIVE_CIDRMATCHES,
+
+        /**
+         * Consider the upper bound when computing the interval in BUCKET auto mode.
+         */
+        BUCKET_INCLUSIVE_UPPER_BOUND;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

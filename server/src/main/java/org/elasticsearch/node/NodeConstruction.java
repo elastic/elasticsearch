@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService
 import org.elasticsearch.cluster.features.NodeFeaturesFixupListener;
 import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionProvider;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
@@ -589,6 +590,7 @@ class NodeConstruction {
     }
 
     private DataStreamGlobalRetentionProvider createDataStreamServicesAndGlobalRetentionResolver(
+        Settings settings,
         ThreadPool threadPool,
         ClusterService clusterService,
         IndicesService indicesService,
@@ -598,13 +600,20 @@ class NodeConstruction {
             DataStreamFactoryRetention.load(pluginsService, clusterService.getClusterSettings())
         );
         modules.bindToInstance(DataStreamGlobalRetentionProvider.class, dataStreamGlobalRetentionProvider);
+
+        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
+            settings,
+            clusterService.getClusterSettings(),
+            DataStreamFactoryRetention.load(pluginsService, clusterService.getClusterSettings())
+        );
+        modules.bindToInstance(DataStreamGlobalRetentionSettings.class, dataStreamGlobalRetentionSettings);
         modules.bindToInstance(
             MetadataCreateDataStreamService.class,
             new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService)
         );
         modules.bindToInstance(
             MetadataDataStreamsService.class,
-            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionProvider)
+            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionSettings)
         );
         return dataStreamGlobalRetentionProvider;
     }
@@ -816,6 +825,7 @@ class NodeConstruction {
         );
 
         final DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider = createDataStreamServicesAndGlobalRetentionResolver(
+            settings,
             threadPool,
             clusterService,
             indicesService,

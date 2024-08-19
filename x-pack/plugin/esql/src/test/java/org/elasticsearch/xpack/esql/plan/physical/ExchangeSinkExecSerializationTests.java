@@ -63,7 +63,7 @@ public class ExchangeSinkExecSerializationTests extends ESTestCase {
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflicts() throws IOException {
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(18253252));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(2444252));
     }
 
     /**
@@ -71,10 +71,12 @@ public class ExchangeSinkExecSerializationTests extends ESTestCase {
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflictsWithParent() throws IOException {
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(45408265));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(5885765));
         /*
          * History:
-         * Cache attribute subclasses (#111447): GBs -> 43.3mb
+         *  2 gb+ - start
+         * 43.3mb - Cache attribute subclasses #111447
+         *  5.6mb - shorten error messages for UnsupportedAttributes #111973
          */
     }
 

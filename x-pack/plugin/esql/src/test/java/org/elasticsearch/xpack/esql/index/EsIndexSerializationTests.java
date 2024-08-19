@@ -136,7 +136,7 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflicts() throws IOException {
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(8881091));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(976591));
     }
 
     /**
@@ -144,7 +144,12 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflictsWithParent() throws IOException {
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(17730374));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1921374));
+        /*
+         * History:
+         * 16.9mb - start
+         *  1.8mb - shorten error messages for UnsupportedAttributes #111973
+         */
     }
 
     /**

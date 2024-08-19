@@ -123,7 +123,7 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     public String toString() {
-        return name() + "{" + label() + "}" + "#" + id();
+        return name() + "{" + label() + (synthetic()? ":s" : "") + "}" + "#" + id();
     }
 
     @Override

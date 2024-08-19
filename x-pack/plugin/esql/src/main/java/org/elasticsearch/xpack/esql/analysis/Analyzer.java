@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -1196,11 +1195,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private Expression typeSpecificConvert(AbstractConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
-            NameId id = ((FieldAttribute) convert.field()).id();
-            // TODO: mark this synthetic
-            // TODO: while likely we only need this to be the correct type and have the correct id, this deviating so much from the actual
-            // field attribute could lead to bugs.
-            FieldAttribute resolvedAttr = new FieldAttribute(source, null, field.getName(), field, Nullability.TRUE, id, false);
+            FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
+            FieldAttribute resolvedAttr = new FieldAttribute(
+                source,
+                originalFieldAttr.parent(),
+                originalFieldAttr.name(),
+                field,
+                originalFieldAttr.nullable(),
+                originalFieldAttr.id(),
+                true
+            );
             return convert.replaceChildren(Collections.singletonList(resolvedAttr));
         }
     }

@@ -1,6 +1,0 @@
-pr: 107967
-summary: Sort time series indices by time range in `GetDataStreams` API
-area: TSDB
-type: bug
-issues:
- - 102088

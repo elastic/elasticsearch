@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -68,7 +69,9 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
             ClusterBlockException e = expectThrows(ClusterBlockException.class, prepareIndex("test").setId("1").setSource("foo", "bar"));
             assertEquals(
                 "index [test] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, "
-                    + "index has read-only-allow-delete block];",
+                    + "index has read-only-allow-delete block; for more information, see "
+                    + ReferenceDocs.FLOOD_STAGE_WATERMARK
+                    + "];",
                 e.getMessage()
             );
         } finally {

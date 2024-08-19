@@ -122,8 +122,6 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         private final Map<String, ComposableIndexTemplate> indexTemplates;
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
-        @Nullable
-        private final DataStreamGlobalRetention globalRetention;
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -133,33 +131,57 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             } else {
                 rolloverConfiguration = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                globalRetention = in.readOptionalWriteable(DataStreamGlobalRetention::read);
-            } else {
-                globalRetention = null;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
+                && in.getTransportVersion().before(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
+                in.readOptionalWriteable(DataStreamGlobalRetention::read);
             }
         }
 
+        /**
+         * Please use {@link GetComposableIndexTemplateAction.Response#Response(Map)}
+         */
         public Response(Map<String, ComposableIndexTemplate> indexTemplates, @Nullable DataStreamGlobalRetention globalRetention) {
-            this(indexTemplates, null, globalRetention);
+            this(indexTemplates, (RolloverConfiguration) null);
         }
 
+        /**
+         * Please use {@link GetComposableIndexTemplateAction.Response#Response(Map, RolloverConfiguration)}
+         */
+        @Deprecated
         public Response(
             Map<String, ComposableIndexTemplate> indexTemplates,
             @Nullable RolloverConfiguration rolloverConfiguration,
             @Nullable DataStreamGlobalRetention globalRetention
         ) {
+            this(indexTemplates, rolloverConfiguration);
+        }
+
+        public Response(Map<String, ComposableIndexTemplate> indexTemplates) {
+            this(indexTemplates, (RolloverConfiguration) null);
+        }
+
+        public Response(Map<String, ComposableIndexTemplate> indexTemplates, @Nullable RolloverConfiguration rolloverConfiguration) {
             this.indexTemplates = indexTemplates;
             this.rolloverConfiguration = rolloverConfiguration;
-            this.globalRetention = globalRetention;
         }
 
         public Map<String, ComposableIndexTemplate> indexTemplates() {
             return indexTemplates;
         }
 
+        /**
+         * @return null
+         * @deprecated global retention is not used in composable templates anymore
+         */
+        @Deprecated
+        @Nullable
         public DataStreamGlobalRetention getGlobalRetention() {
-            return globalRetention;
+            return null;
+        }
+
+        @Nullable
+        public RolloverConfiguration getRolloverConfiguration() {
+            return rolloverConfiguration;
         }
 
         @Override
@@ -168,8 +190,9 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeOptionalWriteable(globalRetention);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
+                && out.getTransportVersion().before(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
+                out.writeOptionalWriteable(null);
             }
         }
 
@@ -178,14 +201,12 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             GetComposableIndexTemplateAction.Response that = (GetComposableIndexTemplateAction.Response) o;
-            return Objects.equals(indexTemplates, that.indexTemplates)
-                && Objects.equals(rolloverConfiguration, that.rolloverConfiguration)
-                && Objects.equals(globalRetention, that.globalRetention);
+            return Objects.equals(indexTemplates, that.indexTemplates) && Objects.equals(rolloverConfiguration, that.rolloverConfiguration);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indexTemplates, rolloverConfiguration, globalRetention);
+            return Objects.hash(indexTemplates, rolloverConfiguration);
         }
 
         @Override
@@ -203,7 +224,5 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             builder.endObject();
             return builder;
         }
-
     }
-
 }

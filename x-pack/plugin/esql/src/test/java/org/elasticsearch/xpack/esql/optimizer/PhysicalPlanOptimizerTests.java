@@ -45,8 +45,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -70,6 +68,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -110,7 +110,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
@@ -139,7 +139,6 @@ import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerializ
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
-import static org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC;
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
@@ -180,7 +179,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private TestDataSource countriesBbox;
     private TestDataSource countriesBboxWeb;
 
-    private final EsqlConfiguration config;
+    private final Configuration config;
 
     private record TestDataSource(Map<String, EsField> mapping, EsIndex index, Analyzer analyzer) {}
 
@@ -196,7 +195,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return asList(new Tuple<>("default", Map.of()));
     }
 
-    public PhysicalPlanOptimizerTests(String name, EsqlConfiguration config) {
+    public PhysicalPlanOptimizerTests(String name, Configuration config) {
         this.config = config;
     }
 
@@ -522,7 +521,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.limit(), is(l(10)));
         assertThat(source.sorts().size(), is(1));
         FieldSort order = source.sorts().get(0);
-        assertThat(order.direction(), is(ASC));
+        assertThat(order.direction(), is(Order.OrderDirection.ASC));
         assertThat(name(order.field()), is("last_name"));
         // last name is keyword, salary, emp_no, doc id, segment, forwards and backwards doc id maps are all ints
         int estimatedSize = KEYWORD_EST + Integer.BYTES * 6;
@@ -1192,7 +1191,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.limit(), is(l(1)));
         assertThat(source.sorts().size(), is(1));
         FieldSort order = source.sorts().get(0);
-        assertThat(order.direction(), is(ASC));
+        assertThat(order.direction(), is(Order.OrderDirection.ASC));
         assertThat(name(order.field()), is("salary"));
         // ints for doc id, segment id, forwards and backwards mapping, languages, and salary
         assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES * 6));
@@ -4549,7 +4548,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private void assertFieldExtractionWithDocValues(FieldExtractExec extract, DataType dataType, String... fieldNames) {
         extract.attributesToExtract().forEach(attr -> {
-            String name = attr.qualifiedName();
+            String name = attr.name();
             if (asList(fieldNames).contains(name)) {
                 assertThat("Expected field '" + name + "' to use doc-values", extract.hasDocValuesAttribute(attr), equalTo(true));
                 assertThat("Expected field '" + name + "' to have data type " + dataType, attr.dataType(), equalTo(dataType));

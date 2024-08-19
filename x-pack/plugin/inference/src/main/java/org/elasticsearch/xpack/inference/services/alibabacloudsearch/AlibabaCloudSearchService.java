@@ -270,15 +270,15 @@ public class AlibabaCloudSearchService extends SenderService {
         AlibabaCloudSearchEmbeddingsServiceSettings serviceSettings = new AlibabaCloudSearchEmbeddingsServiceSettings(
             new AlibabaCloudSearchServiceSettings(
                 model.getServiceSettings().getCommonSettings().getUri(),
-                SimilarityMeasure.DOT_PRODUCT,
-                embeddingSize,
-                model.getServiceSettings().getCommonSettings().getMaxInputTokens(),
                 model.getServiceSettings().getCommonSettings().modelId(),
                 model.getServiceSettings().getCommonSettings().getHost(),
                 model.getServiceSettings().getCommonSettings().getWorkspaceName(),
                 model.getServiceSettings().getCommonSettings().getHttpSchema(),
                 model.getServiceSettings().getCommonSettings().rateLimitSettings()
-            )
+            ),
+            SimilarityMeasure.DOT_PRODUCT,
+            embeddingSize,
+            model.getServiceSettings().getMaxInputTokens()
         );
 
         return new AlibabaCloudSearchEmbeddingsModel(model, serviceSettings);

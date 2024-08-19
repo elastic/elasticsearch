@@ -26,13 +26,16 @@ import static org.hamcrest.Matchers.is;
 public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<
     AlibabaCloudSearchEmbeddingsServiceSettings> {
     public static AlibabaCloudSearchEmbeddingsServiceSettings createRandom() {
-        var commonSettings = AlibabaCloudSearchServiceSettingsTests.createRandom();
-        return new AlibabaCloudSearchEmbeddingsServiceSettings(commonSettings);
+        var url = randomBoolean() ? randomAlphaOfLength(15) : null;
+        return createRandom(url);
     }
 
     public static AlibabaCloudSearchEmbeddingsServiceSettings createRandom(String url) {
         var commonSettings = AlibabaCloudSearchServiceSettingsTests.createRandom(url);
-        return new AlibabaCloudSearchEmbeddingsServiceSettings(commonSettings);
+        var similarity = SimilarityMeasure.DOT_PRODUCT;
+        var dims = 1536;
+        var maxInputTokens = 512;
+        return new AlibabaCloudSearchEmbeddingsServiceSettings(commonSettings, similarity, dims, maxInputTokens);
     }
 
     public void testFromMap() {
@@ -72,17 +75,10 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractWi
             serviceSettings,
             is(
                 new AlibabaCloudSearchEmbeddingsServiceSettings(
-                    new AlibabaCloudSearchServiceSettings(
-                        ServiceUtils.createUri(url),
-                        SimilarityMeasure.DOT_PRODUCT,
-                        dims,
-                        maxInputTokens,
-                        model,
-                        host,
-                        workspaceName,
-                        httpSchema,
-                        null
-                    )
+                    new AlibabaCloudSearchServiceSettings(ServiceUtils.createUri(url), model, host, workspaceName, httpSchema, null),
+                    SimilarityMeasure.DOT_PRODUCT,
+                    dims,
+                    maxInputTokens
                 )
             )
         );

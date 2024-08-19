@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -28,16 +27,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
 public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     implements
@@ -57,9 +51,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String host = extractRequiredString(map, HOST, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -85,23 +76,10 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
             throw validationException;
         }
 
-        return new AlibabaCloudSearchServiceSettings(
-            uri,
-            similarity,
-            dims,
-            maxInputTokens,
-            modelId,
-            host,
-            workspaceName,
-            httpSchema,
-            rateLimitSettings
-        );
+        return new AlibabaCloudSearchServiceSettings(uri, modelId, host, workspaceName, httpSchema, rateLimitSettings);
     }
 
     private final URI uri;
-    private final SimilarityMeasure similarity;
-    private final Integer dimensions;
-    private final Integer maxInputTokens;
     private final String modelId;
     private final String host;
     private final String workspaceName;
@@ -110,9 +88,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
 
     public AlibabaCloudSearchServiceSettings(
         @Nullable URI uri,
-        @Nullable SimilarityMeasure similarity,
-        @Nullable Integer dimensions,
-        @Nullable Integer maxInputTokens,
         String modelId,
         String host,
         String workspaceName,
@@ -120,9 +95,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
         @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.uri = uri;
-        this.similarity = similarity;
-        this.dimensions = dimensions;
-        this.maxInputTokens = maxInputTokens;
         this.modelId = modelId;
         this.host = host;
         this.workspaceName = workspaceName;
@@ -132,9 +104,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
 
     public AlibabaCloudSearchServiceSettings(StreamInput in) throws IOException {
         uri = createOptionalUri(in.readOptionalString());
-        similarity = in.readOptionalEnum(SimilarityMeasure.class);
-        dimensions = in.readOptionalVInt();
-        maxInputTokens = in.readOptionalVInt();
         modelId = in.readString();
         host = in.readString();
         workspaceName = in.readString();
@@ -144,18 +113,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
 
     public URI getUri() {
         return uri;
-    }
-
-    public SimilarityMeasure getSimilarity() {
-        return similarity;
-    }
-
-    public Integer getDimensions() {
-        return dimensions;
-    }
-
-    public Integer getMaxInputTokens() {
-        return maxInputTokens;
     }
 
     @Override
@@ -204,15 +161,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
         if (uri != null) {
             builder.field(URL, uri.toString());
         }
-        if (similarity != null) {
-            builder.field(SIMILARITY, similarity);
-        }
-        if (dimensions != null) {
-            builder.field(DIMENSIONS, dimensions);
-        }
-        if (maxInputTokens != null) {
-            builder.field(MAX_INPUT_TOKENS, maxInputTokens);
-        }
         if (modelId != null) {
             builder.field(MODEL_ID, modelId);
         }
@@ -240,9 +188,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     public void writeTo(StreamOutput out) throws IOException {
         var uriToWrite = uri != null ? uri.toString() : null;
         out.writeOptionalString(uriToWrite);
-        out.writeOptionalEnum(similarity);
-        out.writeOptionalVInt(dimensions);
-        out.writeOptionalVInt(maxInputTokens);
         out.writeString(modelId);
         out.writeString(host);
         out.writeString(workspaceName);
@@ -256,9 +201,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
         if (o == null || getClass() != o.getClass()) return false;
         AlibabaCloudSearchServiceSettings that = (AlibabaCloudSearchServiceSettings) o;
         return Objects.equals(uri, that.uri)
-            && Objects.equals(similarity, that.similarity)
-            && Objects.equals(dimensions, that.dimensions)
-            && Objects.equals(maxInputTokens, that.maxInputTokens)
             && Objects.equals(modelId, that.modelId)
             && Objects.equals(host, that.host)
             && Objects.equals(workspaceName, that.workspaceName)
@@ -267,6 +209,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, similarity, dimensions, maxInputTokens, modelId, host, workspaceName, httpSchema);
+        return Objects.hash(uri, modelId, host, workspaceName, httpSchema);
     }
 }

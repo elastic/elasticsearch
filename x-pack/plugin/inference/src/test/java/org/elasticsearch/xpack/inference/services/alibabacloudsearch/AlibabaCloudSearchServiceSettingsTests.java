@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -27,7 +26,6 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -42,28 +40,12 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractWireSerializ
     }
 
     public static AlibabaCloudSearchServiceSettings createRandom(String url) {
-        return createRandom(url, null);
-    }
-
-    public static AlibabaCloudSearchServiceSettings createRandom(String url, @Nullable Integer inputDims) {
-        SimilarityMeasure similarityMeasure = null;
-        Integer dims = null;
-        var isTextEmbeddingModel = randomBoolean();
-        if (isTextEmbeddingModel) {
-            similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
-            dims = Objects.nonNull(inputDims) ? inputDims : 1536;
-        }
-        Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
         var model = randomAlphaOfLength(15);
         String host = randomAlphaOfLength(15);
         String workspaceName = randomAlphaOfLength(10);
         String httpSchema = "https";
-
         return new AlibabaCloudSearchServiceSettings(
             ServiceUtils.createOptionalUri(url),
-            similarityMeasure,
-            dims,
-            maxInputTokens,
             model,
             host,
             workspaceName,
@@ -74,9 +56,6 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractWireSerializ
 
     public void testFromMap() throws URISyntaxException {
         var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
         var model = "model";
         var host = "host";
         var workspaceName = "default";
@@ -86,12 +65,6 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractWireSerializ
                 Map.of(
                     ServiceFields.URL,
                     url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
                     AlibabaCloudSearchServiceSettings.MODEL_ID,
                     model,
                     AlibabaCloudSearchServiceSettings.HOST,
@@ -107,27 +80,12 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractWireSerializ
 
         MatcherAssert.assertThat(
             serviceSettings,
-            is(
-                new AlibabaCloudSearchServiceSettings(
-                    ServiceUtils.createUri(url),
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens,
-                    model,
-                    host,
-                    workspaceName,
-                    httpSchema,
-                    null
-                )
-            )
+            is(new AlibabaCloudSearchServiceSettings(ServiceUtils.createUri(url), model, host, workspaceName, httpSchema, null))
         );
     }
 
     public void testFromMap_WithRateLimit() {
         var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
         var model = "model";
         var host = "host";
         var workspaceName = "default";
@@ -137,12 +95,6 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractWireSerializ
                 Map.of(
                     ServiceFields.URL,
                     url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
                     AlibabaCloudSearchServiceSettings.MODEL_ID,
                     model,
                     AlibabaCloudSearchServiceSettings.HOST,
@@ -163,9 +115,6 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractWireSerializ
             is(
                 new AlibabaCloudSearchServiceSettings(
                     ServiceUtils.createUri(url),
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens,
                     model,
                     host,
                     workspaceName,
@@ -215,17 +164,7 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractWireSerializ
     }
 
     public void testXContent() throws IOException {
-        var entity = new AlibabaCloudSearchServiceSettings(
-            null,
-            null,
-            null,
-            null,
-            "model_id_name",
-            "host_name",
-            "workspace_name",
-            null,
-            null
-        );
+        var entity = new AlibabaCloudSearchServiceSettings(null, "model_id_name", "host_name", "workspace_name", null, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);

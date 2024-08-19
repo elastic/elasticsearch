@@ -131,12 +131,9 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
         }, COLLAPSE_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((p, i, c) -> {
-            @SuppressWarnings("rawtypes")
-            List<RescorerBuilder> rescoreBuilders = new ArrayList<>();
             for (XContentParser.Token token = p.nextToken(); token != END_OBJECT; token = p.nextToken()) {
-                rescoreBuilders.add(RescorerBuilder.parseFromXContent(p, s -> {}));  // TODO: Use real usage tracker?
+                i.addRescoreBuilder(RescorerBuilder.parseFromXContent(p, s -> {}));  // TODO: Use real usage tracker?
             }
-            i.setRescoreBuilders(rescoreBuilders);
         }, SearchSourceBuilder.RESCORE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
     }
     private String name;
@@ -502,9 +499,11 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         return innerCollapseBuilder;
     }
 
-    @SuppressWarnings("rawtypes")
-    public InnerHitBuilder setRescoreBuilders(List<RescorerBuilder> rescoreBuilders) {
-        this.rescoreBuilders = rescoreBuilders;
+    public InnerHitBuilder addRescoreBuilder(RescorerBuilder<?> rescoreBuilder) {
+        if (rescoreBuilders == null) {
+            rescoreBuilders = new ArrayList<>();
+        }
+        rescoreBuilders.add(rescoreBuilder);
         return this;
     }
 

@@ -26,10 +26,13 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.profile.Profilers;
+import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -73,6 +76,7 @@ public final class InnerHitsContext {
         protected final SearchContext context;
         private InnerHitsContext childInnerHits;
         private Weight innerHitQueryWeight;
+        private List<RescoreContext> rescore;
 
         private String rootId;
         private Source rootSource;
@@ -140,6 +144,20 @@ public final class InnerHitsContext {
 
         public void setRootLookup(Source rootSource) {
             this.rootSource = rootSource;
+        }
+
+        public List<RescoreContext> rescore() {
+            if (rescore == null) {
+                return List.of();
+            }
+            return rescore;
+        }
+
+        public void addRescore(RescoreContext rescore) {
+            if (this.rescore == null) {
+                this.rescore = new ArrayList<>();
+            }
+            this.rescore.add(rescore);
         }
     }
 

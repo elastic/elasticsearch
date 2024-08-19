@@ -15,6 +15,7 @@ import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -127,6 +128,12 @@ public abstract class InnerHitContextBuilder {
             children
         );
         innerHitsContext.setChildInnerHits(baseChildren);
+
+        if (innerHitBuilder.getRescoreBuilders() != null) {
+            for (RescorerBuilder<?> rescoreBuilder : innerHitBuilder.getRescoreBuilders()) {
+                innerHitsContext.addRescore(rescoreBuilder.buildContext(searchExecutionContext));
+            }
+        }
     }
 
     private static Map<String, InnerHitsContext.InnerHitSubContext> buildChildInnerHits(

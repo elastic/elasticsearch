@@ -23,6 +23,7 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -129,6 +130,14 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
             }
 
         }, COLLAPSE_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField((p, i, c) -> {
+            @SuppressWarnings("rawtypes")
+            List<RescorerBuilder> rescoreBuilders = new ArrayList<>();
+            for (XContentParser.Token token = p.nextToken(); token != END_OBJECT; token = p.nextToken()) {
+                rescoreBuilders.add(RescorerBuilder.parseFromXContent(p, s -> {}));  // TODO: Use real usage tracker?
+            }
+            i.setRescoreBuilders(rescoreBuilders);
+        }, SearchSourceBuilder.RESCORE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
     }
     private String name;
     private boolean ignoreUnmapped = DEFAULT_IGNORE_UNAMPPED;
@@ -148,6 +157,8 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
     private FetchSourceContext fetchSourceContext;
     private List<FieldAndFormat> fetchFields;
     private CollapseBuilder innerCollapseBuilder = null;
+    @SuppressWarnings("rawtypes")
+    private List<RescorerBuilder> rescoreBuilders;
 
     public InnerHitBuilder() {
         this.name = null;
@@ -194,6 +205,12 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
                 fetchFields = in.readCollectionAsList(FieldAndFormat::new);
             }
         }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INNER_HITS_RESCORE)) {
+            if (in.readBoolean()) {
+                rescoreBuilders = in.readNamedWriteableCollectionAsList(RescorerBuilder.class);
+            }
+        }
     }
 
     @Override
@@ -233,6 +250,14 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {
                 out.writeCollection(fetchFields);
+            }
+        }
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INNER_HITS_RESCORE)) {
+            boolean hasRescoreBuilders = rescoreBuilders != null;
+            out.writeBoolean(hasRescoreBuilders);
+            if (hasRescoreBuilders) {
+                out.writeNamedWriteableCollection(rescoreBuilders);
             }
         }
     }
@@ -477,6 +502,17 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         return innerCollapseBuilder;
     }
 
+    @SuppressWarnings("rawtypes")
+    public InnerHitBuilder setRescoreBuilders(List<RescorerBuilder> rescoreBuilders) {
+        this.rescoreBuilders = rescoreBuilders;
+        return this;
+    }
+
+    @SuppressWarnings("rawtypes")
+    public List<RescorerBuilder> getRescoreBuilders() {
+        return rescoreBuilders;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -568,7 +604,8 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
             && Objects.equals(highlightBuilder, that.highlightBuilder)
             && Objects.equals(fetchSourceContext, that.fetchSourceContext)
             && Objects.equals(fetchFields, that.fetchFields)
-            && Objects.equals(innerCollapseBuilder, that.innerCollapseBuilder);
+            && Objects.equals(innerCollapseBuilder, that.innerCollapseBuilder)
+            && Objects.equals(rescoreBuilders, that.rescoreBuilders);
     }
 
     @Override
@@ -589,7 +626,8 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
             highlightBuilder,
             fetchSourceContext,
             fetchFields,
-            innerCollapseBuilder
+            innerCollapseBuilder,
+            rescoreBuilders
         );
     }
 

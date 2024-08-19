@@ -218,9 +218,7 @@ public abstract class ScoreScript extends DocBasedScript {
         /**
          * Return {@code true} if the script needs {@code _termStats} calculated, or {@code false} otherwise.
          */
-        default boolean needs_termStats() {
-            return false;
-        }
+        boolean needs_termStats();
 
         ScoreScript newInstance(DocReader reader) throws IOException;
     }

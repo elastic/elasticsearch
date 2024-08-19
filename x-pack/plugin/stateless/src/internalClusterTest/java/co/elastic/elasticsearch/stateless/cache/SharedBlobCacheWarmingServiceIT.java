@@ -70,7 +70,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
+import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -80,7 +82,7 @@ import static org.mockito.Mockito.when;
 
 public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestCase {
 
-    private static final ByteSizeValue REGION_SIZE = ByteSizeValue.ofKb(4);
+    private static final ByteSizeValue REGION_SIZE = ByteSizeValue.ofBytes(4L * PAGE_SIZE);
     private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofMb(8);
     private static final String SEARCH_WARMING_DESCRIPTION = "search";
     private static final String INDEXING_EARLY_WARMING_DESCRIPTION = "indexing early";
@@ -403,6 +405,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), "1g")
+            .put(TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(PAGE_SIZE))
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
         final var indexNode = startMasterAndIndexNode(cacheSettings);

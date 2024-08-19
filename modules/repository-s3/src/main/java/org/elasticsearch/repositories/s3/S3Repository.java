@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -36,14 +38,17 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotDeleteListener;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -181,6 +186,16 @@ class S3Repository extends MeteredBlobStoreRepository {
         S3BlobStore.MAX_BULK_DELETES,
         1,
         S3BlobStore.MAX_BULK_DELETES
+    );
+
+    /**
+     * Maximum number of uploads to request for cleanup when doing a snapshot delete.
+     */
+    static final Setting<Integer> MAX_MULTIPART_UPLOAD_CLEANUP_SIZE = Setting.intSetting(
+        "max_multipart_upload_cleanup_size",
+        1000,
+        0,
+        Setting.Property.Dynamic
     );
 
     private final S3Service service;
@@ -458,5 +473,85 @@ class S3Repository extends MeteredBlobStoreRepository {
             ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS,
             ReferenceDocs.S3_COMPATIBLE_REPOSITORIES
         );
+    }
+
+    // only one multipart cleanup process running at once
+    private final AtomicBoolean multipartCleanupInProgress = new AtomicBoolean();
+
+    @Override
+    public void deleteSnapshots(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryDataGeneration,
+        IndexVersion minimumNodeVersion,
+        SnapshotDeleteListener snapshotDeleteListener
+    ) {
+        getMultipartUploadCleanupListener(
+            isReadOnly() ? 0 : MAX_MULTIPART_UPLOAD_CLEANUP_SIZE.get(getMetadata().settings()),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(ActionListener<Void> multipartUploadCleanupListener) {
+                    S3Repository.super.deleteSnapshots(
+                        snapshotIds,
+                        repositoryDataGeneration,
+                        minimumNodeVersion,
+                        new SnapshotDeleteListener() {
+                            @Override
+                            public void onDone() {
+                                snapshotDeleteListener.onDone();
+                            }
+
+                            @Override
+                            public void onRepositoryDataWritten(RepositoryData repositoryData) {
+                                multipartUploadCleanupListener.onResponse(null);
+                                snapshotDeleteListener.onRepositoryDataWritten(repositoryData);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                multipartUploadCleanupListener.onFailure(e);
+                                snapshotDeleteListener.onFailure(e);
+                            }
+                        }
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("failed to get multipart uploads for cleanup during snapshot delete", e);
+                    assert false : e; // getMultipartUploadCleanupListener doesn't throw and snapshotExecutor doesn't reject anything
+                    snapshotDeleteListener.onFailure(e);
+                }
+            }
+        );
+    }
+
+    /**
+     * Capture the current list of multipart uploads, and (asynchronously) return a listener which, if completed successfully, aborts those
+     * uploads. Called at the start of a snapshot delete operation, at which point there should be no ongoing uploads (except in the case of
+     * a master failover). We protect against the master failover case by waiting until the delete operation successfully updates the root
+     * index-N blob before aborting any uploads.
+     */
+    void getMultipartUploadCleanupListener(int maxUploads, ActionListener<ActionListener<Void>> listener) {
+        if (maxUploads == 0) {
+            listener.onResponse(ActionListener.noop());
+            return;
+        }
+
+        if (multipartCleanupInProgress.compareAndSet(false, true) == false) {
+            logger.info("multipart upload cleanup already in progress");
+            listener.onResponse(ActionListener.noop());
+            return;
+        }
+
+        try (var refs = new RefCountingRunnable(() -> multipartCleanupInProgress.set(false))) {
+            snapshotExecutor.execute(
+                ActionRunnable.supply(
+                    ActionListener.releaseAfter(listener, refs.acquire()),
+                    () -> blobContainer() instanceof S3BlobContainer s3BlobContainer
+                        ? s3BlobContainer.getMultipartUploadCleanupListener(maxUploads, refs)
+                        : ActionListener.noop()
+                )
+            );
+        }
     }
 }

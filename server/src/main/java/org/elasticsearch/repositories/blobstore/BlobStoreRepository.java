@@ -858,17 +858,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ActionListener<RepositoryData> repositoryDataUpdateListener,
         Runnable onCompletion
     ) {
-        createSnapshotsDeletion(snapshotIds, repositoryDataGeneration, minimumNodeVersion, new ActionListener<>() {
-            @Override
-            public void onResponse(SnapshotsDeletion snapshotsDeletion) {
-                snapshotsDeletion.runDelete(repositoryDataUpdateListener, onCompletion);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                repositoryDataUpdateListener.onFailure(e);
-            }
-        });
+        createSnapshotsDeletion(
+            snapshotIds,
+            repositoryDataGeneration,
+            minimumNodeVersion,
+            repositoryDataUpdateListener.delegateFailureAndWrap((l, snapshotsDeletion) -> snapshotsDeletion.runDelete(l, onCompletion))
+        );
     }
 
     /**

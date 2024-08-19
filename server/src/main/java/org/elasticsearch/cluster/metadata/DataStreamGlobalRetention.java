@@ -23,6 +23,33 @@ import java.io.IOException;
 public record DataStreamGlobalRetention(@Nullable TimeValue defaultRetention, @Nullable TimeValue maxRetention) implements Writeable {
 
     public static final NodeFeature GLOBAL_RETENTION = new NodeFeature("data_stream.lifecycle.global_retention");
+    public static final TimeValue MIN_RETENTION_VALUE = TimeValue.timeValueSeconds(10);
+
+    /**
+     * @param defaultRetention the default retention or null if it's undefined
+     * @param maxRetention     the max retention or null if it's undefined
+     * @throws IllegalArgumentException when the default retention is greater than the max retention.
+     */
+    public DataStreamGlobalRetention(TimeValue defaultRetention, TimeValue maxRetention) {
+        if (defaultRetention != null && maxRetention != null && defaultRetention.getMillis() > maxRetention.getMillis()) {
+            throw new IllegalArgumentException(
+                "Default global retention ["
+                    + defaultRetention.getStringRep()
+                    + "] cannot be greater than the max global retention ["
+                    + maxRetention.getStringRep()
+                    + "]."
+            );
+        }
+        if (validateRetentionValue(defaultRetention) == false || validateRetentionValue(maxRetention) == false) {
+            throw new IllegalArgumentException("Global retention values should be greater than " + MIN_RETENTION_VALUE.getStringRep());
+        }
+        this.defaultRetention = defaultRetention;
+        this.maxRetention = maxRetention;
+    }
+
+    private boolean validateRetentionValue(@Nullable TimeValue retention) {
+        return retention == null || retention.getMillis() >= MIN_RETENTION_VALUE.getMillis();
+    }
 
     public static DataStreamGlobalRetention read(StreamInput in) throws IOException {
         return new DataStreamGlobalRetention(in.readOptionalTimeValue(), in.readOptionalTimeValue());

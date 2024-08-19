@@ -38,7 +38,6 @@ Rollup::
 Search::
 * Change `skip_unavailable` remote cluster setting default value to true {es-pull}105792[#105792]
 
-
 [[bug-8.15.0]]
 [float]
 === Bug fixes

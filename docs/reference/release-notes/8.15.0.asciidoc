@@ -16,6 +16,8 @@ after it is killed up to four times in 24 hours. (issue: {es-issue}110530[#11053
 * Pipeline aggregations under `time_series` and `categorize_text` aggregations are never
 returned (issue: {es-issue}111679[#111679])
 
+* Elasticsearch will not start on Windows machines when the recommended [bootstrap.memory_lock: true](https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-configuration-memory.html#bootstrap-memory_lock) setting is configured due to [native access refactoring](https://github.com/elastic/elasticsearch/pull/111866). The workaround for 8.15.0 is to downgrade to the previous version.  This issue will be fixed in 8.15.1.
+
 [[breaking-8.15.0]]
 [float]
 === Breaking changes

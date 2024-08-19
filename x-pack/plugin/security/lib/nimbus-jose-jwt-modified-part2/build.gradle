@@ -1,0 +1,26 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+// See the build.gradle file in the parent directory for an explanation of this unusual build
+
+dependencies {
+  implementation project(path: xpackModule('security:lib:nimbus-jose-jwt-modified-part1'), configuration: 'shadow')
+}
+
+tasks.named('shadowJar').configure {
+  // Drop everything in the original namespace, as the classes we want to modify have already been moved to another package by part 1
+  exclude 'com/nimbusds/'
+}
+
+['jarHell', 'thirdPartyAudit', 'forbiddenApisMain', 'splitPackagesAudit', 'licenseHeaders'].each {
+  tasks.named(it).configure {
+    enabled = false
+  }
+}

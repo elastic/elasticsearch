@@ -4,8 +4,6 @@
 <titleabbrev>Deploy and manage LTR models</titleabbrev>
 ++++
 
-preview::["The Learning To Rank feature is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but this feature is not subject to the support SLA of official GA features."]
-
 NOTE: This feature was introduced in version 8.12.0 and is only available to certain subscription levels.
 For more information, see {subscriptions}.
 

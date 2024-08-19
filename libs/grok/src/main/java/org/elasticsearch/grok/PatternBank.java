@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 public class PatternBank {
 
@@ -69,58 +70,19 @@ public class PatternBank {
      * check for a circular reference.
      */
     static void forbidCircularReferences(Map<String, String> bank) {
-        detectCycles(buildPatternReferenceGraph(bank));
+        detectCycles(bank, PatternBank::getPatternNamesForPattern);
     }
 
-    /**
-     * This builds a map representing a directed graph of all the patterns in the bank. The bank keys are pattern names, and the values are
-     * the actual pattern. This method looks for parts of the pattern that are pattern names. There can be multiple pattern names in a
-     * pattern. The output map's keys are the input pattern names. The values are the pattern names found in the pattern for that pattern
-     * name.
-     * @param bank A pattern bank, mapping pattern names to patterns
-     * @return A map of pattern names to pattern names found in the patterns for that pattern name
+    /*
+     * This method traverses the directed graph, and throws an IllegalArgumentException if any cycles are detected.
+     * @param directedGraph A directed graph. The keys are all the nodes in the graph. The values are strings that can be converted to
+     *                     a list of neighboring nodes using nodeToNeighborsFunction
+     * @param nodeToNeighborsFunction A function that maps the values of directedGraph to a list of neighboring nodes
      */
-    private static Map<String, List<String>> buildPatternReferenceGraph(Map<String, String> bank) {
-        Map<String, List<String>> patternReferenceTree = new LinkedHashMap<>(bank.size());
-        for (Map.Entry<String, String> entry : bank.entrySet()) {
-            String patternName = entry.getKey();
-            String pattern = entry.getValue();
-            List<String> patternReferences = new ArrayList<>();
-            for (int i = pattern.indexOf("%{"); i != -1; i = pattern.indexOf("%{", i + 1)) {
-                int begin = i + 2;
-                int bracketIndex = pattern.indexOf('}', begin);
-                int columnIndex = pattern.indexOf(':', begin);
-                int end;
-                if (bracketIndex != -1 && columnIndex == -1) {
-                    end = bracketIndex;
-                } else if (columnIndex != -1 && bracketIndex == -1) {
-                    end = columnIndex;
-                } else if (bracketIndex != -1) {
-                    end = Math.min(bracketIndex, columnIndex);
-                } else {
-                    throw new IllegalArgumentException("pattern [" + pattern + "] has an invalid syntax");
-                }
-                String otherPatternName = pattern.substring(begin, end);
-                if (patternReferences.contains(otherPatternName) == false) {
-                    patternReferences.add(otherPatternName);
-                    String otherPattern = bank.get(otherPatternName);
-                    if (otherPattern == null) {
-                        throw new IllegalArgumentException(
-                            "pattern [" + patternName + "] is referencing a non-existent pattern [" + otherPatternName + "]"
-                        );
-                    }
-                }
-            }
-            patternReferenceTree.put(patternName, patternReferences);
-        }
-        return patternReferenceTree;
-    }
-
-    /**
-     * This method traverses the directed graph, and throws an IllegalArgementException if any cycles are detected
-     * @param directedGraph A directed graph. The key is a node that has edges to each of the nodes in the value List
-     */
-    private static void detectCycles(Map<String, List<String>> directedGraph) {
+    private static void detectCycles(
+        Map<String, String> directedGraph,
+        BiFunction<Map<String, String>, String, List<String>> nodeToNeighborsFunction
+    ) {
         Set<String> allVisitedNodes = new HashSet<>();
         Set<String> nodesVisitedMoreThanOnceInAPath = new HashSet<>();
         // Walk the full path starting at each node in the graph:
@@ -147,11 +109,47 @@ public class PatternBank {
                     continue;
                 }
                 visited.add(node);
-                for (String neighbor : directedGraph.get(node)) {
+                for (String neighbor : nodeToNeighborsFunction.apply(directedGraph, node)) {
                     toBeVisited.push(neighbor);
                 }
             }
             allVisitedNodes.addAll(visited);
         }
+    }
+
+    /**
+     * This method returns the list of pattern names (if any) found in the bank for the pattern named patternName. If no pattern names
+     * are found, and empty list is returned. If any of the list of pattern names to be returned does not exist in the bank, an exception
+     * is thrown.
+     */
+    private static List<String> getPatternNamesForPattern(Map<String, String> bank, String patternName) {
+        String pattern = bank.get(patternName);
+        List<String> patternReferences = new ArrayList<>();
+        for (int i = pattern.indexOf("%{"); i != -1; i = pattern.indexOf("%{", i + 1)) {
+            int begin = i + 2;
+            int bracketIndex = pattern.indexOf('}', begin);
+            int columnIndex = pattern.indexOf(':', begin);
+            int end;
+            if (bracketIndex != -1 && columnIndex == -1) {
+                end = bracketIndex;
+            } else if (columnIndex != -1 && bracketIndex == -1) {
+                end = columnIndex;
+            } else if (bracketIndex != -1) {
+                end = Math.min(bracketIndex, columnIndex);
+            } else {
+                throw new IllegalArgumentException("pattern [" + pattern + "] has an invalid syntax");
+            }
+            String otherPatternName = pattern.substring(begin, end);
+            if (patternReferences.contains(otherPatternName) == false) {
+                patternReferences.add(otherPatternName);
+                String otherPattern = bank.get(otherPatternName);
+                if (otherPattern == null) {
+                    throw new IllegalArgumentException(
+                        "pattern [" + patternName + "] is referencing a non-existent pattern [" + otherPatternName + "]"
+                    );
+                }
+            }
+        }
+        return patternReferences;
     }
 }

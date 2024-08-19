@@ -843,12 +843,10 @@ public class ObjectMapper extends Mapper {
                 return;
             }
 
-            if (isFragment == false) {
-                if (isRoot()) {
-                    b.startObject();
-                } else {
-                    b.startObject(leafName());
-                }
+            if (isRoot() || isFragment) {
+                b.startObject();
+            } else {
+                b.startObject(leafName());
             }
 
             if (ignoredValues != null && ignoredValues.isEmpty() == false) {
@@ -875,9 +873,7 @@ public class ObjectMapper extends Mapper {
                 }
             }
             hasValue = false;
-            if (isFragment == false) {
-                b.endObject();
-            }
+            b.endObject();
         }
 
         @Override

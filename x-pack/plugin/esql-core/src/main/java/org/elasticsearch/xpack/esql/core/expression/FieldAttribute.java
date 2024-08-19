@@ -51,6 +51,10 @@ public class FieldAttribute extends TypedAttribute {
         this(source, parent, name, field, Nullability.TRUE, null, false);
     }
 
+    public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field, boolean synthetic) {
+        this(source, parent, name, field, Nullability.TRUE, null, synthetic);
+    }
+
     public FieldAttribute(
         Source source,
         FieldAttribute parent,
@@ -63,6 +67,8 @@ public class FieldAttribute extends TypedAttribute {
         this(source, parent, name, field.getDataType(), field, nullability, id, synthetic);
     }
 
+    // TODO: Should this become private? An explicitly set type will be discarded the moment this is `clone`d, so using this constructor is
+    // deceptive.
     public FieldAttribute(
         Source source,
         FieldAttribute parent,
@@ -146,28 +152,7 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(
-            this,
-            (source, parent1, name, type, field1, qualifier, nullability, id, synthetic) -> new FieldAttribute(
-                source,
-                parent1,
-                name,
-                type,
-                field1,
-                qualifier,
-                nullability,
-                id,
-                synthetic
-            ),
-            parent,
-            name(),
-            dataType(),
-            field,
-            (String) null,
-            nullable(),
-            id(),
-            synthetic()
-        );
+        return NodeInfo.create(this, FieldAttribute::new, parent, name(), dataType(), field, (String) null, nullable(), id(), synthetic());
     }
 
     public FieldAttribute parent() {
@@ -210,6 +195,7 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
+        // Ignore `type`, this must be the same as the field's type.
         return new FieldAttribute(source, parent, name, field, nullability, id, synthetic);
     }
 

@@ -1170,15 +1170,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 "converted_to",
                 resolvedField.getDataType().typeName()
             );
-            FieldAttribute unionFieldAttribute = new FieldAttribute(
-                fa.source(),
-                fa.parent(),
-                unionTypedFieldName,
-                resolvedField,
-                Nullability.TRUE,
-                null,
-                true
-            );
+            FieldAttribute unionFieldAttribute = new FieldAttribute(fa.source(), fa.parent(), unionTypedFieldName, resolvedField, true);
             int existingIndex = unionFieldAttributes.indexOf(unionFieldAttribute);
             if (existingIndex >= 0) {
                 // Do not generate multiple name/type combinations with different IDs
@@ -1205,6 +1197,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private Expression typeSpecificConvert(AbstractConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
             NameId id = ((FieldAttribute) convert.field()).id();
+            // TODO: mark this synthetic
+            // TODO: while likely we only need this to be the correct type and have the correct id, this deviating so much from the actual
+            // field attribute could lead to bugs.
             FieldAttribute resolvedAttr = new FieldAttribute(source, null, field.getName(), field, Nullability.TRUE, id, false);
             return convert.replaceChildren(Collections.singletonList(resolvedAttr));
         }

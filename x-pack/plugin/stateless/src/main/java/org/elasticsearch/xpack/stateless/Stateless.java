@@ -892,7 +892,9 @@ public class Stateless extends Plugin
             TransportStatelessPrimaryRelocationAction.SLOW_SECONDARY_FLUSH_THRESHOLD_SETTING,
             TransportStatelessPrimaryRelocationAction.SLOW_HANDOFF_WARMING_THRESHOLD_SETTING,
             TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING,
-            GetVirtualBatchedCompoundCommitChunksPressure.CHUNKS_BYTES_LIMIT
+            GetVirtualBatchedCompoundCommitChunksPressure.CHUNKS_BYTES_LIMIT,
+            CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING,
+            SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP
         );
     }
 

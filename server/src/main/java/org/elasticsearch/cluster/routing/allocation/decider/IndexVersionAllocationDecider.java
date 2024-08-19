@@ -53,8 +53,8 @@ public class IndexVersionAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "cannot allocate an index shard with index mappings updated by index version [%s] " +
-                    "to a node with max supported index version [%s]",
+                "cannot allocate an index shard with index mappings updated by index version [%s] "
+                    + "to a node with max supported index version [%s]",
                 metadata.getMappingsUpdatedVersion().toReleaseVersion(),
                 target.node().getMaxIndexVersion().toReleaseVersion()
             );

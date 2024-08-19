@@ -41,10 +41,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -60,6 +64,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -70,6 +76,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.core.Strings.format;
 
@@ -129,11 +136,53 @@ public class SharedBlobCacheWarmingService {
 
     private static final Logger logger = LogManager.getLogger(SharedBlobCacheWarmingService.class);
 
+    public static final String PREWARMING_RANGE_MINIMIZATION_STEP_SETTING_NAME = "stateless.blob_cache_warming.minimization_step";
+    public static final Setting<ByteSizeValue> PREWARMING_RANGE_MINIMIZATION_STEP = new Setting<>(
+        PREWARMING_RANGE_MINIMIZATION_STEP_SETTING_NAME,
+        settings -> ByteSizeValue.ofBytes(SHARED_CACHE_RANGE_SIZE_SETTING.get(settings).getBytes() / 4).getStringRep(),
+        s -> ByteSizeValue.parseBytesSizeValue(s, PREWARMING_RANGE_MINIMIZATION_STEP_SETTING_NAME),
+        new Setting.Validator<>() {
+            @Override
+            public void validate(ByteSizeValue value) {
+                if (value.getBytes() < 0) {
+                    throw new SettingsException("setting [{}] must be non-negative", PREWARMING_RANGE_MINIMIZATION_STEP_SETTING_NAME);
+                }
+                if (value.getBytes() % SharedBytes.PAGE_SIZE != 0L) {
+                    throw new SettingsException(
+                        "setting [{}] must be integer multiple of {}",
+                        PREWARMING_RANGE_MINIMIZATION_STEP_SETTING_NAME,
+                        SharedBytes.PAGE_SIZE
+                    );
+                }
+            }
+
+            @Override
+            public void validate(ByteSizeValue value, Map<Setting<?>, Object> settings) {
+                final ByteSizeValue rangeSize = (ByteSizeValue) settings.get(SHARED_CACHE_RANGE_SIZE_SETTING);
+                if (rangeSize.getBytes() % value.getBytes() != 0L) {
+                    throw new SettingsException(
+                        "setting [{}] must be integer multiple of setting [{}]",
+                        SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
+                        PREWARMING_RANGE_MINIMIZATION_STEP_SETTING_NAME
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(SHARED_CACHE_RANGE_SIZE_SETTING);
+                return settings.iterator();
+            }
+        },
+        Setting.Property.NodeScope
+    );
+
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private final Executor fetchExecutor;
     private final ThrottledTaskRunner throttledTaskRunner;
     private final LongCounter cacheWarmingPageAlignedBytesTotalMetric;
+    private final long prewarmingRangeMinimizationStep;
 
     public SharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
@@ -155,6 +204,9 @@ public class SharedBlobCacheWarmingService {
         );
         this.cacheWarmingPageAlignedBytesTotalMetric = telemetryProvider.getMeterRegistry()
             .registerLongCounter(BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC, "Total bytes warmed in cache", "bytes");
+        ByteSizeValue byteSizeValue = PREWARMING_RANGE_MINIMIZATION_STEP.get(settings);
+        logger.info("prewarming with [{}={}]", PREWARMING_RANGE_MINIMIZATION_STEP.getKey(), byteSizeValue.getStringRep());
+        this.prewarmingRangeMinimizationStep = byteSizeValue.getBytes();
     }
 
     public void warmCacheBeforeUpload(VirtualBatchedCompoundCommit vbcc, ActionListener<Void> listener) {
@@ -530,11 +582,15 @@ public class SharedBlobCacheWarmingService {
             ) {
                 ActionListener.run(listener, (l) -> {
                     // compute the range to warm in cache
-                    var range = cacheBlobReader.getRange(
-                        item.position(),
-                        Math.toIntExact(item.length()),
-                        queue.maxBlobLength.get() - item.position()
+                    var range = maybeMinimizeRange(
+                        cacheBlobReader.getRange(
+                            item.position(),
+                            Math.toIntExact(item.length()),
+                            queue.maxBlobLength.get() - item.position()
+                        ),
+                        item
                     );
+
                     cacheService.maybeFetchRange(
                         cacheKey,
                         blobRegion.region,
@@ -562,6 +618,39 @@ public class SharedBlobCacheWarmingService {
                         l.map(ignored -> null)
                     );
                 });
+            }
+
+            private ByteRange maybeMinimizeRange(ByteRange range, BlobRange item) {
+                // Step is equal to range size, effectively disable the step-sized prewarming
+                if (prewarmingRangeMinimizationStep == cacheService.getRangeSize()) {
+                    return range;
+                }
+                // This is a hack to minimize the amount of data we pre-warm
+                if (range.length() != cacheService.getRangeSize()) {
+                    // only change cache ranges when reading from the blob store
+                    return range;
+                }
+                if (blobRegion.region == 0) {
+                    // keep existing range as region 0 contains mostly metadata
+                    return range;
+                }
+                // The rounding depends on the rangeSize to be integer multiples of the stepSize which is guaranteed in setting validation
+                final long minimizedEnd = BlobCacheUtils.roundUpToAlignedSize(item.position + item.length, prewarmingRangeMinimizationStep);
+                if (minimizedEnd < range.end()) {
+                    assert assertCorrectMinimizedEnd(range, item, minimizedEnd);
+                    return ByteRange.of(range.start(), minimizedEnd);
+                } else {
+                    return range;
+                }
+            }
+
+            private boolean assertCorrectMinimizedEnd(ByteRange range, BlobRange item, long minimizedEnd) {
+                assert minimizedEnd < range.end() : minimizedEnd + " >= " + range.end();
+                assert minimizedEnd >= range.start() : minimizedEnd + "<" + range.start();
+                assert minimizedEnd >= item.position + item.length : minimizedEnd + "<" + item.position + item.length;
+                assert (minimizedEnd - range.start()) % prewarmingRangeMinimizationStep == 0
+                    : minimizedEnd + "-" + range.start() + " vs " + prewarmingRangeMinimizationStep;
+                return true;
             }
 
             @Override

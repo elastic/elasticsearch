@@ -76,6 +76,11 @@ public class ObjectMapper extends Mapper {
             }
             throw new ElasticsearchParseException("unknown subobjects value: " + node);
         }
+
+        @Override
+        public String toString() {
+            return printedValue.toString();
+        }
     }
 
     public static class Defaults {

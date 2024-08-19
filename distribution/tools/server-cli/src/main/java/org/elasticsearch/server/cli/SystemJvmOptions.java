@@ -11,6 +11,7 @@ package org.elasticsearch.server.cli;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.UpdateForV9;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -64,10 +65,7 @@ final class SystemJvmOptions {
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
                 "-Dlog4j2.formatMsgNoLookups=true",
-                /*
-                 * Specify SPI to load IsoCalendarDataProvider (see #48209), specifying the first day of week as Monday
-                 */
-                "-Djava.locale.providers=SPI,CLDR",
+                "-Djava.locale.providers=" + getLocaleProviders(),
                 /*
                  * Temporarily suppress illegal reflective access in searchable snapshots shared cache preallocation; this is temporary
                  * while we explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
@@ -84,6 +82,16 @@ final class SystemJvmOptions {
             ),
             maybeWorkaroundG1Bug()
         ).filter(e -> e.isEmpty() == false).collect(Collectors.toList());
+    }
+
+    @UpdateForV9    // only use CLDR in v9+
+    private static String getLocaleProviders() {
+        /*
+         * Specify SPI to load IsoCalendarDataProvider (see #48209), specifying the first day of week as Monday.
+         * When on pre-23, use COMPAT instead to maintain existing date formats as much as we can.
+         * When on JDK 23+, use the default CLDR locale database, as COMPAT was removed in JDK 23.
+         */
+        return Runtime.version().feature() >= 23 ? "SPI,CLDR" : "SPI,COMPAT";
     }
 
     /*

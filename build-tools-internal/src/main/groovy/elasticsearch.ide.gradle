@@ -167,7 +167,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
             vmParameters = [
               '-ea',
               '-Djava.security.manager=allow',
-              '-Djava.locale.providers=SPI,COMPAT',
+              '-Djava.locale.providers=SPI,CLDR',
               '-Djava.library.path=' + testLibraryPath,
               '-Djna.library.path=' + testLibraryPath,
               // TODO: only open these for mockito when it is modularized

@@ -76,7 +76,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 return Wildcard.fromXContent(parser);
             case "fuzzy":
                 return Fuzzy.fromXContent(parser);
-            case "regexp" :
+            case "regexp":
                 return Regexp.fromXContent(parser);
             case "range":
                 return Range.fromXContent(parser);
@@ -1040,8 +1040,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         private final String analyzer;
         private final String useField;
 
-        public Range(String lowerTerm, String upperTerm,
-                     boolean includeLower, boolean includeUpper, String analyzer, String useField) {
+        public Range(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, String analyzer, String useField) {
             this.lowerTerm = lowerTerm;
             this.upperTerm = upperTerm;
             this.includeLower = includeLower;

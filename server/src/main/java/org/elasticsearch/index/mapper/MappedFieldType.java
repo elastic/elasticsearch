@@ -452,17 +452,20 @@ public abstract class MappedFieldType {
         );
     }
 
-
     /**
      * Create a range {@link IntervalsSource} for the given ranges
      */
-    public IntervalsSource rangeIntervals(BytesRef lowerTerm, BytesRef upperTerm,
-                                          boolean includeLower, boolean includeUpper, SearchExecutionContext context) {
+    public IntervalsSource rangeIntervals(
+        BytesRef lowerTerm,
+        BytesRef upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        SearchExecutionContext context
+    ) {
         throw new IllegalArgumentException(
             "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
-
 
     /**
      * An enum used to describe the relation between the range of terms in a

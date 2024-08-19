@@ -857,14 +857,18 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IntervalsSource rangeIntervals(BytesRef lowerTerm, BytesRef upperTerm,
-                                              boolean includeLower, boolean includeUpper, SearchExecutionContext context) {
+        public IntervalsSource rangeIntervals(
+            BytesRef lowerTerm,
+            BytesRef upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
             if (getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
             }
             return Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper);
         }
-
 
         private void checkForPositions() {
             if (getTextSearchInfo().hasPositions() == false) {

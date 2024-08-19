@@ -1010,10 +1010,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
               }
             }""", TEXT_FIELD_NAME);
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        Query expected = new IntervalQuery(
-            TEXT_FIELD_NAME,
-            Intervals.range(new BytesRef("aaa"), new BytesRef("aab"), true, true)
-        );
+        Query expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.range(new BytesRef("aaa"), new BytesRef("aab"), true, true));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         json = Strings.format("""
@@ -1028,10 +1025,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
               }
             }""", TEXT_FIELD_NAME);
         builder = (IntervalQueryBuilder) parseQuery(json);
-        expected = new IntervalQuery(
-            TEXT_FIELD_NAME,
-            Intervals.range(new BytesRef("aaa"), new BytesRef("aab"), false, false)
-        );
+        expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.range(new BytesRef("aaa"), new BytesRef("aab"), false, false));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         String incomplete_range = Strings.format("""

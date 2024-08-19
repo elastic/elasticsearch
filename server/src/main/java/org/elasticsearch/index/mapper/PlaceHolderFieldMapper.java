@@ -253,8 +253,13 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IntervalsSource rangeIntervals(BytesRef lowerTerm, BytesRef upperTerm,
-                                              boolean includeLower, boolean includeUpper, SearchExecutionContext context) {
+        public IntervalsSource rangeIntervals(
+            BytesRef lowerTerm,
+            BytesRef upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
             throw new QueryShardException(context, fail("range intervals query"));
         }
 

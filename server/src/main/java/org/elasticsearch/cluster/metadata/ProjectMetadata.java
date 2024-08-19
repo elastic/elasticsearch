@@ -74,6 +74,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     private static final NamedDiffableValueSerializer<Metadata.ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER =
         new NamedDiffableValueSerializer<>(Metadata.ProjectCustom.class);
 
+    private final ProjectId id;
+
     private final ImmutableOpenMap<String, IndexMetadata> indices;
     private final ImmutableOpenMap<String, Set<Index>> aliasedIndices;
     private final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
@@ -95,6 +97,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     private final IndexVersion oldestIndexVersion;
 
     public ProjectMetadata(
+        ProjectId id,
         ImmutableOpenMap<String, IndexMetadata> indices,
         ImmutableOpenMap<String, Set<Index>> aliasedIndices,
         ImmutableOpenMap<String, IndexTemplateMetadata> templates,
@@ -111,6 +114,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         Map<String, MappingMetadata> mappingsByHash,
         IndexVersion oldestIndexVersion
     ) {
+        this.id = id;
         this.indices = indices;
         this.aliasedIndices = aliasedIndices;
         this.templates = templates;
@@ -189,6 +193,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         // have changed, and hence it is expensive -- since we are changing so little about the metadata
         // (and at a leaf in the object tree), we can bypass that validation for efficiency's sake
         return new ProjectMetadata(
+            id,
             builder.build(),
             aliasedIndices,
             templates,
@@ -220,6 +225,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             );
         });
         return new ProjectMetadata(
+            id,
             builder.build(),
             aliasedIndices,
             templates,
@@ -252,6 +258,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         var updatedIndicesBuilder = ImmutableOpenMap.builder(indices);
         updatedIndicesBuilder.putAllFromMap(updates);
         return new ProjectMetadata(
+            id,
             updatedIndicesBuilder.build(),
             aliasedIndices,
             templates,
@@ -338,6 +345,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             ProjectMetadata.Builder.validateAlias(entry.getKey(), aliasIndices);
         }
         return new ProjectMetadata(
+            id,
             indicesMap,
             updatedAliases,
             templates,
@@ -1063,8 +1071,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         return true;
     }
 
-    public static ProjectMetadata.Builder builder() {
-        return new ProjectMetadata.Builder(Map.of(), 0);
+    public static ProjectMetadata.Builder builder(ProjectId id) {
+        return new ProjectMetadata.Builder(id, Map.of(), 0);
     }
 
     public static ProjectMetadata.Builder builder(ProjectMetadata projectMetadata) {
@@ -1086,8 +1094,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         // have become unused because no indices were updated or removed from this builder in a way that would cause unused entries in
         // #mappingsByHash.
         private boolean checkForUnusedMappings = true;
+        private final ProjectId id;
 
         Builder(ProjectMetadata projectMetadata) {
+            this.id = projectMetadata.id;
             this.indices = ImmutableOpenMap.builder(projectMetadata.indices);
             this.aliasedIndices = ImmutableOpenMap.builder(projectMetadata.aliasedIndices);
             this.templates = ImmutableOpenMap.builder(projectMetadata.templates);
@@ -1097,7 +1107,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             this.checkForUnusedMappings = false;
         }
 
-        Builder(Map<String, MappingMetadata> mappingsByHash, int indexCountHint) {
+        Builder(ProjectId id, Map<String, MappingMetadata> mappingsByHash, int indexCountHint) {
+            this.id = id;
             indices = ImmutableOpenMap.builder(indexCountHint);
             aliasedIndices = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
@@ -1105,6 +1116,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             previousIndicesLookup = null;
             this.mappingsByHash = new HashMap<>(mappingsByHash);
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
+        }
+
+        public ProjectId getId() {
+            return id;
         }
 
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
@@ -1631,6 +1646,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             String[] visibleClosedIndicesArray = visibleClosedIndices.toArray(String[]::new);
 
             return new ProjectMetadata(
+                id,
                 indicesMap,
                 aliasedIndices,
                 templates.build(),
@@ -1959,7 +1975,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     }
 
     public static ProjectMetadata readFrom(StreamInput in) throws IOException {
-        Builder builder = builder();
+        ProjectId id = new ProjectId(in);
+        Builder builder = builder(id);
         Function<String, MappingMetadata> mappingLookup;
         Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
         if (mappingMetadataMap.isEmpty() == false) {
@@ -1995,6 +2012,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        id.writeTo(out);
         // we write the mapping metadata first and then write the indices without metadata so that
         // we avoid writing duplicate mappings twice
         out.writeMapValues(mappingsByHash);
@@ -2065,7 +2083,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 return part;
             }
             var updatedIndices = indices.apply(part.indices);
-            Builder builder = new Builder(part.mappingsByHash, updatedIndices.size());
+            Builder builder = new Builder(part.id, part.mappingsByHash, updatedIndices.size());
             builder.indices(updatedIndices);
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));

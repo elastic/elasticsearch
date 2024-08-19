@@ -579,6 +579,13 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         if (innerCollapseBuilder != null) {
             builder.field(COLLAPSE_FIELD.getPreferredName(), innerCollapseBuilder);
         }
+        if (rescoreBuilders != null) {
+            builder.startArray(SearchSourceBuilder.RESCORE_FIELD.getPreferredName());
+            for (RescorerBuilder<?> rescoreBuilder : rescoreBuilders) {
+                rescoreBuilder.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
         builder.endObject();
         return builder;
     }

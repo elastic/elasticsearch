@@ -35,14 +35,14 @@ public class RandomRankFeaturePhaseRankCoordinatorContext extends RankFeaturePha
         for (int i = 0; i < featureDocs.length; i++) {
             RankFeatureDoc featureDoc = featureDocs[i];
             int doc = featureDoc.doc;
-            int docSeed = seed != null ? seed + doc : doc;
+            long docSeed = seed != null ? seed + doc : doc;
             scores[i] = new Random(docSeed).nextFloat();
         }
         scoreListener.onResponse(scores);
     }
 
     /**
-     * Sorts documents by score descending and discards those with a score less than minScore.
+     * Sorts documents by score descending.
      * @param originalDocs documents to process
      */
     @Override

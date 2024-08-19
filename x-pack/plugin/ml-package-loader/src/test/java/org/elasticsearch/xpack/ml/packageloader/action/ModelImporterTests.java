@@ -13,11 +13,16 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
+import org.elasticsearch.xpack.ml.packageloader.MachineLearningPackageLoader;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,13 +41,25 @@ import static org.mockito.Mockito.when;
 
 public class ModelImporterTests extends ESTestCase {
 
+    private TestThreadPool threadPool;
+
+    @Before
+    public void setUp() {
+        threadPool = createThreadPool(MachineLearningPackageLoader.modelDownloadExecutor(Settings.EMPTY));
+    }
+
+    @After
+    public void tearDown() {
+        threadPool.close();
+    }
+
     public void testDownload() throws IOException {
         var client = mockClient(false);
         var task = mock(ModelDownloadTask.class);
         var config = mock(ModelPackageConfig.class);
         var vocab = new ModelLoaderUtils.VocabularyParts(List.of(), List.of(), List.of());
 
-        var importer = new ModelImporter(client, "foo", config, task);
+        var importer = new ModelImporter(client, "foo", config, task, threadPool);
         int totalParts = 5;
         var modelDef = modelDefinition(totalParts);
         long size = modelDef.stream().mapToInt(BytesArray::length).sum();
@@ -54,7 +71,7 @@ public class ModelImporterTests extends ESTestCase {
         when(config.getSize()).thenReturn(size);
         when(stream.getTotalBytesRead()).thenReturn(size);
 
-        importer.downloadParts(stream, totalParts, size, vocab, ActionListener.wrap(r -> { ; }, ESTestCase::fail));
+        importer.downloadParts(stream, size, vocab, ActionListener.wrap(r -> { ; }, ESTestCase::fail));
 
         verify(client, times(totalParts)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
     }
@@ -64,7 +81,7 @@ public class ModelImporterTests extends ESTestCase {
         var task = mock(ModelDownloadTask.class);
         var config = mock(ModelPackageConfig.class);
 
-        var importer = new ModelImporter(client, "foo", config, task);
+        var importer = new ModelImporter(client, "foo", config, task, threadPool);
         int totalParts = 5;
         var modelDef = modelDefinition(totalParts);
         long size = modelDef.stream().mapToInt(BytesArray::length).sum();
@@ -78,7 +95,7 @@ public class ModelImporterTests extends ESTestCase {
 
         var exceptionHolder = new AtomicReference<Exception>();
 
-        importer.downloadParts(stream, totalParts, size, null, ActionListener.wrap(ignore -> {}, exceptionHolder::set));
+        importer.downloadParts(stream, size, null, ActionListener.wrap(ignore -> {}, exceptionHolder::set));
 
         assertThat(exceptionHolder.get().getMessage(), containsString("Model size does not match"));
         verify(client, times(totalParts)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
@@ -89,7 +106,7 @@ public class ModelImporterTests extends ESTestCase {
         var task = mock(ModelDownloadTask.class);
         var config = mock(ModelPackageConfig.class);
 
-        var importer = new ModelImporter(client, "foo", config, task);
+        var importer = new ModelImporter(client, "foo", config, task, threadPool);
         int totalParts = 5;
         var modelDef = modelDefinition(totalParts);
         long size = modelDef.stream().mapToInt(BytesArray::length).sum();
@@ -103,7 +120,7 @@ public class ModelImporterTests extends ESTestCase {
 
         var exceptionHolder = new AtomicReference<Exception>();
 
-        importer.downloadParts(stream, totalParts, size, null, ActionListener.wrap(ignore -> {}, exceptionHolder::set));
+        importer.downloadParts(stream, size, null, ActionListener.wrap(ignore -> {}, exceptionHolder::set));
 
         assertThat(exceptionHolder.get().getMessage(), containsString("Model sha256 checksums do not match"));
         verify(client, times(totalParts)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
@@ -114,7 +131,7 @@ public class ModelImporterTests extends ESTestCase {
         var task = mock(ModelDownloadTask.class);
         var config = mock(ModelPackageConfig.class);
 
-        var importer = new ModelImporter(client, "foo", config, task);
+        var importer = new ModelImporter(client, "foo", config, task, threadPool);
         int totalParts = 4;
         var modelDef = modelDefinition(totalParts);
         int size = modelDef.stream().mapToInt(BytesArray::length).sum();
@@ -122,7 +139,7 @@ public class ModelImporterTests extends ESTestCase {
 
         var exceptionHolder = new AtomicReference<Exception>();
 
-        importer.downloadParts(stream, totalParts, size, null, ActionListener.wrap(r -> fail("unexpected response"), exceptionHolder::set));
+        importer.downloadParts(stream, totalParts, null, ActionListener.wrap(r -> fail("unexpected response"), exceptionHolder::set));
 
         assertThat(exceptionHolder.get().getMessage(), containsString("put model part failed"));
         verify(client, times(1)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
@@ -133,14 +150,14 @@ public class ModelImporterTests extends ESTestCase {
         var task = mock(ModelDownloadTask.class);
         var config = mock(ModelPackageConfig.class);
 
-        var importer = new ModelImporter(client, "foo", config, task);
+        var importer = new ModelImporter(client, "foo", config, task, threadPool);
         int totalParts = 4;
         var stream = mock(ModelLoaderUtils.InputStreamChunker.class);
         when(stream.next()).thenThrow(new IOException("stream failed"));
 
         var exceptionHolder = new AtomicReference<Exception>();
 
-        importer.downloadParts(stream, totalParts, 1L, null, ActionListener.wrap(r -> fail("unexpected response"), exceptionHolder::set));
+        importer.downloadParts(stream, 1L, null, ActionListener.wrap(r -> fail("unexpected response"), exceptionHolder::set));
 
         assertThat(exceptionHolder.get().getMessage(), containsString("stream failed"));
     }
@@ -159,12 +176,11 @@ public class ModelImporterTests extends ESTestCase {
 
         var vocab = new ModelLoaderUtils.VocabularyParts(List.of(), List.of(), List.of());
 
-        var importer = new ModelImporter(client, "foo", config, task);
-        int totalParts = 4;
+        var importer = new ModelImporter(client, "foo", config, task, threadPool);
         var stream = mock(ModelLoaderUtils.InputStreamChunker.class);
         var exceptionHolder = new AtomicReference<Exception>();
 
-        importer.downloadParts(stream, totalParts, 1L, vocab, ActionListener.wrap(r -> fail("put vocab failed"), exceptionHolder::set));
+        importer.downloadParts(stream, 1L, vocab, ActionListener.wrap(r -> fail("put vocab failed"), exceptionHolder::set));
 
         assertThat(exceptionHolder.get().getMessage(), containsString("put vocab failed"));
         verify(client, times(1)).execute(eq(PutTrainedModelVocabularyAction.INSTANCE), any(), any());

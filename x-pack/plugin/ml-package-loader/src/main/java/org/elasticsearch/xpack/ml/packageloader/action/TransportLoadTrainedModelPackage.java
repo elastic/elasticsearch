@@ -97,12 +97,13 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                 parentTaskAssigningClient,
                 request.getModelId(),
                 request.getModelPackageConfig(),
-                downloadTask
+                downloadTask,
+                threadPool
             );
 
             var downloadCompleteListener = request.isWaitForCompletion() ? listener : ActionListener.<AcknowledgedResponse>noop();
 
-            threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME)
+            threadPool.executor(MachineLearningPackageLoader.MODEL_DOWNLOAD_THREADPOOL_NAME)
                 .execute(() -> importModel(client, taskManager, request, modelImporter, downloadCompleteListener, downloadTask));
         } catch (Exception e) {
             taskManager.unregister(downloadTask);

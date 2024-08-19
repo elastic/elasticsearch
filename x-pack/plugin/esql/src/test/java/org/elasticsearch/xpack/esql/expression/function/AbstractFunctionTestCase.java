@@ -871,15 +871,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             StringBuilder b = new StringBuilder();
             for (DataType arg : sig.getKey()) {
-                b.append(arg.typeName()).append(" | ");
+                b.append(arg.esType()).append(" | ");
             }
             b.append("| ".repeat(argNames.size() - sig.getKey().size()));
-            b.append(sig.getValue().typeName());
+            b.append(sig.getValue().esType());
             table.add(b.toString());
         }
         Collections.sort(table);
         if (table.isEmpty()) {
-            table.add(signatures.values().iterator().next().typeName());
+            table.add(signatures.values().iterator().next().esType());
         }
 
         String rendered = DOCS_WARNING + """
@@ -1085,7 +1085,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.startArray("params");
             builder.endArray();
             // There should only be one return type so just use that as the example
-            builder.field("returnType", signatures().values().iterator().next().typeName());
+            builder.field("returnType", signatures().values().iterator().next().esType());
             builder.endObject();
         } else {
             int minArgCount = (int) args.stream().filter(a -> false == a.optional()).count();

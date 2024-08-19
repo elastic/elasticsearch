@@ -374,6 +374,66 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testInvalidBucketCalls() {
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(emp_no, 5, \"2000-01-01\")"),
+            containsString(
+                "function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(emp_no, 1 week, \"2000-01-01\")"),
+            containsString(
+                "second argument of [bucket(emp_no, 1 week, \"2000-01-01\")] must be [numeric], found value [1 week] type [date_period]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, 5.5, \"2000-01-01\")"),
+            containsString(
+                "second argument of [bucket(hire_date, 5.5, \"2000-01-01\")] must be [integral, date_period or time_duration], "
+                    + "found value [5.5] type [double]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, 5, 1 day, 1 month)"),
+            containsString(
+                "third argument of [bucket(hire_date, 5, 1 day, 1 month)] must be [datetime or string], "
+                    + "found value [1 day] type [date_period]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, 5, \"2000-01-01\", 1 month)"),
+            containsString(
+                "fourth argument of [bucket(hire_date, 5, \"2000-01-01\", 1 month)] must be [datetime or string], "
+                    + "found value [1 month] type [date_period]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, 5, \"2000-01-01\")"),
+            containsString(
+                "function expects exactly four arguments when the first one is of type [DATETIME] and the second of type [INTEGER]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(emp_no, \"5\")"),
+            containsString("second argument of [bucket(emp_no, \"5\")] must be [numeric], found value [\"5\"] type [keyword]")
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, \"5\")"),
+            containsString(
+                "second argument of [bucket(hire_date, \"5\")] must be [integral, date_period or time_duration], "
+                    + "found value [\"5\"] type [keyword]"
+            )
+        );
+    }
+
     public void testAggsWithInvalidGrouping() {
         assertEquals(
             "1:35: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -175,7 +176,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
         @Param(
             name = "buckets",
             type = { "integer", "long", "double", "date_period", "time_duration" },
-            description = "Target number of buckets."
+            description = "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
         ) Expression buckets,
         @Param(
             name = "from",
@@ -190,7 +191,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
             description = "End of the range. Can be a number, a date or a date expressed as a string."
         ) Expression to
     ) {
-        super(source, from != null && to != null ? List.of(field, buckets, from, to) : List.of(field, buckets));
+        super(source, fields(field, buckets, from, to));
         this.field = field;
         this.buckets = buckets;
         this.from = from;
@@ -205,6 +206,19 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
             in.readOptionalNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class)
         );
+    }
+
+    private static List<Expression> fields(Expression field, Expression buckets, Expression from, Expression to) {
+        List<Expression> list = new ArrayList<>(4);
+        list.add(field);
+        list.add(buckets);
+        if (from != null) {
+            list.add(from);
+            if (to != null) {
+                list.add(to);
+            }
+        }
+        return list;
     }
 
     @Override

@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
@@ -697,7 +695,7 @@ public final class IndicesPermission {
      *
      * @param combine combine index groups to allow for checking against regular expressions
      *
-     * @return a map of all index and privilege pattern automaton
+     * @return a map of all index and privilege pattern automatons
      */
     private Map<Automaton, Automaton> indexGroupAutomatons(boolean combine) {
         // Map of privilege automaton object references (cached by IndexPrivilege::CACHE)
@@ -732,8 +730,6 @@ public final class IndicesPermission {
         }
         return allAutomatons;
     }
-
-    private static final Logger logger = LogManager.getLogger(IndicesPermission.class);
 
     public static class Group {
         public static final Group[] EMPTY_ARRAY = new Group[0];

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.repositories.blobstore.testkit;
+package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;

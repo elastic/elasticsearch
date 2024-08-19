@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.repositories.blobstore.testkit;
+package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import fixture.azure.AzureHttpFixture;
 
@@ -25,7 +25,7 @@ import java.util.function.Predicate;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
-public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestTestCase {
+public class AzureRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
     private static final boolean USE_HTTPS_FIXTURE = USE_FIXTURE && ESTestCase.inFipsJvm() == false;
     // TODO when https://github.com/elastic/elasticsearch/issues/111532 addressed, use a HTTPS fixture in FIPS mode too

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.repositories.blobstore.testkit;
+package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

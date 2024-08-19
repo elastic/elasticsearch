@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.repositories.blobstore.testkit;
+package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
@@ -18,7 +18,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-public class MinioSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestTestCase {
+public class MinioRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTestCase {
 
     public static final MinioTestContainer minioFixture = new MinioTestContainer();
 

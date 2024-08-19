@@ -1,0 +1,5 @@
+pr: 111972
+summary: "[WIP] Implement data stream global retention using settings"
+area: Data streams
+type: feature
+issues: []

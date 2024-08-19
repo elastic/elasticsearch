@@ -19,6 +19,8 @@ import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollection<Geometry>> {
     @Override
     protected GeometryCollection<Geometry> createTestInstance(boolean hasAlt) {
@@ -63,6 +65,31 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
         assertEquals("found Z value [30.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
         StandardValidator.instance(true).validate(new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30))));
+    }
+
+    public void testDeeplyNestedCollection() throws IOException, ParseException {
+        String wkt = makeDeeplyNestedGeometryCollectionWKT(WellKnownText.MAX_NESTED_DEPTH);
+        Geometry parsed = WellKnownText.fromWKT(GeographyValidator.instance(true), true, wkt);
+        assertEquals(WellKnownText.MAX_NESTED_DEPTH, countNestedGeometryCollections((GeometryCollection<?>) parsed));
+    }
+
+    public void testTooDeeplyNestedCollection() {
+        String wkt = makeDeeplyNestedGeometryCollectionWKT(WellKnownText.MAX_NESTED_DEPTH + 1);
+        ParseException ex = expectThrows(ParseException.class, () -> WellKnownText.fromWKT(GeographyValidator.instance(true), true, wkt));
+        assertThat(ex.getMessage(), containsString("maximum nested depth of " + WellKnownText.MAX_NESTED_DEPTH));
+    }
+
+    private String makeDeeplyNestedGeometryCollectionWKT(int depth) {
+        return "GEOMETRYCOLLECTION (".repeat(depth) + "POINT (20.0 10.0)" + ")".repeat(depth);
+    }
+
+    private int countNestedGeometryCollections(GeometryCollection<?> geometry) {
+        int count = 1;
+        while (geometry.get(0) instanceof GeometryCollection<?> g) {
+            count += 1;
+            geometry = g;
+        }
+        return count;
     }
 
     @Override

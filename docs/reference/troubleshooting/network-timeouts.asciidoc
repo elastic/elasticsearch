@@ -16,20 +16,22 @@ end::troubleshooting-network-timeouts-gc-vm[]
 
 tag::troubleshooting-network-timeouts-packet-capture-elections[]
 * Packet captures will reveal system-level and network-level faults, especially
-if you capture the network traffic simultaneously at all relevant nodes. You
-should be able to observe any retransmissions, packet loss, or other delays on
-the connections between the nodes.
+if you capture the network traffic simultaneously at all relevant nodes and
+analyse it alongside the {es} logs from those nodes. You should be able to
+observe any retransmissions, packet loss, or other delays on the connections
+between the nodes.
 end::troubleshooting-network-timeouts-packet-capture-elections[]
 
 tag::troubleshooting-network-timeouts-packet-capture-fault-detection[]
 * Packet captures will reveal system-level and network-level faults, especially
 if you capture the network traffic simultaneously at the elected master and the
-faulty node. The connection used for follower checks is not used for any other
-traffic so it can be easily identified from the flow pattern alone, even if TLS
-is in use: almost exactly every second there will be a few hundred bytes sent
-each way, first the request by the master and then the response by the
-follower. You should be able to observe any retransmissions, packet loss, or
-other delays on such a connection.
+faulty node and analyse it alongside the {es} logs from those nodes. The
+connection used for follower checks is not used for any other traffic so it can
+be easily identified from the flow pattern alone, even if TLS is in use: almost
+exactly every second there will be a few hundred bytes sent each way, first the
+request by the master and then the response by the follower. You should be able
+to observe any retransmissions, packet loss, or other delays on such a
+connection.
 end::troubleshooting-network-timeouts-packet-capture-fault-detection[]
 
 tag::troubleshooting-network-timeouts-threads[]

@@ -100,7 +100,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return Expressions.references(leftFields);
     }
 

@@ -192,7 +192,7 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return matchField.references();
     }
 

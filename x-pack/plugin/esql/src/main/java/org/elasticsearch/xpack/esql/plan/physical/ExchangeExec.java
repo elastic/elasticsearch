@@ -37,7 +37,7 @@ public class ExchangeExec extends UnaryExec {
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return references();
     }
 

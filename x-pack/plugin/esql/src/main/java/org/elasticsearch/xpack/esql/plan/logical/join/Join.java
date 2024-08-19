@@ -77,7 +77,7 @@ public class Join extends BinaryPlan {
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return Expressions.references(config.leftFields()).combine(Expressions.references(config.rightFields()));
     }
 

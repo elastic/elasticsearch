@@ -70,7 +70,7 @@ public class OrderBy extends UnaryPlan {
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return references();
     }
 

@@ -20,7 +20,7 @@ public abstract class LeafExec extends PhysicalPlan {
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return AttributeSet.EMPTY;
     }
 

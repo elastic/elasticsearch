@@ -31,7 +31,7 @@ public class MvExpandExec extends UnaryExec {
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return target.references();
     }
 

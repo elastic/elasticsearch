@@ -50,7 +50,7 @@ public class Filter extends UnaryPlan {
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return references();
     }
 

@@ -61,7 +61,7 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return matchField.references();
     }
 

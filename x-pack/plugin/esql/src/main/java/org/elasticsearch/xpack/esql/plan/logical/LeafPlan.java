@@ -19,7 +19,7 @@ public abstract class LeafPlan extends LogicalPlan {
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return AttributeSet.EMPTY;
     }
 

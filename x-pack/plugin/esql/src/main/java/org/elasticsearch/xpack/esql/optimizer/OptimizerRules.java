@@ -25,7 +25,7 @@ class OptimizerRules {
     static class DependencyConsistency<P extends QueryPlan<P>> {
 
         void checkPlan(P p, Failures failures) {
-            AttributeSet refs = p.requiredInputSet();
+            AttributeSet refs = p.childrenReferences();
             AttributeSet input = p.inputSet();
             AttributeSet missing = refs.subtract(input);
             // TODO: for Joins, we should probably check if the required fields from the left child are actually in the left child, not

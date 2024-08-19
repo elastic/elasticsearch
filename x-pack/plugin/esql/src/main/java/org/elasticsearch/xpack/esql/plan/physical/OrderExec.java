@@ -25,7 +25,7 @@ public class OrderExec extends UnaryExec {
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return references();
     }
 

@@ -143,7 +143,7 @@ public class PhasedTests extends ESTestCase {
         }
 
         @Override
-        public AttributeSet requiredInputSet() {
+        public AttributeSet childrenReferences() {
             return AttributeSet.EMPTY;
         }
 

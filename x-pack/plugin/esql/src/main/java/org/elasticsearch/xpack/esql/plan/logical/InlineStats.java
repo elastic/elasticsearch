@@ -88,7 +88,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return references();
     }
 

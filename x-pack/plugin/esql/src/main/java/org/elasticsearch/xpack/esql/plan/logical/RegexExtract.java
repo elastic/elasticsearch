@@ -41,7 +41,7 @@ public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<R
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return input.references();
     }
 

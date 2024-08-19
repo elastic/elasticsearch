@@ -124,7 +124,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                 } else {
                     AttributeSet childOutput = currentPlanNode.inputSet();
                     AttributeSet addedAttributes = currentPlanNode.outputSet().subtract(childOutput);
-                    requiredAttributes.set(requiredAttributes.get().subtract(addedAttributes).combine(currentPlanNode.requiredInputSet()));
+                    requiredAttributes.set(requiredAttributes.get().subtract(addedAttributes).combine(currentPlanNode.childrenReferences()));
                 }
                 return currentPlanNode;
             });

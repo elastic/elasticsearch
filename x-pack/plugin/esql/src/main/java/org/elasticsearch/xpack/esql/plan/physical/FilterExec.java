@@ -44,7 +44,7 @@ public class FilterExec extends UnaryExec {
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return references();
     }
 

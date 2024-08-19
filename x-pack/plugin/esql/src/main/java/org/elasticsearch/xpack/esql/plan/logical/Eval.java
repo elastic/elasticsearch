@@ -72,7 +72,7 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval> {
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return requiredAttributesFromChild(fields);
     }
 

@@ -113,7 +113,7 @@ public class Lookup extends UnaryPlan {
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return new AttributeSet(matchFields);
     }
 

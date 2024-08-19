@@ -34,7 +34,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return references();
     }
 

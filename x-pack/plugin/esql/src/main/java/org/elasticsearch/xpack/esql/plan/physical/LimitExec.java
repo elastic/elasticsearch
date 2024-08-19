@@ -24,7 +24,7 @@ public class LimitExec extends UnaryExec {
     }
 
     @Override
-    public AttributeSet requiredInputSet() {
+    public AttributeSet childrenReferences() {
         return references();
     }
 

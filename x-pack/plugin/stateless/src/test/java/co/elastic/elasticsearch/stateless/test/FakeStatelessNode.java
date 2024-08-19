@@ -327,7 +327,7 @@ public class FakeStatelessNode implements Closeable {
     }
 
     protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
-        return new CacheBlobReaderService(nodeSettings, cacheService, client);
+        return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool);
     }
 
     public List<StatelessCommitRef> generateIndexCommits(int commitsNumber) throws IOException {

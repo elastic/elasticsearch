@@ -27,10 +27,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyUploadedException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.core.Strings;
 
-import java.io.IOException;
 import java.io.InputStream;
 
 /**
@@ -73,13 +73,11 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
     }
 
     @Override
-    public InputStream getRangeInputStream(long position, int length) throws IOException {
+    public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
         if (latestUploadInfo.isUploaded()) {
-            return cacheBlobReaderForUploaded.getRangeInputStream(position, length);
+            cacheBlobReaderForUploaded.getRangeInputStream(position, length, listener);
         } else {
-            try {
-                return cacheBlobReaderForNonUploaded.getRangeInputStream(position, length);
-            } catch (Exception ex) {
+            cacheBlobReaderForNonUploaded.getRangeInputStream(position, length, listener.delegateResponse((l, ex) -> {
                 // TODO ideally use ShardReadThread pool here again. (ES-8155)
                 final var resourceNotFoundException = ExceptionsHelper.unwrap(ex, ResourceNotFoundException.class);
                 if (resourceNotFoundException != null) {
@@ -97,10 +95,11 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
                     // reaches out to the BCC on the object store. Note that multiple concurrent reads may fail at this point, but they
                     // should be able to retry reading successfully from the object store.
                     // TODO think about a higher level abstraction that could hide/enforce the exception bubbling and/or the retry (ES-9052)
-                    throw new ResourceAlreadyUploadedException(message, ex);
+                    l.onFailure(new ResourceAlreadyUploadedException(message, ex));
+                } else {
+                    l.onFailure(ex);
                 }
-                throw ex;
-            }
+            }));
         }
     }
 }

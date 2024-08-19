@@ -95,42 +95,31 @@ class ModelImporter {
             checkDownloadComplete(chunkIterator);
             return AcknowledgedResponse.TRUE;
         }));
-        try {
-            // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
-            // download is complete
-            if (vocabularyParts != null) {
-                uploadVocabulary(vocabularyParts, countingListener.acquire(r -> {
-                    logger.debug(() -> format("[%s] imported model vocabulary [%s]", modelId, config.getVocabularyFile()));
-                }));
-            }
-
-            for (int part = 0; part < MAX_IN_FLIGHT_REQUESTS; ++part) {
-                if (countingListener.isFailing()) {
-                    break;
-                }
-
-                task.setProgress(chunkIterator.getTotalParts(), chunkIterator.getCurrentPart().get());
-                BytesArray definition = chunkIterator.next();
-
-                if (task.isCancelled()) {
-                    throw new TaskCancelledException(format("task cancelled with reason [%s]", task.getReasonCancelled()));
-                }
-
-                uploadPart(
-                    part,
-                    chunkIterator.getTotalParts(),
-                    size,
-                    definition,
-                    countingListener.acquire(r -> executorService.execute(() -> doNextPart(size, chunkIterator, countingListener)))
-                );
-            }
-        } catch (Exception e) {
-            countingListener.acquire().onFailure(e);
-            countingListener.close();
+        // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
+        // download is complete
+        if (vocabularyParts != null) {
+            uploadVocabulary(
+                vocabularyParts,
+                countingListener.acquire(
+                    r -> { logger.debug(() -> format("[%s] imported model vocabulary [%s]", modelId, config.getVocabularyFile())); }
+                )
+            );
         }
+
+        for (int part = 0; part < MAX_IN_FLIGHT_REQUESTS; ++part) {
+            doNextPart(size, chunkIterator, countingListener);
+        }
+
     }
 
     public void doNextPart(long size, ModelLoaderUtils.InputStreamChunker chunkIterator, RefCountingListener countingListener) {
+        assert ThreadPool.assertCurrentThreadPool(MachineLearningPackageLoader.MODEL_DOWNLOAD_THREADPOOL_NAME)
+            : format(
+            "Model download must execute from [%s] but thread is [%s]",
+            MachineLearningPackageLoader.MODEL_DOWNLOAD_THREADPOOL_NAME,
+            Thread.currentThread().getName()
+        );
+
         if (countingListener.isFailing()) {
             countingListener.close();
             return;

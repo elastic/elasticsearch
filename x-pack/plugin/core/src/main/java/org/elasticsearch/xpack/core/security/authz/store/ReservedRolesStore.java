@@ -868,6 +868,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .indices("/~(([.]|ilm-history-).*)/")
                     .privileges("read", "view_index_metadata")
                     .build(),
+                // Observability
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".slo*")
+                    .privileges("read", "view_index_metadata")
+                    .build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(ReservedRolesStore.ALERTS_LEGACY_INDEX, ReservedRolesStore.LISTS_INDEX, ReservedRolesStore.LISTS_ITEMS_INDEX)
@@ -914,6 +919,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("observability-annotations")
                     .privileges("read", "view_index_metadata", "write")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".slo*")
+                    .privileges("all")
                     .build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()

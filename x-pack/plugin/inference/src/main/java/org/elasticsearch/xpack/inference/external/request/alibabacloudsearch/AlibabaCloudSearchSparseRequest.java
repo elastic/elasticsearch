@@ -56,7 +56,7 @@ public class AlibabaCloudSearchSparseRequest extends AlibabaCloudSearchRequest {
         httpSchema = sparseEmbeddingsModel.getServiceSettings().getCommonSettings().getHttpSchema() != null
             ? sparseEmbeddingsModel.getServiceSettings().getCommonSettings().getHttpSchema()
             : "https";
-        uri = buildUri(this.account.url(), AlibabaCloudSearchUtils.SERVICE_NAME, this::buildDefaultUri);
+        uri = buildUri(null, AlibabaCloudSearchUtils.SERVICE_NAME, this::buildDefaultUri);
         inferenceEntityId = sparseEmbeddingsModel.getInferenceEntityId();
     }
 

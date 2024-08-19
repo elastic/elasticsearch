@@ -269,7 +269,6 @@ public class AlibabaCloudSearchService extends SenderService {
     private AlibabaCloudSearchEmbeddingsModel updateModelWithEmbeddingDetails(AlibabaCloudSearchEmbeddingsModel model, int embeddingSize) {
         AlibabaCloudSearchEmbeddingsServiceSettings serviceSettings = new AlibabaCloudSearchEmbeddingsServiceSettings(
             new AlibabaCloudSearchServiceSettings(
-                model.getServiceSettings().getCommonSettings().getUri(),
                 model.getServiceSettings().getCommonSettings().modelId(),
                 model.getServiceSettings().getCommonSettings().getHost(),
                 model.getServiceSettings().getCommonSettings().getWorkspaceName(),

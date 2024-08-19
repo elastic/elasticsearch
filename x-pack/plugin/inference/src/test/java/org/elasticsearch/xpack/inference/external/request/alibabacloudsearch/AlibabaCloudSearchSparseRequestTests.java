@@ -13,8 +13,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.alibabacloudsearch.AlibabaCloudSearchAccount;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsTaskSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModelTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseServiceSettingsTests;
@@ -37,7 +35,7 @@ public class AlibabaCloudSearchSparseRequestTests extends ESTestCase {
             AlibabaCloudSearchSparseModelTests.createModel(
                 "embedding_test",
                 TaskType.TEXT_EMBEDDING,
-                AlibabaCloudSearchSparseServiceSettingsTests.getServiceSettingsMap(null, "embeddings_test", "host", "default"),
+                AlibabaCloudSearchSparseServiceSettingsTests.getServiceSettingsMap("embeddings_test", "host", "default"),
                 AlibabaCloudSearchSparseTaskSettingsTests.getTaskSettingsMap(null, null),
                 getSecretSettingsMap("secret")
             )
@@ -58,36 +56,8 @@ public class AlibabaCloudSearchSparseRequestTests extends ESTestCase {
         MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"))));
     }
 
-    public void testCreateRequest_UrlDefined() throws IOException {
-        var request = createRequest(
-            List.of("abc"),
-            AlibabaCloudSearchSparseModelTests.createModel(
-                "embedding_test",
-                TaskType.TEXT_EMBEDDING,
-                AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "embeddings_test", "host", "default"),
-                AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
-                getSecretSettingsMap("secret")
-            )
-        );
-
-        var httpRequest = request.createHttpRequest();
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
-
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"))));
-    }
-
     public static AlibabaCloudSearchSparseRequest createRequest(List<String> input, AlibabaCloudSearchSparseModel model) {
-        var account = new AlibabaCloudSearchAccount(
-            model.getServiceSettings().getCommonSettings().getUri(),
-            model.getSecretSettings().apiKey()
-        );
+        var account = new AlibabaCloudSearchAccount(model.getSecretSettings().apiKey());
         return new AlibabaCloudSearchSparseRequest(account, input, model);
     }
 }

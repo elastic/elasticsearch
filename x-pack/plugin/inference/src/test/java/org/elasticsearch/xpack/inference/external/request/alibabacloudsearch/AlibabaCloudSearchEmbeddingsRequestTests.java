@@ -35,7 +35,7 @@ public class AlibabaCloudSearchEmbeddingsRequestTests extends ESTestCase {
             AlibabaCloudSearchEmbeddingsModelTests.createModel(
                 "embedding_test",
                 TaskType.TEXT_EMBEDDING,
-                AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, "embeddings_test", "host", "default"),
+                AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("embeddings_test", "host", "default"),
                 AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                 getSecretSettingsMap("secret")
             )
@@ -56,36 +56,8 @@ public class AlibabaCloudSearchEmbeddingsRequestTests extends ESTestCase {
         MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"))));
     }
 
-    public void testCreateRequest_UrlDefined() throws IOException {
-        var request = createRequest(
-            List.of("abc"),
-            AlibabaCloudSearchEmbeddingsModelTests.createModel(
-                "embedding_test",
-                TaskType.TEXT_EMBEDDING,
-                AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "embeddings_test", "host", "default"),
-                AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
-                getSecretSettingsMap("secret")
-            )
-        );
-
-        var httpRequest = request.createHttpRequest();
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
-
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"))));
-    }
-
     public static AlibabaCloudSearchEmbeddingsRequest createRequest(List<String> input, AlibabaCloudSearchEmbeddingsModel model) {
-        var account = new AlibabaCloudSearchAccount(
-            model.getServiceSettings().getCommonSettings().getUri(),
-            model.getSecretSettings().apiKey()
-        );
+        var account = new AlibabaCloudSearchAccount(model.getSecretSettings().apiKey());
         return new AlibabaCloudSearchEmbeddingsRequest(account, input, model);
     }
 }

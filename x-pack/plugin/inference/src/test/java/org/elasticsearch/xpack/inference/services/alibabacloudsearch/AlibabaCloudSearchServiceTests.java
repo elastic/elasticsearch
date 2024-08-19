@@ -11,13 +11,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.http.MockResponse;
-import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -33,13 +34,13 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
@@ -48,13 +49,11 @@ import static org.mockito.Mockito.mock;
 
 public class AlibabaCloudSearchServiceTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
-    private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
 
     @Before
     public void init() throws Exception {
-        webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
@@ -63,7 +62,6 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     public void shutdown() throws IOException {
         clientManager.close();
         terminate(threadPool);
-        webServer.close();
     }
 
     public void testParseRequestConfig_CreatesAnEmbeddingsModel() throws IOException {
@@ -82,7 +80,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, "service_id", "host", "default"),
+                    AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
                     AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                     getSecretSettingsMap("secret")
                 ),
@@ -95,41 +93,33 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     public void testCheckModelConfig() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool)) {
+            @Override
+            public void doInfer(
+                Model model,
+                List<String> input,
+                Map<String, Object> taskSettings,
+                InputType inputType,
+                TimeValue timeout,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                InferenceTextEmbeddingFloatResults results = new InferenceTextEmbeddingFloatResults(
+                    List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { -0.028680f, 0.022033f }))
+                );
 
-            String responseJson = """
-                {
-                    "request_id": "B4AB89C8-B135-xxxx-A6F8-2BAB801A2CE4",
-                    "latency": 38,
-                    "usage": {
-                        "token_count": 3072
-                    },
-                    "result": {
-                        "embeddings": [
-                            {
-                                "index": 0,
-                                "embedding": [
-                                    -0.02868066355586052,
-                                    0.022033605724573135
-                                ]
-                            }
-                        ]
-                    }
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
+                listener.onResponse(results);
+            }
+        }) {
             Map<String, Object> serviceSettingsMap = new HashMap<>();
             serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, "service_id");
             serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, "host");
             serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, "default");
-            serviceSettingsMap.put(ServiceFields.URL, getUrl(webServer));
             serviceSettingsMap.put(ServiceFields.DIMENSIONS, 1536);
 
             Map<String, Object> taskSettingsMap = new HashMap<>();
 
             Map<String, Object> secretSettingsMap = new HashMap<>();
-            secretSettingsMap.put("api_key", "sectet");
+            secretSettingsMap.put("api_key", "secret");
 
             var model = AlibabaCloudSearchEmbeddingsModelTests.createModel(
                 "service",
@@ -146,14 +136,13 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             expectedServiceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, "service_id");
             expectedServiceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, "host");
             expectedServiceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, "default");
-            expectedServiceSettingsMap.put(ServiceFields.URL, getUrl(webServer));
             expectedServiceSettingsMap.put(ServiceFields.SIMILARITY, "DOT_PRODUCT");
             expectedServiceSettingsMap.put(ServiceFields.DIMENSIONS, 2);
 
             Map<String, Object> expectedTaskSettingsMap = new HashMap<>();
 
             Map<String, Object> expectedSecretSettingsMap = new HashMap<>();
-            expectedSecretSettingsMap.put("api_key", "sectet");
+            expectedSecretSettingsMap.put("api_key", "secret");
 
             var expectedModel = AlibabaCloudSearchEmbeddingsModelTests.createModel(
                 "service",

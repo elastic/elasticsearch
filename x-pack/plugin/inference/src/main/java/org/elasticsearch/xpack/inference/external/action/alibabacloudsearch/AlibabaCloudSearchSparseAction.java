@@ -38,14 +38,8 @@ public class AlibabaCloudSearchSparseAction implements ExecutableAction {
 
     public AlibabaCloudSearchSparseAction(Sender sender, AlibabaCloudSearchSparseModel model, ServiceComponents serviceComponents) {
         this.model = Objects.requireNonNull(model);
-        this.account = new AlibabaCloudSearchAccount(
-            this.model.getServiceSettings().getCommonSettings().getUri(),
-            this.model.getSecretSettings().apiKey()
-        );
-        this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-            this.model.getServiceSettings().getCommonSettings().getUri(),
-            "AlibabaCloud Search sparse embeddings"
-        );
+        this.account = new AlibabaCloudSearchAccount(this.model.getSecretSettings().apiKey());
+        this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(null, "AlibabaCloud Search sparse embeddings");
         this.sender = Objects.requireNonNull(sender);
         requestCreator = AlibabaCloudSearchSparseRequestManager.of(account, model, serviceComponents.threadPool());
     }

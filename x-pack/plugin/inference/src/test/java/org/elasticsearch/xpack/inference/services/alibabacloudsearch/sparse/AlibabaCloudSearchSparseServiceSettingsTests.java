@@ -8,10 +8,7 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettingsTests;
 import org.hamcrest.MatcherAssert;
@@ -28,13 +25,7 @@ public class AlibabaCloudSearchSparseServiceSettingsTests extends AbstractWireSe
         return new AlibabaCloudSearchSparseServiceSettings(commonSettings);
     }
 
-    public static AlibabaCloudSearchSparseServiceSettings createRandom(String url) {
-        var commonSettings = AlibabaCloudSearchServiceSettingsTests.createRandom(url);
-        return new AlibabaCloudSearchSparseServiceSettings(commonSettings);
-    }
-
     public void testFromMap() {
-        var url = "https://www.abc.com";
         var model = "model";
         var host = "host";
         var workspaceName = "default";
@@ -42,8 +33,6 @@ public class AlibabaCloudSearchSparseServiceSettingsTests extends AbstractWireSe
         var serviceSettings = AlibabaCloudSearchSparseServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    ServiceFields.URL,
-                    url,
                     AlibabaCloudSearchServiceSettings.HOST,
                     host,
                     AlibabaCloudSearchServiceSettings.SERVICE_ID,
@@ -61,7 +50,7 @@ public class AlibabaCloudSearchSparseServiceSettingsTests extends AbstractWireSe
             serviceSettings,
             is(
                 new AlibabaCloudSearchSparseServiceSettings(
-                    new AlibabaCloudSearchServiceSettings(ServiceUtils.createUri(url), model, host, workspaceName, httpSchema, null)
+                    new AlibabaCloudSearchServiceSettings(model, host, workspaceName, httpSchema, null)
                 )
             )
         );
@@ -82,7 +71,7 @@ public class AlibabaCloudSearchSparseServiceSettingsTests extends AbstractWireSe
         return null;
     }
 
-    public static Map<String, Object> getServiceSettingsMap(@Nullable String url, String serviceId, String host, String workspaceName) {
-        return AlibabaCloudSearchServiceSettingsTests.getServiceSettingsMap(url, serviceId, host, workspaceName);
+    public static Map<String, Object> getServiceSettingsMap(String serviceId, String host, String workspaceName) {
+        return AlibabaCloudSearchServiceSettingsTests.getServiceSettingsMap(serviceId, host, workspaceName);
     }
 }

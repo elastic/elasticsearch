@@ -22,14 +22,10 @@ import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObjec
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
@@ -49,9 +45,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     public static AlibabaCloudSearchServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String modelId = extractRequiredString(map, SERVICE_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String host = extractRequiredString(map, HOST, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var workspaceName = extractRequiredString(map, WORKSPACE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -76,10 +69,9 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
             throw validationException;
         }
 
-        return new AlibabaCloudSearchServiceSettings(uri, modelId, host, workspaceName, httpSchema, rateLimitSettings);
+        return new AlibabaCloudSearchServiceSettings(modelId, host, workspaceName, httpSchema, rateLimitSettings);
     }
 
-    private final URI uri;
     private final String serviceId;
     private final String host;
     private final String workspaceName;
@@ -87,14 +79,12 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     private final RateLimitSettings rateLimitSettings;
 
     public AlibabaCloudSearchServiceSettings(
-        @Nullable URI uri,
         String serviceId,
         String host,
         String workspaceName,
         @Nullable String httpSchema,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
-        this.uri = uri;
         this.serviceId = serviceId;
         this.host = host;
         this.workspaceName = workspaceName;
@@ -103,16 +93,11 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     }
 
     public AlibabaCloudSearchServiceSettings(StreamInput in) throws IOException {
-        uri = createOptionalUri(in.readOptionalString());
         serviceId = in.readString();
         host = in.readString();
         workspaceName = in.readString();
         httpSchema = in.readOptionalString();
         rateLimitSettings = new RateLimitSettings(in);
-    }
-
-    public URI getUri() {
-        return uri;
     }
 
     @Override
@@ -158,9 +143,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
 
     @Override
     public XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        if (uri != null) {
-            builder.field(URL, uri.toString());
-        }
         if (serviceId != null) {
             builder.field(SERVICE_ID, serviceId);
         }
@@ -186,8 +168,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        var uriToWrite = uri != null ? uri.toString() : null;
-        out.writeOptionalString(uriToWrite);
         out.writeString(serviceId);
         out.writeString(host);
         out.writeString(workspaceName);
@@ -200,8 +180,7 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AlibabaCloudSearchServiceSettings that = (AlibabaCloudSearchServiceSettings) o;
-        return Objects.equals(uri, that.uri)
-            && Objects.equals(serviceId, that.serviceId)
+        return Objects.equals(serviceId, that.serviceId)
             && Objects.equals(host, that.host)
             && Objects.equals(workspaceName, that.workspaceName)
             && Objects.equals(httpSchema, that.httpSchema);
@@ -209,6 +188,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, serviceId, host, workspaceName, httpSchema);
+        return Objects.hash(serviceId, host, workspaceName, httpSchema);
     }
 }

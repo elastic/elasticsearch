@@ -8,11 +8,9 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettingsTests;
 import org.hamcrest.MatcherAssert;
@@ -26,12 +24,7 @@ import static org.hamcrest.Matchers.is;
 public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<
     AlibabaCloudSearchEmbeddingsServiceSettings> {
     public static AlibabaCloudSearchEmbeddingsServiceSettings createRandom() {
-        var url = randomBoolean() ? randomAlphaOfLength(15) : null;
-        return createRandom(url);
-    }
-
-    public static AlibabaCloudSearchEmbeddingsServiceSettings createRandom(String url) {
-        var commonSettings = AlibabaCloudSearchServiceSettingsTests.createRandom(url);
+        var commonSettings = AlibabaCloudSearchServiceSettingsTests.createRandom();
         var similarity = SimilarityMeasure.DOT_PRODUCT;
         var dims = 1536;
         var maxInputTokens = 512;
@@ -39,7 +32,6 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractWi
     }
 
     public void testFromMap() {
-        var url = "https://www.abc.com";
         var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
         var dims = 1536;
         var maxInputTokens = 512;
@@ -50,8 +42,6 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractWi
         var serviceSettings = AlibabaCloudSearchEmbeddingsServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    ServiceFields.URL,
-                    url,
                     ServiceFields.SIMILARITY,
                     similarity,
                     ServiceFields.DIMENSIONS,
@@ -75,7 +65,7 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractWi
             serviceSettings,
             is(
                 new AlibabaCloudSearchEmbeddingsServiceSettings(
-                    new AlibabaCloudSearchServiceSettings(ServiceUtils.createUri(url), model, host, workspaceName, httpSchema, null),
+                    new AlibabaCloudSearchServiceSettings(model, host, workspaceName, httpSchema, null),
                     SimilarityMeasure.DOT_PRODUCT,
                     dims,
                     maxInputTokens
@@ -100,7 +90,7 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractWi
         return null;
     }
 
-    public static Map<String, Object> getServiceSettingsMap(@Nullable String url, String serviceId, String host, String workspaceName) {
-        return AlibabaCloudSearchServiceSettingsTests.getServiceSettingsMap(url, serviceId, host, workspaceName);
+    public static Map<String, Object> getServiceSettingsMap(String serviceId, String host, String workspaceName) {
+        return AlibabaCloudSearchServiceSettingsTests.getServiceSettingsMap(serviceId, host, workspaceName);
     }
 }

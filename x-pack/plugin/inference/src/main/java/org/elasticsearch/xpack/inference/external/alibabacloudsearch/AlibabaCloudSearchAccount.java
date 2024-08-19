@@ -8,12 +8,10 @@
 package org.elasticsearch.xpack.inference.external.alibabacloudsearch;
 
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.Nullable;
 
-import java.net.URI;
 import java.util.Objects;
 
-public record AlibabaCloudSearchAccount(@Nullable URI url, SecureString apiKey) {
+public record AlibabaCloudSearchAccount(SecureString apiKey) {
 
     public AlibabaCloudSearchAccount {
         Objects.requireNonNull(apiKey);

@@ -56,7 +56,7 @@ public class AlibabaCloudSearchEmbeddingsRequest extends AlibabaCloudSearchReque
         httpSchema = embeddingsModel.getServiceSettings().getCommonSettings().getHttpSchema() != null
             ? embeddingsModel.getServiceSettings().getCommonSettings().getHttpSchema()
             : "https";
-        uri = buildUri(this.account.url(), AlibabaCloudSearchUtils.SERVICE_NAME, this::buildDefaultUri);
+        uri = buildUri(null, AlibabaCloudSearchUtils.SERVICE_NAME, this::buildDefaultUri);
         inferenceEntityId = embeddingsModel.getInferenceEntityId();
     }
 

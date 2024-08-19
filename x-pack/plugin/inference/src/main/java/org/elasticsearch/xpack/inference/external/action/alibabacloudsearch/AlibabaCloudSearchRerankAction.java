@@ -38,14 +38,8 @@ public class AlibabaCloudSearchRerankAction implements ExecutableAction {
 
     public AlibabaCloudSearchRerankAction(Sender sender, AlibabaCloudSearchRerankModel model, ServiceComponents serviceComponents) {
         this.model = Objects.requireNonNull(model);
-        this.account = new AlibabaCloudSearchAccount(
-            this.model.getServiceSettings().getCommonSettings().getUri(),
-            this.model.getSecretSettings().apiKey()
-        );
-        this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-            this.model.getServiceSettings().getCommonSettings().getUri(),
-            "AlibabaCloud Search rerank"
-        );
+        this.account = new AlibabaCloudSearchAccount(this.model.getSecretSettings().apiKey());
+        this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(null, "AlibabaCloud Search rerank");
         this.sender = Objects.requireNonNull(sender);
         this.requestCreator = AlibabaCloudSearchRerankRequestManager.of(account, model, serviceComponents.threadPool());
     }

@@ -428,8 +428,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         for (int i = 1; i <= numberOfProjects; i++) {
             var projectId = new ProjectId("p" + i);
             mb.put(
-                projectId,
-                ProjectMetadata.builder()
+                ProjectMetadata.builder(projectId)
                     .put(
                         IndexMetadata.builder("test")
                             .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))

@@ -38,6 +38,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
@@ -898,6 +899,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         private DiffableStringMap hashesOfConsistentSettings = DiffableStringMap.EMPTY;
 
         private final ImmutableOpenMap.Builder<String, ClusterCustom> customs;
+
+        /**
+         * TODO: This should map to {@link ProjectMetadata} (not Builder), but that's tricky to do due to
+         * legacy delegation methods such as {@link #indices(Map)} which expect to have a mutable project
+         */
         private final Map<ProjectId, ProjectMetadata.Builder> projectMetadata;
 
         private final Map<String, ReservedStateMetadata> reservedStateMetadata;
@@ -937,13 +943,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         public Builder put(ProjectMetadata.Builder projectMetadata) {
-            // TODO: tighten this up when we remove all the methods delegating to ProjectMetadata.Builder
-            this.projectMetadata.clear();
-            return put(DEFAULT_PROJECT_ID, projectMetadata);
-        }
-
-        public Builder put(ProjectId projectId, ProjectMetadata.Builder projectMetadata) {
-            this.projectMetadata.put(projectId, projectMetadata);
+            this.projectMetadata.put(projectMetadata.getId(), projectMetadata);
             return this;
         }
 
@@ -1232,6 +1232,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         public Metadata build(boolean skipNameCollisionChecks) {
             if (projectMetadata.isEmpty()) {
                 createDefaultProject();
+            } else if (Assertions.ENABLED) {
+                projectMetadata.forEach((id, project) -> {
+                    assert project.getId().equals(id) : "project id mismatch key=[" + id + "] builder=[" + project.getId() + "]";
+                });
             }
             return new Metadata(
                 clusterUUID,
@@ -1249,7 +1253,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         private ProjectMetadata.Builder createDefaultProject() {
-            return projectMetadata.put(DEFAULT_PROJECT_ID, new ProjectMetadata.Builder(Map.of(), 0));
+            return projectMetadata.put(DEFAULT_PROJECT_ID, new ProjectMetadata.Builder(DEFAULT_PROJECT_ID, Map.of(), 0));
         }
 
         public static Metadata fromXContent(XContentParser parser) throws IOException {

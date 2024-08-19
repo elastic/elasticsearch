@@ -113,7 +113,7 @@ public class PutProjectAction extends ActionType<AcknowledgedResponse> {
             for (TaskContext<PutProjectTask> taskContext : batchExecutionContext.taskContexts()) {
                 try {
                     Request request = taskContext.getTask().request();
-                    stateBuilder.putProjectMetadata(request.projectId, ProjectMetadata.builder());
+                    stateBuilder.putProjectMetadata(ProjectMetadata.builder(request.projectId));
                     taskContext.success(() -> taskContext.getTask().listener.onResponse(AcknowledgedResponse.TRUE));
                 } catch (Exception e) {
                     taskContext.onFailure(e);

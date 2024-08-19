@@ -318,7 +318,7 @@ public class PersistentTasksMetadataSectionTests extends ChunkedToXContentDiffab
 
         ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests"))
             .nodes(nodes)
-            .metadata(Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()))
+            .metadata(Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()))
             .build();
         ClusterState returnedState = PersistentTasksMetadataSection.disassociateDeadNodes(originalState);
         assertThat(originalState, sameInstance(returnedState));
@@ -352,7 +352,7 @@ public class PersistentTasksMetadataSectionTests extends ChunkedToXContentDiffab
 
         ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests"))
             .nodes(nodes)
-            .metadata(Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()))
+            .metadata(Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()))
             .build();
         ClusterState returnedState = PersistentTasksMetadataSection.disassociateDeadNodes(originalState);
         assertThat(originalState, not(sameInstance(returnedState)));

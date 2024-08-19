@@ -231,7 +231,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertBusy(() -> {
             ClusterState clusterState = clusterAdmin().prepareState().get().getState();
-            PersistentTasksMetadataSection tasks = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+            PersistentTasksMetadataSection tasks = clusterState.getMetadata().section(PersistentTasksMetadataSection.TYPE);
             PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId(jobId));
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
@@ -278,7 +278,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         // Sample each cs update and keep track each time a node holds more than `maxConcurrentJobAllocations` opening jobs.
         List<String> violations = new CopyOnWriteArrayList<>();
         internalCluster().clusterService(nonMlNode).addListener(event -> {
-            PersistentTasksMetadataSection tasks = event.state().metadata().custom(PersistentTasksMetadataSection.TYPE);
+            PersistentTasksMetadataSection tasks = event.state().metadata().section(PersistentTasksMetadataSection.TYPE);
             if (tasks == null) {
                 return;
             }

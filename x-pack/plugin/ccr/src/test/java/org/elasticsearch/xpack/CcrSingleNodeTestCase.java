@@ -73,7 +73,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
 
     @Before
     public void waitForTrialLicenseToBeGenerated() throws Exception {
-        assertBusy(() -> assertNotNull(getInstanceFromNode(ClusterService.class).state().metadata().custom(LicensesMetadata.TYPE)));
+        assertBusy(() -> assertNotNull(getInstanceFromNode(ClusterService.class).state().metadata().section(LicensesMetadata.TYPE)));
     }
 
     @After

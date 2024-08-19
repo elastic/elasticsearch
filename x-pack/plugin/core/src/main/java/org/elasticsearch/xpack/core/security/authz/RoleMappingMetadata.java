@@ -58,7 +58,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<MetadataSec
     private static final RoleMappingMetadata EMPTY = new RoleMappingMetadata(Set.of());
 
     public static RoleMappingMetadata getFromClusterState(ClusterState clusterState) {
-        return clusterState.metadata().custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY);
+        return clusterState.metadata().section(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY);
     }
 
     private final Set<ExpressionRoleMapping> roleMappings;
@@ -82,9 +82,9 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<MetadataSec
     public ClusterState updateClusterState(ClusterState clusterState) {
         if (isEmpty()) {
             // prefer no role mapping custom metadata to the empty role mapping metadata
-            return clusterState.copyAndUpdateMetadata(b -> b.removeCustom(RoleMappingMetadata.TYPE));
+            return clusterState.copyAndUpdateMetadata(b -> b.removeSection(RoleMappingMetadata.TYPE));
         } else {
-            return clusterState.copyAndUpdateMetadata(b -> b.putCustom(RoleMappingMetadata.TYPE, this));
+            return clusterState.copyAndUpdateMetadata(b -> b.putSection(RoleMappingMetadata.TYPE, this));
         }
     }
 

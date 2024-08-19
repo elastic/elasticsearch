@@ -394,7 +394,7 @@ public class MlDailyMaintenanceService implements Releasable {
      */
     private void auditUnassignedMlTasks() {
         ClusterState state = clusterService.state();
-        PersistentTasksMetadataSection tasks = state.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection tasks = state.getMetadata().section(PersistentTasksMetadataSection.TYPE);
         if (tasks != null) {
             mlAssignmentNotifier.auditUnassignedMlTasks(state.nodes(), tasks);
         }

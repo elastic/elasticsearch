@@ -398,7 +398,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
     private static ClusterState createClusterStateWith(SnapshotLifecycleMetadata metadata) {
         var builder = new ClusterState.Builder(new ClusterName("test-cluster"));
         if (metadata != null) {
-            builder.metadata(new Metadata.Builder().putCustom(SnapshotLifecycleMetadata.TYPE, metadata));
+            builder.metadata(new Metadata.Builder().putSection(SnapshotLifecycleMetadata.TYPE, metadata));
         }
         return builder.build();
     }

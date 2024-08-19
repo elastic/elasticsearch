@@ -383,7 +383,7 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                 ClusterState.builder(ClusterState.EMPTY_STATE)
                     .metadata(
                         Metadata.builder()
-                            .putCustom(
+                            .putSection(
                                 RepositoriesMetadata.TYPE,
                                 new RepositoriesMetadata(List.of(new RepositoryMetadata("test-repo", "test-repo-type", Settings.EMPTY)))
                             )

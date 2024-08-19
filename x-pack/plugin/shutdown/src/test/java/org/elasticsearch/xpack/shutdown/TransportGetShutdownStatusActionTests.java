@@ -593,7 +593,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             .metadata(
                 Metadata.builder()
                     .indices(Map.of())
-                    .putCustom(
+                    .putSection(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
                             Map.of(
@@ -856,7 +856,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             .metadata(
                 Metadata.builder()
                     .indices(indicesTable)
-                    .putCustom(
+                    .putSection(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
                             Map.of(
@@ -880,7 +880,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         return ClusterState.builder(state)
             .metadata(
                 Metadata.builder(state.metadata())
-                    .putCustom(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(operationMode, currentSLMMode(state)))
+                    .putSection(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(operationMode, currentSLMMode(state)))
             )
             .build();
     }

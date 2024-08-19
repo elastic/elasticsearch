@@ -87,14 +87,14 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
                 XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
                 WatcherMetadata newWatcherMetadata = new WatcherMetadata(manuallyStopped);
-                WatcherMetadata currentMetadata = clusterState.metadata().custom(WatcherMetadata.TYPE);
+                WatcherMetadata currentMetadata = clusterState.metadata().section(WatcherMetadata.TYPE);
 
                 // adhere to the contract of returning the original state if nothing has changed
                 if (newWatcherMetadata.equals(currentMetadata)) {
                     return clusterState;
                 } else {
                     ClusterState.Builder builder = new ClusterState.Builder(clusterState);
-                    builder.metadata(Metadata.builder(clusterState.getMetadata()).putCustom(WatcherMetadata.TYPE, newWatcherMetadata));
+                    builder.metadata(Metadata.builder(clusterState.getMetadata()).putSection(WatcherMetadata.TYPE, newWatcherMetadata));
                     return builder.build();
                 }
             }

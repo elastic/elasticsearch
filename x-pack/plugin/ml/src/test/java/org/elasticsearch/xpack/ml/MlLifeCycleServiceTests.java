@@ -105,7 +105,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
             new PersistentTasksMetadataSection.Assignment("node-3", "test assignment")
         );
 
-        Metadata metadata = Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()).build();
+        Metadata metadata = Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()).build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
 
         Instant shutdownStartTime = Instant.now();
@@ -169,7 +169,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
             new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, 3, "testing")
         );
 
-        Metadata metadata = Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()).build();
+        Metadata metadata = Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()).build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
 
         // For these tests it shouldn't matter when shutdown started or what the time is now, because it's always safe to shut down
@@ -186,7 +186,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         ClusterState currentState = ClusterState.builder(new ClusterName("test"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
@@ -210,7 +210,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         ClusterState currentState = ClusterState.builder(new ClusterName("test"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
@@ -239,7 +239,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         ClusterState currentState = ClusterState.builder(new ClusterName("test"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(

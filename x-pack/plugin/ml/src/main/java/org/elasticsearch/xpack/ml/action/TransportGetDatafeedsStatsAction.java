@@ -67,7 +67,7 @@ public class TransportGetDatafeedsStatsAction extends HandledTransportAction<Req
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         logger.trace(() -> "[" + request.getDatafeedId() + "] get stats for datafeed");
         ClusterState state = clusterService.state();
-        final PersistentTasksMetadataSection tasksInProgress = state.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        final PersistentTasksMetadataSection tasksInProgress = state.getMetadata().section(PersistentTasksMetadataSection.TYPE);
         final Response.Builder responseBuilder = new Response.Builder();
         final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 

@@ -90,17 +90,17 @@ public class TransportDeleteAutoscalingPolicyActionTests extends AutoscalingTest
         {
             final ClusterState.Builder builder = ClusterState.builder(new ClusterName(randomAlphaOfLength(8)));
             builder.metadata(
-                Metadata.builder().putCustom(AutoscalingMetadata.NAME, randomAutoscalingMetadataOfPolicyCount(randomIntBetween(1, 8)))
+                Metadata.builder().putSection(AutoscalingMetadata.NAME, randomAutoscalingMetadataOfPolicyCount(randomIntBetween(1, 8)))
             );
             currentState = builder.build();
         }
-        final AutoscalingMetadata currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
+        final AutoscalingMetadata currentMetadata = currentState.metadata().section(AutoscalingMetadata.NAME);
         final String name = randomFrom(currentMetadata.policies().keySet());
         final Logger mockLogger = mock(Logger.class);
         final ClusterState state = TransportDeleteAutoscalingPolicyAction.deleteAutoscalingPolicy(currentState, name, mockLogger);
 
         // ensure the policy is deleted from the cluster state
-        final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
+        final AutoscalingMetadata metadata = state.metadata().section(AutoscalingMetadata.NAME);
         assertNotNull(metadata);
         assertThat(metadata.policies(), not(hasKey(name)));
         verify(mockLogger).info("deleting autoscaling policy [{}]", name);
@@ -121,18 +121,18 @@ public class TransportDeleteAutoscalingPolicyActionTests extends AutoscalingTest
         {
             final ClusterState.Builder builder = ClusterState.builder(new ClusterName(randomAlphaOfLength(8)));
             builder.metadata(
-                Metadata.builder().putCustom(AutoscalingMetadata.NAME, randomAutoscalingMetadataOfPolicyCount(randomIntBetween(1, 8)))
+                Metadata.builder().putSection(AutoscalingMetadata.NAME, randomAutoscalingMetadataOfPolicyCount(randomIntBetween(1, 8)))
             );
             currentState = builder.build();
         }
-        final AutoscalingMetadata currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
+        final AutoscalingMetadata currentMetadata = currentState.metadata().section(AutoscalingMetadata.NAME);
         final String policyName = randomFrom(currentMetadata.policies().keySet());
         final String deleteName = randomFrom(policyName.substring(0, between(0, policyName.length()))) + "*";
         final Logger mockLogger = mock(Logger.class);
         final ClusterState state = TransportDeleteAutoscalingPolicyAction.deleteAutoscalingPolicy(currentState, deleteName, mockLogger);
 
         // ensure the policy is deleted from the cluster state
-        final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
+        final AutoscalingMetadata metadata = state.metadata().section(AutoscalingMetadata.NAME);
         assertNotNull(metadata);
         assertThat(metadata.policies(), not(hasKey(policyName)));
 
@@ -155,11 +155,11 @@ public class TransportDeleteAutoscalingPolicyActionTests extends AutoscalingTest
         {
             final ClusterState.Builder builder = ClusterState.builder(new ClusterName(randomAlphaOfLength(8)));
             builder.metadata(
-                Metadata.builder().putCustom(AutoscalingMetadata.NAME, randomAutoscalingMetadataOfPolicyCount(randomIntBetween(1, 8)))
+                Metadata.builder().putSection(AutoscalingMetadata.NAME, randomAutoscalingMetadataOfPolicyCount(randomIntBetween(1, 8)))
             );
             currentState = builder.build();
         }
-        final AutoscalingMetadata currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
+        final AutoscalingMetadata currentMetadata = currentState.metadata().section(AutoscalingMetadata.NAME);
         final String name = randomValueOtherThanMany(currentMetadata.policies().keySet()::contains, () -> randomAlphaOfLength(8));
         final Logger mockLogger = mock(Logger.class);
         final ResourceNotFoundException e = expectThrows(

@@ -108,7 +108,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         ActionListener<GetShutdownStatusAction.Response> listener
     ) {
         CancellableTask cancellableTask = (CancellableTask) task;
-        NodesShutdownMetadata nodesShutdownMetadata = state.metadata().custom(NodesShutdownMetadata.TYPE);
+        NodesShutdownMetadata nodesShutdownMetadata = state.metadata().section(NodesShutdownMetadata.TYPE);
 
         GetShutdownStatusAction.Response response;
         if (nodesShutdownMetadata == null) {

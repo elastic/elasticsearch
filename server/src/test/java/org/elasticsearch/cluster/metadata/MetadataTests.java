@@ -1052,10 +1052,10 @@ public class MetadataTests extends ESTestCase {
         assertThat(setting.get(metadata.settings()), equalTo("transient-value"));
     }
 
-    public void testBuilderRejectsNullCustom() {
+    public void testBuilderRejectsNullSection() {
         final Metadata.Builder builder = Metadata.builder();
         final String key = randomAlphaOfLength(10);
-        assertThat(expectThrows(NullPointerException.class, () -> builder.putCustom(key, null)).getMessage(), containsString(key));
+        assertThat(expectThrows(NullPointerException.class, () -> builder.putSection(key, null)).getMessage(), containsString(key));
     }
 
     public void testBuilderRejectsNullInCustoms() {
@@ -1063,7 +1063,7 @@ public class MetadataTests extends ESTestCase {
         final String key = randomAlphaOfLength(10);
         final Map<String, MetadataSection> map = new HashMap<>();
         map.put(key, null);
-        assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
+        assertThat(expectThrows(NullPointerException.class, () -> builder.sections(map)).getMessage(), containsString(key));
     }
 
     public void testCopyAndUpdate() throws IOException {
@@ -1076,18 +1076,18 @@ public class MetadataTests extends ESTestCase {
         assertThat(copy.clusterUUID(), equalTo(newClusterUuid));
     }
 
-    public void testBuilderRemoveCustomIf() {
+    public void testBuilderRemoveSectionIf() {
         var custom1 = new TestMetadataSection();
         var custom2 = new TestMetadataSection();
         var builder = Metadata.builder();
-        builder.putCustom("custom1", custom1);
-        builder.putCustom("custom2", custom2);
+        builder.putSection("custom1", custom1);
+        builder.putSection("custom2", custom2);
 
-        builder.removeCustomIf((key, value) -> Objects.equals(key, "custom1"));
+        builder.removeSectionIf((key, value) -> Objects.equals(key, "custom1"));
 
         var metadata = builder.build();
-        assertThat(metadata.custom("custom1"), nullValue());
-        assertThat(metadata.custom("custom2"), sameInstance(custom2));
+        assertThat(metadata.section("custom1"), nullValue());
+        assertThat(metadata.section("custom2"), sameInstance(custom2));
     }
 
     public void testBuilderRejectsDataStreamThatConflictsWithIndex() {

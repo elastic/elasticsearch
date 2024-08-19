@@ -208,7 +208,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
 
         final var clusterStateWithShutdownMetadata = SnapshotsInProgressSerializationTests.CLUSTER_STATE_FOR_NODE_SHUTDOWNS
             .copyAndUpdateMetadata(
-                mdb -> mdb.putCustom(
+                mdb -> mdb.putSection(
                     NodesShutdownMetadata.TYPE,
                     new NodesShutdownMetadata(
                         Map.of(

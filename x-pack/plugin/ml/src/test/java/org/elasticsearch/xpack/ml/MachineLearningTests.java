@@ -107,7 +107,7 @@ public class MachineLearningTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(
             ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
+                .metadata(Metadata.builder().putSection(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
                 .build()
         );
         Client client = mock(Client.class);

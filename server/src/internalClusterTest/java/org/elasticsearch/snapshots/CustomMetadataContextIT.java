@@ -81,9 +81,9 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
         boolean isSnapshotMetadataSet = randomBoolean();
         updateClusterState(currentState -> currentState.copyAndUpdateMetadata(metadataBuilder -> {
             if (isSnapshotMetadataSet) {
-                metadataBuilder.putCustom(SnapshotMetadata.TYPE, new SnapshotMetadata("before_snapshot_s"));
+                metadataBuilder.putSection(SnapshotMetadata.TYPE, new SnapshotMetadata("before_snapshot_s"));
             }
-            metadataBuilder.putCustom(ApiMetadata.TYPE, new ApiMetadata("before_snapshot_ns"));
+            metadataBuilder.putSection(ApiMetadata.TYPE, new ApiMetadata("before_snapshot_ns"));
         }));
 
         logger.info("create snapshot");
@@ -93,11 +93,11 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
         logger.info("update custom persistent metadata");
         updateClusterState(currentState -> currentState.copyAndUpdateMetadata(metadataBuilder -> {
             if (isSnapshotMetadataSet == false || randomBoolean()) {
-                metadataBuilder.putCustom(SnapshotMetadata.TYPE, new SnapshotMetadata("after_snapshot_s"));
+                metadataBuilder.putSection(SnapshotMetadata.TYPE, new SnapshotMetadata("after_snapshot_s"));
             } else {
-                metadataBuilder.removeCustom(SnapshotMetadata.TYPE);
+                metadataBuilder.removeSection(SnapshotMetadata.TYPE);
             }
-            metadataBuilder.putCustom(ApiMetadata.TYPE, new ApiMetadata("after_snapshot_ns"));
+            metadataBuilder.putSection(ApiMetadata.TYPE, new ApiMetadata("after_snapshot_ns"));
         }));
 
         logger.info("restore snapshot");
@@ -110,18 +110,18 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
         var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
         logger.info("check that custom persistent metadata [{}] is correctly restored", metadata);
         if (isSnapshotMetadataSet) {
-            assertThat(metadata.<SnapshotMetadata>custom(SnapshotMetadata.TYPE).getData(), equalTo("before_snapshot_s"));
+            assertThat(metadata.<SnapshotMetadata>section(SnapshotMetadata.TYPE).getData(), equalTo("before_snapshot_s"));
         } else {
-            assertThat(metadata.<SnapshotMetadata>custom(SnapshotMetadata.TYPE), nullValue());
+            assertThat(metadata.<SnapshotMetadata>section(SnapshotMetadata.TYPE), nullValue());
         }
-        assertThat(metadata.<ApiMetadata>custom(ApiMetadata.TYPE).getData(), equalTo("after_snapshot_ns"));
+        assertThat(metadata.<ApiMetadata>section(ApiMetadata.TYPE).getData(), equalTo("after_snapshot_ns"));
     }
 
     public void testShouldKeepGatewayMetadataAfterRestart() throws Exception {
         logger.info("add custom gateway metadata");
         updateClusterState(currentState -> currentState.copyAndUpdateMetadata(metadataBuilder -> {
-            metadataBuilder.putCustom(GatewayMetadata.TYPE, new GatewayMetadata("before_restart_s_gw"));
-            metadataBuilder.putCustom(ApiMetadata.TYPE, new ApiMetadata("before_restart_ns"));
+            metadataBuilder.putSection(GatewayMetadata.TYPE, new GatewayMetadata("before_restart_s_gw"));
+            metadataBuilder.putSection(ApiMetadata.TYPE, new ApiMetadata("before_restart_ns"));
         }));
 
         logger.info("restart all nodes");
@@ -130,21 +130,21 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
 
         var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
         logger.info("check that gateway custom metadata [{}] survived full cluster restart", metadata);
-        assertThat(metadata.<GatewayMetadata>custom(GatewayMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
-        assertThat(metadata.<ApiMetadata>custom(ApiMetadata.TYPE), nullValue());
+        assertThat(metadata.<GatewayMetadata>section(GatewayMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
+        assertThat(metadata.<ApiMetadata>section(ApiMetadata.TYPE), nullValue());
     }
 
     public void testShouldExposeApiMetadata() throws Exception {
         logger.info("add custom api metadata");
         updateClusterState(currentState -> currentState.copyAndUpdateMetadata(metadataBuilder -> {
-            metadataBuilder.putCustom(ApiMetadata.TYPE, new ApiMetadata("before_restart_s_gw"));
-            metadataBuilder.putCustom(NonApiMetadata.TYPE, new NonApiMetadata("before_restart_ns"));
+            metadataBuilder.putSection(ApiMetadata.TYPE, new ApiMetadata("before_restart_s_gw"));
+            metadataBuilder.putSection(NonApiMetadata.TYPE, new NonApiMetadata("before_restart_ns"));
         }));
 
         var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
         logger.info("check that api custom metadata [{}] is visible via api", metadata);
-        assertThat(metadata.<ApiMetadata>custom(ApiMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
-        assertThat(metadata.<NonApiMetadata>custom(NonApiMetadata.TYPE), nullValue());
+        assertThat(metadata.<ApiMetadata>section(ApiMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
+        assertThat(metadata.<NonApiMetadata>section(NonApiMetadata.TYPE), nullValue());
     }
 
     public static class TestMetadataSectionPlugin extends Plugin {
@@ -156,7 +156,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
             registerBuiltinWritables();
         }
 
-        private <T extends MetadataSection> void registerMetadataCustom(
+        private <T extends MetadataSection> void registerMetadataSection(
             String name,
             Writeable.Reader<T> reader,
             Writeable.Reader<NamedDiff<?>> diffReader,
@@ -179,7 +179,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
                 NonApiMetadata::new
             )
                 .forEach(
-                    (type, constructor) -> registerMetadataCustom(
+                    (type, constructor) -> registerMetadataSection(
                         type,
                         in -> TestMetadataSection.readFrom(constructor, in),
                         in -> TestMetadataSection.readDiffFrom(type, in),

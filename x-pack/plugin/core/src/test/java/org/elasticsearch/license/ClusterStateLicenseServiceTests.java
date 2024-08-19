@@ -221,7 +221,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             );
             License oldLicense = sign(buildLicense(License.LicenseType.BASIC, TimeValue.timeValueDays(randomIntBetween(1, 100)), maxNodes));
             ClusterState oldState = ClusterState.EMPTY_STATE.copyAndUpdateMetadata(
-                m -> m.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(oldLicense, null))
+                m -> m.putSection(LicensesMetadata.TYPE, new LicensesMetadata(oldLicense, null))
             );
 
             ClusterState updatedState = taskExecutorCaptor.getValue()

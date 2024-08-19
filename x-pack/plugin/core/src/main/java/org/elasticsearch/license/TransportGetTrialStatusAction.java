@@ -55,7 +55,7 @@ public class TransportGetTrialStatusAction extends TransportMasterNodeReadAction
         ActionListener<GetTrialStatusResponse> listener
     ) throws Exception {
         if (licenseService instanceof ClusterStateLicenseService) {
-            LicensesMetadata licensesMetadata = state.metadata().custom(LicensesMetadata.TYPE);
+            LicensesMetadata licensesMetadata = state.metadata().section(LicensesMetadata.TYPE);
             listener.onResponse(new GetTrialStatusResponse(licensesMetadata == null || licensesMetadata.isEligibleForTrial()));
         } else {
             listener.onResponse(new GetTrialStatusResponse(false));

@@ -111,7 +111,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, autoFollowHeaders);
 
         ClusterState currentState = ClusterState.builder(new ClusterName("name"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .metadata(Metadata.builder().putSection(AutoFollowMetadata.TYPE, autoFollowMetadata))
             .build();
 
         boolean[] invoked = new boolean[] { false };
@@ -150,7 +150,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             @Override
             void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
                 ClusterState resultCs = updateFunction.apply(currentState);
-                AutoFollowMetadata result = resultCs.metadata().custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata result = resultCs.metadata().section(AutoFollowMetadata.TYPE);
                 assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
                 assertThat(result.getFollowedLeaderIndexUUIDs().get("remote").size(), equalTo(1));
                 handler.accept(null);
@@ -181,7 +181,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, autoFollowHeaders);
 
         ClusterState currentState = ClusterState.builder(new ClusterName("name"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .metadata(Metadata.builder().putSection(AutoFollowMetadata.TYPE, autoFollowMetadata))
             .build();
 
         boolean[] invoked = new boolean[] { false };
@@ -220,7 +220,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             @Override
             void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
                 ClusterState resultCs = updateFunction.apply(currentState);
-                AutoFollowMetadata result = resultCs.metadata().custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata result = resultCs.metadata().section(AutoFollowMetadata.TYPE);
                 assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
                 assertThat(result.getFollowedLeaderIndexUUIDs().get("remote").size(), equalTo(1));
                 handler.accept(null);
@@ -247,7 +247,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Map<String, Map<String, String>> headers = new HashMap<>();
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, headers);
         ClusterState clusterState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .metadata(Metadata.builder().putSection(AutoFollowMetadata.TYPE, autoFollowMetadata))
             .build();
 
         Exception failure = new RuntimeException("failure");
@@ -297,7 +297,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Map<String, Map<String, String>> headers = new HashMap<>();
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, headers);
         ClusterState clusterState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .metadata(Metadata.builder().putSection(AutoFollowMetadata.TYPE, autoFollowMetadata))
             .build();
 
         Exception failure = new RuntimeException("failure");
@@ -400,7 +400,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             ClusterState.builder(new ClusterName("test"))
                 .metadata(
                     Metadata.builder()
-                        .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(autoFollowPatterns, followedLeaderIndexUUIDs, headers))
+                        .putSection(AutoFollowMetadata.TYPE, new AutoFollowMetadata(autoFollowPatterns, followedLeaderIndexUUIDs, headers))
                         .build()
                 )
                 .build()
@@ -449,7 +449,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         final AtomicReference<ClusterState> localClusterState = new AtomicReference<>(
             ClusterState.builder(new ClusterName("local"))
-                .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(emptyMap(), emptyMap(), emptyMap())))
+                .metadata(
+                    Metadata.builder().putSection(AutoFollowMetadata.TYPE, new AutoFollowMetadata(emptyMap(), emptyMap(), emptyMap()))
+                )
                 .build()
         );
 
@@ -634,7 +636,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         final ClusterState finalRemoteClusterState = remoteClusterState.get();
         final ClusterState finalLocalClusterState = localClusterState.get();
 
-        AutoFollowMetadata autoFollowMetadata = finalLocalClusterState.metadata().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = finalLocalClusterState.metadata().section(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(2));
         assertThat(autoFollowMetadata.getPatterns().values().stream().noneMatch(AutoFollowPattern::isActive), is(true));
 
@@ -676,7 +678,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Map<String, Map<String, String>> headers = new HashMap<>();
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, headers);
         ClusterState clusterState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .metadata(Metadata.builder().putSection(AutoFollowMetadata.TYPE, autoFollowMetadata))
             .build();
 
         Exception failure = new RuntimeException("failure");
@@ -867,12 +869,12 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             Collections.emptyMap()
         );
         ClusterState clusterState = new ClusterState.Builder(new ClusterName("name")).metadata(
-            new Metadata.Builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
+            new Metadata.Builder().putSection(AutoFollowMetadata.TYPE, autoFollowMetadata)
         ).build();
         Function<ClusterState, ClusterState> function = recordLeaderIndexAsFollowFunction("pattern1", new Index("index1", "index1"));
 
         ClusterState result = function.apply(clusterState);
-        AutoFollowMetadata autoFollowMetadataResult = result.metadata().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadataResult = result.metadata().section(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadataResult.getFollowedLeaderIndexUUIDs().get("pattern1"), notNullValue());
         assertThat(autoFollowMetadataResult.getFollowedLeaderIndexUUIDs().get("pattern1").size(), equalTo(1));
         assertThat(autoFollowMetadataResult.getFollowedLeaderIndexUUIDs().get("pattern1").get(0), equalTo("index1"));
@@ -885,7 +887,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             Collections.emptyMap()
         );
         ClusterState clusterState = new ClusterState.Builder(new ClusterName("name")).metadata(
-            new Metadata.Builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
+            new Metadata.Builder().putSection(AutoFollowMetadata.TYPE, autoFollowMetadata)
         ).build();
         Function<ClusterState, ClusterState> function = recordLeaderIndexAsFollowFunction("pattern1", new Index("index1", "index1"));
 
@@ -900,7 +902,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             Collections.emptyMap()
         );
         ClusterState clusterState = new ClusterState.Builder(new ClusterName("name")).metadata(
-            new Metadata.Builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
+            new Metadata.Builder().putSection(AutoFollowMetadata.TYPE, autoFollowMetadata)
         ).build();
 
         Metadata remoteMetadata = new Metadata.Builder().put(
@@ -918,7 +920,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
 
         Function<ClusterState, ClusterState> function = cleanFollowedRemoteIndices(remoteMetadata, Collections.singletonList("pattern1"));
-        AutoFollowMetadata result = function.apply(clusterState).metadata().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata result = function.apply(clusterState).metadata().section(AutoFollowMetadata.TYPE);
         assertThat(result.getFollowedLeaderIndexUUIDs().get("pattern1").size(), equalTo(2));
         assertThat(result.getFollowedLeaderIndexUUIDs().get("pattern1").get(0), equalTo("index1"));
         assertThat(result.getFollowedLeaderIndexUUIDs().get("pattern1").get(1), equalTo("index3"));
@@ -931,7 +933,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             Collections.emptyMap()
         );
         ClusterState clusterState = new ClusterState.Builder(new ClusterName("name")).metadata(
-            new Metadata.Builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
+            new Metadata.Builder().putSection(AutoFollowMetadata.TYPE, autoFollowMetadata)
         ).build();
 
         Metadata remoteMetadata = new Metadata.Builder().put(
@@ -966,7 +968,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             Collections.emptyMap()
         );
         ClusterState clusterState = new ClusterState.Builder(new ClusterName("name")).metadata(
-            new Metadata.Builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
+            new Metadata.Builder().putSection(AutoFollowMetadata.TYPE, autoFollowMetadata)
         ).build();
 
         Metadata remoteMetadata = new Metadata.Builder().put(
@@ -1414,7 +1416,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         ClusterState followerState = ClusterState.builder(new ClusterName("remote"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         AutoFollowMetadata.TYPE,
                         new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap())
                     )
@@ -1438,7 +1440,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("remote"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
+                    .putSection(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
             )
             .build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
@@ -1455,7 +1457,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         clusterState = ClusterState.builder(new ClusterName("remote"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
+                    .putSection(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
             )
             .build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
@@ -1467,7 +1469,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         clusterState = ClusterState.builder(new ClusterName("remote"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
+                    .putSection(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
             )
             .build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
@@ -1486,7 +1488,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         clusterState = ClusterState.builder(new ClusterName("remote"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
+                    .putSection(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
             )
             .build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
@@ -1560,7 +1562,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             ClusterState.builder(new ClusterName("remote"))
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             AutoFollowMetadata.TYPE,
                             new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap())
                         )
@@ -1624,7 +1626,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             ClusterState.builder(new ClusterName("remote"))
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             AutoFollowMetadata.TYPE,
                             new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap())
                         )
@@ -1664,7 +1666,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             ClusterState.builder(new ClusterName("remote"))
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             AutoFollowMetadata.TYPE,
                             new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap())
                         )
@@ -1683,7 +1685,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             ClusterState.builder(new ClusterName("remote"))
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             AutoFollowMetadata.TYPE,
                             new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap())
                         )
@@ -1713,7 +1715,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         ClusterState[] states = new ClusterState[16];
         for (int i = 0; i < states.length; i++) {
             states[i] = ClusterState.builder(new ClusterName("name"))
-                .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+                .metadata(Metadata.builder().putSection(AutoFollowMetadata.TYPE, autoFollowMetadata))
                 .build();
             String indexName = "logs-" + i;
             leaderStates.add(
@@ -1776,7 +1778,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         ClusterState[] states = new ClusterState[16];
         for (int i = 0; i < states.length; i++) {
             states[i] = ClusterState.builder(new ClusterName("name"))
-                .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+                .metadata(Metadata.builder().putSection(AutoFollowMetadata.TYPE, autoFollowMetadata))
                 .build();
         }
         Consumer<List<AutoFollowCoordinator.AutoFollowResult>> handler = results -> { fail("should not be invoked"); };
@@ -1828,7 +1830,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, autoFollowHeaders);
 
         ClusterState currentState = ClusterState.builder(new ClusterName("name"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .metadata(Metadata.builder().putSection(AutoFollowMetadata.TYPE, autoFollowMetadata))
             .build();
 
         List<AutoFollowCoordinator.AutoFollowResult> results = new ArrayList<>();
@@ -1853,7 +1855,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             @Override
             void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
                 ClusterState resultCs = updateFunction.apply(currentState);
-                AutoFollowMetadata result = resultCs.metadata().custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata result = resultCs.metadata().section(AutoFollowMetadata.TYPE);
                 assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
                 assertThat(result.getFollowedLeaderIndexUUIDs().get("remote").size(), equalTo(1));
                 handler.accept(null);
@@ -1909,7 +1911,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .numberOfShards(1)
                             .numberOfReplicas(0)
                     )
-                    .putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
+                    .putSection(AutoFollowMetadata.TYPE, autoFollowMetadata)
             )
             .build();
 
@@ -1935,7 +1937,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             @Override
             void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
                 ClusterState resultCs = updateFunction.apply(currentState);
-                AutoFollowMetadata result = resultCs.metadata().custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata result = resultCs.metadata().section(AutoFollowMetadata.TYPE);
                 assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
                 assertThat(result.getFollowedLeaderIndexUUIDs().get("remote").size(), equalTo(1));
                 handler.accept(null);
@@ -1990,7 +1992,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             TimeValue.ZERO
         );
         final AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(Map.of("remote", pattern), Map.of(), Map.of());
-        when(metadata.custom(AutoFollowMetadata.TYPE)).thenReturn(autoFollowMetadata);
+        when(metadata.section(AutoFollowMetadata.TYPE)).thenReturn(autoFollowMetadata);
 
         final int iterations = randomIntBetween(16384, 32768); // sufficiently large to exercise that we do not stack overflow
         final AtomicInteger counter = new AtomicInteger();
@@ -2053,7 +2055,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         final ClusterState localState = ClusterState.builder(new ClusterName("local"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         AutoFollowMetadata.TYPE,
                         new AutoFollowMetadata(
                             Map.of(pattern, createAutoFollowPattern("remote", "docs-*")),
@@ -2148,7 +2150,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         final ClusterState localState = ClusterState.builder(new ClusterName("local"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         AutoFollowMetadata.TYPE,
                         new AutoFollowMetadata(
                             Map.of(
@@ -2236,7 +2238,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo(1));
 
-        AutoFollowMetadata autoFollowMetadata = lastModifiedClusterState.get().metadata().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = lastModifiedClusterState.get().metadata().section(AutoFollowMetadata.TYPE);
         final List<String> autoFollowedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(pattern);
         assertThat(autoFollowedIndices.size(), equalTo(nbLeaderIndices));
 
@@ -2412,7 +2414,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     private ClusterState createClusterStateWith(Map<String, AutoFollowPattern> patterns) {
         var builder = ClusterState.builder(new ClusterName("remote"));
         if (patterns != null) {
-            builder.metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Map.of(), Map.of())));
+            builder.metadata(Metadata.builder().putSection(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Map.of(), Map.of())));
         }
         return builder.build();
     }
@@ -2449,7 +2451,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         final ClusterState localState = ClusterState.builder(new ClusterName("local"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         AutoFollowMetadata.TYPE,
                         new AutoFollowMetadata(
                             Map.of(pattern, createAutoFollowPattern("remote", indexPattern)),
@@ -2592,7 +2594,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             Collections.emptyMap()
         );
         final ClusterState lastState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, emptyAutoFollowMetadata))
+            .metadata(Metadata.builder().putSection(AutoFollowMetadata.TYPE, emptyAutoFollowMetadata))
             .build();
         final LinkedList<ClusterState> queue = new LinkedList<>(Arrays.asList(states));
         return () -> {

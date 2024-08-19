@@ -108,7 +108,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
 
     static void validatePrerequisites(DatabaseConfiguration database, ClusterState state) {
         // we need to verify that the database represents a unique file (name) among the various databases for this same provider
-        IngestGeoIpMetadata geoIpMeta = state.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        IngestGeoIpMetadata geoIpMeta = state.metadata().section(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
         Optional<DatabaseConfiguration> sameName = geoIpMeta.getDatabases()
             .values()
@@ -131,7 +131,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
             ClusterStateTaskListener {
 
         ClusterState execute(ClusterState currentState) throws Exception {
-            IngestGeoIpMetadata geoIpMeta = currentState.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+            IngestGeoIpMetadata geoIpMeta = currentState.metadata().section(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
             String id = database.id();
             final DatabaseConfigurationMetadata existingDatabase = geoIpMeta.getDatabases().get(id);
@@ -161,7 +161,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
 
             Metadata currentMeta = currentState.metadata();
             return ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentMeta).putCustom(IngestGeoIpMetadata.TYPE, geoIpMeta))
+                .metadata(Metadata.builder(currentMeta).putSection(IngestGeoIpMetadata.TYPE, geoIpMeta))
                 .build();
         }
 

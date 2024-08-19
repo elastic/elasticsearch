@@ -162,7 +162,7 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
 
         return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
-            .metadata(Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes)))
+            .metadata(Metadata.builder().putSection(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes)))
             .build();
     }
 

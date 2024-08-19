@@ -276,7 +276,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
         }
         newMetadata.put(request.getModelAlias(), new ModelAliasMetadata.ModelAliasEntry(request.getModelId()));
         final ModelAliasMetadata modelAliasMetadata = new ModelAliasMetadata(newMetadata);
-        builder.metadata(Metadata.builder(currentState.getMetadata()).putCustom(ModelAliasMetadata.NAME, modelAliasMetadata).build());
+        builder.metadata(Metadata.builder(currentState.getMetadata()).putSection(ModelAliasMetadata.NAME, modelAliasMetadata).build());
         return builder.build();
     }
 

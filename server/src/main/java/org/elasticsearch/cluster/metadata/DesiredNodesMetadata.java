@@ -75,7 +75,7 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<MetadataSection>
     }
 
     public static DesiredNodesMetadata fromClusterState(ClusterState clusterState) {
-        return clusterState.metadata().custom(TYPE, EMPTY);
+        return clusterState.metadata().section(TYPE, EMPTY);
     }
 
     @Nullable

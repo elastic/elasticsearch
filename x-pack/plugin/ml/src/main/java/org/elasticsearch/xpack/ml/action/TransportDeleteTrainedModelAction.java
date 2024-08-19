@@ -151,7 +151,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
 
     private void deleteModel(DeleteTrainedModelAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         String id = request.getId();
-        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
+        IngestMetadata currentIngestMetadata = state.metadata().section(IngestMetadata.TYPE);
         Set<String> referencedModels = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(currentIngestMetadata);
 
         if (request.isForce() == false && referencedModels.contains(id)) {
@@ -241,7 +241,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
                 modelAliases.forEach(newMetadata::remove);
                 final ModelAliasMetadata modelAliasMetadata = new ModelAliasMetadata(newMetadata);
                 builder.metadata(
-                    Metadata.builder(currentState.getMetadata()).putCustom(ModelAliasMetadata.NAME, modelAliasMetadata).build()
+                    Metadata.builder(currentState.getMetadata()).putSection(ModelAliasMetadata.NAME, modelAliasMetadata).build()
                 );
                 return builder.build();
             }

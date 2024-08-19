@@ -1651,7 +1651,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {
         return () -> {
             final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
-            final PersistentTasksMetadataSection taskMetadata = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+            final PersistentTasksMetadataSection taskMetadata = clusterState.getMetadata().section(PersistentTasksMetadataSection.TYPE);
             assertNotNull(taskMetadata);
 
             ListTasksRequest listTasksRequest = new ListTasksRequest();

@@ -72,7 +72,7 @@ public class TransportFollowInfoActionTests extends ESTestCase {
             mdBuilder.put(imdBuilder);
         }
 
-        mdBuilder.putCustom(PersistentTasksMetadataSection.TYPE, persistentTasks.build());
+        mdBuilder.putSection(PersistentTasksMetadataSection.TYPE, persistentTasks.build());
         return ClusterState.builder(new ClusterName("_cluster")).metadata(mdBuilder.build()).build();
     }
 

@@ -82,7 +82,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         ClusterState clusterState = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
         when(clusterState.getMetadata()).thenReturn(metadata);
-        when(metadata.custom("trained_model_assignment")).thenReturn(
+        when(metadata.section("trained_model_assignment")).thenReturn(
             new TrainedModelAssignmentMetadata(
                 Map.of(
                     "test-deployment",

@@ -888,7 +888,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     )
             );
         if (desiredNodes != null) {
-            metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes));
+            metadata.putSection(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes));
         }
         return ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).metadata(metadata).build();
     }

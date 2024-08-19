@@ -656,7 +656,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
             return Collections.emptyMap();
         }
 
-        ScriptMetadata scriptMetadata = clusterState.metadata().custom(ScriptMetadata.TYPE);
+        ScriptMetadata scriptMetadata = clusterState.metadata().section(ScriptMetadata.TYPE);
 
         if (scriptMetadata == null) {
             return Collections.emptyMap();
@@ -666,7 +666,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     }
 
     protected StoredScriptSource getScriptFromClusterState(String id) {
-        ScriptMetadata scriptMetadata = clusterState.metadata().custom(ScriptMetadata.TYPE);
+        ScriptMetadata scriptMetadata = clusterState.metadata().section(ScriptMetadata.TYPE);
 
         if (scriptMetadata == null) {
             throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
@@ -732,9 +732,9 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         submitUnbatchedTask(clusterService, "put-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
+                ScriptMetadata smd = currentState.metadata().section(ScriptMetadata.TYPE);
                 smd = ScriptMetadata.putStoredScript(smd, request.id(), source);
-                Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
+                Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putSection(ScriptMetadata.TYPE, smd);
 
                 return ClusterState.builder(currentState).metadata(mdb).build();
             }
@@ -749,9 +749,9 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         submitUnbatchedTask(clusterService, "delete-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
+                ScriptMetadata smd = currentState.metadata().section(ScriptMetadata.TYPE);
                 smd = ScriptMetadata.deleteStoredScript(smd, request.id());
-                Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
+                Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putSection(ScriptMetadata.TYPE, smd);
 
                 return ClusterState.builder(currentState).metadata(mdb).build();
             }
@@ -768,7 +768,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     }
 
     public static StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
-        ScriptMetadata scriptMetadata = state.metadata().custom(ScriptMetadata.TYPE);
+        ScriptMetadata scriptMetadata = state.metadata().section(ScriptMetadata.TYPE);
 
         if (scriptMetadata != null) {
             return scriptMetadata.getStoredScript(request.id());

@@ -226,7 +226,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             // filter out metadata that shouldn't be returned by the API
             for (Map.Entry<String, MetadataSection> custom : currentState.metadata().customs().entrySet()) {
                 if (custom.getValue().context().contains(Metadata.XContentContext.API) == false) {
-                    mdBuilder.removeCustom(custom.getKey());
+                    mdBuilder.removeSection(custom.getKey());
                 }
             }
         }

@@ -59,7 +59,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
         TaskExecutor executor = createTaskExecutor();
         TaskParams params = new TaskParams(JOB_ID, MlConfigVersion.CURRENT, false);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
+            .metadata(Metadata.builder().putSection(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
             .build();
 
         Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
@@ -72,7 +72,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
         TaskExecutor executor = createTaskExecutor();
         TaskParams params = new TaskParams(JOB_ID, MlConfigVersion.CURRENT, false);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
+            .metadata(Metadata.builder().putSection(MlMetadata.TYPE, new MlMetadata.Builder().build()))
             .build();
 
         Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
@@ -85,7 +85,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
         TaskExecutor executor = createTaskExecutor();
         TaskParams params = new TaskParams(JOB_ID, MlConfigVersion.CURRENT, false);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
+            .metadata(Metadata.builder().putSection(MlMetadata.TYPE, new MlMetadata.Builder().build()))
             .nodes(
                 DiscoveryNodes.builder()
                     .add(createNode(0, false, Version.CURRENT, MlConfigVersion.CURRENT))
@@ -112,7 +112,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
         TaskExecutor executor = createTaskExecutor();
         TaskParams params = new TaskParams(JOB_ID, MlConfigVersion.V_7_9_0, false);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
+            .metadata(Metadata.builder().putSection(MlMetadata.TYPE, new MlMetadata.Builder().build()))
             .nodes(DiscoveryNodes.builder().add(createNode(0, true, Version.V_7_10_0, MlConfigVersion.V_7_10_0)))
             .build();
 

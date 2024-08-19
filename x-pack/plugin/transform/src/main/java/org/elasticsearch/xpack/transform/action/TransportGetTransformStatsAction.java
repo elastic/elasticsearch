@@ -205,7 +205,8 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                 );
 
                 ActionListener<Response> doExecuteListener = ActionListener.wrap(response -> {
-                    PersistentTasksMetadataSection tasksInProgress = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+                    PersistentTasksMetadataSection tasksInProgress = clusterState.getMetadata()
+                        .section(PersistentTasksMetadataSection.TYPE);
                     if (tasksInProgress != null) {
                         // Mutates underlying state object with the assigned node attributes
                         response.getTransformsStats().forEach(dtsasi -> setNodeAttributes(dtsasi, tasksInProgress, clusterState));

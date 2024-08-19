@@ -536,13 +536,13 @@ public class JobManager {
     }
 
     private static boolean isJobOpen(ClusterState clusterState, String jobId) {
-        PersistentTasksMetadataSection persistentTasks = clusterState.metadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection persistentTasks = clusterState.metadata().section(PersistentTasksMetadataSection.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, persistentTasks);
         return jobState == JobState.OPENED;
     }
 
     private static Set<String> openJobIds(ClusterState clusterState) {
-        PersistentTasksMetadataSection persistentTasks = clusterState.metadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection persistentTasks = clusterState.metadata().section(PersistentTasksMetadataSection.TYPE);
         return MlTasks.openJobIds(persistentTasks);
     }
 

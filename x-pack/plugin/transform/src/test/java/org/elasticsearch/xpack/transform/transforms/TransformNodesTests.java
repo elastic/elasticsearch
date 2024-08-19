@@ -105,7 +105,7 @@ public class TransformNodesTests extends ESTestCase {
         );
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()))
+            .metadata(Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()))
             .build();
 
         // don't ask for transformIdOther
@@ -289,7 +289,7 @@ public class TransformNodesTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("some-cluster"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         PersistentTasksMetadataSection.TYPE,
                         PersistentTasksMetadataSection.builder()
                             .addTask("transform-1", TransformTaskParams.NAME, transformTaskParams1, null)

@@ -1278,7 +1278,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         addAnalyticsTask(analyticsId, null, DataFrameAnalyticsState.STARTING, tasksBuilder);
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(new ClusterName("_name"));
         Metadata.Builder metadata = Metadata.builder();
-        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build());
+        metadata.putSection(PersistentTasksMetadataSection.TYPE, tasksBuilder.build());
         clusterStateBuilder.metadata(metadata);
         ClusterState clusterState = clusterStateBuilder.build();
 
@@ -1374,7 +1374,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         cs.nodes(nodesBuilder);
         Metadata.Builder metadata = Metadata.builder();
-        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasks);
+        metadata.putSection(PersistentTasksMetadataSection.TYPE, tasks);
         cs.metadata(metadata);
         return cs.build();
     }

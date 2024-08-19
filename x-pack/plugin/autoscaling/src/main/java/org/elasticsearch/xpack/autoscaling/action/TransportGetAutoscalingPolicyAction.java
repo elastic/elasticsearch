@@ -74,8 +74,8 @@ public class TransportGetAutoscalingPolicyAction extends TransportMasterNodeActi
 
     static AutoscalingPolicy getAutoscalingPolicy(final ClusterState state, final String name) {
         final AutoscalingMetadata metadata;
-        if (state.metadata().custom(AutoscalingMetadata.NAME) != null) {
-            metadata = state.metadata().custom(AutoscalingMetadata.NAME);
+        if (state.metadata().section(AutoscalingMetadata.NAME) != null) {
+            metadata = state.metadata().section(AutoscalingMetadata.NAME);
         } else {
             // we will reject the request below when we try to look up the policy by name
             metadata = AutoscalingMetadata.EMPTY;

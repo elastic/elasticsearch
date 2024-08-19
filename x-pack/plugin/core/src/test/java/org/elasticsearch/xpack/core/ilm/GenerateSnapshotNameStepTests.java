@@ -83,7 +83,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, false)
-                    .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
+                    .putSection(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
                     .build()
             )
             .build();
@@ -123,7 +123,9 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         GenerateSnapshotNameStep generateSnapshotNameStep = createRandomInstance();
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, false).putCustom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).build())
+            .metadata(
+                Metadata.builder().put(indexMetadata, false).putSection(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).build()
+            )
             .build();
 
         IllegalStateException illegalStateException = expectThrows(
@@ -168,7 +170,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, false)
-                    .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
+                    .putSection(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
                     .build()
             )
             .build();

@@ -397,7 +397,7 @@ public class CcrAliasesIT extends CcrIntegTestCase {
     private CheckedRunnable<Exception> assertShardFollowTask(final int numberOfPrimaryShards) {
         return () -> {
             final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
-            final PersistentTasksMetadataSection taskMetadata = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+            final PersistentTasksMetadataSection taskMetadata = clusterState.getMetadata().section(PersistentTasksMetadataSection.TYPE);
             assertNotNull("task metadata for follower should exist", taskMetadata);
 
             final ListTasksRequest listTasksRequest = new ListTasksRequest();

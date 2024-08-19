@@ -379,7 +379,7 @@ public class RepositoriesServiceTests extends ESTestCase {
     private ClusterState createClusterStateWithRepo(String repoName, String repoType) {
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         Metadata.Builder mdBuilder = Metadata.builder();
-        mdBuilder.putCustom(
+        mdBuilder.putSection(
             RepositoriesMetadata.TYPE,
             new RepositoriesMetadata(Collections.singletonList(new RepositoryMetadata(repoName, repoType, Settings.EMPTY)))
         );

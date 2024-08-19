@@ -99,7 +99,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
         // Test with empty SLM metadata
         Metadata metadata = Metadata.builder()
-            .putCustom(
+            .putSection(
                 SnapshotLifecycleMetadata.TYPE,
                 new SnapshotLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING, new SnapshotLifecycleStats())
             )
@@ -505,7 +505,10 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             .collect(Collectors.toMap(pm -> pm.getPolicy().getId(), pm -> pm));
 
         Metadata metadata = Metadata.builder()
-            .putCustom(SnapshotLifecycleMetadata.TYPE, new SnapshotLifecycleMetadata(policyMetadataMap, mode, new SnapshotLifecycleStats()))
+            .putSection(
+                SnapshotLifecycleMetadata.TYPE,
+                new SnapshotLifecycleMetadata(policyMetadataMap, mode, new SnapshotLifecycleStats())
+            )
             .build();
         return ClusterState.builder(new ClusterName("cluster")).metadata(metadata).build();
     }

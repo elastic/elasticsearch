@@ -61,7 +61,7 @@ public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
             boolean matched = false;
             for (String customKey : oldClusterState.metadata().customs().keySet()) {
                 if (Regex.simpleMatch(customToRemove, customKey)) {
-                    metadataBuilder.removeCustom(customKey);
+                    metadataBuilder.removeSection(customKey);
                     if (matched == false) {
                         terminal.println("The following customs will be removed:");
                     }

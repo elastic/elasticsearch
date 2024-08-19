@@ -82,7 +82,7 @@ public class TransportFollowInfoAction extends TransportMasterNodeReadAction<Fol
 
     static List<FollowerInfo> getFollowInfos(List<String> concreteFollowerIndices, ClusterState state) {
         List<FollowerInfo> followerInfos = new ArrayList<>();
-        PersistentTasksMetadataSection persistentTasks = state.metadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection persistentTasks = state.metadata().section(PersistentTasksMetadataSection.TYPE);
 
         for (String index : concreteFollowerIndices) {
             IndexMetadata indexMetadata = state.metadata().index(index);

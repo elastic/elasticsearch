@@ -47,7 +47,7 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<
     @Override
     protected void doExecute(Task task, IsolateDatafeedAction.Request request, ActionListener<IsolateDatafeedAction.Response> listener) {
         final ClusterState state = clusterService.state();
-        PersistentTasksMetadataSection tasks = state.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection tasks = state.getMetadata().section(PersistentTasksMetadataSection.TYPE);
         PersistentTasksMetadataSection.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(request.getDatafeedId(), tasks);
 
         if (datafeedTask == null || datafeedTask.getExecutorNode() == null) {

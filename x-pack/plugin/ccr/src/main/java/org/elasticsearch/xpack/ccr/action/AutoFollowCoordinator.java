@@ -257,7 +257,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
     void updateAutoFollowers(ClusterState followerClusterState) {
         final AutoFollowMetadata autoFollowMetadata = followerClusterState.getMetadata()
-            .custom(AutoFollowMetadata.TYPE, AutoFollowMetadata.EMPTY);
+            .section(AutoFollowMetadata.TYPE, AutoFollowMetadata.EMPTY);
 
         if (autoFollowMetadata.getPatterns().isEmpty() && this.autoFollowers.isEmpty()) {
             return;
@@ -465,7 +465,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
             lastAutoFollowTimeInMillis = relativeTimeProvider.getAsLong();
             final ClusterState clusterState = followerClusterStateSupplier.get();
-            final AutoFollowMetadata autoFollowMetadata = clusterState.metadata().custom(AutoFollowMetadata.TYPE);
+            final AutoFollowMetadata autoFollowMetadata = clusterState.metadata().section(AutoFollowMetadata.TYPE);
             if (autoFollowMetadata == null) {
                 LOGGER.info("auto-follower for cluster [{}] has stopped, because there is no autofollow metadata", remoteCluster);
                 return;
@@ -877,7 +877,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
         static Function<ClusterState, ClusterState> recordLeaderIndexAsFollowFunction(String name, Index indexToFollow) {
             return currentState -> {
-                AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().section(AutoFollowMetadata.TYPE);
                 Map<String, List<String>> newFollowedIndexUUIDS = new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
                 if (newFollowedIndexUUIDS.containsKey(name) == false) {
                     // A delete auto follow pattern request can have removed the auto follow pattern while we want to update
@@ -899,7 +899,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 );
                 return ClusterState.builder(currentState)
                     .metadata(
-                        Metadata.builder(currentState.getMetadata()).putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build()
+                        Metadata.builder(currentState.getMetadata()).putSection(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build()
                     )
                     .build();
             };
@@ -918,7 +918,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             final List<String> autoFollowPatternNames
         ) {
             return currentState -> {
-                AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().section(AutoFollowMetadata.TYPE);
                 Map<String, List<String>> autoFollowPatternNameToFollowedIndexUUIDs = new HashMap<>(
                     currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs()
                 );
@@ -956,7 +956,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     );
                     return ClusterState.builder(currentState)
                         .metadata(
-                            Metadata.builder(currentState.getMetadata()).putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build()
+                            Metadata.builder(currentState.getMetadata()).putSection(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build()
                         )
                         .build();
                 } else {

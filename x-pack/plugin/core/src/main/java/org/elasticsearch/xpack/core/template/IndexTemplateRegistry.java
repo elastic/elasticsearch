@@ -366,7 +366,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         if (settings == null) {
             return true;
         }
-        IngestMetadata ingestMetadata = state.metadata().custom(IngestMetadata.TYPE);
+        IngestMetadata ingestMetadata = state.metadata().section(IngestMetadata.TYPE);
         String defaultPipeline = settings.get("index.default_pipeline");
         if (defaultPipeline != null) {
             if (ingestMetadata == null || ingestMetadata.getPipelines().containsKey(defaultPipeline) == false) {
@@ -580,7 +580,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             logger.trace("running in data stream lifecycle only mode. skipping the installation of ILM policies.");
             return;
         }
-        IndexLifecycleMetadata metadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata metadata = state.metadata().section(IndexLifecycleMetadata.TYPE);
         for (LifecyclePolicy policy : getLifecyclePolicies()) {
             final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(
                 policy.getName(),
@@ -717,7 +717,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
 
     @Nullable
     private static PipelineConfiguration findInstalledPipeline(ClusterState state, String pipelineId) {
-        Optional<IngestMetadata> maybeMeta = Optional.ofNullable(state.metadata().custom(IngestMetadata.TYPE));
+        Optional<IngestMetadata> maybeMeta = Optional.ofNullable(state.metadata().section(IngestMetadata.TYPE));
         return maybeMeta.map(ingestMetadata -> ingestMetadata.getPipelines().get(pipelineId)).orElse(null);
     }
 

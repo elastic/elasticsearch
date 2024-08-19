@@ -98,7 +98,7 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
     }
 
     private void removeDatafeedTask(DeleteDatafeedAction.Request request, ClusterState state, ActionListener<Boolean> listener) {
-        PersistentTasksMetadataSection tasks = state.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection tasks = state.getMetadata().section(PersistentTasksMetadataSection.TYPE);
         PersistentTasksMetadataSection.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(request.getDatafeedId(), tasks);
         if (datafeedTask == null) {
             listener.onResponse(true);

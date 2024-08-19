@@ -116,7 +116,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         ClusterState clusterState = ClusterState.builder(new ClusterName("_cluster"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksMetadataSection.TYPE, emptyPersistentTasks.build())
+                    .putSection(PersistentTasksMetadataSection.TYPE, emptyPersistentTasks.build())
                     .put(indexMetadata, false)
                     .build()
             )
@@ -178,7 +178,10 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
 
         return ClusterState.builder(new ClusterName("_cluster"))
             .metadata(
-                Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, persistentTasks.build()).put(followerIndex, false).build()
+                Metadata.builder()
+                    .putSection(PersistentTasksMetadataSection.TYPE, persistentTasks.build())
+                    .put(followerIndex, false)
+                    .build()
             )
             .build();
     }

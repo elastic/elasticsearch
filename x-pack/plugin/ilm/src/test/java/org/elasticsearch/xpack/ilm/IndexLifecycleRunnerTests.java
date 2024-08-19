@@ -290,7 +290,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         DiscoveryNode node = clusterService.localNode();
         IndexLifecycleMetadata ilm = new IndexLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING);
         ClusterState state = ClusterState.builder(new ClusterName("cluster"))
-            .metadata(Metadata.builder().put(indexMetadata, true).putCustom(IndexLifecycleMetadata.TYPE, ilm))
+            .metadata(Metadata.builder().put(indexMetadata, true).putSection(IndexLifecycleMetadata.TYPE, ilm))
             .nodes(DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()))
             .build();
         ClusterServiceUtils.setState(clusterService, state);
@@ -342,7 +342,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         DiscoveryNode node = clusterService.localNode();
         IndexLifecycleMetadata ilm = new IndexLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING);
         ClusterState state = ClusterState.builder(new ClusterName("cluster"))
-            .metadata(Metadata.builder().put(indexMetadata, true).putCustom(IndexLifecycleMetadata.TYPE, ilm))
+            .metadata(Metadata.builder().put(indexMetadata, true).putSection(IndexLifecycleMetadata.TYPE, ilm))
             .nodes(DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()))
             .build();
         ClusterServiceUtils.setState(clusterService, state);
@@ -429,7 +429,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         DiscoveryNode node = clusterService.localNode();
         IndexLifecycleMetadata ilm = new IndexLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING);
         ClusterState state = ClusterState.builder(new ClusterName("cluster"))
-            .metadata(Metadata.builder().put(indexMetadata, true).putCustom(IndexLifecycleMetadata.TYPE, ilm))
+            .metadata(Metadata.builder().put(indexMetadata, true).putSection(IndexLifecycleMetadata.TYPE, ilm))
             .nodes(DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()))
             .build();
         ClusterServiceUtils.setState(clusterService, state);
@@ -478,7 +478,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         DiscoveryNode node = clusterService.localNode();
         IndexLifecycleMetadata ilm = new IndexLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING);
         ClusterState state = ClusterState.builder(new ClusterName("cluster"))
-            .metadata(Metadata.builder().put(indexMetadata, true).putCustom(IndexLifecycleMetadata.TYPE, ilm))
+            .metadata(Metadata.builder().put(indexMetadata, true).putSection(IndexLifecycleMetadata.TYPE, ilm))
             .nodes(DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()))
             .build();
         ClusterServiceUtils.setState(clusterService, state);
@@ -528,7 +528,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         DiscoveryNode node = clusterService.localNode();
         IndexLifecycleMetadata ilm = new IndexLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING);
         ClusterState state = ClusterState.builder(new ClusterName("cluster"))
-            .metadata(Metadata.builder().put(indexMetadata, true).putCustom(IndexLifecycleMetadata.TYPE, ilm))
+            .metadata(Metadata.builder().put(indexMetadata, true).putSection(IndexLifecycleMetadata.TYPE, ilm))
             .nodes(DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()))
             .build();
         logger.info("--> state: {}", state);
@@ -605,7 +605,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         DiscoveryNode node = clusterService.localNode();
         IndexLifecycleMetadata ilm = new IndexLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING);
         ClusterState state = ClusterState.builder(new ClusterName("cluster"))
-            .metadata(Metadata.builder().put(indexMetadata, true).putCustom(IndexLifecycleMetadata.TYPE, ilm))
+            .metadata(Metadata.builder().put(indexMetadata, true).putSection(IndexLifecycleMetadata.TYPE, ilm))
             .nodes(DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()))
             .build();
         logger.info("--> state: {}", state);

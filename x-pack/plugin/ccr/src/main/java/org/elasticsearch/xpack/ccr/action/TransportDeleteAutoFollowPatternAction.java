@@ -71,14 +71,14 @@ public class TransportDeleteAutoFollowPatternAction extends AcknowledgedTranspor
     }
 
     static ClusterState innerDelete(DeleteAutoFollowPatternAction.Request request, ClusterState currentState) {
-        AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().section(AutoFollowMetadata.TYPE);
         if (currentAutoFollowMetadata == null || currentAutoFollowMetadata.getPatterns().get(request.getName()) == null) {
             throw new ResourceNotFoundException("auto-follow pattern [{}] is missing", request.getName());
         }
 
         AutoFollowMetadata newAutoFollowMetadata = removePattern(currentAutoFollowMetadata, request.getName());
 
-        return currentState.copyAndUpdateMetadata(metadata -> metadata.putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata));
+        return currentState.copyAndUpdateMetadata(metadata -> metadata.putSection(AutoFollowMetadata.TYPE, newAutoFollowMetadata));
     }
 
     private static AutoFollowMetadata removePattern(AutoFollowMetadata metadata, String name) {

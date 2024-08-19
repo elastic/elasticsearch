@@ -55,7 +55,7 @@ public class WatchStoreUtilsTests extends ESTestCase {
             dataStreamAliases
         );
         customsBuilder.put(DataStreamMetadata.TYPE, dataStreamMetadata);
-        metadataBuilder.customs(customsBuilder);
+        metadataBuilder.sections(customsBuilder);
         IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(dataStreamName, metadataBuilder.build());
         assertNotNull(concreteIndex);
         assertEquals(indexNames.get(indexNames.size() - 1), concreteIndex.getIndex().getName());

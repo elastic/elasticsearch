@@ -73,9 +73,9 @@ public class TrainedModelAssignmentMetadata implements MetadataSection {
     }
 
     public static TrainedModelAssignmentMetadata fromState(ClusterState clusterState) {
-        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = clusterState.getMetadata().custom(NAME);
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = clusterState.getMetadata().section(NAME);
         if (trainedModelAssignmentMetadata == null) {
-            trainedModelAssignmentMetadata = clusterState.getMetadata().custom(DEPRECATED_NAME);
+            trainedModelAssignmentMetadata = clusterState.getMetadata().section(DEPRECATED_NAME);
         }
         return trainedModelAssignmentMetadata == null ? EMPTY : trainedModelAssignmentMetadata;
     }

@@ -199,7 +199,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
      * For the given job id, return an optional policy metadata object, if one exists
      */
     static Optional<SnapshotLifecyclePolicyMetadata> getSnapPolicyMetadata(final String jobId, final ClusterState state) {
-        return Optional.ofNullable((SnapshotLifecycleMetadata) state.metadata().custom(SnapshotLifecycleMetadata.TYPE))
+        return Optional.ofNullable((SnapshotLifecycleMetadata) state.metadata().section(SnapshotLifecycleMetadata.TYPE))
             .map(SnapshotLifecycleMetadata::getSnapshotConfigurations)
             .flatMap(
                 configMap -> configMap.values()
@@ -272,9 +272,9 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
             SnapshotLifecycleMetadata snapMeta = currentState.metadata()
-                .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+                .section(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
             RegisteredPolicySnapshots registeredSnapshots = currentState.metadata()
-                .custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
+                .section(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
 
             Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
             SnapshotLifecyclePolicyMetadata policyMetadata = snapLifecycles.get(policyName);
@@ -348,8 +348,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 newStats
             );
             Metadata newMeta = Metadata.builder(currentState.metadata())
-                .putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata)
-                .putCustom(RegisteredPolicySnapshots.TYPE, new RegisteredPolicySnapshots(newRegistered))
+                .putSection(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata)
+                .putSection(RegisteredPolicySnapshots.TYPE, new RegisteredPolicySnapshots(newRegistered))
                 .build();
             return ClusterState.builder(currentState).metadata(newMeta).build();
         }

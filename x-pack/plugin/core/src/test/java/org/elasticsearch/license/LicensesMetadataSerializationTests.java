@@ -69,11 +69,11 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         RepositoriesMetadata repositoriesMetadata = new RepositoriesMetadata(Collections.singletonList(repositoryMetadata));
         final Metadata.Builder metadataBuilder = Metadata.builder();
         if (randomBoolean()) { // random order of insertion
-            metadataBuilder.putCustom(licensesMetadata.getWriteableName(), licensesMetadata);
-            metadataBuilder.putCustom(repositoriesMetadata.getWriteableName(), repositoriesMetadata);
+            metadataBuilder.putSection(licensesMetadata.getWriteableName(), licensesMetadata);
+            metadataBuilder.putSection(repositoriesMetadata.getWriteableName(), repositoriesMetadata);
         } else {
-            metadataBuilder.putCustom(repositoriesMetadata.getWriteableName(), repositoriesMetadata);
-            metadataBuilder.putCustom(licensesMetadata.getWriteableName(), licensesMetadata);
+            metadataBuilder.putSection(repositoriesMetadata.getWriteableName(), repositoriesMetadata);
+            metadataBuilder.putSection(licensesMetadata.getWriteableName(), licensesMetadata);
         }
         // serialize metadata
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -84,8 +84,8 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         // deserialize metadata again
         Metadata metadata = Metadata.Builder.fromXContent(createParser(builder));
         // check that custom metadata still present
-        assertThat(metadata.custom(licensesMetadata.getWriteableName()), notNullValue());
-        assertThat(metadata.custom(repositoriesMetadata.getWriteableName()), notNullValue());
+        assertThat(metadata.section(licensesMetadata.getWriteableName()), notNullValue());
+        assertThat(metadata.section(repositoriesMetadata.getWriteableName()), notNullValue());
     }
 
     public void testXContentSerializationOneTrial() throws Exception {

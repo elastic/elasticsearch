@@ -284,7 +284,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // using externally accessible actions. The only way this situation could occur in reality is through extremely unfortunate
         // timing. Therefore, to simulate this unfortunate timing we cheat and access internal classes to set the datafeed state to
         // stopping.
-        PersistentTasksMetadataSection tasks = clusterService().state().getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection tasks = clusterService().state().getMetadata().section(PersistentTasksMetadataSection.TYPE);
         PersistentTasksMetadataSection.PersistentTask<?> task = MlTasks.getDatafeedTask(datafeedId, tasks);
 
         // It is possible that the datafeed has already detected the job failure and

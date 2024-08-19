@@ -141,7 +141,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
 
     private Metadata createLicensesMetadata(TrialLicenseVersion era, String licenseMode) throws Exception {
         License license = TestUtils.generateSignedLicense(licenseMode, TimeValue.timeValueHours(2));
-        return Metadata.builder().putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, era)).build();
+        return Metadata.builder().putSection(LicensesMetadata.TYPE, new LicensesMetadata(license, era)).build();
     }
 
     private static BuildVersion toBuildVersion(Version version) {

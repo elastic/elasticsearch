@@ -484,7 +484,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
                     .componentTemplates(componentTemplates)
                     .indexTemplates(composableTemplates)
                     .transientSettings(nodeSettings)
-                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+                    .putSection(IndexLifecycleMetadata.TYPE, ilmMeta)
                     .build()
             )
             .blocks(new ClusterBlocks.Builder().build())

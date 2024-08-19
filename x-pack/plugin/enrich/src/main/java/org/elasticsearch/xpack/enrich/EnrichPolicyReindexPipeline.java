@@ -48,7 +48,7 @@ public class EnrichPolicyReindexPipeline {
      * @return true if a pipeline exists that is compatible with this version of Enrich, false otherwise
      */
     static boolean exists(ClusterState clusterState) {
-        final IngestMetadata ingestMetadata = clusterState.getMetadata().custom(IngestMetadata.TYPE);
+        final IngestMetadata ingestMetadata = clusterState.getMetadata().section(IngestMetadata.TYPE);
         // we ensure that we both have the pipeline and its version represents the current (or later) version
         if (ingestMetadata != null) {
             final PipelineConfiguration pipeline = ingestMetadata.getPipelines().get(pipelineName());

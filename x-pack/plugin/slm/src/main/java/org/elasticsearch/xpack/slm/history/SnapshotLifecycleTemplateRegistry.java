@@ -115,7 +115,7 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
             .allMatch(name -> state.metadata().templatesV2().containsKey(name));
 
         Optional<Map<String, LifecyclePolicy>> maybePolicies = Optional.<IndexLifecycleMetadata>ofNullable(
-            state.metadata().custom(IndexLifecycleMetadata.TYPE)
+            state.metadata().section(IndexLifecycleMetadata.TYPE)
         ).map(IndexLifecycleMetadata::getPolicies);
         Set<String> policyNames = getLifecyclePolicies().stream().map(LifecyclePolicy::getName).collect(Collectors.toSet());
 

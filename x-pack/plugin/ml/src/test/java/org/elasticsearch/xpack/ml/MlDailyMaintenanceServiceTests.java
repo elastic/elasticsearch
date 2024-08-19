@@ -332,8 +332,8 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("MlDailyMaintenanceServiceTests"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksMetadataSection.TYPE, PersistentTasksMetadataSection.builder().build())
-                    .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(isUpgradeMode).build())
+                    .putSection(PersistentTasksMetadataSection.TYPE, PersistentTasksMetadataSection.builder().build())
+                    .putSection(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(isUpgradeMode).build())
             )
             .nodes(DiscoveryNodes.builder().build())
             .build();

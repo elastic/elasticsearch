@@ -390,7 +390,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
         PersistentTasksMetadataSection tasks = builder.build();
 
         return ClusterState.builder(new ClusterName("cluster"))
-            .metadata(Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasks).build())
+            .metadata(Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, tasks).build())
             .build();
     }
 

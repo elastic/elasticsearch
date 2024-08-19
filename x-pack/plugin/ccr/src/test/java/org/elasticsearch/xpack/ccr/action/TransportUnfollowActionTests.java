@@ -105,7 +105,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
             .metadata(
                 Metadata.builder()
                     .put(followerIndex)
-                    .putCustom(
+                    .putSection(
                         PersistentTasksMetadataSection.TYPE,
                         new PersistentTasksMetadataSection(0, Collections.singletonMap("id", task))
                     )

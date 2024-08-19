@@ -402,7 +402,7 @@ public final class BlobStoreTestUtil {
                 .metadata(
                     Metadata.builder()
                         .clusterUUID(UUIDs.randomBase64UUID(random()))
-                        .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(metadata)))
+                        .putSection(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(metadata)))
                         .build()
                 )
                 .build()

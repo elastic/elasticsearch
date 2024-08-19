@@ -118,7 +118,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
         ActionListener<Set<String>> expandedIdsListener = ActionListener.wrap(idsToStop -> {
             logger.debug("Resolved data frame analytics to stop: {}", idsToStop);
 
-            PersistentTasksMetadataSection tasks = state.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+            PersistentTasksMetadataSection tasks = state.getMetadata().section(PersistentTasksMetadataSection.TYPE);
             AnalyticsByTaskState analyticsByTaskState = AnalyticsByTaskState.build(idsToStop, tasks);
 
             if (analyticsByTaskState.isEmpty()) {
@@ -165,7 +165,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
     }
 
     private static Set<String> getAllStartedIds(ClusterState clusterState) {
-        PersistentTasksMetadataSection tasksMetadata = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection tasksMetadata = clusterState.getMetadata().section(PersistentTasksMetadataSection.TYPE);
         return tasksMetadata == null
             ? Collections.emptySet()
             : tasksMetadata.tasks()

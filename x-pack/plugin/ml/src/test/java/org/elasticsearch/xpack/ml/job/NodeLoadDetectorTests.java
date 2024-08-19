@@ -115,8 +115,8 @@ public class NodeLoadDetectorTests extends ESTestCase {
             .nodes(nodes)
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksMetadataSection.TYPE, tasks)
-                    .putCustom(
+                    .putSection(PersistentTasksMetadataSection.TYPE, tasks)
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(

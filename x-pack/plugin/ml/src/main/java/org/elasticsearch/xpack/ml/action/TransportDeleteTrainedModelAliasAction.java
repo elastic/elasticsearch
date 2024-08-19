@@ -111,7 +111,7 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
                 request.getModelId()
             );
         }
-        IngestMetadata currentIngestMetadata = currentState.metadata().custom(IngestMetadata.TYPE);
+        IngestMetadata currentIngestMetadata = currentState.metadata().section(IngestMetadata.TYPE);
         Set<String> referencedModels = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(currentIngestMetadata);
         if (referencedModels.contains(request.getModelAlias())) {
             throw new ElasticsearchStatusException(
@@ -127,7 +127,7 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
 
         newMetadata.remove(request.getModelAlias());
         final ModelAliasMetadata modelAliasMetadata = new ModelAliasMetadata(newMetadata);
-        builder.metadata(Metadata.builder(currentState.getMetadata()).putCustom(ModelAliasMetadata.NAME, modelAliasMetadata).build());
+        builder.metadata(Metadata.builder(currentState.getMetadata()).putSection(ModelAliasMetadata.NAME, modelAliasMetadata).build());
         return builder.build();
     }
 

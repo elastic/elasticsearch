@@ -218,7 +218,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         PersistentTasksMetadataSection tasksCustomMetadata = new PersistentTasksMetadataSection(1L, Map.of(taskId, task));
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
-            .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
+            .metadata(Metadata.builder().putSection(TYPE, tasksCustomMetadata).build())
             .nodes(new DiscoveryNodes.Builder().add(DiscoveryNodeUtils.create("_id1")).localNodeId("_id1"))
             .build();
 
@@ -377,7 +377,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         }
         return ClusterState.builder(new ClusterName("name"))
-            .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).put(idxMeta))
+            .metadata(Metadata.builder().putSection(TYPE, tasksCustomMetadata).put(idxMeta))
             .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_id1")).localNodeId("_id1"))
             .routingTable(
                 RoutingTable.builder()

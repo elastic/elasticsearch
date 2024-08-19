@@ -105,7 +105,7 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         );
         Metadata.Builder metadata = Metadata.builder().persistentSettings(settings(IndexVersion.current()).build());
         if (metadataInstalled) {
-            metadata.customs(
+            metadata.sections(
                 Map.of(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata, SnapshotLifecycleMetadata.TYPE, snapshotLifecycleMetadata)
             );
         }
@@ -117,8 +117,8 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         } else {
             assertThat("expected a different state instance but they were the same", state, not(equalTo(newState)));
         }
-        LifecycleOperationMetadata newMetadata = newState.metadata().custom(LifecycleOperationMetadata.TYPE);
-        IndexLifecycleMetadata oldMetadata = newState.metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        LifecycleOperationMetadata newMetadata = newState.metadata().section(LifecycleOperationMetadata.TYPE);
+        IndexLifecycleMetadata oldMetadata = newState.metadata().section(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         return Optional.ofNullable(newMetadata)
             .map(LifecycleOperationMetadata::getILMOperationMode)
             .orElseGet(oldMetadata::getOperationMode);
@@ -139,7 +139,7 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         );
         Metadata.Builder metadata = Metadata.builder().persistentSettings(settings(IndexVersion.current()).build());
         if (metadataInstalled) {
-            metadata.customs(
+            metadata.sections(
                 Map.of(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata, SnapshotLifecycleMetadata.TYPE, snapshotLifecycleMetadata)
             );
         }
@@ -151,8 +151,9 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         } else {
             assertThat(state, not(equalTo(newState)));
         }
-        LifecycleOperationMetadata newMetadata = newState.metadata().custom(LifecycleOperationMetadata.TYPE);
-        SnapshotLifecycleMetadata oldMetadata = newState.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+        LifecycleOperationMetadata newMetadata = newState.metadata().section(LifecycleOperationMetadata.TYPE);
+        SnapshotLifecycleMetadata oldMetadata = newState.metadata()
+            .section(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         return Optional.ofNullable(newMetadata)
             .map(LifecycleOperationMetadata::getSLMOperationMode)
             .orElseGet(oldMetadata::getOperationMode);

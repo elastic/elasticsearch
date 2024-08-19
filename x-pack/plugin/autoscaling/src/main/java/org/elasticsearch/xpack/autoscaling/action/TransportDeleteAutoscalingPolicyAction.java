@@ -98,8 +98,8 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
     static ClusterState deleteAutoscalingPolicy(final ClusterState currentState, final String name, final Logger logger) {
         final ClusterState.Builder builder = ClusterState.builder(currentState);
         final AutoscalingMetadata currentMetadata;
-        if (currentState.metadata().custom(AutoscalingMetadata.NAME) != null) {
-            currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
+        if (currentState.metadata().section(AutoscalingMetadata.NAME) != null) {
+            currentMetadata = currentState.metadata().section(AutoscalingMetadata.NAME);
         } else {
             // we will reject the request below when we try to look up the policy by name
             currentMetadata = AutoscalingMetadata.EMPTY;
@@ -119,7 +119,7 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
             logger.info("deleting autoscaling policy [{}]", name);
         }
         final AutoscalingMetadata newMetadata = new AutoscalingMetadata(newPolicies);
-        builder.metadata(Metadata.builder(currentState.getMetadata()).putCustom(AutoscalingMetadata.NAME, newMetadata).build());
+        builder.metadata(Metadata.builder(currentState.getMetadata()).putSection(AutoscalingMetadata.NAME, newMetadata).build());
         return builder.build();
     }
 

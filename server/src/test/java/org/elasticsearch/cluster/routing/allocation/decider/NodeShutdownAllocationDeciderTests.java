@@ -181,7 +181,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         // should auto-expand to source when shutdown/replacement entry is registered and node replacement has not started
         var shutdown = createNodesShutdownMetadata(SingleNodeShutdownMetadata.Type.REPLACE, DATA_NODE.getId());
         state = ClusterState.builder(state)
-            .metadata(Metadata.builder(state.metadata()).putCustom(NodesShutdownMetadata.TYPE, shutdown).build())
+            .metadata(Metadata.builder(state.metadata()).putSection(NodesShutdownMetadata.TYPE, shutdown).build())
             .build();
         assertThatDecision(
             decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, createRoutingAllocation(state)),
@@ -216,7 +216,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             .metadata(
                 Metadata.builder()
                     .put(IndexMetadata.builder(indexMetadata))
-                    .putCustom(NodesShutdownMetadata.TYPE, createNodesShutdownMetadata(shutdownType, nodeId))
+                    .putSection(NodesShutdownMetadata.TYPE, createNodesShutdownMetadata(shutdownType, nodeId))
             )
             .build();
     }

@@ -126,7 +126,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         @Override
         public ClusterState execute(ClusterState currentState) {
             SnapshotLifecycleMetadata snapMeta = currentState.metadata()
-                .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+                .section(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
             var currentMode = LifecycleOperationMetadata.currentSLMMode(currentState);
             final SnapshotLifecyclePolicyMetadata existingPolicyMetadata = snapMeta.getSnapshotConfigurations()
                 .get(request.getLifecycleId());
@@ -155,7 +155,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
             return ClusterState.builder(currentState)
                 .metadata(
                     Metadata.builder(currentState.metadata())
-                        .putCustom(
+                        .putSection(
                             SnapshotLifecycleMetadata.TYPE,
                             new SnapshotLifecycleMetadata(snapLifecycles, currentMode, snapMeta.getStats())
                         )

@@ -569,7 +569,7 @@ public class DatafeedRunner {
 
         private void closeJob() {
             ClusterState clusterState = clusterService.state();
-            PersistentTasksMetadataSection tasks = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+            PersistentTasksMetadataSection tasks = clusterState.getMetadata().section(PersistentTasksMetadataSection.TYPE);
             JobState jobState = MlTasks.getJobState(getJobId(), tasks);
             if (jobState != JobState.OPENED) {
                 logger.debug("[{}] No need to auto-close job as job state is [{}]", getJobId(), jobState);
@@ -635,7 +635,7 @@ public class DatafeedRunner {
 
         private void runWhenJobIsOpened(TransportStartDatafeedAction.DatafeedTask datafeedTask, String jobId) {
             ClusterState clusterState = clusterService.state();
-            PersistentTasksMetadataSection tasks = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+            PersistentTasksMetadataSection tasks = clusterState.getMetadata().section(PersistentTasksMetadataSection.TYPE);
             if (getJobState(tasks, jobId) == JobState.OPENED && jobHasOpenAutodetectCommunicator(tasks, jobId)) {
                 runTask(datafeedTask);
             } else {
@@ -667,8 +667,8 @@ public class DatafeedRunner {
             if (tasksToRun.isEmpty() || event.metadataChanged() == false) {
                 return;
             }
-            PersistentTasksMetadataSection previousTasks = event.previousState().getMetadata().custom(PersistentTasksMetadataSection.TYPE);
-            PersistentTasksMetadataSection currentTasks = event.state().getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+            PersistentTasksMetadataSection previousTasks = event.previousState().getMetadata().section(PersistentTasksMetadataSection.TYPE);
+            PersistentTasksMetadataSection currentTasks = event.state().getMetadata().section(PersistentTasksMetadataSection.TYPE);
             if (Objects.equals(previousTasks, currentTasks)) {
                 return;
             }

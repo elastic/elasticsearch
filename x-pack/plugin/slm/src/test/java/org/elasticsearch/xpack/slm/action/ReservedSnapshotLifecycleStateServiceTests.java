@@ -125,7 +125,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         List<RepositoryMetadata> repositoriesMetadata = List.of(new RepositoryMetadata("repo", "fs", Settings.EMPTY));
 
         Metadata.Builder mdBuilder = Metadata.builder();
-        mdBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(repositoriesMetadata));
+        mdBuilder.putSection(RepositoriesMetadata.TYPE, new RepositoriesMetadata(repositoriesMetadata));
         ClusterState state = ClusterState.builder(clusterName).metadata(mdBuilder).build();
 
         ReservedSnapshotAction action = new ReservedSnapshotAction();
@@ -175,7 +175,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         prevState = updatedState;
         updatedState = processJSON(action, prevState, twoPoliciesJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("daily-snapshots", "daily-snapshots1"));
-        SnapshotLifecycleMetadata slmMetadata = updatedState.state().metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata slmMetadata = updatedState.state().metadata().section(SnapshotLifecycleMetadata.TYPE);
         assertThat(slmMetadata.getSnapshotConfigurations().keySet(), containsInAnyOrder("daily-snapshots", "daily-snapshots1"));
 
         String onePolicyRemovedJSON = """
@@ -200,7 +200,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         prevState = updatedState;
         updatedState = processJSON(action, prevState, onePolicyRemovedJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("daily-snapshots"));
-        slmMetadata = updatedState.state().metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        slmMetadata = updatedState.state().metadata().section(SnapshotLifecycleMetadata.TYPE);
         assertThat(slmMetadata.getSnapshotConfigurations().keySet(), containsInAnyOrder("daily-snapshots"));
 
         String onePolicyRenamedJSON = """
@@ -225,7 +225,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         prevState = updatedState;
         updatedState = processJSON(action, prevState, onePolicyRenamedJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("daily-snapshots-2"));
-        slmMetadata = updatedState.state().metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        slmMetadata = updatedState.state().metadata().section(SnapshotLifecycleMetadata.TYPE);
         assertThat(slmMetadata.getSnapshotConfigurations().keySet(), containsInAnyOrder("daily-snapshots-2"));
     }
 

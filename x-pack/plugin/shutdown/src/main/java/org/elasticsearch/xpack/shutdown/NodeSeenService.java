@@ -64,7 +64,7 @@ public final class NodeSeenService implements ClusterStateListener {
             return;
         }
 
-        NodesShutdownMetadata eventShutdownMetadata = event.state().metadata().custom(NodesShutdownMetadata.TYPE);
+        NodesShutdownMetadata eventShutdownMetadata = event.state().metadata().section(NodesShutdownMetadata.TYPE);
 
         if (eventShutdownMetadata == null) {
             // Since there's no shutdown metadata at all, we know no shutdowns have ever been registered and we can bail.
@@ -119,7 +119,7 @@ public final class NodeSeenService implements ClusterStateListener {
             return ClusterState.builder(initialState)
                 .metadata(
                     Metadata.builder(initialState.metadata())
-                        .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
+                        .putSection(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
                         .build()
                 )
                 .build();

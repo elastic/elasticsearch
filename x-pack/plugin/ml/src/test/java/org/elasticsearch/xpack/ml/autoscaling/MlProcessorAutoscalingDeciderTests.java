@@ -62,7 +62,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode1).add(mlNode2).add(dataNode).build())
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
@@ -138,7 +138,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode1).add(mlNode2).add(dataNode).build())
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
@@ -214,7 +214,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode1).add(mlNode2).add(dataNode).build())
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
@@ -290,7 +290,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode1).add(mlNode2).add(dataNode).build())
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
@@ -377,7 +377,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode1).add(mlNode2).add(dataNode).build())
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
@@ -452,7 +452,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode1).add(mlNode2).add(dataNode).build())
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
@@ -531,7 +531,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode1).add(mlNode2).add(dataNode).build())
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(

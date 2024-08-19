@@ -386,7 +386,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).build())
             .nodeFeatures(Map.of(node1.getId(), features, node2.getId(), features));
         if (metadata != null) {
-            builder.metadata(Metadata.builder().putCustom(RepositoriesMetadata.TYPE, metadata));
+            builder.metadata(Metadata.builder().putSection(RepositoriesMetadata.TYPE, metadata));
         }
         return builder.build();
     }

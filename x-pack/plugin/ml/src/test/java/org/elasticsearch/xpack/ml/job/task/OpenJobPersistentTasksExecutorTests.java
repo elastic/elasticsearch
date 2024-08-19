@@ -203,7 +203,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         Metadata.Builder metadata = Metadata.builder();
         MlMetadata mlMetadata = new MlMetadata.Builder().isResetMode(true).build();
-        csBuilder.metadata(metadata.putCustom(MlMetadata.TYPE, mlMetadata));
+        csBuilder.metadata(metadata.putSection(MlMetadata.TYPE, mlMetadata));
 
         OpenJobPersistentTasksExecutor executor = createExecutor(Settings.EMPTY);
 

@@ -63,7 +63,7 @@ public class DatafeedNodeSelector {
         List<String> datafeedIndices,
         IndicesOptions indicesOptions
     ) {
-        PersistentTasksMetadataSection tasks = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection tasks = clusterState.getMetadata().section(PersistentTasksMetadataSection.TYPE);
         this.datafeedId = datafeedId;
         this.jobId = jobId;
         this.datafeedIndices = datafeedIndices;

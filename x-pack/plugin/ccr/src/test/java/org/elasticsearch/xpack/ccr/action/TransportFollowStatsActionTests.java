@@ -48,7 +48,7 @@ public class TransportFollowStatsActionTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_cluster"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksMetadataSection.TYPE, persistentTasks.build())
+                    .putSection(PersistentTasksMetadataSection.TYPE, persistentTasks.build())
                     // only add index1 and index2
                     .put(index1, false)
                     .put(index2, false)

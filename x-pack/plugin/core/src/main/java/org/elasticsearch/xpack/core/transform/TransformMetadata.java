@@ -171,7 +171,7 @@ public class TransformMetadata implements MetadataSection {
     }
 
     public static TransformMetadata getTransformMetadata(ClusterState state) {
-        TransformMetadata TransformMetadata = (state == null) ? null : state.getMetadata().custom(TYPE);
+        TransformMetadata TransformMetadata = (state == null) ? null : state.getMetadata().section(TYPE);
         if (TransformMetadata == null) {
             return EMPTY_METADATA;
         }

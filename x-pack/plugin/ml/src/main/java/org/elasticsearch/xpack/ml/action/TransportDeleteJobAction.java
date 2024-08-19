@@ -189,7 +189,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
             response -> deleteDatafeedIfNecessary(request, datafeedDeleteListener),
             e -> {
                 if (request.isForce()
-                    && MlTasks.getJobTask(request.getJobId(), state.getMetadata().custom(PersistentTasksMetadataSection.TYPE)) != null) {
+                    && MlTasks.getJobTask(request.getJobId(), state.getMetadata().section(PersistentTasksMetadataSection.TYPE)) != null) {
                     logger.info("[{}] config is missing but task exists. Attempting to delete tasks and stop process", request.getJobId());
                     forceDeleteJob(parentTaskClient, request, state, finalListener);
                 } else {
@@ -285,7 +285,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
     }
 
     private void removePersistentTask(String jobId, ClusterState currentState, ActionListener<Boolean> listener) {
-        PersistentTasksMetadataSection tasks = currentState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection tasks = currentState.getMetadata().section(PersistentTasksMetadataSection.TYPE);
 
         PersistentTasksMetadataSection.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask == null) {
@@ -296,7 +296,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
     }
 
     private static void checkJobIsNotOpen(String jobId, ClusterState state) {
-        PersistentTasksMetadataSection tasks = state.metadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection tasks = state.metadata().section(PersistentTasksMetadataSection.TYPE);
         PersistentTasksMetadataSection.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask != null) {
             JobTaskState jobTaskState = (JobTaskState) jobTask.getState();

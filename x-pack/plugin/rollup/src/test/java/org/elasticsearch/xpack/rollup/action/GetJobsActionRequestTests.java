@@ -46,7 +46,7 @@ public class GetJobsActionRequestTests extends AbstractWireSerializingTestCase<R
         ClusterState state = ClusterState.builder(new ClusterName("_name"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksMetadataSection.TYPE, new PersistentTasksMetadataSection(0L, Collections.emptyMap()))
+                    .putSection(PersistentTasksMetadataSection.TYPE, new PersistentTasksMetadataSection(0L, Collections.emptyMap()))
             )
             .build();
         boolean hasRollupJobs = TransportGetRollupJobAction.stateHasRollupJobs(request, state);
@@ -58,7 +58,7 @@ public class GetJobsActionRequestTests extends AbstractWireSerializingTestCase<R
         ClusterState state = ClusterState.builder(new ClusterName("_name"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksMetadataSection.TYPE, new PersistentTasksMetadataSection(0L, Collections.emptyMap()))
+                    .putSection(PersistentTasksMetadataSection.TYPE, new PersistentTasksMetadataSection(0L, Collections.emptyMap()))
             )
             .build();
         boolean hasRollupJobs = TransportGetRollupJobAction.stateHasRollupJobs(request, state);
@@ -72,7 +72,7 @@ public class GetJobsActionRequestTests extends AbstractWireSerializingTestCase<R
             new PersistentTasksMetadataSection.PersistentTask<>("bar", "bar", null, 1, null)
         );
         ClusterState state = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, new PersistentTasksMetadataSection(0L, tasks)))
+            .metadata(Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, new PersistentTasksMetadataSection(0L, tasks)))
             .build();
         boolean hasRollupJobs = TransportGetRollupJobAction.stateHasRollupJobs(request, state);
         assertFalse(hasRollupJobs);
@@ -86,7 +86,7 @@ public class GetJobsActionRequestTests extends AbstractWireSerializingTestCase<R
             new PersistentTasksMetadataSection.PersistentTask<>("foo", RollupJob.NAME, job, 1, null)
         );
         ClusterState state = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, new PersistentTasksMetadataSection(0L, tasks)))
+            .metadata(Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, new PersistentTasksMetadataSection(0L, tasks)))
             .build();
         boolean hasRollupJobs = TransportGetRollupJobAction.stateHasRollupJobs(request, state);
         assertTrue(hasRollupJobs);
@@ -100,7 +100,7 @@ public class GetJobsActionRequestTests extends AbstractWireSerializingTestCase<R
             new PersistentTasksMetadataSection.PersistentTask<>("foo", RollupJob.NAME, job, 1, null)
         );
         ClusterState state = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, new PersistentTasksMetadataSection(0L, tasks)))
+            .metadata(Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, new PersistentTasksMetadataSection(0L, tasks)))
             .build();
         boolean hasRollupJobs = TransportGetRollupJobAction.stateHasRollupJobs(request, state);
         assertTrue(hasRollupJobs);
@@ -114,7 +114,7 @@ public class GetJobsActionRequestTests extends AbstractWireSerializingTestCase<R
         tasks.put("foo", new PersistentTasksMetadataSection.PersistentTask<>("foo", RollupJob.NAME, job, 1, null));
         tasks.put("bar", new PersistentTasksMetadataSection.PersistentTask<>("bar", RollupJob.NAME, job2, 1, null));
         ClusterState state = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, new PersistentTasksMetadataSection(0L, tasks)))
+            .metadata(Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, new PersistentTasksMetadataSection(0L, tasks)))
             .build();
         boolean hasRollupJobs = TransportGetRollupJobAction.stateHasRollupJobs(request, state);
         assertTrue(hasRollupJobs);

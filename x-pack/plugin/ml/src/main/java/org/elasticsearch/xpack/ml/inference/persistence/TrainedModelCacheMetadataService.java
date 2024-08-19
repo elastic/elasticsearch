@@ -124,7 +124,7 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
             }
 
             return ClusterState.builder(initialState)
-                .metadata(Metadata.builder(initialState.metadata()).putCustom(TrainedModelCacheMetadata.NAME, currentCacheMetadata))
+                .metadata(Metadata.builder(initialState.metadata()).putSection(TrainedModelCacheMetadata.NAME, currentCacheMetadata))
                 .build();
         }
     }

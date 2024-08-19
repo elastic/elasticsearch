@@ -1494,7 +1494,7 @@ public final class RestoreService implements ClusterStateApplier {
             }
 
             // override existing restorable customs (as there might be nothing in snapshot to override them)
-            mdBuilder.removeCustomIf((key, value) -> value.isRestorable());
+            mdBuilder.removeSectionIf((key, value) -> value.isRestorable());
 
             // restore customs from the snapshot
             if (metadata.customs() != null) {
@@ -1504,7 +1504,7 @@ public final class RestoreService implements ClusterStateApplier {
                         // Don't restore repositories while we are working with them
                         // TODO: Should we restore them at the end?
                         // Also, don't restore data streams here, we already added them to the metadata builder above
-                        mdBuilder.putCustom(entry.getKey(), entry.getValue());
+                        mdBuilder.putSection(entry.getKey(), entry.getValue());
                     }
                 }
             }

@@ -681,8 +681,8 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
 
         clusterState = ClusterState.builder(new ClusterName("cluster_name"))
             .metadata(
-                new Metadata.Builder().putCustom(PersistentTasksMetadataSection.TYPE, tasks)
-                    .putCustom(MlMetadata.TYPE, mlMetadata)
+                new Metadata.Builder().putSection(PersistentTasksMetadataSection.TYPE, tasks)
+                    .putSection(MlMetadata.TYPE, mlMetadata)
                     .put(indexMetadata, false)
             )
             .nodes(nodes)
@@ -706,8 +706,8 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         clusterState = ClusterState.builder(new ClusterName("cluster_name"))
             .metadata(
                 new Metadata.Builder().put(DataStreamTestHelper.newInstance(dataStreamName, Collections.singletonList(index)))
-                    .putCustom(PersistentTasksMetadataSection.TYPE, tasks)
-                    .putCustom(MlMetadata.TYPE, mlMetadata)
+                    .putSection(PersistentTasksMetadataSection.TYPE, tasks)
+                    .putSection(MlMetadata.TYPE, mlMetadata)
                     .put(indexMetadata, false)
             )
             .nodes(nodes)

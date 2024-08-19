@@ -78,7 +78,7 @@ public abstract class AbstractClusterStateLicenseServiceTestCase extends ESTestC
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();
         when(state.blocks()).thenReturn(noBlock);
         Metadata metadata = mock(Metadata.class);
-        when(metadata.custom(LicensesMetadata.TYPE)).thenReturn(new LicensesMetadata(license, null));
+        when(metadata.section(LicensesMetadata.TYPE)).thenReturn(new LicensesMetadata(license, null));
         when(state.metadata()).thenReturn(metadata);
         final DiscoveryNode mockNode = getLocalNode();
         when(discoveryNodes.getMasterNode()).thenReturn(mockNode);

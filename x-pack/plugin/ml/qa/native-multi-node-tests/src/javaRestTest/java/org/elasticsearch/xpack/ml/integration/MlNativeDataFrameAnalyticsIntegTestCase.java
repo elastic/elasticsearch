@@ -282,7 +282,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
 
     protected Collection<PersistentTasksMetadataSection.PersistentTask<?>> analyticsTaskList() {
         ClusterState masterClusterState = clusterAdmin().prepareState().all().get().getState();
-        PersistentTasksMetadataSection persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection persistentTasks = masterClusterState.getMetadata().section(PersistentTasksMetadataSection.TYPE);
         return persistentTasks != null
             ? persistentTasks.findTasks(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, task -> true)
             : Collections.emptyList();

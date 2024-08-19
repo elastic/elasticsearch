@@ -87,7 +87,7 @@ public class NodeLoadDetector {
         int maxMachineMemoryPercent,
         boolean useAutoMachineMemoryCalculation
     ) {
-        PersistentTasksMetadataSection persistentTasks = clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection persistentTasks = clusterState.getMetadata().section(PersistentTasksMetadataSection.TYPE);
         Map<String, String> nodeAttributes = node.getAttributes();
         List<String> errors = new ArrayList<>();
         OptionalLong maxMlMemory = NativeMemoryCalculator.allowedBytesForMl(node, maxMachineMemoryPercent, useAutoMachineMemoryCalculation);

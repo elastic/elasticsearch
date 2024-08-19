@@ -117,7 +117,7 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
         public ClusterState execute(BatchExecutionContext<StartTrialClusterTask> batchExecutionContext) throws Exception {
             final var initialState = batchExecutionContext.initialState();
             XPackPlugin.checkReadyForXPackCustomMetadata(initialState);
-            final LicensesMetadata originalLicensesMetadata = initialState.metadata().custom(LicensesMetadata.TYPE);
+            final LicensesMetadata originalLicensesMetadata = initialState.metadata().section(LicensesMetadata.TYPE);
             var currentLicensesMetadata = originalLicensesMetadata;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 try (var ignored = taskContext.captureResponseHeaders()) {
@@ -128,7 +128,7 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
                 return initialState;
             } else {
                 return ClusterState.builder(initialState)
-                    .metadata(Metadata.builder(initialState.metadata()).putCustom(LicensesMetadata.TYPE, currentLicensesMetadata))
+                    .metadata(Metadata.builder(initialState.metadata()).putSection(LicensesMetadata.TYPE, currentLicensesMetadata))
                     .build();
             }
         }

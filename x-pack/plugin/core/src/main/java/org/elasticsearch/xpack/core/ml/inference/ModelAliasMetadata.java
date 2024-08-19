@@ -44,7 +44,7 @@ public class ModelAliasMetadata implements MetadataSection {
     public static final ModelAliasMetadata EMPTY = new ModelAliasMetadata(new HashMap<>());
 
     public static ModelAliasMetadata fromState(ClusterState cs) {
-        ModelAliasMetadata modelAliasMetadata = cs.metadata().custom(NAME);
+        ModelAliasMetadata modelAliasMetadata = cs.metadata().section(NAME);
         return modelAliasMetadata == null ? EMPTY : modelAliasMetadata;
     }
 

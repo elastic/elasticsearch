@@ -386,7 +386,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
     public void testRunPolicyLocallyMissingPolicy() {
         EnrichPolicy enrichPolicy = EnrichPolicyTests.randomEnrichPolicy(XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(EnrichMetadata.TYPE, new EnrichMetadata(Map.of("id", enrichPolicy))).build())
+            .metadata(Metadata.builder().putSection(EnrichMetadata.TYPE, new EnrichMetadata(Map.of("id", enrichPolicy))).build())
             .build();
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);

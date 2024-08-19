@@ -71,8 +71,8 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             // we start cancelling all local tasks before cluster has a chance to recover.
             return;
         }
-        PersistentTasksMetadataSection tasks = event.state().getMetadata().custom(PersistentTasksMetadataSection.TYPE);
-        PersistentTasksMetadataSection previousTasks = event.previousState().getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection tasks = event.state().getMetadata().section(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection previousTasks = event.previousState().getMetadata().section(PersistentTasksMetadataSection.TYPE);
 
         // Cluster State Local State Local Action
         // STARTED NULL Create as STARTED, Start

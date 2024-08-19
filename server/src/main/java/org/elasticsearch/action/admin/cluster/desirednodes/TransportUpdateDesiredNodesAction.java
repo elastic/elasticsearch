@@ -116,7 +116,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
 
     static ClusterState replaceDesiredNodes(ClusterState clusterState, DesiredNodes newDesiredNodes) {
         return clusterState.copyAndUpdateMetadata(
-            metadata -> metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(newDesiredNodes))
+            metadata -> metadata.putSection(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(newDesiredNodes))
         );
     }
 

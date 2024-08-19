@@ -102,7 +102,7 @@ public class ReservedAutoscalingPolicyTests extends ESTestCase {
         prevState = updatedState;
         updatedState = processJSON(action, prevState, json);
         assertThat(updatedState.keys(), containsInAnyOrder("my_autoscaling_policy", "my_autoscaling_policy_1"));
-        AutoscalingMetadata autoMetadata = updatedState.state().metadata().custom(AutoscalingMetadata.NAME);
+        AutoscalingMetadata autoMetadata = updatedState.state().metadata().section(AutoscalingMetadata.NAME);
         assertThat(autoMetadata.policies().keySet(), containsInAnyOrder("my_autoscaling_policy", "my_autoscaling_policy_1"));
         assertThat(autoMetadata.policies().get("my_autoscaling_policy").policy().roles(), containsInAnyOrder("data_hot"));
         assertThat(autoMetadata.policies().get("my_autoscaling_policy").policy().deciders().keySet(), containsInAnyOrder("fixed"));

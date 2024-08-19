@@ -333,7 +333,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     e -> logIfNecessary(() -> logger.warn("Failed to refresh job memory requirements", e))
                 );
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                    .execute(() -> refresh(clusterService.state().getMetadata().custom(PersistentTasksMetadataSection.TYPE), listener));
+                    .execute(() -> refresh(clusterService.state().getMetadata().section(PersistentTasksMetadataSection.TYPE), listener));
                 return true;
             } catch (EsRejectedExecutionException e) {
                 logger.warn("Couldn't schedule ML memory update - node might be shutting down", e);
@@ -364,7 +364,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         // Skip the provided job ID in the main refresh, as we unconditionally do it at the end.
         // Otherwise it might get refreshed twice, because it could have both a job task and a snapshot upgrade task.
         refresh(
-            clusterService.state().getMetadata().custom(PersistentTasksMetadataSection.TYPE),
+            clusterService.state().getMetadata().section(PersistentTasksMetadataSection.TYPE),
             Collections.singleton(jobId),
             listener.delegateFailureAndWrap((l, aVoid) -> refreshAnomalyDetectorJobMemory(jobId, l))
         );
@@ -389,7 +389,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
         memoryRequirementByDataFrameAnalyticsJob.put(id, mem + DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes());
 
-        PersistentTasksMetadataSection persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection persistentTasks = clusterService.state().getMetadata().section(PersistentTasksMetadataSection.TYPE);
         refresh(persistentTasks, listener);
     }
 

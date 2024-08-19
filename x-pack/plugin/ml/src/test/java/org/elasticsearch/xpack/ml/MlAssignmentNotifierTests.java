@@ -75,13 +75,13 @@ public class MlAssignmentNotifierTests extends ESTestCase {
         ClusterState previous = ClusterState.builder(new ClusterName("_name"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksMetadataSection.TYPE, new PersistentTasksMetadataSection(0L, Collections.emptyMap()))
+                    .putSection(PersistentTasksMetadataSection.TYPE, new PersistentTasksMetadataSection(0L, Collections.emptyMap()))
             )
             .build();
 
         PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask("job_id", "_node_id", null, tasksBuilder);
-        Metadata metadata = Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()).build();
+        Metadata metadata = Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()).build();
         ClusterState newState = ClusterState.builder(new ClusterName("_name"))
             .metadata(metadata)
             // set local node master
@@ -124,7 +124,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
 
         PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask("job_id", "_node_id", null, tasksBuilder);
-        Metadata metadata = Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()).build();
+        Metadata metadata = Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()).build();
         ClusterState previous = ClusterState.builder(new ClusterName("_name"))
             .metadata(metadata)
             // set local node master
@@ -138,7 +138,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
 
         tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask("job_id", null, null, tasksBuilder);
-        metadata = Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()).build();
+        metadata = Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()).build();
         ClusterState newState = ClusterState.builder(new ClusterName("_name"))
             .metadata(metadata)
             // set local node master
@@ -182,7 +182,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
 
         PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask("job_id", null, null, tasksBuilder);
-        Metadata metadata = Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()).build();
+        Metadata metadata = Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()).build();
         ClusterState previous = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
 
         ClusterState newState = ClusterState.builder(new ClusterName("_name"))
@@ -221,7 +221,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
 
         PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         addJobTask("job_id", null, null, tasksBuilder);
-        Metadata metadata = Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()).build();
+        Metadata metadata = Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()).build();
         ClusterState newState = ClusterState.builder(new ClusterName("_name"))
             .metadata(metadata)
             // set local node master
@@ -232,7 +232,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                     .masterNodeId("_node_id")
             )
             .build();
-        notifier.auditUnassignedMlTasks(newState.nodes(), newState.metadata().custom(PersistentTasksMetadataSection.TYPE));
+        notifier.auditUnassignedMlTasks(newState.nodes(), newState.metadata().section(PersistentTasksMetadataSection.TYPE));
         if (anomalyDetectionAuditor.includeNodeInfo()) {
             verify(anomalyDetectionAuditor, times(1)).warning("job_id", "No node found to open job. Reasons [test assignment]");
         } else {

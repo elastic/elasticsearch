@@ -295,7 +295,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
     private static ClusterState createClusterStateWith(IndexLifecycleMetadata metadata) {
         var builder = new ClusterState.Builder(new ClusterName("test-cluster"));
         if (metadata != null) {
-            builder.metadata(new Metadata.Builder().putCustom(IndexLifecycleMetadata.TYPE, metadata));
+            builder.metadata(new Metadata.Builder().putSection(IndexLifecycleMetadata.TYPE, metadata));
         }
         return builder.build();
     }

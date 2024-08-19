@@ -193,7 +193,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         // TODO PersistentTasksCustomMetadata is required for jobs other than TrainedModels
         // .customs(Map.of(PersistentTasksCustomMetadata.TYPE, PersistentTasksCustomMetadata.builder().build()))
         if (trainedModelAssignmentMetadata != null) {
-            metadataBuilder.putCustom(TrainedModelAssignmentMetadata.NAME, trainedModelAssignmentMetadata);
+            metadataBuilder.putSection(TrainedModelAssignmentMetadata.NAME, trainedModelAssignmentMetadata);
         }
 
         Metadata metadata = metadataBuilder.build();

@@ -169,7 +169,7 @@ public class IndexLifecycleService
     void onMaster(ClusterState clusterState) {
         maybeScheduleJob();
 
-        final IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        final IndexLifecycleMetadata currentMetadata = clusterState.metadata().section(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null) {
             OperationMode currentMode = currentILMMode(clusterState);
             if (OperationMode.STOPPED.equals(currentMode)) {
@@ -334,11 +334,11 @@ public class IndexLifecycleService
     public void applyClusterState(ClusterChangedEvent event) {
         if (event.localNodeMaster()) { // only act if we are master, otherwise
             // keep idle until elected
-            final IndexLifecycleMetadata ilmMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
+            final IndexLifecycleMetadata ilmMetadata = event.state().metadata().section(IndexLifecycleMetadata.TYPE);
             // only update the policy registry if we just became the master node or if the ilm metadata changed
             if (ilmMetadata != null
                 && (event.previousState().nodes().isLocalNodeElectedMaster() == false
-                    || ilmMetadata != event.previousState().metadata().custom(IndexLifecycleMetadata.TYPE))) {
+                    || ilmMetadata != event.previousState().metadata().section(IndexLifecycleMetadata.TYPE))) {
                 policyRegistry.update(ilmMetadata);
             }
         }
@@ -373,7 +373,7 @@ public class IndexLifecycleService
      * @param fromClusterStateChange whether things are triggered from the cluster-state-listener or the scheduler
      */
     void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
-        IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata currentMetadata = clusterState.metadata().section(IndexLifecycleMetadata.TYPE);
 
         OperationMode currentMode = currentILMMode(clusterState);
         if (currentMetadata == null) {

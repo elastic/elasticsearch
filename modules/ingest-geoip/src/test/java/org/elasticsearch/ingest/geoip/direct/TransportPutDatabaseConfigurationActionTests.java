@@ -23,7 +23,7 @@ public class TransportPutDatabaseConfigurationActionTests extends ESTestCase {
         String name = randomAlphaOfLengthBetween(1, 50);
         IngestGeoIpMetadata ingestGeoIpMetadata = randomIngestGeoIpMetadata(name);
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA).putCustom(IngestGeoIpMetadata.TYPE, ingestGeoIpMetadata))
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA).putSection(IngestGeoIpMetadata.TYPE, ingestGeoIpMetadata))
             .build();
         DatabaseConfiguration databaseConfiguration = randomDatabaseConfiguration(randomIdentifier(), name);
         expectThrows(

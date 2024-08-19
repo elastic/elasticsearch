@@ -64,7 +64,7 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
 
         ClusterState masterClusterState = clusterAdmin().prepareState().all().get().getState();
 
-        PersistentTasksMetadataSection persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection persistentTasks = masterClusterState.getMetadata().section(PersistentTasksMetadataSection.TYPE);
         assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true), hasSize(1));
         assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true), hasSize(1));
 
@@ -74,7 +74,7 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
         masterClusterState = clusterAdmin().prepareState().all().get().getState();
 
         // Assert state for tasks still exists and that the upgrade setting is set
-        persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        persistentTasks = masterClusterState.getMetadata().section(PersistentTasksMetadataSection.TYPE);
         assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true), hasSize(1));
         assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true), hasSize(1));
 
@@ -101,7 +101,7 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
 
         masterClusterState = clusterAdmin().prepareState().all().get().getState();
 
-        persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        persistentTasks = masterClusterState.getMetadata().section(PersistentTasksMetadataSection.TYPE);
         assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true), hasSize(1));
         assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true), hasSize(1));
 

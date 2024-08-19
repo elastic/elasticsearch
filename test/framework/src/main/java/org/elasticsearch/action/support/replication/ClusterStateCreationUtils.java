@@ -585,6 +585,6 @@ public class ClusterStateCreationUtils {
             randomAlphaOfLength(10)
         );
         tasks.addTask(HealthNode.TASK_NAME, HealthNode.TASK_NAME, HealthNodeTaskParams.INSTANCE, assignment);
-        return metadataBuilder.putCustom(PersistentTasksMetadataSection.TYPE, tasks.build());
+        return metadataBuilder.putSection(PersistentTasksMetadataSection.TYPE, tasks.build());
     }
 }

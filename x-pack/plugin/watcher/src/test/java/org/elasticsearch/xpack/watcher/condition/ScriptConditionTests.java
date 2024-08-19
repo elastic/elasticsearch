@@ -88,7 +88,7 @@ public class ScriptConditionTests extends ESTestCase {
         scriptService = WatcherMockScriptPlugin.newMockScriptService(scripts);
 
         ClusterState.Builder clusterState = new ClusterState.Builder(new ClusterName("_name"));
-        clusterState.metadata(Metadata.builder().putCustom(ScriptMetadata.TYPE, new ScriptMetadata.Builder(null).build()));
+        clusterState.metadata(Metadata.builder().putSection(ScriptMetadata.TYPE, new ScriptMetadata.Builder(null).build()));
         ClusterState cs = clusterState.build();
         scriptService.applyClusterState(new ClusterChangedEvent("_source", cs, cs));
     }

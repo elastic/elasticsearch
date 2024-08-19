@@ -170,7 +170,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .build();
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
         Metadata metadata = Metadata.builder()
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPED))
+            .putSection(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPED))
             .indices(indices)
             .persistentSettings(settings(IndexVersion.current()).build())
             .build();
@@ -212,7 +212,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .build();
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
         Metadata metadata = Metadata.builder()
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
+            .putSection(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
             .indices(indices)
             .persistentSettings(settings(IndexVersion.current()).build())
             .build();
@@ -271,7 +271,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .build();
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
         Metadata metadata = Metadata.builder()
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
+            .putSection(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
             .indices(indices)
             .persistentSettings(settings(IndexVersion.current()).build())
             .build();
@@ -322,7 +322,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .build();
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
         Metadata metadata = Metadata.builder()
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
+            .putSection(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
             .indices(indices)
             .persistentSettings(settings(IndexVersion.current()).build())
             .build();
@@ -443,7 +443,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         Map<String, IndexMetadata> indices = Map.of(index1.getName(), i1indexMetadata, index2.getName(), i2indexMetadata);
 
         Metadata metadata = Metadata.builder()
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING))
+            .putSection(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING))
             .indices(indices)
             .persistentSettings(settings(IndexVersion.current()).build())
             .build();
@@ -580,7 +580,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             Map<String, IndexMetadata> indices = Map.of("no_danger", nonDangerousIndex, "danger", dangerousIndex);
 
             Metadata metadata = Metadata.builder()
-                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING))
+                .putSection(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING))
                 .indices(indices)
                 .persistentSettings(settings(IndexVersion.current()).build())
                 .build();
@@ -621,7 +621,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             state = ClusterState.builder(state)
                 .metadata(
                     Metadata.builder(state.metadata())
-                        .putCustom(
+                        .putSection(
                             NodesShutdownMetadata.TYPE,
                             new NodesShutdownMetadata(
                                 Collections.singletonMap(
@@ -655,7 +655,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             state = ClusterState.builder(state)
                 .metadata(
                     Metadata.builder(state.metadata())
-                        .putCustom(
+                        .putSection(
                             NodesShutdownMetadata.TYPE,
                             new NodesShutdownMetadata(
                                 Collections.singletonMap(

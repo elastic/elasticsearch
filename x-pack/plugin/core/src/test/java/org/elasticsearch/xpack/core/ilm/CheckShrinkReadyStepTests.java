@@ -455,7 +455,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                 .metadata(
                     Metadata.builder()
                         .indices(indices)
-                        .putCustom(
+                        .putSection(
                             NodesShutdownMetadata.TYPE,
                             new NodesShutdownMetadata(
                                 Collections.singletonMap(
@@ -534,7 +534,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                 .metadata(
                     Metadata.builder()
                         .indices(indices)
-                        .putCustom(
+                        .putSection(
                             NodesShutdownMetadata.TYPE,
                             new NodesShutdownMetadata(
                                 Collections.singletonMap(

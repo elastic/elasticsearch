@@ -734,7 +734,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
         @Override
         public void clusterChanged(ClusterChangedEvent event) {
-            final RepositoriesMetadata repositoriesMetadata = event.state().metadata().custom(RepositoriesMetadata.TYPE);
+            final RepositoriesMetadata repositoriesMetadata = event.state().metadata().section(RepositoriesMetadata.TYPE);
             if (repositoriesMetadata == null) {
                 knownUuids.clear();
                 return;

@@ -670,7 +670,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
             @Override
             public Metadata.Builder put(Metadata.Builder builder, MetadataSection part) {
-                return builder.putCustom(part.getWriteableName(), part);
+                return builder.putSection(part.getWriteableName(), part);
             }
 
             @Override
@@ -679,7 +679,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     // there must always be at least an empty graveyard
                     return builder.indexGraveyard(IndexGraveyard.builder().build());
                 } else {
-                    return builder.removeCustom(name);
+                    return builder.removeSection(name);
                 }
             }
 

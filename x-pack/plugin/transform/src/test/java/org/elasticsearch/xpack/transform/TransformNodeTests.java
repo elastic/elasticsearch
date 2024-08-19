@@ -103,7 +103,7 @@ public class TransformNodeTests extends ESTestCase {
         }
 
         var state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata).build())
+            .metadata(Metadata.builder().putSection(NodesShutdownMetadata.TYPE, nodesShutdownMetadata).build())
             .nodes(nodes)
             .build();
 

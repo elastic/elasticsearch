@@ -296,7 +296,7 @@ public class TemplateRoleNameTests extends ESTestCase {
         final ScriptMetadata scriptMetadata = new ScriptMetadata.Builder(null).storeScript("foo", storedScriptSource).build();
         when(clusterChangedEvent.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
-        when(metadata.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
+        when(metadata.section(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
         when(storedScriptSource.getLang()).thenReturn("mustache");
         when(storedScriptSource.getSource()).thenReturn("");
         when(storedScriptSource.getOptions()).thenReturn(Collections.emptyMap());
@@ -324,7 +324,7 @@ public class TemplateRoleNameTests extends ESTestCase {
         final ScriptMetadata scriptMetadata = new ScriptMetadata.Builder(null).build();
         when(clusterChangedEvent.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
-        when(metadata.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
+        when(metadata.section(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
         scriptService.applyClusterState(clusterChangedEvent);
 
         final BytesReference storedScript = new BytesArray("""

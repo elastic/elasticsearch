@@ -195,7 +195,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             .metadata(
                 Metadata.builder()
                     .put(IndexMetadata.builder(indexMetadata))
-                    .putCustom(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(NODE_A.getId(), NODE_B.getName()))
+                    .putSection(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(NODE_A.getId(), NODE_B.getName()))
             )
             .routingTable(
                 RoutingTable.builder()
@@ -305,7 +305,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         state = ClusterState.builder(state)
             .metadata(
                 Metadata.builder(state.metadata())
-                    .putCustom(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(NODE_A.getId(), NODE_B.getName()))
+                    .putSection(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(NODE_A.getId(), NODE_B.getName()))
                     .build()
             )
             .build();
@@ -410,7 +410,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             .metadata(
                 Metadata.builder()
                     .put(IndexMetadata.builder(indexMetadata))
-                    .putCustom(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(sourceNodeId, targetNodeName))
+                    .putSection(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(sourceNodeId, targetNodeName))
             )
             .build();
     }

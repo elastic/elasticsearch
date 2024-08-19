@@ -105,7 +105,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         service = new AutoscalingNodeInfoService(clusterService, client);
         autoscalingMetadata = randomAutoscalingMetadataOfPolicyCount(between(1, 8));
-        metadata = Metadata.builder().putCustom(AutoscalingMetadata.NAME, autoscalingMetadata).build();
+        metadata = Metadata.builder().putSection(AutoscalingMetadata.NAME, autoscalingMetadata).build();
     }
 
     @After

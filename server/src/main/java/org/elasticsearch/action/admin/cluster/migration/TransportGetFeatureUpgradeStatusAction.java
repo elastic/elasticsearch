@@ -155,7 +155,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     // visible for testing
     static List<GetFeatureUpgradeStatusResponse.IndexInfo> getIndexInfos(ClusterState state, SystemIndices.Feature feature) {
         final SingleFeatureMigrationResult featureStatus = Optional.ofNullable(
-            (FeatureMigrationResults) state.metadata().custom(FeatureMigrationResults.TYPE)
+            (FeatureMigrationResults) state.metadata().section(FeatureMigrationResults.TYPE)
         ).map(FeatureMigrationResults::getFeatureStatuses).map(results -> results.get(feature.getName())).orElse(null);
 
         final String failedFeatureName = featureStatus == null ? null : featureStatus.getFailedIndexName();

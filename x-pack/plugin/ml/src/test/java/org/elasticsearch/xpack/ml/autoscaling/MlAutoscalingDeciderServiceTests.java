@@ -224,7 +224,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         PersistentTasksMetadataSection.Builder tasksBuilder = PersistentTasksMetadataSection.builder();
         OpenJobPersistentTasksExecutorTests.addJobTask(jobId, randomFrom("ml-1", "ml-2"), JobState.OPENED, tasksBuilder);
         Metadata.Builder metadata = Metadata.builder();
-        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build());
+        metadata.putSection(PersistentTasksMetadataSection.TYPE, tasksBuilder.build());
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .nodes(

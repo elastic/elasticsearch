@@ -1182,7 +1182,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Retrieves the persistent tasks with the requested task names from the given cluster state.
      */
     public static List<PersistentTasksMetadataSection.PersistentTask<?>> findTasks(ClusterState clusterState, Set<String> taskNames) {
-        PersistentTasksMetadataSection tasks = clusterState.metadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection tasks = clusterState.metadata().section(PersistentTasksMetadataSection.TYPE);
         if (tasks == null) {
             return List.of();
         }

@@ -157,7 +157,7 @@ public final class EnrichStore {
      */
     public static Map<String, EnrichPolicy> getPolicies(ClusterState state) {
         final Map<String, EnrichPolicy> policies;
-        final EnrichMetadata enrichMetadata = state.metadata().custom(EnrichMetadata.TYPE);
+        final EnrichMetadata enrichMetadata = state.metadata().section(EnrichMetadata.TYPE);
         if (enrichMetadata != null) {
             // Make a copy, because policies map inside custom metadata is read only:
             policies = new HashMap<>(enrichMetadata.getPolicies());
@@ -178,7 +178,7 @@ public final class EnrichStore {
             public ClusterState execute(ClusterState currentState) throws Exception {
                 Map<String, EnrichPolicy> policies = function.apply(currentState);
                 Metadata metadata = Metadata.builder(currentState.metadata())
-                    .putCustom(EnrichMetadata.TYPE, new EnrichMetadata(policies))
+                    .putSection(EnrichMetadata.TYPE, new EnrichMetadata(policies))
                     .build();
                 return ClusterState.builder(currentState).metadata(metadata).build();
             }

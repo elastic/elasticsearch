@@ -580,13 +580,13 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
     private SnapshotLifecycleMetadata getSnapshotLifecycleMetadata() {
         final ClusterStateResponse clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
         ClusterState state = clusterStateResponse.getState();
-        return state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        return state.metadata().section(SnapshotLifecycleMetadata.TYPE);
     }
 
     private RegisteredPolicySnapshots getRegisteredSnapshots() {
         final ClusterStateResponse clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
         ClusterState state = clusterStateResponse.getState();
-        return state.metadata().custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
+        return state.metadata().section(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
     }
 
     private SnapshotInfo getSnapshotInfo(String repository, String snapshot) {

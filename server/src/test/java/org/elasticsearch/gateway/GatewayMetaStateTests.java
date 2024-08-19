@@ -230,7 +230,7 @@ public class GatewayMetaStateTests extends ESTestCase {
     private static Metadata randomMetadata(TestMetadataSection... customMetadatas) {
         Metadata.Builder builder = Metadata.builder();
         for (TestMetadataSection customMetadata : customMetadatas) {
-            builder.putCustom(customMetadata.getWriteableName(), customMetadata);
+            builder.putSection(customMetadata.getWriteableName(), customMetadata);
         }
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             builder.put(

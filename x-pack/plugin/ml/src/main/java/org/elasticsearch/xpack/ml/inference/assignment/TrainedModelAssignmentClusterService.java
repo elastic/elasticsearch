@@ -525,10 +525,10 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         logger.debug(() -> format("updated assignments: %s", modelAssignments.build()));
         Metadata.Builder metadata = Metadata.builder(currentState.metadata());
         if (currentState.getMinTransportVersion().onOrAfter(RENAME_ALLOCATION_TO_ASSIGNMENT_TRANSPORT_VERSION)) {
-            metadata.putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
-                .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME);
+            metadata.putSection(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
+                .removeSection(TrainedModelAssignmentMetadata.DEPRECATED_NAME);
         } else {
-            metadata.putCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME, modelAssignments.buildOld());
+            metadata.putSection(TrainedModelAssignmentMetadata.DEPRECATED_NAME, modelAssignments.buildOld());
         }
         return ClusterState.builder(currentState).metadata(metadata).build();
     }

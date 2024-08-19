@@ -1022,7 +1022,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .version(1L)
                 .build();
             Metadata invalidGlobalTemplateMetadata = Metadata.builder()
-                .putCustom(
+                .putSection(
                     ComposableIndexTemplateMetadata.TYPE,
                     new ComposableIndexTemplateMetadata(Map.of("invalid_global_template", invalidGlobalTemplate))
                 )

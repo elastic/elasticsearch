@@ -707,7 +707,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             final var nodeShutdownMetadata = new NodesShutdownMetadata(Map.of(node2.getId(), singleShutdownMetadataBuilder.build()));
             // Add shutdown marker
             clusterState = ClusterState.builder(clusterState)
-                .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
+                .metadata(Metadata.builder(clusterState.metadata()).putSection(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
                 .build();
             assertTrue(desiredBalanceAllocator.getProcessedNodeShutdowns().isEmpty());
             rerouteAndWait(service, clusterState, "reroute-after-shutdown");
@@ -729,7 +729,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             assertFalse("desired balance reset should not be called again for processed shutdowns", resetCalled.get());
             // Remove the shutdown marker
             clusterState = ClusterState.builder(clusterState)
-                .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY))
+                .metadata(Metadata.builder(clusterState.metadata()).putSection(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY))
                 .build();
             rerouteAndWait(service, clusterState, "random-reroute");
             if (removeNodeFromCluster) {

@@ -49,7 +49,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
             ClusterState state = ClusterState.builder(new ClusterName("mycluster"))
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             IndexLifecycleMetadata.TYPE,
                             new IndexLifecycleMetadata(
                                 Collections.singletonMap("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
@@ -70,7 +70,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
             ClusterState state = ClusterState.builder(new ClusterName("mycluster"))
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             IndexLifecycleMetadata.TYPE,
                             new IndexLifecycleMetadata(
                                 Collections.singletonMap("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
@@ -95,7 +95,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
             ClusterState state = ClusterState.builder(new ClusterName("mycluster"))
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             IndexLifecycleMetadata.TYPE,
                             new IndexLifecycleMetadata(
                                 Collections.singletonMap("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
@@ -106,7 +106,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                             IndexMetadata.builder("myindex")
                                 .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
                         )
-                        .putCustom(
+                        .putSection(
                             ComposableIndexTemplateMetadata.TYPE,
                             new ComposableIndexTemplateMetadata(
                                 Collections.singletonMap(
@@ -136,7 +136,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
 
         {
             Metadata.Builder mBuilder = Metadata.builder()
-                .putCustom(
+                .putSection(
                     IndexLifecycleMetadata.TYPE,
                     new IndexLifecycleMetadata(
                         Collections.singletonMap("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
@@ -156,7 +156,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                         .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "otherpolicy"))
                 )
 
-                .putCustom(
+                .putSection(
                     ComposableIndexTemplateMetadata.TYPE,
                     new ComposableIndexTemplateMetadata(
                         Collections.singletonMap(

@@ -448,7 +448,7 @@ public class TestUtils {
     }
 
     public static void putLicense(Metadata.Builder builder, License license) {
-        builder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
+        builder.putSection(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
     }
 
     public static MockLicenseState newMockLicenceState() {

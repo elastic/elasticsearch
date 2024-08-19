@@ -57,7 +57,7 @@ public class TransportGetSnapshotLifecycleStatsAction extends TransportMasterNod
         ClusterState state,
         ActionListener<GetSnapshotLifecycleStatsAction.Response> listener
     ) {
-        SnapshotLifecycleMetadata slmMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata slmMeta = state.metadata().section(SnapshotLifecycleMetadata.TYPE);
         if (slmMeta == null) {
             listener.onResponse(new GetSnapshotLifecycleStatsAction.Response(new SnapshotLifecycleStats()));
         } else {

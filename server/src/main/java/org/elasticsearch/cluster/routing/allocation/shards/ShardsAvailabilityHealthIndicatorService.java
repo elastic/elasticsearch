@@ -142,7 +142,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         var state = clusterService.state();
-        var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
+        var shutdown = state.getMetadata().section(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = createNewStatus(state.getMetadata());
         updateShardAllocationStatus(status, state, shutdown, verbose);
         return createIndicator(

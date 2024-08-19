@@ -32,7 +32,8 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
 
     @Override
     void innerPerformAction(String followerIndex, ClusterState currentClusterState, ActionListener<Void> listener) {
-        PersistentTasksMetadataSection persistentTasksMetadata = currentClusterState.metadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection persistentTasksMetadata = currentClusterState.metadata()
+            .section(PersistentTasksMetadataSection.TYPE);
         if (persistentTasksMetadata == null) {
             listener.onResponse(null);
             return;

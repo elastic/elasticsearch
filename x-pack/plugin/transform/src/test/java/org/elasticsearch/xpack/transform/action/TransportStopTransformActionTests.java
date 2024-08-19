@@ -56,7 +56,7 @@ import static org.mockito.Mockito.when;
 public class TransportStopTransformActionTests extends ESTestCase {
 
     private Metadata.Builder buildMetadata(PersistentTasksMetadataSection ptasks) {
-        return Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, ptasks);
+        return Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, ptasks);
     }
 
     public void testTaskStateValidationWithNoTasks() {

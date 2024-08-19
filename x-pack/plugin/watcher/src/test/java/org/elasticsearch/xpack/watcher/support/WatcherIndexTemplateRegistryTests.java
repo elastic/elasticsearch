@@ -336,7 +336,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
                 Metadata.builder()
                     .templates(indexTemplates)
                     .transientSettings(nodeSettings)
-                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+                    .putSection(IndexLifecycleMetadata.TYPE, ilmMeta)
                     .build()
             )
             .blocks(new ClusterBlocks.Builder().build())

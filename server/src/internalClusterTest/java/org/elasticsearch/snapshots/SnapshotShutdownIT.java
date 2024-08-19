@@ -498,7 +498,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             public ClusterState execute(ClusterState currentState) {
                 final var nodeId = currentState.nodes().resolveNode(nodeName).getId();
                 return currentState.copyAndUpdateMetadata(
-                    mdb -> mdb.putCustom(
+                    mdb -> mdb.putSection(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(Map.of(nodeId, shutdownMetadataBuilder.setNodeId(nodeId).build()))
                     )
@@ -521,7 +521,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         safeAwait(listener -> clusterService.submitUnbatchedStateUpdateTask("remove restart marker", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return currentState.copyAndUpdateMetadata(mdb -> mdb.putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY));
+                return currentState.copyAndUpdateMetadata(mdb -> mdb.putSection(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY));
             }
 
             @Override

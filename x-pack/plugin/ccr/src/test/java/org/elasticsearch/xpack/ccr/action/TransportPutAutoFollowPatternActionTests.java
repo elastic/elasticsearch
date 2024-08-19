@@ -47,7 +47,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         ClusterState remoteState = ClusterState.builder(new ClusterName("eu_cluster")).metadata(Metadata.builder()).build();
 
         ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, null, localState, remoteState);
-        AutoFollowMetadata autoFollowMetadata = result.metadata().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = result.metadata().section(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getRemoteCluster(), equalTo("eu_cluster"));
@@ -107,7 +107,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         ClusterState remoteState = ClusterState.builder(new ClusterName("eu_cluster")).metadata(mdBuilder).build();
 
         ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, null, localState, remoteState);
-        AutoFollowMetadata autoFollowMetadata = result.metadata().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = result.metadata().section(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getRemoteCluster(), equalTo("eu_cluster"));
@@ -172,7 +172,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         AutoFollowMetadata.TYPE,
                         new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)
                     )
@@ -196,7 +196,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         ClusterState remoteState = ClusterState.builder(new ClusterName("eu_cluster")).metadata(mdBuilder).build();
 
         ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, null, localState, remoteState);
-        AutoFollowMetadata autoFollowMetadata = result.metadata().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = result.metadata().section(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getRemoteCluster(), equalTo("eu_cluster"));

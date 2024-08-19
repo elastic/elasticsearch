@@ -68,7 +68,7 @@ public class WaitForSnapshotStep extends AsyncWaitStep {
             return;
         }
 
-        SnapshotLifecycleMetadata snapMeta = metadata.custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = metadata.section(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta == null || snapMeta.getSnapshotConfigurations().containsKey(policy) == false) {
             listener.onFailure(error(POLICY_NOT_FOUND_MESSAGE, policy));
             return;

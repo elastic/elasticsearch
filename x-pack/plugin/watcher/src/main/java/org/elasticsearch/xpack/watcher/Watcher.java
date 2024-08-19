@@ -830,7 +830,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     @Override
     public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
         Client originClient = new OriginSettingClient(client, WATCHER_ORIGIN);
-        boolean manuallyStopped = Optional.ofNullable(clusterService.state().metadata().<WatcherMetadata>custom(WatcherMetadata.TYPE))
+        boolean manuallyStopped = Optional.ofNullable(clusterService.state().metadata().<WatcherMetadata>section(WatcherMetadata.TYPE))
             .map(WatcherMetadata::manuallyStopped)
             .orElse(false);
 

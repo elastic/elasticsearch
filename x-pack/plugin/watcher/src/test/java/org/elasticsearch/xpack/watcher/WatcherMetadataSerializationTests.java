@@ -52,11 +52,11 @@ public class WatcherMetadataSerializationTests extends ESTestCase {
         RepositoriesMetadata repositoriesMetadata = new RepositoriesMetadata(Collections.singletonList(repositoryMetadata));
         final Metadata.Builder metadataBuilder = Metadata.builder();
         if (randomBoolean()) { // random order of insertion
-            metadataBuilder.putCustom(watcherMetadata.getWriteableName(), watcherMetadata);
-            metadataBuilder.putCustom(repositoriesMetadata.getWriteableName(), repositoriesMetadata);
+            metadataBuilder.putSection(watcherMetadata.getWriteableName(), watcherMetadata);
+            metadataBuilder.putSection(repositoriesMetadata.getWriteableName(), repositoriesMetadata);
         } else {
-            metadataBuilder.putCustom(repositoriesMetadata.getWriteableName(), repositoriesMetadata);
-            metadataBuilder.putCustom(watcherMetadata.getWriteableName(), watcherMetadata);
+            metadataBuilder.putSection(repositoriesMetadata.getWriteableName(), repositoriesMetadata);
+            metadataBuilder.putSection(watcherMetadata.getWriteableName(), watcherMetadata);
         }
         // serialize metadata
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -69,8 +69,8 @@ public class WatcherMetadataSerializationTests extends ESTestCase {
         // deserialize metadata again
         Metadata metadata = Metadata.Builder.fromXContent(createParser(builder));
         // check that custom metadata still present
-        assertThat(metadata.custom(watcherMetadata.getWriteableName()), notNullValue());
-        assertThat(metadata.custom(repositoriesMetadata.getWriteableName()), notNullValue());
+        assertThat(metadata.section(watcherMetadata.getWriteableName()), notNullValue());
+        assertThat(metadata.section(repositoriesMetadata.getWriteableName()), notNullValue());
     }
 
     private static WatcherMetadata getWatcherMetadataFromXContent(XContentParser parser) throws Exception {

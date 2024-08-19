@@ -211,7 +211,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
             // now set the upgrade mode
             Metadata.Builder metadata = Metadata.builder()
                 .put(indexMetadata)
-                .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build());
+                .putSection(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build());
 
             ClusterState clusterState = ClusterState.builder(new ClusterName("upgrade-mode-test-upgrade-enabled"))
                 .routingTable(routingTable)
@@ -242,7 +242,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
 
             Metadata.Builder metadata = Metadata.builder()
                 .put(indexMetadata)
-                .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(false).build());
+                .putSection(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(false).build());
 
             ClusterState clusterState = ClusterState.builder(new ClusterName("upgrade-mode-test-upgrade-disabled"))
                 .routingTable(routingTable)
@@ -300,7 +300,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
             // now set the upgrade mode
             Metadata.Builder metadata = Metadata.builder()
                 .put(indexMetadata)
-                .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build());
+                .putSection(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build());
 
             ClusterState clusterState = ClusterState.builder(new ClusterName("upgrade-mode-test-upgrade-enabled"))
                 .routingTable(routingTable)
@@ -331,7 +331,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
 
             Metadata.Builder metadata = Metadata.builder()
                 .put(indexMetadata)
-                .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(false).build());
+                .putSection(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(false).build());
 
             ClusterState clusterState = ClusterState.builder(new ClusterName("upgrade-mode-test-upgrade-disabled"))
                 .routingTable(routingTable)

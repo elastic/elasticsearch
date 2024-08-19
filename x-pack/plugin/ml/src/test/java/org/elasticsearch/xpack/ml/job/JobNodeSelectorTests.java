@@ -512,7 +512,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         Metadata.Builder metadata = Metadata.builder();
         cs.nodes(nodes);
-        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasks);
+        metadata.putSection(PersistentTasksMetadataSection.TYPE, tasks);
         cs.metadata(metadata);
 
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id2", JOB_MEMORY_REQUIREMENT).build(new Date());
@@ -581,7 +581,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.nodes(nodes);
         Metadata.Builder metadata = Metadata.builder();
-        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasks);
+        metadata.putSection(PersistentTasksMetadataSection.TYPE, tasks);
         csBuilder.metadata(metadata);
 
         Job job6 = BaseMlIntegTestCase.createFareQuoteJob("job_id6", JOB_MEMORY_REQUIREMENT).build(new Date());
@@ -604,7 +604,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         tasks = tasksBuilder.build();
 
         csBuilder = ClusterState.builder(cs);
-        csBuilder.metadata(Metadata.builder(cs.metadata()).putCustom(PersistentTasksMetadataSection.TYPE, tasks));
+        csBuilder.metadata(Metadata.builder(cs.metadata()).putSection(PersistentTasksMetadataSection.TYPE, tasks));
         cs = csBuilder.build();
 
         Job job7 = BaseMlIntegTestCase.createFareQuoteJob("job_id7", JOB_MEMORY_REQUIREMENT).build(new Date());
@@ -629,7 +629,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         tasks = tasksBuilder.build();
 
         csBuilder = ClusterState.builder(cs);
-        csBuilder.metadata(Metadata.builder(cs.metadata()).putCustom(PersistentTasksMetadataSection.TYPE, tasks));
+        csBuilder.metadata(Metadata.builder(cs.metadata()).putSection(PersistentTasksMetadataSection.TYPE, tasks));
         cs = csBuilder.build();
         jobNodeSelector = new JobNodeSelector(
             cs,
@@ -649,7 +649,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         tasks = tasksBuilder.build();
 
         csBuilder = ClusterState.builder(cs);
-        csBuilder.metadata(Metadata.builder(cs.metadata()).putCustom(PersistentTasksMetadataSection.TYPE, tasks));
+        csBuilder.metadata(Metadata.builder(cs.metadata()).putSection(PersistentTasksMetadataSection.TYPE, tasks));
         cs = csBuilder.build();
         jobNodeSelector = new JobNodeSelector(
             cs,
@@ -721,7 +721,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.nodes(nodes);
         Metadata.Builder metadata = Metadata.builder();
-        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasks);
+        metadata.putSection(PersistentTasksMetadataSection.TYPE, tasks);
         csBuilder.metadata(metadata);
 
         ClusterState cs = csBuilder.build();
@@ -745,7 +745,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         tasks = tasksBuilder.build();
 
         csBuilder = ClusterState.builder(cs);
-        csBuilder.metadata(Metadata.builder(cs.metadata()).putCustom(PersistentTasksMetadataSection.TYPE, tasks));
+        csBuilder.metadata(Metadata.builder(cs.metadata()).putSection(PersistentTasksMetadataSection.TYPE, tasks));
         cs = csBuilder.build();
         Job job8 = BaseMlIntegTestCase.createFareQuoteJob("job_id8", JOB_MEMORY_REQUIREMENT).build(new Date());
         jobNodeSelector = new JobNodeSelector(
@@ -806,7 +806,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         when(job.getInitialResultsIndexName()).thenReturn("shared");
 
         cs.nodes(nodes);
-        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasks);
+        metadata.putSection(PersistentTasksMetadataSection.TYPE, tasks);
         cs.metadata(metadata);
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
@@ -866,7 +866,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         when(job.getInitialResultsIndexName()).thenReturn("shared");
 
         cs.nodes(nodes);
-        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasks);
+        metadata.putSection(PersistentTasksMetadataSection.TYPE, tasks);
         cs.metadata(metadata);
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
@@ -944,7 +944,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             .setModelSnapshotMinVersion(MlConfigVersion.fromString("7.3.0"))
             .build(new Date());
         cs.nodes(nodes);
-        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasks);
+        metadata.putSection(PersistentTasksMetadataSection.TYPE, tasks);
         cs.metadata(metadata);
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
@@ -1000,7 +1000,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         Metadata.Builder metadata = Metadata.builder();
         cs.nodes(nodes);
-        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasks);
+        metadata.putSection(PersistentTasksMetadataSection.TYPE, tasks);
         cs.metadata(metadata);
 
         Job job = jobWithRules("job_with_rules");
@@ -1054,7 +1054,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         Metadata.Builder metadata = Metadata.builder();
         cs.nodes(nodes);
-        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasks);
+        metadata.putSection(PersistentTasksMetadataSection.TYPE, tasks);
         cs.metadata(metadata);
 
         DiscoveryNode candidate = nodes.getNodes().get(randomBoolean() ? "_node_id1" : "_node_id2");
@@ -1326,7 +1326,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         Metadata.Builder metadata = Metadata.builder();
         cs.nodes(nodes);
-        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasks);
+        metadata.putSection(PersistentTasksMetadataSection.TYPE, tasks);
         cs.metadata(metadata);
 
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id2", JOB_MEMORY_REQUIREMENT).build(new Date());
@@ -1392,7 +1392,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         Metadata.Builder metadata = Metadata.builder();
         cs.nodes(nodes);
-        metadata.putCustom(PersistentTasksMetadataSection.TYPE, tasks);
+        metadata.putSection(PersistentTasksMetadataSection.TYPE, tasks);
         cs.metadata(metadata);
 
         return cs;

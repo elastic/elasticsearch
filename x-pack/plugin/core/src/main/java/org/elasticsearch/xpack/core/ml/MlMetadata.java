@@ -246,7 +246,7 @@ public class MlMetadata implements MetadataSection {
     }
 
     public static MlMetadata getMlMetadata(ClusterState state) {
-        MlMetadata mlMetadata = (state == null) ? null : state.getMetadata().custom(TYPE);
+        MlMetadata mlMetadata = (state == null) ? null : state.getMetadata().section(TYPE);
         if (mlMetadata == null) {
             return EMPTY_METADATA;
         }

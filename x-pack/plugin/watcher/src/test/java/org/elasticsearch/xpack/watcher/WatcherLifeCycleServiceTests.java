@@ -154,7 +154,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .put(indexMetadataBuilder)
             .put(IndexTemplateMetadata.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()));
         if (randomBoolean()) {
-            metadataBuilder.putCustom(WatcherMetadata.TYPE, new WatcherMetadata(false));
+            metadataBuilder.putSection(WatcherMetadata.TYPE, new WatcherMetadata(false));
         }
         Metadata metadata = metadataBuilder.build();
         IndexRoutingTable indexRoutingTable = indexRoutingTableBuilder.build();
@@ -170,7 +170,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ClusterState stoppedClusterState = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")))
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .metadata(Metadata.builder(metadata).putCustom(WatcherMetadata.TYPE, new WatcherMetadata(true)).build())
+            .metadata(Metadata.builder(metadata).putSection(WatcherMetadata.TYPE, new WatcherMetadata(true)).build())
             .build();
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", stoppedClusterState, clusterState));
@@ -212,7 +212,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .put(indexMetadataBuilder)
             .put(IndexTemplateMetadata.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()));
         if (randomBoolean()) {
-            metadataBuilder.putCustom(WatcherMetadata.TYPE, new WatcherMetadata(false));
+            metadataBuilder.putSection(WatcherMetadata.TYPE, new WatcherMetadata(false));
         }
         Metadata metadata = metadataBuilder.build();
         IndexRoutingTable indexRoutingTable = indexRoutingTableBuilder.build();
@@ -226,7 +226,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ClusterState stoppedClusterState = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")))
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .metadata(Metadata.builder(metadata).putCustom(WatcherMetadata.TYPE, new WatcherMetadata(true)).build())
+            .metadata(Metadata.builder(metadata).putSection(WatcherMetadata.TYPE, new WatcherMetadata(true)).build())
             .build();
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", stoppedClusterState, clusterState));

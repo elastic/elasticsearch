@@ -62,7 +62,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         Metadata metadata = Metadata.builder()
             .persistentSettings(settings(IndexVersion.current()).build())
             .put(IndexMetadata.builder(indexMetadata))
-            .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+            .putSection(IndexLifecycleMetadata.TYPE, ilmMeta)
             .build();
         clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
     }

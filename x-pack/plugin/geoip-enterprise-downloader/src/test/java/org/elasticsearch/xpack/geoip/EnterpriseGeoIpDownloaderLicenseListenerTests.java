@@ -167,7 +167,9 @@ public class EnterpriseGeoIpDownloaderLicenseListenerTests extends ESTestCase {
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(new ClusterName("name"));
         if (hasGeoIpDatabases) {
             PersistentTasksMetadataSection tasksCustomMetadata = new PersistentTasksMetadataSection(1L, Map.of());
-            clusterStateBuilder.metadata(Metadata.builder().putCustom(INGEST_GEOIP_CUSTOM_METADATA_TYPE, tasksCustomMetadata).put(idxMeta));
+            clusterStateBuilder.metadata(
+                Metadata.builder().putSection(INGEST_GEOIP_CUSTOM_METADATA_TYPE, tasksCustomMetadata).put(idxMeta)
+            );
         }
         return clusterStateBuilder.nodes(discoveryNodesBuilder).build();
     }

@@ -77,7 +77,7 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
     public void testNoop() throws Exception {
         var singleNodeMetadata = mock(SingleNodeShutdownMetadata.class);
         var nodesShutdownMetadata = new NodesShutdownMetadata(Map.of("node1", singleNodeMetadata));
-        var metadata = Metadata.builder().putCustom(TYPE, nodesShutdownMetadata).build();
+        var metadata = Metadata.builder().putSection(TYPE, nodesShutdownMetadata).build();
         var clusterStateWithShutdown = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
 
         var request = new DeleteShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "node1");

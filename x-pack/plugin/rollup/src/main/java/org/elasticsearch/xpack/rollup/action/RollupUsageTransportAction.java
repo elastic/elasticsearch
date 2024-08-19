@@ -58,7 +58,7 @@ public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction
 
     static int findNumberOfRollupJobs(ClusterState state) {
         int numberOfRollupJobs = 0;
-        PersistentTasksMetadataSection persistentTasks = state.metadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection persistentTasks = state.metadata().section(PersistentTasksMetadataSection.TYPE);
         if (persistentTasks != null) {
             numberOfRollupJobs = persistentTasks.findTasks(RollupJob.NAME, Predicates.always()).size();
         }

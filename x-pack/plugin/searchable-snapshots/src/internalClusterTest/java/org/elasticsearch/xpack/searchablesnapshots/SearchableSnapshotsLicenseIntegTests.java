@@ -160,7 +160,7 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
         // We force this by clearing the existing basic license first
         updateClusterState(
             currentState -> ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentState.metadata()).removeCustom(LicensesMetadata.TYPE).build())
+                .metadata(Metadata.builder(currentState.metadata()).removeSection(LicensesMetadata.TYPE).build())
                 .build()
         );
 

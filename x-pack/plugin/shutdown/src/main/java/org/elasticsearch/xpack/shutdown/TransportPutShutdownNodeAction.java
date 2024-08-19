@@ -124,7 +124,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             }
 
             final var updatedState = initialState.copyAndUpdateMetadata(
-                b -> b.putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
+                b -> b.putSection(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
             );
 
             if (needsReroute == false) {

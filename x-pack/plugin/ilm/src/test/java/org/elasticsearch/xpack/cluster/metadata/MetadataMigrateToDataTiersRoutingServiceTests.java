@@ -116,7 +116,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         IndexLifecycleMetadata.TYPE,
                         new IndexLifecycleMetadata(
                             Collections.singletonMap(policyMetadata.getName(), policyMetadata),
@@ -134,7 +134,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         assertThat(migratedPolicies.get(0), is(lifecycleName));
 
         ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-        IndexLifecycleMetadata updatedLifecycleMetadata = newState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata updatedLifecycleMetadata = newState.metadata().section(IndexLifecycleMetadata.TYPE);
         LifecyclePolicy lifecyclePolicy = updatedLifecycleMetadata.getPolicies().get(lifecycleName);
         Map<String, LifecycleAction> warmActions = lifecyclePolicy.getPhases().get("warm").getActions();
         assertThat(
@@ -184,7 +184,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         IndexLifecycleMetadata.TYPE,
                         new IndexLifecycleMetadata(
                             Collections.singletonMap(policyMetadata.getName(), policyMetadata),
@@ -202,7 +202,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         assertThat(migratedPolicies.get(0), is(lifecycleName));
 
         ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-        IndexLifecycleMetadata updatedLifecycleMetadata = newState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata updatedLifecycleMetadata = newState.metadata().section(IndexLifecycleMetadata.TYPE);
         LifecyclePolicy lifecyclePolicy = updatedLifecycleMetadata.getPolicies().get(lifecycleName);
         Map<String, LifecycleAction> warmActions = lifecyclePolicy.getPhases().get("warm").getActions();
         assertThat(
@@ -243,7 +243,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             IndexLifecycleMetadata.TYPE,
                             new IndexLifecycleMetadata(
                                 Collections.singletonMap(policyMetadata.getName(), policyMetadata),
@@ -299,7 +299,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             IndexLifecycleMetadata.TYPE,
                             new IndexLifecycleMetadata(
                                 Collections.singletonMap(
@@ -350,7 +350,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             IndexLifecycleMetadata.TYPE,
                             new IndexLifecycleMetadata(
                                 Collections.singletonMap(policyMetadata.getName(), policyMetadata),
@@ -404,7 +404,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             IndexLifecycleMetadata.TYPE,
                             new IndexLifecycleMetadata(
                                 Collections.singletonMap(policyMetadata.getName(), policyMetadata),
@@ -454,7 +454,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             IndexLifecycleMetadata.TYPE,
                             new IndexLifecycleMetadata(
                                 Collections.singletonMap(policyMetadata.getName(), policyMetadata),
@@ -1039,7 +1039,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         IndexLifecycleMetadata.TYPE,
                         new IndexLifecycleMetadata(
                             Map.of(
@@ -1147,7 +1147,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             ClusterState ilmRunningState = ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(
-                    Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.RUNNING))
+                    Metadata.builder().putSection(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.RUNNING))
                 )
                 .build();
             IllegalStateException illegalStateException = expectThrows(
@@ -1160,7 +1160,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             ClusterState ilmStoppingState = ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(
-                    Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.STOPPING))
+                    Metadata.builder().putSection(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.STOPPING))
                 )
                 .build();
             IllegalStateException illegalStateException = expectThrows(
@@ -1173,7 +1173,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             ClusterState ilmStoppedState = ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(
-                    Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.STOPPED))
+                    Metadata.builder().putSection(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.STOPPED))
                 )
                 .build();
             Tuple<ClusterState, MigratedEntities> migratedState = migrateToDataTiersRouting(
@@ -1195,7 +1195,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             ClusterState ilmRunningState = ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(
-                    Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.RUNNING))
+                    Metadata.builder().putSection(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.RUNNING))
                 )
                 .build();
             migrateToDataTiersRouting(ilmRunningState, "data", "catch-all", REGISTRY, client, null, true);
@@ -1205,7 +1205,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             ClusterState ilmStoppingState = ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(
-                    Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.STOPPING))
+                    Metadata.builder().putSection(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.STOPPING))
                 )
                 .build();
             migrateToDataTiersRouting(ilmStoppingState, "data", "catch-all", REGISTRY, client, null, true);

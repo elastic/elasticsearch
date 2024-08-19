@@ -440,7 +440,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
                 Metadata.builder()
                     .indexTemplates(indexTemplates)
                     .transientSettings(nodeSettings)
-                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+                    .putSection(IndexLifecycleMetadata.TYPE, ilmMeta)
                     .build()
             )
             .blocks(new ClusterBlocks.Builder().build())

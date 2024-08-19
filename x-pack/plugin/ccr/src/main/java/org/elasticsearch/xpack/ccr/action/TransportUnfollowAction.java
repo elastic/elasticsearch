@@ -266,7 +266,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             );
         }
 
-        PersistentTasksMetadataSection persistentTasks = current.metadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection persistentTasks = current.metadata().section(PersistentTasksMetadataSection.TYPE);
         if (persistentTasks != null) {
             for (PersistentTasksMetadataSection.PersistentTask<?> persistentTask : persistentTasks.tasks()) {
                 if (persistentTask.getTaskName().equals(ShardFollowTask.NAME)) {

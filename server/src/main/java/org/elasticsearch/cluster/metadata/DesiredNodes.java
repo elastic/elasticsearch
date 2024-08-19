@@ -350,7 +350,7 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
         return desiredNodes == updatedDesiredNodes
             ? clusterState
             : clusterState.copyAndUpdateMetadata(
-                metadata -> metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(updatedDesiredNodes))
+                metadata -> metadata.putSection(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(updatedDesiredNodes))
             );
     }
 

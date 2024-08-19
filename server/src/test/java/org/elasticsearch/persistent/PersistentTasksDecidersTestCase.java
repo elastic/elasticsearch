@@ -98,7 +98,7 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
             tasks.addTask("_task_" + i, "test", null, new PersistentTasksMetadataSection.Assignment(null, "initialized"));
         }
 
-        Metadata metadata = Metadata.builder().putCustom(PersistentTasksMetadataSection.TYPE, tasks.build()).build();
+        Metadata metadata = Metadata.builder().putSection(PersistentTasksMetadataSection.TYPE, tasks.build()).build();
 
         return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).build();
     }
@@ -121,7 +121,7 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
         final ClusterState clusterState,
         final Predicate<PersistentTasksMetadataSection.PersistentTask> predicate
     ) {
-        PersistentTasksMetadataSection tasks = clusterState.metadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection tasks = clusterState.metadata().section(PersistentTasksMetadataSection.TYPE);
         assertNotNull("Persistent tasks must be not null", tasks);
         assertEquals(nbTasks, tasks.tasks().stream().filter(predicate).count());
     }

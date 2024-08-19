@@ -101,7 +101,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             final DesiredNodesMetadata desiredNodesMetadata = containsDesiredNodes
                 ? new DesiredNodesMetadata(randomDesiredNodes())
                 : DesiredNodesMetadata.EMPTY;
-            metadataBuilder.putCustom(DesiredNodesMetadata.TYPE, desiredNodesMetadata);
+            metadataBuilder.putSection(DesiredNodesMetadata.TYPE, desiredNodesMetadata);
         }
 
         final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10)))
@@ -126,7 +126,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             currentClusterState,
             TransportUpdateDesiredNodesAction.updateDesiredNodes(DesiredNodes.latestFromClusterState(currentClusterState), request)
         );
-        final DesiredNodesMetadata desiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
+        final DesiredNodesMetadata desiredNodesMetadata = updatedClusterState.metadata().section(DesiredNodesMetadata.TYPE);
         assertThat(desiredNodesMetadata, is(notNullValue()));
 
         final DesiredNodes desiredNodes = desiredNodesMetadata.getLatestDesiredNodes();

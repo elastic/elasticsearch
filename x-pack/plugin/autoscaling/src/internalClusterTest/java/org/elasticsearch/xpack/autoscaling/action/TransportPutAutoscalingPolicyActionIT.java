@@ -33,7 +33,7 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
     public void testAddPolicy() {
         final AutoscalingPolicy policy = putRandomAutoscalingPolicy();
         final ClusterState state = clusterAdmin().prepareState().get().getState();
-        final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
+        final AutoscalingMetadata metadata = state.metadata().section(AutoscalingMetadata.NAME);
         assertNotNull(metadata);
         assertThat(metadata.policies(), hasKey(policy.name()));
         assertThat(metadata.policies().get(policy.name()).policy(), equalTo(policy));
@@ -48,7 +48,7 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
         );
         putAutoscalingPolicy(updatedPolicy);
         final ClusterState state = clusterAdmin().prepareState().get().getState();
-        final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
+        final AutoscalingMetadata metadata = state.metadata().section(AutoscalingMetadata.NAME);
         assertNotNull(metadata);
         assertThat(metadata.policies(), hasKey(policy.name()));
         assertThat(metadata.policies().get(policy.name()).policy(), equalTo(updatedPolicy));
@@ -60,8 +60,8 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
         putAutoscalingPolicy(policy);
         final ClusterState afterState = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName()).state();
         assertThat(
-            beforeState.metadata().custom(AutoscalingMetadata.NAME),
-            sameInstance(afterState.metadata().custom(AutoscalingMetadata.NAME))
+            beforeState.metadata().section(AutoscalingMetadata.NAME),
+            sameInstance(afterState.metadata().section(AutoscalingMetadata.NAME))
         );
     }
 

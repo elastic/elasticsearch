@@ -1225,7 +1225,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                                         );
                                         final var nodeId = currentState.nodes().resolveNode(node.nodeName).getId();
                                         return currentState.copyAndUpdateMetadata(
-                                            mdb -> mdb.putCustom(
+                                            mdb -> mdb.putSection(
                                                 NodesShutdownMetadata.TYPE,
                                                 new NodesShutdownMetadata(
                                                     Map.of(
@@ -1262,7 +1262,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                                     @Override
                                     public ClusterState execute(ClusterState currentState) {
                                         return currentState.copyAndUpdateMetadata(
-                                            mdb -> mdb.putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY)
+                                            mdb -> mdb.putSection(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY)
                                         );
                                     }
 

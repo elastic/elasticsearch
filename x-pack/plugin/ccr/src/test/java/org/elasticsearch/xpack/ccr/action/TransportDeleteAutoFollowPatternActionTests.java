@@ -94,7 +94,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("us_cluster"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         AutoFollowMetadata.TYPE,
                         new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)
                     )
@@ -104,7 +104,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
         Request request = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "name1");
         AutoFollowMetadata result = TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState)
             .getMetadata()
-            .custom(AutoFollowMetadata.TYPE);
+            .section(AutoFollowMetadata.TYPE);
         assertThat(result.getPatterns().size(), equalTo(1));
         assertThat(result.getPatterns().get("name2"), notNullValue());
         assertThat(result.getPatterns().get("name2").getRemoteCluster(), equalTo("asia_cluster"));
@@ -147,7 +147,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("us_cluster"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         AutoFollowMetadata.TYPE,
                         new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)
                     )

@@ -766,7 +766,7 @@ public class ModelLoadingService implements ClusterStateListener {
         }
 
         ClusterState state = event.state();
-        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
+        IngestMetadata currentIngestMetadata = state.metadata().section(IngestMetadata.TYPE);
         Set<String> allReferencedModelKeys = event.changedCustomMetadataSet().contains(IngestMetadata.TYPE)
             ? countInferenceProcessors(currentIngestMetadata)
             : new HashSet<>(referencedModels);

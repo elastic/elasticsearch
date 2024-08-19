@@ -135,7 +135,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         if (event.metadataChanged() == false) {
             return;
         }
-        final IndexLifecycleMetadata indexLifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
+        final IndexLifecycleMetadata indexLifecycleMetadata = event.state().metadata().section(IndexLifecycleMetadata.TYPE);
 
         if (event.state().getMetadata().templatesV2().containsKey(".deprecation-indexing-template")
             && indexLifecycleMetadata != null

@@ -534,7 +534,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             );
 
         PersistentTasksMetadataSection pTasks = pTasksBuilder.build();
-        metadata.putCustom(PersistentTasksMetadataSection.TYPE, pTasks);
+        metadata.putSection(PersistentTasksMetadataSection.TYPE, pTasks);
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).nodes(nodes);
         csBuilder.routingTable(routingTable.build());

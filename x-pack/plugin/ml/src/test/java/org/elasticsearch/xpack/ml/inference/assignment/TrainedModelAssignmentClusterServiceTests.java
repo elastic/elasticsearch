@@ -273,7 +273,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .putCompatibilityVersions(nodeId, CompatibilityVersionsUtils.staticCurrent())
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
@@ -387,7 +387,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .putCompatibilityVersions("test-node", CompatibilityVersionsUtils.staticCurrent())
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
@@ -422,7 +422,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .putCompatibilityVersions("test-node", CompatibilityVersionsUtils.staticCurrent())
             .metadata(
                 Metadata.builder()
-                    .putCustom(TrainedModelAssignmentMetadata.NAME, TrainedModelAssignmentMetadataTests.randomInstance())
+                    .putSection(TrainedModelAssignmentMetadata.NAME, TrainedModelAssignmentMetadataTests.randomInstance())
                     .build()
             )
             .build();
@@ -450,7 +450,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
             .nodes(discoveryNodes)
-            .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata("ml-node-shutting-down")))
+            .metadata(Metadata.builder().putSection(NodesShutdownMetadata.TYPE, shutdownMetadata("ml-node-shutting-down")))
             .build();
 
         TrainedModelAssignmentClusterService trainedModelAssignmentClusterService = createClusterService(5);
@@ -499,7 +499,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         );
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
             .nodes(discoveryNodes)
-            .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata("ml-node-shutting-down")))
+            .metadata(Metadata.builder().putSection(NodesShutdownMetadata.TYPE, shutdownMetadata("ml-node-shutting-down")))
             .build();
 
         TrainedModelAssignmentClusterService trainedModelAssignmentClusterService = createClusterService(0);
@@ -534,7 +534,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
             .nodes(discoveryNodes)
             .putCompatibilityVersions("ml-node-with-room", CompatibilityVersionsUtils.staticCurrent())
-            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build()))
+            .metadata(Metadata.builder().putSection(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build()))
             .build();
         when(clusterService.state()).thenReturn(currentState);
         TrainedModelAssignmentClusterService trainedModelAssignmentClusterService = createClusterService(0);
@@ -568,7 +568,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         ClusterState stateWithShuttingDownNodeAndMlNode1 = createClusterState(
             List.of(shuttingDownNode, mlNode1),
             Metadata.builder()
-                .putCustom(
+                .putSection(
                     TrainedModelAssignmentMetadata.NAME,
                     TrainedModelAssignmentMetadata.Builder.empty()
                         .addNewAssignment(
@@ -578,7 +578,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                         )
                         .build()
                 )
-                .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(shuttingDownNode))
+                .putSection(NodesShutdownMetadata.TYPE, shutdownMetadata(shuttingDownNode))
                 .build()
         );
 
@@ -586,7 +586,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder(stateWithShuttingDownNodeAndMlNode1.nodes()).remove(shuttingDownNode).build())
             .metadata(
                 Metadata.builder(stateWithShuttingDownNodeAndMlNode1.metadata())
-                    .putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY)
+                    .putSection(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY)
                     .build()
             )
             .build();
@@ -605,7 +605,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         ClusterState stateWithOneNode = createClusterState(
             List.of(mlNode1),
             Metadata.builder()
-                .putCustom(
+                .putSection(
                     TrainedModelAssignmentMetadata.NAME,
                     TrainedModelAssignmentMetadata.Builder.empty()
                         .addNewAssignment(
@@ -615,14 +615,14 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                         )
                         .build()
                 )
-                .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(mlNode1))
+                .putSection(NodesShutdownMetadata.TYPE, shutdownMetadata(mlNode1))
                 .build()
         );
 
         ClusterState stateWithTwoNodes = createClusterState(
             List.of(mlNode1, mlNode2),
             Metadata.builder()
-                .putCustom(
+                .putSection(
                     TrainedModelAssignmentMetadata.NAME,
                     TrainedModelAssignmentMetadata.Builder.empty()
                         .addNewAssignment(
@@ -649,7 +649,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         ClusterState stateWithOneNode = createClusterState(
             List.of(mlNode1),
             Metadata.builder()
-                .putCustom(
+                .putSection(
                     TrainedModelAssignmentMetadata.NAME,
                     TrainedModelAssignmentMetadata.Builder.empty()
                         .addNewAssignment(
@@ -659,14 +659,14 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                         )
                         .build()
                 )
-                .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(mlNode1))
+                .putSection(NodesShutdownMetadata.TYPE, shutdownMetadata(mlNode1))
                 .build()
         );
 
         ClusterState stateWithTwoNodes = createClusterState(
             List.of(mlNode1, mlNode2),
             Metadata.builder()
-                .putCustom(
+                .putSection(
                     TrainedModelAssignmentMetadata.NAME,
                     TrainedModelAssignmentMetadata.Builder.empty()
                         .addNewAssignment(
@@ -710,7 +710,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     ClusterState.builder(randomFrom(stateWithOneNodeNotMl, stateWithOneNode, stateWithTwoNodes))
                         .metadata(
                             Metadata.builder()
-                                .putCustom(
+                                .putSection(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
@@ -733,14 +733,14 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     ClusterState.builder(randomState)
                         .metadata(
                             Metadata.builder()
-                                .putCustom(TrainedModelAssignmentMetadata.NAME, TrainedModelAssignmentMetadataTests.randomInstance())
+                                .putSection(TrainedModelAssignmentMetadata.NAME, TrainedModelAssignmentMetadataTests.randomInstance())
                                 .build()
                         )
                         .build(),
                     ClusterState.builder(randomState)
                         .metadata(
                             Metadata.builder()
-                                .putCustom(TrainedModelAssignmentMetadata.NAME, TrainedModelAssignmentMetadataTests.randomInstance())
+                                .putSection(TrainedModelAssignmentMetadata.NAME, TrainedModelAssignmentMetadataTests.randomInstance())
                                 .build()
                         )
                         .build()
@@ -757,7 +757,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     ClusterState.builder(stateWithOneNode)
                         .metadata(
                             Metadata.builder()
-                                .putCustom(
+                                .putSection(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
@@ -769,7 +769,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     ClusterState.builder(stateWithOneNodeNotMl)
                         .metadata(
                             Metadata.builder()
-                                .putCustom(
+                                .putSection(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
@@ -791,7 +791,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     ClusterState.builder(stateWithOneNode)
                         .metadata(
                             Metadata.builder()
-                                .putCustom(
+                                .putSection(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
@@ -803,7 +803,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     ClusterState.builder(stateWithTwoNodes)
                         .metadata(
                             Metadata.builder()
-                                .putCustom(
+                                .putSection(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
@@ -825,7 +825,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     ClusterState.builder(stateWithTwoNodes)
                         .metadata(
                             Metadata.builder()
-                                .putCustom(
+                                .putSection(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
@@ -837,7 +837,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     ClusterState.builder(stateWithOneNode)
                         .metadata(
                             Metadata.builder()
-                                .putCustom(
+                                .putSection(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
@@ -859,7 +859,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     ClusterState.builder(stateWithTwoNodes)
                         .metadata(
                             Metadata.builder()
-                                .putCustom(
+                                .putSection(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(
@@ -874,7 +874,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     ClusterState.builder(stateWithOneNode)
                         .metadata(
                             Metadata.builder()
-                                .putCustom(
+                                .putSection(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
@@ -896,20 +896,20 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     ClusterState.builder(stateWithTwoNodes)
                         .metadata(
                             Metadata.builder()
-                                .putCustom(
+                                .putSection(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
                                         .build()
                                 )
-                                .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(mlNode2))
+                                .putSection(NodesShutdownMetadata.TYPE, shutdownMetadata(mlNode2))
                                 .build()
                         )
                         .build(),
                     ClusterState.builder(stateWithOneNode)
                         .metadata(
                             Metadata.builder()
-                                .putCustom(
+                                .putSection(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
@@ -931,7 +931,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     ClusterState.builder(stateWithOneNode)
                         .metadata(
                             Metadata.builder()
-                                .putCustom(
+                                .putSection(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(
@@ -953,7 +953,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     ClusterState.builder(stateWithTwoNodes)
                         .metadata(
                             Metadata.builder()
-                                .putCustom(
+                                .putSection(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(
@@ -985,7 +985,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     ClusterState.builder(stateWithOneNode)
                         .metadata(
                             Metadata.builder()
-                                .putCustom(
+                                .putSection(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(
@@ -1008,7 +1008,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     ClusterState.builder(stateWithTwoNodes)
                         .metadata(
                             Metadata.builder()
-                                .putCustom(
+                                .putSection(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(
@@ -1052,7 +1052,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .build();
 
         ClusterState fullyAllocated = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode1, esNode2, esNode3).metadata(
-            Metadata.builder().putCustom(TrainedModelAssignmentMetadata.NAME, fullModelAllocation).build()
+            Metadata.builder().putSection(TrainedModelAssignmentMetadata.NAME, fullModelAllocation).build()
         ).build();
 
         // reallocate when the node is marked for shutdown
@@ -1060,8 +1060,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         var currentState = ClusterState.builder(fullyAllocated)
             .metadata(
                 Metadata.builder()
-                    .putCustom(TrainedModelAssignmentMetadata.NAME, fullModelAllocation)
-                    .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(mlNode1))
+                    .putSection(TrainedModelAssignmentMetadata.NAME, fullModelAllocation)
+                    .putSection(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(mlNode1))
                     .build()
             )
             .build();
@@ -1079,8 +1079,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         // reallocated on the node shutdown change
         currentState = csBuilderWithNodes(clusterName, mlNode2, esNode1, esNode2, esNode3).metadata(
             Metadata.builder()
-                .putCustom(TrainedModelAssignmentMetadata.NAME, fullModelAllocation)
-                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(mlNode1))
+                .putSection(TrainedModelAssignmentMetadata.NAME, fullModelAllocation)
+                .putSection(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(mlNode1))
                 .build()
         ).build();
 
@@ -1096,8 +1096,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         // mlNode1 has returned but is still marked as shutdown
         currentState = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode1, esNode2, esNode3).metadata(
             Metadata.builder()
-                .putCustom(TrainedModelAssignmentMetadata.NAME, fullModelAllocation)
-                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(mlNode1))
+                .putSection(TrainedModelAssignmentMetadata.NAME, fullModelAllocation)
+                .putSection(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(mlNode1))
                 .build()
         ).build();
 
@@ -1112,7 +1112,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         // mlNode1 no longer marked for shutdown
         currentState = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode1, esNode2, esNode3).metadata(
-            Metadata.builder().putCustom(TrainedModelAssignmentMetadata.NAME, fullModelAllocation).build()
+            Metadata.builder().putSection(TrainedModelAssignmentMetadata.NAME, fullModelAllocation).build()
         ).build();
 
         assertThat(
@@ -1127,8 +1127,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         // now an ES node is marked for shutdown
         currentState = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode1, esNode2, esNode3).metadata(
             Metadata.builder()
-                .putCustom(TrainedModelAssignmentMetadata.NAME, fullModelAllocation)
-                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(esNode1))
+                .putSection(TrainedModelAssignmentMetadata.NAME, fullModelAllocation)
+                .putSection(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(esNode1))
                 .build()
         ).build();
 
@@ -1144,8 +1144,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         // The ES node is removed
         currentState = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode2, esNode3).metadata(
             Metadata.builder()
-                .putCustom(TrainedModelAssignmentMetadata.NAME, fullModelAllocation)
-                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(esNode1))
+                .putSection(TrainedModelAssignmentMetadata.NAME, fullModelAllocation)
+                .putSection(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(esNode1))
                 .build()
         ).build();
 
@@ -1161,8 +1161,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         // The ES node returns
         currentState = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode1, esNode2, esNode3).metadata(
             Metadata.builder()
-                .putCustom(TrainedModelAssignmentMetadata.NAME, fullModelAllocation)
-                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(esNode1))
+                .putSection(TrainedModelAssignmentMetadata.NAME, fullModelAllocation)
+                .putSection(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(esNode1))
                 .build()
         ).build();
 
@@ -1178,8 +1178,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         // The ES node is no longer marked as shutdown
         currentState = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode1, esNode2, esNode3).metadata(
             Metadata.builder()
-                .putCustom(TrainedModelAssignmentMetadata.NAME, fullModelAllocation)
-                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(esNode1))
+                .putSection(TrainedModelAssignmentMetadata.NAME, fullModelAllocation)
+                .putSection(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(esNode1))
                 .build()
         ).build();
 
@@ -1194,8 +1194,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         previousState = fullyAllocated;
         currentState = csBuilderWithNodes(clusterName, mlNode2, esNode1, esNode2, esNode3).metadata(
             Metadata.builder()
-                .putCustom(TrainedModelAssignmentMetadata.NAME, fullModelAllocation)
-                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(mlNode1))
+                .putSection(TrainedModelAssignmentMetadata.NAME, fullModelAllocation)
+                .putSection(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(mlNode1))
                 .build()
         ).build();
 
@@ -1236,8 +1236,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksMetadataSection.TYPE, tasksWithJobBuilder.build())
-                    .putCustom(
+                    .putSection(PersistentTasksMetadataSection.TYPE, tasksWithJobBuilder.build())
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100), null))
@@ -1251,8 +1251,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksMetadataSection.TYPE, PersistentTasksMetadataSection.builder().build())
-                    .putCustom(
+                    .putSection(PersistentTasksMetadataSection.TYPE, PersistentTasksMetadataSection.builder().build())
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100), null))
@@ -1285,13 +1285,13 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         ClusterState previousState = ClusterState.builder(new ClusterName("test_cluster"))
             .nodes(DiscoveryNodes.builder().add(mlNode))
-            .metadata(Metadata.builder().putCustom(TrainedModelAssignmentMetadata.NAME, modelMetadata).build())
+            .metadata(Metadata.builder().putSection(TrainedModelAssignmentMetadata.NAME, modelMetadata).build())
             .build();
 
         // A non ML-node is added
         ClusterState currentState = ClusterState.builder(new ClusterName("test_cluster"))
             .nodes(DiscoveryNodes.builder().add(mlNode).add(buildNode("non-ml-node", false, ByteSizeValue.ofGb(4).getBytes(), 8)))
-            .metadata(Metadata.builder().putCustom(TrainedModelAssignmentMetadata.NAME, modelMetadata).build())
+            .metadata(Metadata.builder().putSection(TrainedModelAssignmentMetadata.NAME, modelMetadata).build())
             .build();
 
         assertThat(
@@ -1351,8 +1351,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksMetadataSection.TYPE, previousTasksBuilder.build())
-                    .putCustom(
+                    .putSection(PersistentTasksMetadataSection.TYPE, previousTasksBuilder.build())
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100), null))
@@ -1366,8 +1366,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksMetadataSection.TYPE, currentTasksBuilder.build())
-                    .putCustom(
+                    .putSection(PersistentTasksMetadataSection.TYPE, currentTasksBuilder.build())
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100), null))
@@ -1428,8 +1428,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksMetadataSection.TYPE, previousTasksBuilder.build())
-                    .putCustom(
+                    .putSection(PersistentTasksMetadataSection.TYPE, previousTasksBuilder.build())
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100), null))
@@ -1443,8 +1443,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksMetadataSection.TYPE, currentTasksBuilder.build())
-                    .putCustom(
+                    .putSection(PersistentTasksMetadataSection.TYPE, currentTasksBuilder.build())
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100), null))
@@ -1467,7 +1467,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         String nodeId1 = "node-1";
         String nodeId2 = "node-2";
         Metadata metadata = Metadata.builder()
-            .putCustom(
+            .putSection(
                 TrainedModelAssignmentMetadata.NAME,
                 TrainedModelAssignmentMetadata.Builder.empty()
                     .addNewAssignment(
@@ -1499,7 +1499,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         String nodeId1 = "node-1";
         String nodeId2 = "node-2";
         Metadata metadata = Metadata.builder()
-            .putCustom(
+            .putSection(
                 TrainedModelAssignmentMetadata.NAME,
                 TrainedModelAssignmentMetadata.Builder.empty()
                     .addNewAssignment(
@@ -1541,14 +1541,14 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         DiscoveryNode node2 = buildNode(nodeId2, true, ByteSizeValue.ofGb(4).getBytes(), 8);
         ClusterState previousState = ClusterState.builder(new ClusterName("testAreAssignedNodesRemoved"))
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).build())
-            .metadata(Metadata.builder().putCustom(TrainedModelAssignmentMetadata.NAME, trainedModelAssignmentMetadata))
+            .metadata(Metadata.builder().putSection(TrainedModelAssignmentMetadata.NAME, trainedModelAssignmentMetadata))
             .build();
         ClusterState currentState = ClusterState.builder(new ClusterName("testAreAssignedNodesRemoved"))
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).build())
             .metadata(
                 Metadata.builder()
-                    .putCustom(TrainedModelAssignmentMetadata.NAME, trainedModelAssignmentMetadata)
-                    .putCustom(
+                    .putSection(TrainedModelAssignmentMetadata.NAME, trainedModelAssignmentMetadata)
+                    .putSection(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
                             Map.of(
@@ -1584,14 +1584,14 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         DiscoveryNode node2 = buildNode(nodeId2, true, ByteSizeValue.ofGb(4).getBytes(), 8);
         ClusterState previousState = ClusterState.builder(new ClusterName("testAreAssignedNodesRemoved"))
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).build())
-            .metadata(Metadata.builder().putCustom(TrainedModelAssignmentMetadata.NAME, trainedModelAssignmentMetadata))
+            .metadata(Metadata.builder().putSection(TrainedModelAssignmentMetadata.NAME, trainedModelAssignmentMetadata))
             .build();
         ClusterState currentState = ClusterState.builder(new ClusterName("testAreAssignedNodesRemoved"))
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).build())
             .metadata(
                 Metadata.builder()
-                    .putCustom(TrainedModelAssignmentMetadata.NAME, trainedModelAssignmentMetadata)
-                    .putCustom(
+                    .putSection(TrainedModelAssignmentMetadata.NAME, trainedModelAssignmentMetadata)
+                    .putSection(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
                             Map.of(
@@ -1619,7 +1619,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         String nodeId2 = "node-2";
         String nodeId3 = "node-3";
         Metadata metadata = Metadata.builder()
-            .putCustom(
+            .putSection(
                 TrainedModelAssignmentMetadata.NAME,
                 TrainedModelAssignmentMetadata.Builder.empty()
                     .addNewAssignment(
@@ -1637,7 +1637,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     .build()
             )
             // This node should not affect the assignments because it is not routed to
-            .putCustom(
+            .putSection(
                 NodesShutdownMetadata.TYPE,
                 new NodesShutdownMetadata(
                     Map.of(
@@ -1676,7 +1676,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         String nodeId2 = "node-2";
         String nodeId3 = "node-3";
         Metadata metadata = Metadata.builder()
-            .putCustom(
+            .putSection(
                 TrainedModelAssignmentMetadata.NAME,
                 TrainedModelAssignmentMetadata.Builder.empty()
                     .addNewAssignment(
@@ -1695,7 +1695,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     )
                     .build()
             )
-            .putCustom(
+            .putSection(
                 NodesShutdownMetadata.TYPE,
                 new NodesShutdownMetadata(
                     Map.of(
@@ -1736,7 +1736,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         String nodeId2 = "node-2";
         String nodeId3 = "node-3";
         Metadata metadata = Metadata.builder()
-            .putCustom(
+            .putSection(
                 TrainedModelAssignmentMetadata.NAME,
                 TrainedModelAssignmentMetadata.Builder.empty()
                     .addNewAssignment(
@@ -1755,7 +1755,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     )
                     .build()
             )
-            .putCustom(
+            .putSection(
                 NodesShutdownMetadata.TYPE,
                 new NodesShutdownMetadata(
                     Map.of(
@@ -2016,7 +2016,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .putCompatibilityVersions("test-node", CompatibilityVersionsUtils.staticCurrent())
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
@@ -2067,7 +2067,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         }
         TrainedModelAssignmentMetadata metadataWithStopping = builder.build();
         ClusterState originalWithStoppingAllocations = ClusterState.builder(original)
-            .metadata(Metadata.builder(original.metadata()).putCustom(TrainedModelAssignmentMetadata.NAME, metadataWithStopping).build())
+            .metadata(Metadata.builder(original.metadata()).putSection(TrainedModelAssignmentMetadata.NAME, metadataWithStopping).build())
             .build();
 
         assertThat(

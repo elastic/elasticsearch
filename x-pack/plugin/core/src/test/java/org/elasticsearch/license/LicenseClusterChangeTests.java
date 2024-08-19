@@ -46,7 +46,7 @@ public class LicenseClusterChangeTests extends AbstractClusterStateLicenseServic
     public void testNotificationOnNewLicense() throws Exception {
         ClusterState oldState = ClusterState.builder(new ClusterName("a")).build();
         final License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
-        Metadata metadata = Metadata.builder().putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null)).build();
+        Metadata metadata = Metadata.builder().putSection(LicensesMetadata.TYPE, new LicensesMetadata(license, null)).build();
         ClusterState newState = ClusterState.builder(new ClusterName("a")).metadata(metadata).build();
         licenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
         assertThat(licenseState.activeUpdates.size(), equalTo(1));
@@ -55,7 +55,7 @@ public class LicenseClusterChangeTests extends AbstractClusterStateLicenseServic
 
     public void testNoNotificationOnExistingLicense() throws Exception {
         final License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
-        Metadata metadata = Metadata.builder().putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null)).build();
+        Metadata metadata = Metadata.builder().putSection(LicensesMetadata.TYPE, new LicensesMetadata(license, null)).build();
         ClusterState newState = ClusterState.builder(new ClusterName("a")).metadata(metadata).build();
         ClusterState oldState = ClusterState.builder(newState).build();
         licenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
@@ -74,7 +74,7 @@ public class LicenseClusterChangeTests extends AbstractClusterStateLicenseServic
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
         verify(clusterService, times(1)).submitUnbatchedStateUpdateTask(any(), stateUpdater.capture());
         ClusterState stateWithLicense = stateUpdater.getValue().execute(newState);
-        LicensesMetadata licenseMetadata = stateWithLicense.metadata().custom(LicensesMetadata.TYPE);
+        LicensesMetadata licenseMetadata = stateWithLicense.metadata().section(LicensesMetadata.TYPE);
         assertNotNull(licenseMetadata);
         assertNotNull(licenseMetadata.getLicense());
         assertEquals(licenseType, licenseMetadata.getLicense().type());

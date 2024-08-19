@@ -219,7 +219,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                             .get()
                             .getState()
                             .getMetadata()
-                            .custom(PersistentTasksMetadataSection.TYPE);
+                            .section(PersistentTasksMetadataSection.TYPE);
                         assertEquals(MlTasks.getJobState(job.getId(), tasks), JobState.OPENED);
                     }
                 });

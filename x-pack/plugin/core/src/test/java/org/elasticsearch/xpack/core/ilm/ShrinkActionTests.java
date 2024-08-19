@@ -214,7 +214,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         IndexLifecycleMetadata.TYPE,
                         new IndexLifecycleMetadata(
                             Collections.singletonMap(policyMetadata.getName(), policyMetadata),

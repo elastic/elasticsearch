@@ -255,7 +255,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         addJobTask("foo", null, JobState.CLOSED, tasksBuilder);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(new Metadata.Builder().putCustom(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()))
+            .metadata(new Metadata.Builder().putSection(PersistentTasksMetadataSection.TYPE, tasksBuilder.build()))
             .build();
 
         TransportCloseJobAction transportAction = createAction();

@@ -49,7 +49,7 @@ public class DataStreamsActionUtilTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test-cluster"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         DataStreamMetadata.TYPE,
                         new DataStreamMetadata(
                             ImmutableOpenMap.<String, DataStream>builder()

@@ -88,7 +88,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         RepositoryMetadata repo = new RepositoryMetadata("repo", "fs", Settings.EMPTY);
         RepositoriesMetadata repoMeta = new RepositoriesMetadata(Collections.singletonList(repo));
         ClusterState stateWithRepo = ClusterState.builder(state)
-            .metadata(Metadata.builder().putCustom(RepositoriesMetadata.TYPE, repoMeta))
+            .metadata(Metadata.builder().putSection(RepositoriesMetadata.TYPE, repoMeta))
             .build();
 
         SnapshotLifecycleService.validateRepositoryExists("repo", stateWithRepo);
@@ -505,7 +505,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
     }
 
     public ClusterState createState(SnapshotLifecycleMetadata snapMeta, boolean localNodeMaster) {
-        Metadata metadata = Metadata.builder().putCustom(SnapshotLifecycleMetadata.TYPE, snapMeta).build();
+        Metadata metadata = Metadata.builder().putSection(SnapshotLifecycleMetadata.TYPE, snapMeta).build();
         final DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
             .add(DiscoveryNodeUtils.create("local", new TransportAddress(TransportAddress.META_ADDRESS, 9300)))
             .add(DiscoveryNodeUtils.create("remote", new TransportAddress(TransportAddress.META_ADDRESS, 9301)))

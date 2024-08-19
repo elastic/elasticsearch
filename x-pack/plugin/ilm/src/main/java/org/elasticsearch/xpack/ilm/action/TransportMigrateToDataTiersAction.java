@@ -112,7 +112,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             return;
         }
 
-        IndexLifecycleMetadata currentMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata currentMetadata = state.metadata().section(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null && currentILMMode(state) != STOPPED) {
             listener.onFailure(
                 new IllegalStateException("stop ILM before migrating to data tiers, current state is [" + currentILMMode(state) + "]")

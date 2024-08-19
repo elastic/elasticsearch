@@ -810,14 +810,14 @@ public class ModelLoadingServiceTests extends ESTestCase {
             configurations.put("pipeline_with_model_" + id, newConfigurationWithInferenceProcessor(id));
         }
         IngestMetadata ingestMetadata = new IngestMetadata(configurations);
-        return builder.putCustom(IngestMetadata.TYPE, ingestMetadata);
+        return builder.putSection(IngestMetadata.TYPE, ingestMetadata);
     }
 
     private static Metadata.Builder addAliases(Metadata.Builder builder, List<Tuple<String, String>> modelIdAndAliases) {
         ModelAliasMetadata modelAliasMetadata = new ModelAliasMetadata(
             modelIdAndAliases.stream().collect(Collectors.toMap(Tuple::v2, t -> new ModelAliasMetadata.ModelAliasEntry(t.v1())))
         );
-        return builder.putCustom(ModelAliasMetadata.NAME, modelAliasMetadata);
+        return builder.putSection(ModelAliasMetadata.NAME, modelAliasMetadata);
     }
 
     private static PipelineConfiguration newConfigurationWithInferenceProcessor(String modelId) throws IOException {

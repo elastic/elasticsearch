@@ -43,7 +43,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
 
     @Override
     public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-        LicensesMetadata licensesMetadata = newState.metadata().custom(LicensesMetadata.TYPE);
+        LicensesMetadata licensesMetadata = newState.metadata().section(LicensesMetadata.TYPE);
         if (logger.isDebugEnabled()) {
             logger.debug("registered self generated license: {}", licensesMetadata);
         }
@@ -53,7 +53,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
     public ClusterState execute(ClusterState currentState) throws Exception {
         XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
         final Metadata metadata = currentState.metadata();
-        final LicensesMetadata currentLicensesMetadata = metadata.custom(LicensesMetadata.TYPE);
+        final LicensesMetadata currentLicensesMetadata = metadata.section(LicensesMetadata.TYPE);
         // do not generate a license if any license is present
         if (currentLicensesMetadata == null) {
             License.LicenseType type = SelfGeneratedLicense.validateSelfGeneratedType(
@@ -89,7 +89,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
         License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder);
         TrialLicenseVersion trialVersion = currentLicenseMetadata.getMostRecentTrialVersion();
         LicensesMetadata newLicenseMetadata = new LicensesMetadata(selfGeneratedLicense, trialVersion);
-        mdBuilder.putCustom(LicensesMetadata.TYPE, newLicenseMetadata);
+        mdBuilder.putSection(LicensesMetadata.TYPE, newLicenseMetadata);
         logger.info(
             "Updating existing license to the new version.\n\nOld license:\n {}\n\n New license:\n{}",
             license,
@@ -112,7 +112,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
         License license = currentLicenseMetadata.getLicense();
         Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
         LicensesMetadata newLicenseMetadata = createBasicLicenseFromExistingLicense(currentLicenseMetadata);
-        mdBuilder.putCustom(LicensesMetadata.TYPE, newLicenseMetadata);
+        mdBuilder.putSection(LicensesMetadata.TYPE, newLicenseMetadata);
         logger.info("""
             Existing basic license has an expiration. Basic licenses no longer expire.Regenerating license.
 
@@ -161,7 +161,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
         } else {
             licensesMetadata = new LicensesMetadata(selfGeneratedLicense, null);
         }
-        mdBuilder.putCustom(LicensesMetadata.TYPE, licensesMetadata);
+        mdBuilder.putSection(LicensesMetadata.TYPE, licensesMetadata);
         return ClusterState.builder(currentState).metadata(mdBuilder).build();
     }
 }

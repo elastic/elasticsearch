@@ -97,7 +97,7 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
 
         @Override
         public ClusterState afterBatchExecution(ClusterState clusterState, boolean clusterStateChanged) {
-            return clusterState.copyAndUpdateMetadata(metadata -> metadata.removeCustom(DesiredNodesMetadata.TYPE));
+            return clusterState.copyAndUpdateMetadata(metadata -> metadata.removeSection(DesiredNodesMetadata.TYPE));
         }
     }
 

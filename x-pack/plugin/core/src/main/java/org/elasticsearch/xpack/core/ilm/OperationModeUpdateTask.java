@@ -108,7 +108,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         return ClusterState.builder(currentState)
             .metadata(
                 Metadata.builder(currentState.metadata())
-                    .putCustom(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(newMode, currentSLMMode(currentState)))
+                    .putSection(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(newMode, currentSLMMode(currentState)))
             )
             .build();
     }
@@ -136,7 +136,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         return ClusterState.builder(currentState)
             .metadata(
                 Metadata.builder(currentState.metadata())
-                    .putCustom(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(currentILMMode(currentState), newMode))
+                    .putSection(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(currentILMMode(currentState), newMode))
             )
             .build();
     }

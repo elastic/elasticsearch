@@ -130,7 +130,7 @@ public class MlUpgradeModeActionFilterTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("MlUpgradeModeActionFilterTests"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(isUpgradeMode).isResetMode(isResetMode).build())
+                    .putSection(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(isUpgradeMode).isResetMode(isResetMode).build())
             )
             .build();
     }

@@ -417,7 +417,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
                 Metadata.builder()
                     .indexTemplates(composableTemplates)
                     .transientSettings(nodeSettings)
-                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+                    .putSection(IndexLifecycleMetadata.TYPE, ilmMeta)
                     .build()
             )
             .blocks(new ClusterBlocks.Builder().build())

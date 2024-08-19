@@ -362,11 +362,11 @@ public class ClusterChangedEventTests extends ESTestCase {
         Metadata.Builder metadataBuilder = Metadata.builder(previousState.metadata());
         for (Map.Entry<String, MetadataSection> customMetadata : previousState.metadata().customs().entrySet()) {
             if (customMetadata.getValue() instanceof TestMetadataSection) {
-                metadataBuilder.removeCustom(customMetadata.getKey());
+                metadataBuilder.removeSection(customMetadata.getKey());
             }
         }
         for (TestMetadataSection testCustomMetadata : customMetadataList) {
-            metadataBuilder.putCustom(testCustomMetadata.getWriteableName(), testCustomMetadata);
+            metadataBuilder.putSection(testCustomMetadata.getWriteableName(), testCustomMetadata);
         }
         builder.metadata(metadataBuilder);
         return builder.build();

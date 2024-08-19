@@ -50,7 +50,7 @@ public class SLMUsageTransportAction extends XPackUsageFeatureTransportAction {
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        final SnapshotLifecycleMetadata slmMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        final SnapshotLifecycleMetadata slmMeta = state.metadata().section(SnapshotLifecycleMetadata.TYPE);
         final SLMFeatureSetUsage usage = new SLMFeatureSetUsage(slmMeta == null ? null : slmMeta.getStats());
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }

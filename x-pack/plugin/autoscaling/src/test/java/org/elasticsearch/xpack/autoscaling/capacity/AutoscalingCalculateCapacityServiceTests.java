@@ -62,7 +62,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 .collect(Collectors.toMap(Tuple::v1, Tuple::v2))
         );
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().putCustom(AutoscalingMetadata.NAME, new AutoscalingMetadata(policies)))
+            .metadata(Metadata.builder().putSection(AutoscalingMetadata.NAME, new AutoscalingMetadata(policies)))
             .build();
         SortedMap<String, AutoscalingDeciderResults> resultsMap = service.calculate(
             state,
@@ -121,7 +121,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         AutoscalingMetadata.NAME,
                         new AutoscalingMetadata(
                             new TreeMap<>(

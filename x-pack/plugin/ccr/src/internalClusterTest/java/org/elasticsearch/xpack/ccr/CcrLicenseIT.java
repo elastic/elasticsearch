@@ -181,7 +181,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
 
                     ClusterState.Builder newState = ClusterState.builder(currentState);
                     newState.metadata(
-                        Metadata.builder(currentState.getMetadata()).putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata).build()
+                        Metadata.builder(currentState.getMetadata()).putSection(AutoFollowMetadata.TYPE, autoFollowMetadata).build()
                     );
                     return newState.build();
                 }

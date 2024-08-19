@@ -2349,7 +2349,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return ClusterState.builder(currentState)
             .metadata(
                 Metadata.builder(currentState.getMetadata())
-                    .putCustom(
+                    .putSection(
                         RepositoriesMetadata.TYPE,
                         RepositoriesMetadata.get(currentState)
                             .withUpdatedGeneration(repoMetadata.name(), repoData.getGenId(), repoData.getGenId())
@@ -2545,7 +2545,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     return ClusterState.builder(currentState)
                         .metadata(
                             Metadata.builder(currentState.metadata())
-                                .putCustom(
+                                .putSection(
                                     RepositoriesMetadata.TYPE,
                                     state.withUpdatedGeneration(
                                         metadata.name(),
@@ -2720,7 +2720,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return ClusterState.builder(currentState)
                     .metadata(
                         Metadata.builder(currentState.getMetadata())
-                            .putCustom(
+                            .putSection(
                                 RepositoriesMetadata.TYPE,
                                 RepositoriesMetadata.get(currentState).withUpdatedGeneration(repoName, safeGeneration, newGen)
                             )
@@ -2864,7 +2864,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         : withGenerations.withUuid(metadata.name(), newRepositoryData.getUuid());
                     final ClusterState newClusterState = stateFilter.apply(
                         ClusterState.builder(currentState)
-                            .metadata(Metadata.builder(currentState.getMetadata()).putCustom(RepositoriesMetadata.TYPE, withUuid))
+                            .metadata(Metadata.builder(currentState.getMetadata()).putSection(RepositoriesMetadata.TYPE, withUuid))
                             .build()
                     );
                     return updateRepositoryGenerationsIfNecessary(newClusterState, expectedGen, newGen);

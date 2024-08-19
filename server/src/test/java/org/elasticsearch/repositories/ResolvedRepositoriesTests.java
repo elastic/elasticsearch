@@ -86,7 +86,7 @@ public class ResolvedRepositoriesTests extends ESTestCase {
             repositories.add(new RepositoryMetadata(repoName, "test", Settings.EMPTY));
         }
         return ClusterState.EMPTY_STATE.copyAndUpdateMetadata(
-            b -> b.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(repositories))
+            b -> b.putSection(RepositoriesMetadata.TYPE, new RepositoriesMetadata(repositories))
         );
     }
 

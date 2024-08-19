@@ -1311,7 +1311,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
 
         Metadata metadata = Metadata.builder()
             .put(indexMetadata, true)
-            .putCustom(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata)
+            .putSection(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata)
             .build();
         return ClusterState.builder(new ClusterName("my_cluster")).metadata(metadata).build();
     }

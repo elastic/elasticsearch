@@ -114,7 +114,7 @@ public class MlLifeCycleService {
 
         logger.debug(() -> format("Node id [%s] has running deployments: %s", nodeId, nodeHasRunningDeployments));
 
-        PersistentTasksMetadataSection tasks = state.metadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection tasks = state.metadata().section(PersistentTasksMetadataSection.TYPE);
         // Ignore failed jobs - the persistent task still exists to remember the failure (because no
         // persistent task means closed), but these don't need to be relocated to another node.
         return MlTasks.nonFailedJobTasksOnNode(tasks, nodeId).isEmpty()

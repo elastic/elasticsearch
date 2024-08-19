@@ -362,7 +362,7 @@ public class TransformTaskTests extends ESTestCase {
             ClusterState clusterState = ClusterState.builder(new ClusterName("some-cluster"))
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             PersistentTasksMetadataSection.TYPE,
                             PersistentTasksMetadataSection.builder()
                                 .addTask("other-1", "other", null, null)
@@ -382,7 +382,7 @@ public class TransformTaskTests extends ESTestCase {
             ClusterState clusterState = ClusterState.builder(new ClusterName("some-cluster"))
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             PersistentTasksMetadataSection.TYPE,
                             PersistentTasksMetadataSection.builder()
                                 .addTask("transform-1", TransformTaskParams.NAME, transformTaskParams, null)
@@ -418,7 +418,7 @@ public class TransformTaskTests extends ESTestCase {
             ClusterState clusterState = ClusterState.builder(new ClusterName("some-cluster"))
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             PersistentTasksMetadataSection.TYPE,
                             PersistentTasksMetadataSection.builder()
                                 .addTask("other-1", "other", null, null)
@@ -434,7 +434,7 @@ public class TransformTaskTests extends ESTestCase {
             ClusterState clusterState = ClusterState.builder(new ClusterName("some-cluster"))
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             PersistentTasksMetadataSection.TYPE,
                             PersistentTasksMetadataSection.builder()
                                 .addTask("transform-1", TransformTaskParams.NAME, null, null)
@@ -458,7 +458,7 @@ public class TransformTaskTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("some-cluster"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(
+                    .putSection(
                         PersistentTasksMetadataSection.TYPE,
                         PersistentTasksMetadataSection.builder()
                             .addTask("transform-1", TransformTaskParams.NAME, createTransformTaskParams("transform-1"), null)

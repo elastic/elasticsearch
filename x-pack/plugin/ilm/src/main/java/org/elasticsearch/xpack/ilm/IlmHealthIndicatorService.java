@@ -212,7 +212,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         final var currentState = clusterService.state();
-        var ilmMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        var ilmMetadata = currentState.metadata().section(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         final var currentMode = currentILMMode(currentState);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(

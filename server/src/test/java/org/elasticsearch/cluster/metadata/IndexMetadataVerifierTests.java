@@ -87,7 +87,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
         assertSame(indexMetadata, src);
     }
 
-    public void testCustomSimilarity() {
+    public void testSectionSimilarity() {
         IndexMetadataVerifier service = getIndexMetadataVerifier();
         IndexMetadata src = newIndexMeta(
             "foo",

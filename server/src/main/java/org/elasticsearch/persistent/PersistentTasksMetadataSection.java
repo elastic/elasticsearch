@@ -131,7 +131,7 @@ public final class PersistentTasksMetadataSection extends AbstractNamedDiffable<
     }
 
     public static PersistentTasksMetadataSection getPersistentTasksCustomMetadata(ClusterState clusterState) {
-        return clusterState.getMetadata().custom(PersistentTasksMetadataSection.TYPE);
+        return clusterState.getMetadata().section(PersistentTasksMetadataSection.TYPE);
     }
 
     /**
@@ -215,7 +215,7 @@ public final class PersistentTasksMetadataSection extends AbstractNamedDiffable<
 
     @SuppressWarnings("unchecked")
     public static <Params extends PersistentTaskParams> PersistentTask<Params> getTaskWithId(ClusterState clusterState, String taskId) {
-        PersistentTasksMetadataSection tasks = clusterState.metadata().custom(PersistentTasksMetadataSection.TYPE);
+        PersistentTasksMetadataSection tasks = clusterState.metadata().section(PersistentTasksMetadataSection.TYPE);
         if (tasks != null) {
             return (PersistentTask<Params>) tasks.getTask(taskId);
         }
@@ -251,7 +251,7 @@ public final class PersistentTasksMetadataSection extends AbstractNamedDiffable<
         }
 
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
-        metadataBuilder.putCustom(TYPE, taskBuilder.build());
+        metadataBuilder.putSection(TYPE, taskBuilder.build());
         return ClusterState.builder(clusterState).metadata(metadataBuilder).build();
     }
 

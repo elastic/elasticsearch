@@ -77,7 +77,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
 
     private ClusterState getClusterStateWithNodeShutdownMetadata(List<String> nodeIdsForRemoval) {
         return CLUSTER_STATE_FOR_NODE_SHUTDOWNS.copyAndUpdateMetadata(
-            mdb -> mdb.putCustom(
+            mdb -> mdb.putSection(
                 NodesShutdownMetadata.TYPE,
                 new NodesShutdownMetadata(
                     nodeIdsForRemoval.stream()
@@ -468,7 +468,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         )
             .withUpdatedNodeIdsForRemoval(
                 CLUSTER_STATE_FOR_NODE_SHUTDOWNS.copyAndUpdateMetadata(
-                    b -> b.putCustom(
+                    b -> b.putSection(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
                             Map.of(

@@ -53,7 +53,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
 
     @Before
     public void waitForTrialLicenseToBeGenerated() throws Exception {
-        assertBusy(() -> assertNotNull(getInstanceFromNode(ClusterService.class).state().metadata().custom(LicensesMetadata.TYPE)));
+        assertBusy(() -> assertNotNull(getInstanceFromNode(ClusterService.class).state().metadata().section(LicensesMetadata.TYPE)));
     }
 
     public void testStoreAndGetLicenses() throws Exception {
@@ -65,7 +65,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         TestUtils.registerAndAckSignedLicenses(licenseService, silverLicense, LicensesStatus.VALID);
         License platinumLicense = TestUtils.generateSignedLicense("platinum", TimeValue.timeValueHours(1));
         TestUtils.registerAndAckSignedLicenses(licenseService, platinumLicense, LicensesStatus.VALID);
-        LicensesMetadata licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
+        LicensesMetadata licensesMetadata = clusterService.state().metadata().section(LicensesMetadata.TYPE);
         assertThat(licensesMetadata.getLicense(), equalTo(platinumLicense));
         final License getLicenses = licenseService.getLicense();
         assertThat(getLicenses, equalTo(platinumLicense));
@@ -79,13 +79,13 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         License goldLicense = TestUtils.generateSignedLicense("gold", TimeValue.timeValueSeconds(5));
         // put gold license
         TestUtils.registerAndAckSignedLicenses(licenseService, goldLicense, LicensesStatus.VALID);
-        LicensesMetadata licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
+        LicensesMetadata licensesMetadata = clusterService.state().metadata().section(LicensesMetadata.TYPE);
         assertThat(licenseService.getLicenseFromLicensesMetadata(licensesMetadata), equalTo(goldLicense));
 
         License platinumLicense = TestUtils.generateSignedLicense("platinum", TimeValue.timeValueSeconds(3));
         // put platinum license
         TestUtils.registerAndAckSignedLicenses(licenseService, platinumLicense, LicensesStatus.VALID);
-        licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
+        licensesMetadata = clusterService.state().metadata().section(LicensesMetadata.TYPE);
         assertThat(licenseService.getLicenseFromLicensesMetadata(licensesMetadata), equalTo(platinumLicense));
     }
 
@@ -104,7 +104,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         TestUtils.registerAndAckSignedLicenses(licenseService, tamperedLicense, LicensesStatus.INVALID);
 
         // ensure that the invalid license never made it to cluster state
-        LicensesMetadata licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
+        LicensesMetadata licensesMetadata = clusterService.state().metadata().section(LicensesMetadata.TYPE);
         assertThat(licensesMetadata.getLicense(), not(equalTo(tamperedLicense)));
     }
 
@@ -115,12 +115,12 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         // generate signed licenses
         License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(1));
         TestUtils.registerAndAckSignedLicenses(licenseService, license, LicensesStatus.VALID);
-        LicensesMetadata licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
+        LicensesMetadata licensesMetadata = clusterService.state().metadata().section(LicensesMetadata.TYPE);
         assertThat(licensesMetadata.getLicense(), not(LicensesMetadata.LICENSE_TOMBSTONE));
 
         // remove signed licenses
         removeAndAckSignedLicenses(licenseService);
-        licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
+        licensesMetadata = clusterService.state().metadata().section(LicensesMetadata.TYPE);
         assertTrue(License.LicenseType.isBasic(licensesMetadata.getLicense().type()));
     }
 

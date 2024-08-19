@@ -348,7 +348,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                 .nodes(nodes)
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             TrainedModelAssignmentMetadata.NAME,
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
@@ -368,7 +368,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                                 )
                                 .build()
                         )
-                        .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build())
+                        .putSection(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build())
                         .build()
                 )
                 .build(),
@@ -406,7 +406,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                 .nodes(nodes)
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             TrainedModelAssignmentMetadata.NAME,
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
@@ -416,7 +416,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                                 )
                                 .build()
                         )
-                        .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(NODE_ID))
+                        .putSection(NodesShutdownMetadata.TYPE, shutdownMetadata(NODE_ID))
                         .build()
                 )
                 .build(),
@@ -459,7 +459,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                 .nodes(nodes)
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             TrainedModelAssignmentMetadata.NAME,
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
@@ -470,7 +470,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                                 )
                                 .build()
                         )
-                        .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(NODE_ID))
+                        .putSection(NodesShutdownMetadata.TYPE, shutdownMetadata(NODE_ID))
                         .build()
                 )
                 .build(),
@@ -502,7 +502,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                 .nodes(nodes)
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             TrainedModelAssignmentMetadata.NAME,
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
@@ -512,7 +512,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                                 )
                                 .build()
                         )
-                        .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(NODE_ID))
+                        .putSection(NodesShutdownMetadata.TYPE, shutdownMetadata(NODE_ID))
                         .build()
                 )
                 .build(),
@@ -543,7 +543,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                 .nodes(nodes)
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             TrainedModelAssignmentMetadata.NAME,
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
@@ -553,7 +553,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                                 )
                                 .build()
                         )
-                        .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(NODE_ID))
+                        .putSection(NodesShutdownMetadata.TYPE, shutdownMetadata(NODE_ID))
                         .build()
                 )
                 .build(),
@@ -585,7 +585,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                 .nodes(nodes)
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             TrainedModelAssignmentMetadata.NAME,
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
@@ -596,7 +596,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                                 )
                                 .build()
                         )
-                        .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(false).build())
+                        .putSection(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(false).build())
                         .build()
                 )
                 .build(),
@@ -634,7 +634,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                 .putCompatibilityVersions(NODE_ID, CompatibilityVersionsUtils.staticCurrent())
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             TrainedModelAssignmentMetadata.NAME,
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
@@ -692,7 +692,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                 .putCompatibilityVersions(NODE_ID, CompatibilityVersionsUtils.staticCurrent())
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             TrainedModelAssignmentMetadata.NAME,
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
@@ -746,7 +746,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                 .putCompatibilityVersions(NODE_ID, CompatibilityVersionsUtils.staticCurrent())
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             TrainedModelAssignmentMetadata.NAME,
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
@@ -788,7 +788,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                 .putCompatibilityVersions(NODE_ID, CompatibilityVersionsUtils.staticCurrent())
                 .metadata(
                     Metadata.builder()
-                        .putCustom(
+                        .putSection(
                             TrainedModelAssignmentMetadata.NAME,
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
@@ -851,7 +851,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         }
 
         ClusterState currentState = ClusterState.builder(new ClusterName("testLoadQueuedModels"))
-            .metadata(Metadata.builder().putCustom(TrainedModelAssignmentMetadata.NAME, builder.build()).build())
+            .metadata(Metadata.builder().putSection(TrainedModelAssignmentMetadata.NAME, builder.build()).build())
             .build();
 
         when(clusterService.state()).thenReturn(currentState);

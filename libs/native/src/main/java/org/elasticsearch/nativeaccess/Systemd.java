@@ -14,6 +14,13 @@ import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.nio.charset.StandardCharsets;
 
+/**
+ * Wraps access to notifications to systemd.
+ * <p>
+ * Systemd notifications are done through a Unix socket. Although Java does support
+ * opening unix sockets, it unfortunately does not support datagram sockets. This class
+ * instead opens and communicates with the socket using native methods.
+ */
 public class Systemd {
     private static final Logger logger = LogManager.getLogger(Systemd.class);
 
@@ -57,11 +64,16 @@ public class Systemd {
                 throwOrLog("Could not connect to systemd socket: " + libc.strerror(libc.errno()), warnOnError);
                 return;
             }
-            buffer.buffer().clear();
+
             byte[] bytes = state.getBytes(StandardCharsets.US_ASCII);
-            buffer.buffer().put(0, bytes);
-            buffer.buffer().limit(bytes.length);
-            long bytesSent = libc.send(sockfd, buffer, 0);
+            final long bytesSent;
+            synchronized (buffer) {
+                buffer.buffer().clear();
+                buffer.buffer().put(0, bytes);
+                buffer.buffer().limit(bytes.length);
+                bytesSent = libc.send(sockfd, buffer, 0);
+            }
+
             if (bytesSent == -1) {
                 throwOrLog("Failed to send message (" + state + ") to systemd socket: " + libc.strerror(libc.errno()), warnOnError);
             } else if (bytesSent != bytes.length) {

@@ -116,7 +116,7 @@ class JnaPosixCLibrary implements PosixCLibrary {
         JnaSockAddr(String path) {
             this.memory = new Memory(110);
             memory.setShort(0, AF_UNIX);
-            memory.setString(2, path, "ascii");
+            memory.setString(2, path, "UTF-8");
         }
     }
 

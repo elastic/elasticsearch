@@ -266,8 +266,12 @@ public class Stateless extends Plugin
         + CLUSTER_STATE_READ_WRITE_THREAD_POOL
         + "_thread_pool";
     public static final String GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL = "stateless_get_vbcc_chunk";
+    public static final String FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL = "stateless_fill_vbcc_cache";
     public static final String GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL_SETTING = "stateless."
         + GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL
+        + "_thread_pool";
+    public static final String FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL_SETTING = "stateless."
+        + FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
         + "_thread_pool";
     public static final String PREWARM_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME;
     public static final String PREWARM_THREAD_POOL_SETTING = "stateless." + PREWARM_THREAD_POOL + "_thread_pool";
@@ -440,7 +444,10 @@ public class Stateless extends Plugin
         var cacheService = createSharedBlobCacheService(services, nodeEnvironment, settings, threadPool);
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
-        var cacheBlobReaderService = setAndGet(this.cacheBlobReaderService, new CacheBlobReaderService(settings, cacheService, client));
+        var cacheBlobReaderService = setAndGet(
+            this.cacheBlobReaderService,
+            new CacheBlobReaderService(settings, cacheService, client, threadPool)
+        );
         components.add(cacheBlobReaderService);
         var statelessElectionStrategy = setAndGet(
             this.electionStrategy,
@@ -681,6 +688,8 @@ public class Stateless extends Plugin
         final int clusterStateReadWriteMaxThreads;
         final int getVirtualBatchedCompoundCommitChunkCoreThreads;
         final int getVirtualBatchedCompoundCommitChunkMaxThreads;
+        final int fillVirtualBatchedCompoundCommitCacheCoreThreads;
+        final int fillVirtualBatchedCompoundCommitCacheMaxThreads;
         final int prewarmMaxThreads = Math.min(processors * 4, 32);
 
         if (hasIndexRole) {
@@ -693,6 +702,8 @@ public class Stateless extends Plugin
             clusterStateReadWriteMaxThreads = 4;
             getVirtualBatchedCompoundCommitChunkCoreThreads = 1;
             getVirtualBatchedCompoundCommitChunkMaxThreads = Math.min(processors, 4);
+            fillVirtualBatchedCompoundCommitCacheCoreThreads = 0;
+            fillVirtualBatchedCompoundCommitCacheMaxThreads = 1;
         } else {
             shardReadMaxThreads = Math.min(processors * 4, 28);
             translogCoreThreads = 0;
@@ -703,6 +714,10 @@ public class Stateless extends Plugin
             clusterStateReadWriteMaxThreads = 1;
             getVirtualBatchedCompoundCommitChunkCoreThreads = 0;
             getVirtualBatchedCompoundCommitChunkMaxThreads = 1;
+            // these threads use a sizeable thread-local direct buffer which might take a while to GC, so we prefer to keep some idle
+            // threads around to reduce churn and re-use the existing buffers more
+            fillVirtualBatchedCompoundCommitCacheCoreThreads = Math.max(processors / 2, 2);
+            fillVirtualBatchedCompoundCommitCacheMaxThreads = Math.max(processors, 2);
         }
 
         return new ExecutorBuilder<?>[] {
@@ -746,6 +761,14 @@ public class Stateless extends Plugin
                 TimeValue.timeValueMinutes(5),
                 true,
                 GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL_SETTING
+            ),
+            new ScalingExecutorBuilder(
+                FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL,
+                fillVirtualBatchedCompoundCommitCacheCoreThreads,
+                fillVirtualBatchedCompoundCommitCacheMaxThreads,
+                TimeValue.timeValueMinutes(5),
+                true,
+                FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL_SETTING
             ),
             new ScalingExecutorBuilder(
                 PREWARM_THREAD_POOL,

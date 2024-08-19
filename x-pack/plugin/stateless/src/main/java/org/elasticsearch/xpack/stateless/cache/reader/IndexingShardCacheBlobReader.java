@@ -19,20 +19,23 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,24 +48,29 @@ import java.io.InputStream;
  */
 public class IndexingShardCacheBlobReader implements CacheBlobReader {
 
+    private static final Logger logger = LogManager.getLogger(IndexingShardCacheBlobReader.class);
+
     private final ShardId shardId;
     private final PrimaryTermAndGeneration bccTermAndGen;
     private final String preferredNodeId;
     private final Client client;
     private final long chunkSizeBytes;
+    private final ThreadPool threadPool;
 
     public IndexingShardCacheBlobReader(
         ShardId shardId,
         PrimaryTermAndGeneration bccTermAndGen,
         String preferredNodeId,
         Client client,
-        ByteSizeValue chunkSize
+        ByteSizeValue chunkSize,
+        ThreadPool threadPool
     ) {
         this.shardId = shardId;
         this.bccTermAndGen = bccTermAndGen;
         this.preferredNodeId = preferredNodeId;
         this.client = client;
         this.chunkSizeBytes = chunkSize.getBytes();
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -80,22 +88,31 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
         return ByteRange.of(start, end);
     }
 
-    @Override
-    public InputStream getRangeInputStream(long position, int length) throws IOException {
+    public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
         // TODO ideally do not use ShardReadThread pool here, do it in-thread. (ES-8155)
-        PlainActionFuture<ReleasableBytesReference> bytesFuture = new PlainActionFuture<>();
-        getVirtualBatchedCompoundCommitChunk(bccTermAndGen, position, length, preferredNodeId, bytesFuture.map(r -> r.retain()));
-        ReleasableBytesReference reference = FutureUtils.get(bytesFuture);
-        return new FilterStreamInput(reference.streamInput()) {
-            @Override
-            public void close() throws IOException {
-                try {
-                    super.close();
-                } finally {
-                    reference.decRef();
+        getVirtualBatchedCompoundCommitChunk(bccTermAndGen, position, length, preferredNodeId, listener.delegateFailureAndWrap((l, rbr) -> {
+            // The InboundHandler decrements the GetVirtualBatchedCompoundCommitChunkResponse (and thus the data). So we need to retain the
+            // data, which is later decrementing in the close function of the getRangeInputStream()'s InputStream.
+            ReleasableBytesReference reference = rbr.retain();
+            final var streamInput = new FilterStreamInput(reference.streamInput()) {
+
+                private volatile boolean closed;
+
+                @Override
+                public void close() throws IOException {
+                    try {
+                        super.close();
+                    } finally {
+                        reference.decRef();
+                        closed = true;
+                    }
                 }
-            }
-        };
+            };
+            threadPool.executor(Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL)
+                .execute(ActionRunnable.supply(ActionListener.runAfter(l, () -> {
+                    assert streamInput.closed;
+                }), () -> streamInput));
+        }));
     }
 
     /**
@@ -118,8 +135,6 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
             length,
             preferredNodeId
         );
-        // The InboundHandler decrements the GetVirtualBatchedCompoundCommitChunkResponse (and thus the data). So we need to retain the
-        // data, which is later decrementing in the close function of the getRangeInputStream()'s InputStream.
         client.execute(TransportGetVirtualBatchedCompoundCommitChunkAction.TYPE, request, listener.map(r -> r.getData()));
     }
 

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -28,12 +29,16 @@ public final class MvPercentileIntegerDoubleEvaluator implements EvalOperator.Ex
 
   private final EvalOperator.ExpressionEvaluator percentile;
 
+  private final MvPercentile.IntSortingScratch scratch;
+
   private final DriverContext driverContext;
 
   public MvPercentileIntegerDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator values,
-      EvalOperator.ExpressionEvaluator percentile, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator percentile, MvPercentile.IntSortingScratch scratch,
+      DriverContext driverContext) {
     this.values = values;
     this.percentile = percentile;
+    this.scratch = scratch;
     this.driverContext = driverContext;
     this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
@@ -70,7 +75,7 @@ public final class MvPercentileIntegerDoubleEvaluator implements EvalOperator.Ex
           continue position;
         }
         try {
-          MvPercentile.process(result, p, valuesBlock, percentileBlock.getDouble(percentileBlock.getFirstValueIndex(p)));
+          MvPercentile.process(result, p, valuesBlock, percentileBlock.getDouble(percentileBlock.getFirstValueIndex(p)), this.scratch);
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -97,16 +102,20 @@ public final class MvPercentileIntegerDoubleEvaluator implements EvalOperator.Ex
 
     private final EvalOperator.ExpressionEvaluator.Factory percentile;
 
+    private final Function<DriverContext, MvPercentile.IntSortingScratch> scratch;
+
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory values,
-        EvalOperator.ExpressionEvaluator.Factory percentile) {
+        EvalOperator.ExpressionEvaluator.Factory percentile,
+        Function<DriverContext, MvPercentile.IntSortingScratch> scratch) {
       this.source = source;
       this.values = values;
       this.percentile = percentile;
+      this.scratch = scratch;
     }
 
     @Override
     public MvPercentileIntegerDoubleEvaluator get(DriverContext context) {
-      return new MvPercentileIntegerDoubleEvaluator(source, values.get(context), percentile.get(context), context);
+      return new MvPercentileIntegerDoubleEvaluator(source, values.get(context), percentile.get(context), scratch.apply(context), context);
     }
 
     @Override

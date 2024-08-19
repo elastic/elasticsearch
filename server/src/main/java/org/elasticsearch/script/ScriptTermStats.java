@@ -16,6 +16,7 @@ import org.apache.lucene.index.TermStates;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermStatistics;
+import org.elasticsearch.common.util.CachedSupplier;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -31,14 +32,20 @@ public class ScriptTermStats {
     private final IndexSearcher searcher;
     private final LeafReaderContext leafReaderContext;
     private final StatsAccumulator statsAccumulator = new StatsAccumulator();
-    private volatile PostingsEnum[] postings;
-    private volatile TermStatistics[] termStatistics;
+    private final Supplier<TermStates[]> termContextsSupplier;
+    private final Supplier<PostingsEnum[]> postingsSupplier;
+    private final Supplier<StatsAccumulator> docFreqSupplier;
+    private final Supplier<StatsAccumulator> totalTermFreqSupplier;
 
     public ScriptTermStats(IndexSearcher searcher, LeafReaderContext leafReaderContext, Supplier<Integer> docIdSupplier, Set<Term> terms) {
         this.searcher = searcher;
         this.leafReaderContext = leafReaderContext;
         this.docIdSupplier = docIdSupplier;
         this.terms = terms.toArray(new Term[0]);
+        this.termContextsSupplier = CachedSupplier.wrap(this::loadTermContexts);
+        this.postingsSupplier = CachedSupplier.wrap(this::loadPostings);
+        this.docFreqSupplier = CachedSupplier.wrap(this::loadDocFreq);
+        this.totalTermFreqSupplier = CachedSupplier.wrap(this::loadTotalTermFreq);
     }
 
     /**
@@ -60,7 +67,7 @@ public class ScriptTermStats {
         int matchedTerms = 0;
 
         try {
-            for (PostingsEnum postingsEnum : postings()) {
+            for (PostingsEnum postingsEnum : postingsSupplier.get()) {
                 if (postingsEnum != null && postingsEnum.advance(docId) == docId && postingsEnum.freq() > 0) {
                     matchedTerms++;
                 }
@@ -77,17 +84,26 @@ public class ScriptTermStats {
      * @return statistics on docFreq for the terms of the query.
      */
     public StatsAccumulator docFreq() {
-        statsAccumulator.reset();
+        return docFreqSupplier.get();
+    }
+
+    private StatsAccumulator loadDocFreq() {
+        StatsAccumulator docFreqStats = new StatsAccumulator();
+        TermStates[] termContexts = termContextsSupplier.get();
 
         try {
-            for (TermStatistics termStats : termStatistics()) {
-                statsAccumulator.accept(termStats != null ? termStats.docFreq() : 0L);
+            for (int i = 0; i < termContexts.length; i++) {
+                try {
+                    docFreqStats.accept(termStatistics(terms[i], termContexts[i]).docFreq());
+                } catch (IllegalArgumentException e) {
+                    docFreqStats.accept(termContexts[i].docFreq());
+                }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
 
-        return statsAccumulator;
+        return docFreqStats;
     }
 
     /**
@@ -96,17 +112,26 @@ public class ScriptTermStats {
      * @return statistics on totalTermFreq for the terms of the query.
      */
     public StatsAccumulator totalTermFreq() {
-        statsAccumulator.reset();
+        return this.totalTermFreqSupplier.get();
+    }
+
+    private StatsAccumulator loadTotalTermFreq() {
+        StatsAccumulator totalTermFreqStats = new StatsAccumulator();
+        TermStates[] termContexts = termContextsSupplier.get();
 
         try {
-            for (TermStatistics termStats : termStatistics()) {
-                statsAccumulator.accept(termStats != null ? termStats.totalTermFreq() : 0L);
+            for (int i = 0; i < termContexts.length; i++) {
+                try {
+                    totalTermFreqStats.accept(termStatistics(terms[i], termContexts[i]).totalTermFreq());
+                } catch (IllegalArgumentException e) {
+                    totalTermFreqStats.accept(termContexts[i].totalTermFreq());
+                }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
 
-        return statsAccumulator;
+        return totalTermFreqStats;
     }
 
     /**
@@ -119,7 +144,7 @@ public class ScriptTermStats {
         final int docId = docIdSupplier.get();
 
         try {
-            for (PostingsEnum postingsEnum : postings()) {
+            for (PostingsEnum postingsEnum : postingsSupplier.get()) {
                 if (postingsEnum == null || postingsEnum.advance(docId) != docId) {
                     statsAccumulator.accept(0);
                 } else {
@@ -143,7 +168,7 @@ public class ScriptTermStats {
             statsAccumulator.reset();
             int docId = docIdSupplier.get();
 
-            for (PostingsEnum postingsEnum : postings()) {
+            for (PostingsEnum postingsEnum : postingsSupplier.get()) {
                 if (postingsEnum == null || postingsEnum.advance(docId) != docId) {
                     continue;
                 }
@@ -158,56 +183,51 @@ public class ScriptTermStats {
         }
     }
 
-    private TermStatistics[] termStatistics() throws IOException {
-        if (termStatistics == null) {
-            termStatistics = new TermStatistics[terms.length];
-
-            for (int i = 0; i < terms.length; i++) {
-                termStatistics[i] = loadTermStatistics(terms[i]);
-            }
-        }
-
-        return termStatistics;
-    }
-
-    private TermStatistics loadTermStatistics(Term term) throws IOException {
+    private TermStates[] loadTermContexts() {
         try {
-            TermStates termStates = TermStates.build(searcher, term, true);
-
-            // Using the searcher to get term statistics. If search_type is dfs, this is how the stats from the DFS phase are read.
-            return searcher.termStatistics(term, termStates.docFreq(), termStates.totalTermFreq());
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    private PostingsEnum[] postings() throws IOException {
-        if (postings == null) {
-            postings = new PostingsEnum[terms.length];
+            TermStates[] termContexts = new TermStates[terms.length];
 
             for (int i = 0; i < terms.length; i++) {
-                postings[i] = loadPostings(terms[i]);
+                termContexts[i] = TermStates.build(searcher, terms[i], true);
             }
-        }
 
-        return postings;
+            return termContexts;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
-    private PostingsEnum loadPostings(Term term) throws IOException {
-        TermStates termStates = TermStates.build(searcher, term, true);
+    private TermStatistics termStatistics(Term term, TermStates termStates) throws IOException {
+        return searcher.termStatistics(term, termStates.docFreq(), termStates.totalTermFreq());
+    }
 
-        if (termStates.docFreq() == 0) {
-            return null;
+    private PostingsEnum[] loadPostings() {
+        try {
+            PostingsEnum[] postings = new PostingsEnum[terms.length];
+            TermStates[] contexts = termContextsSupplier.get();
+
+            for (int i = 0; i < terms.length; i++) {
+                TermStates termStates = contexts[i];
+                if (termStates.docFreq() == 0) {
+                    postings[i] = null;
+                    continue;
+                }
+
+                TermState state = termStates.get(leafReaderContext);
+                if (state == null) {
+                    postings[i] = null;
+                    continue;
+                }
+
+                TermsEnum termsEnum = leafReaderContext.reader().terms(terms[i].field()).iterator();
+                termsEnum.seekExact(terms[i].bytes(), state);
+
+                postings[i] = termsEnum.postings(null, PostingsEnum.ALL);
+            }
+
+            return postings;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-
-        TermState state = termStates.get(leafReaderContext);
-        if (state == null) {
-            return null;
-        }
-
-        TermsEnum termsEnum = leafReaderContext.reader().terms(term.field()).iterator();
-        termsEnum.seekExact(term.bytes(), state);
-
-        return termsEnum.postings(null, PostingsEnum.ALL);
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.logging.LogManager;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 
@@ -31,6 +31,7 @@ import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
@@ -54,15 +55,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Supplier<TestCaseSupplier.TestCase> {
 
     private static final Logger logger = LogManager.getLogger(TestCaseSupplier.class);
-    /**
-     * Build a test case without types.
-     *
-     * @deprecated Supply types
-     */
-    @Deprecated
-    public TestCaseSupplier(String name, Supplier<TestCase> supplier) {
-        this(name, null, supplier);
-    }
 
     /**
      * Build a test case named after the types it takes.
@@ -635,6 +627,26 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
+     * Generate positive test cases for a unary function operating on an {@link DataType#DATE_NANOS}.
+     */
+    public static void forUnaryDateNanos(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            dateNanosCases(),
+            expectedType,
+            n -> expectedValue.apply(DateUtils.toInstant((long) n)),
+            warnings
+        );
+    }
+
+    /**
      * Generate positive test cases for a unary function operating on an {@link DataType#GEO_POINT}.
      */
     public static void forUnaryGeoPoint(
@@ -881,6 +893,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
+    /**
+     * Generate cases for {@link DataType#UNSIGNED_LONG}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#ulongCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> ulongCases(BigInteger min, BigInteger max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
@@ -1033,6 +1051,27 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Generate cases for {@link DataType#DATE_NANOS}.
+     *
+     */
+    public static List<TypedDataSupplier> dateNanosCases() {
+        return List.of(
+            new TypedDataSupplier("<1970-01-01T00:00:00.000000000Z>", () -> 0L, DataType.DATE_NANOS),
+            new TypedDataSupplier("<date nanos>", () -> ESTestCase.randomLongBetween(0, 10 * (long) 10e11), DataType.DATE_NANOS),
+            new TypedDataSupplier(
+                "<far future date nanos>",
+                () -> ESTestCase.randomLongBetween(10 * (long) 10e11, Long.MAX_VALUE),
+                DataType.DATE_NANOS
+            ),
+            new TypedDataSupplier(
+                "<nanos near the end of time>",
+                () -> ESTestCase.randomLongBetween(Long.MAX_VALUE / 100 * 99, Long.MAX_VALUE),
+                DataType.DATE_NANOS
+            )
+        );
+    }
+
     public static List<TypedDataSupplier> datePeriodCases() {
         return List.of(
             new TypedDataSupplier("<zero date period>", () -> Period.ZERO, DataType.DATE_PERIOD, true),
@@ -1077,12 +1116,24 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cartesianShapeCases(ESTestCase::randomBoolean);
     }
 
+    /**
+     * Generate cases for {@link DataType#GEO_POINT}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#geoPointCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> geoPointCases(Supplier<Boolean> hasAlt) {
         return List.of(
             new TypedDataSupplier("<geo_point>", () -> GEO.asWkb(GeometryTestUtils.randomPoint(hasAlt.get())), DataType.GEO_POINT)
         );
     }
 
+    /**
+     * Generate cases for {@link DataType#CARTESIAN_POINT}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#cartesianPointCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> cartesianPointCases(Supplier<Boolean> hasAlt) {
         return List.of(
             new TypedDataSupplier(
@@ -1131,6 +1182,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Generate cases for String DataTypes.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#stringCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> stringCases(DataType type) {
         List<TypedDataSupplier> result = new ArrayList<>();
         result.add(new TypedDataSupplier("<empty " + type + ">", () -> new BytesRef(""), type));
@@ -1159,6 +1216,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     /**
      * Supplier test case data for {@link Version} fields.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#versionCases}.
+     * </p>
      */
     public static List<TypedDataSupplier> versionCases(String prefix) {
         return List.of(
@@ -1279,11 +1339,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private final Class<? extends Throwable> foldingExceptionClass;
         private final String foldingExceptionMessage;
 
-        public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
+        public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<?> matcher) {
             this(data, equalTo(evaluatorToString), expectedType, matcher);
         }
 
-        public TestCase(List<TypedData> data, Matcher<String> evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
+        public TestCase(List<TypedData> data, Matcher<String> evaluatorToString, DataType expectedType, Matcher<?> matcher) {
             this(data, evaluatorToString, expectedType, matcher, null, null, null, null);
         }
 
@@ -1295,7 +1355,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             List<TypedData> data,
             Matcher<String> evaluatorToString,
             DataType expectedType,
-            Matcher<Object> matcher,
+            Matcher<?> matcher,
             String[] expectedWarnings,
             String expectedTypeError,
             Class<? extends Throwable> foldingExceptionClass,
@@ -1305,10 +1365,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.data = data;
             this.evaluatorToString = evaluatorToString;
             this.expectedType = expectedType;
-            this.matcher = matcher;
+            @SuppressWarnings("unchecked")
+            Matcher<Object> downcast = (Matcher<Object>) matcher;
+            this.matcher = downcast;
             this.expectedWarnings = expectedWarnings;
             this.expectedTypeError = expectedTypeError;
-            this.canBuildEvaluator = data.stream().allMatch(d -> d.forceLiteral || EsqlDataTypes.isRepresentable(d.type));
+            this.canBuildEvaluator = data.stream().allMatch(d -> d.forceLiteral || DataType.isRepresentable(d.type));
             this.foldingExceptionClass = foldingExceptionClass;
             this.foldingExceptionMessage = foldingExceptionMessage;
         }
@@ -1427,6 +1489,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      */
     public static class TypedData {
         public static final TypedData NULL = new TypedData(null, DataType.NULL, "<null>");
+        public static final TypedData MULTI_ROW_NULL = TypedData.multiRow(Collections.singletonList(null), DataType.NULL, "<null>");
 
         private final Object data;
         private final DataType type;
@@ -1555,7 +1618,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     throw new IllegalStateException("Multirow values require exactly 1 element to be a literal, got " + values.size());
                 }
 
-                return new Literal(Source.synthetic(name), values, type);
+                return new Literal(Source.synthetic(name), values.get(0), type);
             }
             return new Literal(Source.synthetic(name), data, type);
         }

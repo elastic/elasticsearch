@@ -38,7 +38,9 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -94,6 +96,29 @@ public class CodecTests extends ESTestCase {
             w.addDocument(doc);
             try (DirectoryReader r = DirectoryReader.open(w)) {}
         }
+    }
+
+    public void testCodecRetrievalForUnknownCodec() throws Exception {
+        CodecService codecService = createCodecService();
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> codecService.codec("unknown_codec"));
+        assertEquals("failed to find codec [unknown_codec]", exception.getMessage());
+    }
+
+    public void testAvailableCodecsContainsExpectedCodecs() throws Exception {
+        CodecService codecService = createCodecService();
+        String[] availableCodecs = codecService.availableCodecs();
+        List<String> codecList = Arrays.asList(availableCodecs);
+        int expectedCodecCount = Codec.availableCodecs().size() + 5;
+
+        assertTrue(codecList.contains(CodecService.DEFAULT_CODEC));
+        assertTrue(codecList.contains(CodecService.LEGACY_DEFAULT_CODEC));
+        assertTrue(codecList.contains(CodecService.BEST_COMPRESSION_CODEC));
+        assertTrue(codecList.contains(CodecService.LEGACY_BEST_COMPRESSION_CODEC));
+        assertTrue(codecList.contains(CodecService.LUCENE_DEFAULT_CODEC));
+
+        assertFalse(codecList.contains("unknown_codec"));
+
+        assertEquals(expectedCodecCount, availableCodecs.length);
     }
 
     private CodecService createCodecService() throws IOException {

@@ -483,7 +483,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         SubscribableListener
 
             .<Void>newForked(l -> putShutdownMetadata(clusterService, shutdownMetadata, nodeName, l))
-            .<Void>andThen((l, ignored) -> flushMasterQueue(clusterService, l))
+            .<Void>andThen(l -> flushMasterQueue(clusterService, l))
             .addListener(listener);
     }
 

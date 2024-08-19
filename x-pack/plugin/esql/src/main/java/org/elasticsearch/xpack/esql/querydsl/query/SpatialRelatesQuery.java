@@ -34,7 +34,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -57,7 +56,7 @@ public class SpatialRelatesQuery extends Query {
 
     @Override
     public QueryBuilder asBuilder() {
-        return EsqlDataTypes.isSpatialGeo(dataType) ? new GeoShapeQueryBuilder() : new CartesianShapeQueryBuilder();
+        return DataType.isSpatialGeo(dataType) ? new GeoShapeQueryBuilder() : new CartesianShapeQueryBuilder();
     }
 
     @Override

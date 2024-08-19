@@ -21,7 +21,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -213,6 +213,11 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 searchRequest.getMaxConcurrentShardRequests(),
                 clusters
             ) {
+                @Override
+                protected String missingShardsErrorMessage(StringBuilder missingShards) {
+                    return "[open_point_in_time] action requires all shards to be available. Missing shards: [" + missingShards + "]";
+                }
+
                 @Override
                 protected void executePhaseOnShard(
                     SearchShardIterator shardIt,

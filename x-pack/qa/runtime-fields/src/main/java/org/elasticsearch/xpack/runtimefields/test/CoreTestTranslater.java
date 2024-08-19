@@ -341,7 +341,7 @@ public abstract class CoreTestTranslater {
                     try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, bos)) {
                         b.map(body);
                     }
-                    bos.write(JsonXContent.jsonXContent.streamSeparator());
+                    bos.write(JsonXContent.jsonXContent.bulkSeparator());
                 }
                 List<IndexRequest> indexRequests = new ArrayList<>();
                 new BulkRequestParser(false, RestApiVersion.current()).parse(

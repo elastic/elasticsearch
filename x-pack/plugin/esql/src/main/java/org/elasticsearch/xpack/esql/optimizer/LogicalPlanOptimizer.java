@@ -18,15 +18,17 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.rules.AddDefaultTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanSimplification;
-import org.elasticsearch.xpack.esql.optimizer.rules.CombineDisjunctionsToIn;
+import org.elasticsearch.xpack.esql.optimizer.rules.CombineBinaryComparisons;
+import org.elasticsearch.xpack.esql.optimizer.rules.CombineDisjunctions;
 import org.elasticsearch.xpack.esql.optimizer.rules.CombineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.ConstantFolding;
@@ -76,7 +78,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -207,8 +208,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PropagateEquals(),
             new PropagateNullable(),
             new BooleanFunctionEqualsElimination(),
-            new CombineDisjunctionsToIn(),
-            new SimplifyComparisonsArithmetics(EsqlDataTypes::areCompatible),
+            new CombineBinaryComparisons(),
+            new CombineDisjunctions(),
+            new SimplifyComparisonsArithmetics(DataType::areCompatible),
             // prune/elimination
             new PruneFilters(),
             new PruneColumns(),
@@ -334,7 +336,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                         new Alias(
                             originalAttribute.source(),
                             originalAttribute.name(),
-                            originalAttribute.qualifier(),
                             renamedAttribute,
                             originalAttribute.id(),
                             originalAttribute.synthetic()
@@ -373,7 +374,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                         String tempName = locallyUniqueTemporaryName(a.name(), "temp_name");
                         // TODO: this should be synthetic
                         // blocked on https://github.com/elastic/elasticsearch/issues/98703
-                        return new Alias(a.source(), tempName, null, a, null, false);
+                        return new Alias(a.source(), tempName, a, null, false);
                     });
                     return renamedAttribute.toAttribute();
                 }

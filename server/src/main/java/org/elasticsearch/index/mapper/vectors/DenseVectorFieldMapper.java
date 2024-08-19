@@ -937,8 +937,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void checkDimensions(int dvDims, int qvDims) {
-                if (dvDims != qvDims * Byte.SIZE) {
+            public void checkDimensions(Integer dvDims, int qvDims) {
+                if (dvDims != null && dvDims != qvDims * Byte.SIZE) {
                     throw new IllegalArgumentException(
                         "The query vector has a different number of dimensions ["
                             + qvDims * Byte.SIZE
@@ -972,8 +972,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float squaredMagnitude
         );
 
-        public void checkDimensions(int dvDims, int qvDims) {
-            if (dvDims != qvDims) {
+        public void checkDimensions(Integer dvDims, int qvDims) {
+            if (dvDims != null && dvDims != qvDims) {
                 throw new IllegalArgumentException(
                     "The query vector has a different number of dimensions [" + qvDims + "] than the document vectors [" + dvDims + "]."
                 );
@@ -1789,17 +1789,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
-        public Query createExactKnnQuery(VectorData queryVector) {
+        public Query createExactKnnQuery(VectorData queryVector, Float vectorSimilarity) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
-            return switch (elementType) {
+            Query knnQuery = switch (elementType) {
                 case BYTE -> createExactKnnByteQuery(queryVector.asByteVector());
                 case FLOAT -> createExactKnnFloatQuery(queryVector.asFloatVector());
                 case BIT -> createExactKnnBitQuery(queryVector.asByteVector());
             };
+            if (vectorSimilarity != null) {
+                knnQuery = new VectorSimilarityQuery(knnQuery, vectorSimilarity, similarity.score(vectorSimilarity, elementType, dims));
+            }
+            return knnQuery;
         }
 
         private Query createExactKnnBitQuery(byte[] queryVector) {

@@ -13,7 +13,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.FieldSortBuilder;

@@ -38,6 +38,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static java.net.HttpURLConnection.HTTP_MOVED_PERM;
@@ -66,15 +68,19 @@ final class ModelLoaderUtils {
         private final InputStream inputStream;
         private final MessageDigest digestSha256 = MessageDigests.sha256();
         private final int chunkSize;
+        private final int totalParts;
+        private final AtomicLong totalBytesRead = new AtomicLong();
+        private final AtomicInteger currentPart = new AtomicInteger(-1);
 
-        private long totalBytesRead = 0;
-
-        InputStreamChunker(InputStream inputStream, int chunkSize) {
+        InputStreamChunker(InputStream inputStream, int chunkSize, int totalParts) {
             this.inputStream = inputStream;
             this.chunkSize = chunkSize;
+            this.totalParts = totalParts;
         }
 
         public BytesArray next() throws IOException {
+            currentPart.incrementAndGet();
+
             int bytesRead = 0;
             byte[] buf = new byte[chunkSize];
 
@@ -87,9 +93,13 @@ final class ModelLoaderUtils {
                 bytesRead += read;
             }
             digestSha256.update(buf, 0, bytesRead);
-            totalBytesRead += bytesRead;
+            totalBytesRead.addAndGet(bytesRead);
 
             return new BytesArray(buf, 0, bytesRead);
+        }
+
+        public boolean isFinalPart() {
+            return currentPart.get() == totalParts - 1;
         }
 
         public String getSha256() {
@@ -97,7 +107,15 @@ final class ModelLoaderUtils {
         }
 
         public long getTotalBytesRead() {
-            return totalBytesRead;
+            return totalBytesRead.get();
+        }
+
+        public int getTotalParts() {
+            return totalParts;
+        }
+
+        public AtomicInteger getCurrentPart() {
+            return currentPart;
         }
     }
 

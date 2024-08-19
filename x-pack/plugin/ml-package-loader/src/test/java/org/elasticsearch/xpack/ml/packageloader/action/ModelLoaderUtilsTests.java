@@ -80,13 +80,13 @@ public class ModelLoaderUtilsTests extends ESTestCase {
         assertEquals(64, expectedDigest.length());
 
         int chunkSize = randomIntBetween(100, 10_000);
+        int totalParts = (bytes.length + chunkSize - 1) / chunkSize;
 
         ModelLoaderUtils.InputStreamChunker inputStreamChunker = new ModelLoaderUtils.InputStreamChunker(
             new ByteArrayInputStream(bytes),
-            chunkSize
+            chunkSize,
+            totalParts
         );
-
-        int totalParts = (bytes.length + chunkSize - 1) / chunkSize;
 
         for (int part = 0; part < totalParts - 1; ++part) {
             assertEquals(chunkSize, inputStreamChunker.next().length());

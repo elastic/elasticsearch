@@ -17,6 +17,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -27,12 +28,12 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -470,15 +471,16 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                  */
                 return false;
             }
-            if (false == (request instanceof IndicesRequest)) {
+
+            if (MasterNodeRequestHelper.unwrapTermOverride(request) instanceof IndicesRequest indicesRequest) {
+                /*
+                 * When the API Tasks API makes an indices request it only every
+                 * targets the .tasks index. Other requests come from the tests.
+                 */
+                return Arrays.equals(new String[] { ".tasks" }, indicesRequest.indices());
+            } else {
                 return false;
             }
-            IndicesRequest ir = (IndicesRequest) request;
-            /*
-             * When the API Tasks API makes an indices request it only every
-             * targets the .tasks index. Other requests come from the tests.
-             */
-            return Arrays.equals(new String[] { ".tasks" }, ir.indices());
         }
     }
 }

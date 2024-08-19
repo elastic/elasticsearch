@@ -884,6 +884,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return Collections.unmodifiableMap(this.nodeFeatures);
         }
 
+        public Builder putNodeFeatures(String node, Set<String> features) {
+            this.nodeFeatures.put(node, features);
+            return this;
+        }
+
         public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
             return routingTable(routingTableBuilder.build());
         }

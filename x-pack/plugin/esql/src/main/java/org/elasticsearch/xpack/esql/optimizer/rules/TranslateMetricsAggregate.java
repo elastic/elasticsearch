@@ -16,15 +16,16 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -80,7 +81,39 @@ import java.util.stream.Stream;
  * | EVAL `avg(rate(request))` = `sum(rate(request))` / `count(rate(request))`
  * | KEEP `avg(rate(request))`, host, `bucket(@timestamp, 1minute)`
  * </pre>
- * Mixing between rate and non-rate aggregates will be supported later.
+ *
+ * Non-rate aggregates will be rewritten as a pair of to_partial and from_partial aggregates, where the `to_partial`
+ * aggregates will be executed in the first pass and always produce an intermediate output regardless of the aggregate
+ * mode. The `from_partial` aggregates will be executed on the second pass and always receive intermediate output
+ * produced by `to_partial`. Examples:
+ *
+ * <pre>
+ * METRICS k8s max(rate(request)), max(memory_used) becomes:
+ *
+ * METRICS k8s
+ * | STATS rate(request), $p1=to_partial(max(memory_used)) BY _tsid
+ * | STATS max(`rate(request)`), `max(memory_used)` = from_partial($p1, max($_))
+ *
+ * METRICS k8s max(rate(request)) avg(memory_used) BY host
+ *
+ * becomes
+ *
+ * METRICS k8s
+ * | STATS rate(request), $p1=to_partial(sum(memory_used)), $p2=to_partial(count(memory_used)), VALUES(host) BY _tsid
+ * | STATS max(`rate(request)`), $sum=from_partial($p1, sum($_)), $count=from_partial($p2, count($_)) BY host=`VALUES(host)`
+ * | EVAL `avg(memory_used)` = $sum / $count
+ * | KEEP `max(rate(request))`, `avg(memory_used)`, host
+ *
+ * METRICS k8s min(memory_used) sum(rate(request)) BY pod, bucket(@timestamp, 5m)
+ *
+ * becomes
+ *
+ * METRICS k8s
+ * | EVAL `bucket(@timestamp, 5m)` = datetrunc(@timestamp, '5m')
+ * | STATS rate(request), $p1=to_partial(min(memory_used)), VALUES(pod) BY _tsid, `bucket(@timestamp, 5m)`
+ * | STATS sum(`rate(request)`), `min(memory_used)` = from_partial($p1, min($)) BY pod=`VALUES(pod)`, `bucket(@timestamp, 5m)`
+ * | KEEP `min(memory_used)`, `sum(rate(request))`, pod, `bucket(@timestamp, 5m)`
+ * </pre>
  */
 public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRule<Aggregate> {
 
@@ -98,33 +131,33 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
     }
 
     LogicalPlan translate(Aggregate metrics) {
-        Map<Rate, Alias> rateAggs = new HashMap<>(); // TODO
-        List<NamedExpression> nonRateAggs = new ArrayList<>();
-        List<Alias> outerRateAggs = new ArrayList<>();
+        Map<Rate, Alias> rateAggs = new HashMap<>();
+        List<NamedExpression> firstPassAggs = new ArrayList<>();
+        List<NamedExpression> secondPassAggs = new ArrayList<>();
         for (NamedExpression agg : metrics.aggregates()) {
-            if (agg instanceof Alias alias) {
-                // METRICS af(rate(counter)) becomes STATS $rate_1=rate(counter) | STATS `af(rate(counter))`=af($rate_1)
-                if (alias.child() instanceof AggregateFunction outerRate) {
-                    Holder<Boolean> changed = new Holder<>(Boolean.FALSE);
-                    Expression outerAgg = outerRate.transformDown(Rate.class, rate -> {
-                        changed.set(Boolean.TRUE);
-                        Alias rateAgg = rateAggs.computeIfAbsent(rate, k -> new Alias(rate.source(), agg.name(), rate));
-                        return rateAgg.toAttribute();
+            if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
+                Holder<Boolean> changed = new Holder<>(Boolean.FALSE);
+                Expression outerAgg = af.transformDown(Rate.class, rate -> {
+                    changed.set(Boolean.TRUE);
+                    Alias rateAgg = rateAggs.computeIfAbsent(rate, k -> {
+                        Alias newRateAgg = new Alias(rate.source(), agg.name(), rate);
+                        firstPassAggs.add(newRateAgg);
+                        return newRateAgg;
                     });
-                    if (changed.get()) {
-                        outerRateAggs.add(new Alias(alias.source(), alias.name(), null, outerAgg, agg.id()));
-                    }
+                    return rateAgg.toAttribute();
+                });
+                if (changed.get()) {
+                    secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
                 } else {
-                    nonRateAggs.add(agg);
+                    var toPartial = new Alias(agg.source(), alias.name(), new ToPartial(agg.source(), af.field(), af));
+                    var fromPartial = new FromPartial(agg.source(), toPartial.toAttribute(), af);
+                    firstPassAggs.add(toPartial);
+                    secondPassAggs.add(new Alias(alias.source(), alias.name(), fromPartial, alias.id()));
                 }
             }
         }
         if (rateAggs.isEmpty()) {
             return toStandardAggregate(metrics);
-        }
-        if (nonRateAggs.isEmpty() == false) {
-            // TODO: support this
-            throw new IllegalArgumentException("regular aggregates with rate aggregates are not supported yet");
         }
         Holder<Attribute> tsid = new Holder<>();
         Holder<Attribute> timestamp = new Holder<>();
@@ -142,9 +175,9 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
             throw new IllegalArgumentException("_tsid or @timestamp field are missing from the metrics source");
         }
         // metrics aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
-        List<Expression> initialGroupings = new ArrayList<>();
-        initialGroupings.add(tsid.get());
-        List<Expression> finalGroupings = new ArrayList<>();
+        List<Expression> firstPassGroupings = new ArrayList<>();
+        firstPassGroupings.add(tsid.get());
+        List<Expression> secondPassGroupings = new ArrayList<>();
         Holder<NamedExpression> timeBucketRef = new Holder<>();
         metrics.child().forEachExpressionUp(NamedExpression.class, e -> {
             for (Expression child : e.children()) {
@@ -157,7 +190,6 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
             }
         });
         NamedExpression timeBucket = timeBucketRef.get();
-        List<NamedExpression> initialAggs = new ArrayList<>(rateAggs.values());
         for (Expression group : metrics.groupings()) {
             if (group instanceof Attribute == false) {
                 throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
@@ -166,19 +198,18 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
             final NamedExpression newFinalGroup;
             if (timeBucket != null && g.id().equals(timeBucket.id())) {
                 newFinalGroup = timeBucket.toAttribute();
-                initialGroupings.add(newFinalGroup);
+                firstPassGroupings.add(newFinalGroup);
             } else {
-                newFinalGroup = new Alias(g.source(), g.name(), null, new Values(g.source(), g), g.id());
-                initialAggs.add(newFinalGroup);
+                newFinalGroup = new Alias(g.source(), g.name(), new Values(g.source(), g), g.id());
+                firstPassAggs.add(newFinalGroup);
             }
-            finalGroupings.add(new Alias(g.source(), g.name(), null, newFinalGroup.toAttribute(), g.id()));
+            secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
         }
-        var finalAggregates = Stream.concat(outerRateAggs.stream(), nonRateAggs.stream()).toList();
         return newAggregate(
-            newAggregate(metrics.child(), Aggregate.AggregateType.METRICS, initialAggs, initialGroupings),
+            newAggregate(metrics.child(), Aggregate.AggregateType.METRICS, firstPassAggs, firstPassGroupings),
             Aggregate.AggregateType.STANDARD,
-            finalAggregates,
-            finalGroupings
+            secondPassAggs,
+            secondPassGroupings
         );
     }
 
@@ -186,7 +217,7 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
         final LogicalPlan child = metrics.child().transformDown(EsRelation.class, r -> {
             var attributes = new ArrayList<>(new AttributeSet(metrics.inputSet()));
             attributes.removeIf(a -> a.name().equals(MetadataAttribute.TSID_FIELD));
-            if (attributes.stream().noneMatch(a -> a.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) == false) {
+            if (attributes.stream().noneMatch(a -> a.name().equals(MetadataAttribute.TIMESTAMP_FIELD))) {
                 attributes.removeIf(a -> a.name().equals(MetadataAttribute.TIMESTAMP_FIELD));
             }
             return new EsRelation(r.source(), r.index(), new ArrayList<>(attributes), IndexMode.STANDARD);

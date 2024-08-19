@@ -10,13 +10,16 @@ package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -33,10 +36,16 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
+import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTaskWithId;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
+
+    private static boolean includeSha256(TransportVersion version) {
+        return version.isPatchFrom(TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER_BACKPORT_8_15)
+            || version.onOrAfter(TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER);
+    }
 
     private static final ParseField DATABASES = new ParseField("databases");
 
@@ -67,7 +76,16 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
     }
 
     GeoIpTaskState(StreamInput input) throws IOException {
-        databases = input.readImmutableMap(in -> new Metadata(in.readLong(), in.readVInt(), in.readVInt(), in.readString(), in.readLong()));
+        databases = input.readImmutableMap(
+            in -> new Metadata(
+                in.readLong(),
+                in.readVInt(),
+                in.readVInt(),
+                in.readString(),
+                in.readLong(),
+                includeSha256(in.getTransportVersion()) ? input.readOptionalString() : null
+            )
+        );
     }
 
     public GeoIpTaskState put(String name, Metadata metadata) {
@@ -78,14 +96,6 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
     public Map<String, Metadata> getDatabases() {
         return databases;
-    }
-
-    public boolean contains(String name) {
-        return databases.containsKey(name);
-    }
-
-    public Metadata get(String name) {
-        return databases.get(name);
     }
 
     @Override
@@ -133,17 +143,29 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             o.writeVInt(v.lastChunk);
             o.writeString(v.md5);
             o.writeLong(v.lastCheck);
+            if (includeSha256(o.getTransportVersion())) {
+                o.writeOptionalString(v.sha256);
+            }
         });
     }
 
-    record Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, long lastCheck) implements ToXContentObject {
+    record Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, long lastCheck, @Nullable String sha256)
+        implements
+            ToXContentObject {
 
-        static final String NAME = GEOIP_DOWNLOADER + "-metadata";
+        /**
+         * An empty Metadata object useful for getOrDefault -type calls. Crucially, the 'lastChunk' is -1, so it's safe to use
+         * with logic that says the new firstChunk is the old lastChunk + 1.
+         */
+        static Metadata EMPTY = new Metadata(-1, -1, -1, "", -1, null);
+
+        private static final String NAME = GEOIP_DOWNLOADER + "-metadata";
         private static final ParseField LAST_CHECK = new ParseField("last_check");
         private static final ParseField LAST_UPDATE = new ParseField("last_update");
         private static final ParseField FIRST_CHUNK = new ParseField("first_chunk");
         private static final ParseField LAST_CHUNK = new ParseField("last_chunk");
         private static final ParseField MD5 = new ParseField("md5");
+        private static final ParseField SHA256 = new ParseField("sha256");
 
         private static final ConstructingObjectParser<Metadata, Void> PARSER = new ConstructingObjectParser<>(
             NAME,
@@ -153,7 +175,8 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
                 (int) args[1],
                 (int) args[2],
                 (String) args[3],
-                (long) (args[4] == null ? args[0] : args[4])
+                (long) (args[4] == null ? args[0] : args[4]),
+                (String) args[5]
             )
         );
 
@@ -163,6 +186,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             PARSER.declareInt(constructorArg(), LAST_CHUNK);
             PARSER.declareString(constructorArg(), MD5);
             PARSER.declareLong(optionalConstructorArg(), LAST_CHECK);
+            PARSER.declareString(optionalConstructorArg(), SHA256);
         }
 
         public static Metadata fromXContent(XContentParser parser) {
@@ -177,11 +201,15 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             Objects.requireNonNull(md5);
         }
 
+        Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, long lastCheck) {
+            this(lastUpdate, firstChunk, lastChunk, md5, lastCheck, null);
+        }
+
         public boolean isCloseToExpiration() {
             return Instant.ofEpochMilli(lastCheck).isBefore(Instant.now().minus(25, ChronoUnit.DAYS));
         }
 
-        public boolean isValid(Settings settings) {
+        public boolean isNewEnough(Settings settings) {
             TimeValue valid = settings.getAsTime("ingest.geoip.database_validity", TimeValue.timeValueDays(30));
             return Instant.ofEpochMilli(lastCheck).isAfter(Instant.now().minus(valid.getMillis(), ChronoUnit.MILLIS));
         }
@@ -195,9 +223,26 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
                 builder.field(FIRST_CHUNK.getPreferredName(), firstChunk);
                 builder.field(LAST_CHUNK.getPreferredName(), lastChunk);
                 builder.field(MD5.getPreferredName(), md5);
+                if (sha256 != null) { // only serialize if not null, for prettiness reasons
+                    builder.field(SHA256.getPreferredName(), sha256);
+                }
             }
             builder.endObject();
             return builder;
         }
     }
+
+    /**
+     * Retrieves the geoip downloader's task state from the cluster state. This may return null in some circumstances,
+     * for example if the geoip downloader task hasn't been created yet (which it wouldn't be if it's disabled).
+     *
+     * @param state the cluster state to read the task state from
+     * @return the geoip downloader's task state or null if there is not a state to read
+     */
+    @Nullable
+    static GeoIpTaskState getGeoIpTaskState(ClusterState state) {
+        PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(state, GeoIpDownloader.GEOIP_DOWNLOADER);
+        return (task == null) ? null : (GeoIpTaskState) task.getState();
+    }
+
 }

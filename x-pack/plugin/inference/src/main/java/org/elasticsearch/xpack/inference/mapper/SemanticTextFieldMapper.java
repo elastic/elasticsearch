@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
@@ -152,6 +154,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support multi-fields");
             }
             final String fullName = context.buildFullName(leafName());
+
+            if (context.isInNestedContext()) {
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + fullName + "] cannot be nested");
+            }
             var childContext = context.createChildContext(leafName(), ObjectMapper.Dynamic.FALSE);
             final ObjectMapper inferenceField = inferenceFieldBuilder.apply(childContext);
             return new SemanticTextFieldMapper(
@@ -315,7 +321,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             IndexVersion indexVersionCreated,
             Map<String, String> meta
         ) {
-            super(name, false, false, false, TextSearchInfo.NONE, meta);
+            super(name, true, false, false, TextSearchInfo.NONE, meta);
             this.inferenceId = inferenceId;
             this.modelSettings = modelSettings;
             this.inferenceField = inferenceField;
@@ -353,6 +359,21 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
 
         @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            if (getEmbeddingsField() == null) {
+                return new MatchNoDocsQuery();
+            }
+
+            return NestedQueryBuilder.toQuery(
+                (c -> getEmbeddingsField().fieldType().existsQuery(c)),
+                getChunksFieldName(name()),
+                ScoreMode.None,
+                false,
+                context
+            );
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // Redirect the fetcher to load the original values of the field
             return SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, format);
@@ -361,6 +382,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
+        }
+
+        @Override
+        public boolean fieldHasValue(FieldInfos fieldInfos) {
+            return fieldInfos.fieldInfo(getEmbeddingsFieldName(name())) != null;
         }
 
         public QueryBuilder semanticQuery(InferenceResults inferenceResults, float boost, String queryName) {
@@ -427,7 +453,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             );
                         }
 
-                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null);
+                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null, null);
                     }
                     default -> throw new IllegalStateException(
                         "Field ["
@@ -478,6 +504,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     CHUNKED_EMBEDDINGS_FIELD,
                     indexVersionCreated
                 );
+
                 SimilarityMeasure similarity = modelSettings.similarity();
                 if (similarity != null) {
                     switch (similarity) {
@@ -490,6 +517,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     }
                 }
                 denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
+                denseVectorMapperBuilder.elementType(modelSettings.elementType());
+
                 yield denseVectorMapperBuilder;
             }
             default -> throw new IllegalArgumentException("Invalid task_type in model_settings [" + modelSettings.taskType().name() + "]");

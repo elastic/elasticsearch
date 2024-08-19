@@ -43,6 +43,7 @@ processingCommand
     | grokCommand
     | enrichCommand
     | mvExpandCommand
+    | matchCommand
     ;
 
 whereCommand
@@ -53,6 +54,7 @@ booleanExpression
     : NOT booleanExpression                                                      #logicalNot
     | valueExpression                                                            #booleanDefault
     | regexBooleanExpression                                                     #regexExpression
+    | matchBooleanExpression                                                     #matchExpression
     | left=booleanExpression operator=AND right=booleanExpression                #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
@@ -62,6 +64,10 @@ booleanExpression
 regexBooleanExpression
     : valueExpression (NOT)? kind=LIKE pattern=string
     | valueExpression (NOT)? kind=RLIKE pattern=string
+    ;
+
+matchBooleanExpression
+    : qualifiedName MATCH_OPERATOR queryString=string
     ;
 
 valueExpression
@@ -106,11 +112,21 @@ field
     ;
 
 fromCommand
-    : FROM indexIdentifier (COMMA indexIdentifier)* metadata?
+    : FROM indexPattern (COMMA indexPattern)* metadata?
     ;
 
-indexIdentifier
-    : INDEX_UNQUOTED_IDENTIFIER
+indexPattern
+    : clusterString COLON indexString
+    | indexString
+    ;
+
+clusterString
+    : UNQUOTED_SOURCE
+    ;
+
+indexString
+    : UNQUOTED_SOURCE
+    | QUOTED_STRING
     ;
 
 metadata
@@ -119,7 +135,7 @@ metadata
     ;
 
 metadataOption
-    : METADATA indexIdentifier (COMMA indexIdentifier)*
+    : METADATA UNQUOTED_SOURCE (COMMA UNQUOTED_SOURCE)*
     ;
 
 deprecated_metadata
@@ -127,7 +143,7 @@ deprecated_metadata
     ;
 
 metricsCommand
-    : METRICS indexIdentifier (COMMA indexIdentifier)* aggregates=fields? (BY grouping=fields)?
+    : METRICS indexPattern (COMMA indexPattern)* aggregates=fields? (BY grouping=fields)?
     ;
 
 evalCommand
@@ -280,5 +296,13 @@ enrichWithClause
     ;
 
 lookupCommand
-    : LOOKUP tableName=INDEX_UNQUOTED_IDENTIFIER ON matchFields=qualifiedNamePatterns
+    : LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
+    ;
+
+matchCommand
+    : MATCH matchQuery
+    ;
+
+matchQuery
+    : QUOTED_STRING
     ;

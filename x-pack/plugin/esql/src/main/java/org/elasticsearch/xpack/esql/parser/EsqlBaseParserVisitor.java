@@ -49,6 +49,13 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitWhereCommand(EsqlBaseParser.WhereCommandContext ctx);
   /**
+   * Visit a parse tree produced by the {@code matchExpression}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchExpression(EsqlBaseParser.MatchExpressionContext ctx);
+  /**
    * Visit a parse tree produced by the {@code logicalNot}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -96,6 +103,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx);
   /**
    * Visit a parse tree produced by the {@code valueExpressionDefault}
    * labeled alternative in {@link EsqlBaseParser#valueExpression}.
@@ -204,11 +217,23 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFromCommand(EsqlBaseParser.FromCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#indexIdentifier}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#indexPattern}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitIndexIdentifier(EsqlBaseParser.IndexIdentifierContext ctx);
+  T visitIndexPattern(EsqlBaseParser.IndexPatternContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#clusterString}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitClusterString(EsqlBaseParser.ClusterStringContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#indexString}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIndexString(EsqlBaseParser.IndexStringContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#metadata}.
    * @param ctx the parse tree
@@ -517,4 +542,16 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchCommand(EsqlBaseParser.MatchCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchQuery}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchQuery(EsqlBaseParser.MatchQueryContext ctx);
 }

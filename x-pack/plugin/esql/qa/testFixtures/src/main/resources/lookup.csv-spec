@@ -16,20 +16,20 @@ emp_no:integer | languages:integer | lang_name:keyword
          10004 |                 5 | five
 ;
 
-keywordByMvInt
+keywordByMvIntAndQuotedSource
 required_capability: lookup_v4
 ROW int=[1, 2, 3]
-| LOOKUP int_number_names ON int
+| LOOKUP "int_number_names" ON int
 ;
 
 int:integer | name:keyword
   [1, 2, 3] | [one, two, three]
 ;
 
-keywordByDupeInt
+keywordByDupeIntAndTripleQuotedSource
 required_capability: lookup_v4
 ROW int=[1, 1, 1]
-| LOOKUP int_number_names ON int
+| LOOKUP """int_number_names""" ON int
 ;
 
 int:integer | name:keyword

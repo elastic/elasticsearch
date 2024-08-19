@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreDefinition;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -179,6 +180,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
         IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,
         IndexSettings.PREFER_ILM_SETTING,
+        DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

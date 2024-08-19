@@ -22,8 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -70,17 +68,17 @@ public class Replace extends EsqlScalarFunction {
     private Replace(StreamInput in) throws IOException {
         this(
             Source.EMPTY,
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression()
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeExpression(str);
-        ((PlanStreamOutput) out).writeExpression(regex);
-        ((PlanStreamOutput) out).writeExpression(newStr);
+        out.writeNamedWriteable(str);
+        out.writeNamedWriteable(regex);
+        out.writeNamedWriteable(newStr);
     }
 
     @Override

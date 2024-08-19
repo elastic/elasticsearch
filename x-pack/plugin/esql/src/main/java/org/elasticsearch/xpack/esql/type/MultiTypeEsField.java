@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -46,8 +45,7 @@ public class MultiTypeEsField extends EsField {
     }
 
     public MultiTypeEsField(StreamInput in) throws IOException {
-        // TODO: Change the conversion expression serialization to i.readNamedWriteable(Expression.class) once Expression is fully supported
-        this(in.readString(), DataType.readFrom(in), in.readBoolean(), in.readImmutableMap(i -> ((PlanStreamInput) i).readExpression()));
+        this(in.readString(), DataType.readFrom(in), in.readBoolean(), in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)));
     }
 
     @Override

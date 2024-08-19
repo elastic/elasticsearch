@@ -1,5 +1,0 @@
-pr: 107426
-summary: Support wait indefinitely for search tasks to complete on node shutdown
-area: Infra/Node Lifecycle
-type: bug
-issues: []

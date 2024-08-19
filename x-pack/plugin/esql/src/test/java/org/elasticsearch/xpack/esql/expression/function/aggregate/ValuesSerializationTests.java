@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
-import java.util.List;
 
 public class ValuesSerializationTests extends AbstractExpressionSerializationTests<Values> {
     @Override
@@ -22,11 +20,6 @@ public class ValuesSerializationTests extends AbstractExpressionSerializationTes
     @Override
     protected Values mutateInstance(Values instance) throws IOException {
         return new Values(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
-    }
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return AggregateFunction.getNamedWriteables();
     }
 
     @Override

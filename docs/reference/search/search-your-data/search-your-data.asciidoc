@@ -45,7 +45,7 @@ results directly in the Kibana Search UI.
 include::search-api.asciidoc[]
 include::knn-search.asciidoc[]
 include::semantic-search.asciidoc[]
-include::retrievers-overview.asciidoc[]
+include::retrievers-reranking/index.asciidoc[]
 include::learning-to-rank.asciidoc[]
 include::search-across-clusters.asciidoc[]
 include::search-with-synonyms.asciidoc[]

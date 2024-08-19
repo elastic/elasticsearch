@@ -1,0 +1,6 @@
+pr: 110986
+summary: Fix unnecessary mustache template evaluation
+area: Ingest Node
+type: enhancement
+issues:
+  - 110191

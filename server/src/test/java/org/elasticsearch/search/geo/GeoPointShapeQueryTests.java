@@ -37,7 +37,7 @@ public class GeoPointShapeQueryTests extends BasePointShapeQueryTestCase<GeoShap
 
     @Override
     protected String fieldTypeName() {
-        return "geo_shape";
+        return "keyword";
     }
 
     @Override

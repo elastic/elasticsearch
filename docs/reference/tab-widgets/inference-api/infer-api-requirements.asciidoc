@@ -5,6 +5,13 @@ the Cohere service.
 
 // end::cohere[]
 
+// tag::elser[]
+
+ELSER is a model trained by Elastic. If you have an {es} deployment, there is no
+further requirement for using the {infer} API with the `elser` service.
+
+// end::elser[]
+
 // tag::hugging-face[]
 
 A https://huggingface.co/[HuggingFace account] is required to use the {infer}
@@ -39,3 +46,9 @@ You can apply for access to Azure OpenAI by completing the form at https://aka.m
 * An API key generated for your account
 
 // end::mistral[]
+
+// tag::amazon-bedrock[]
+* An AWS Account with https://aws.amazon.com/bedrock/[Amazon Bedrock] access
+* A pair of access and secret keys used to access Amazon Bedrock
+
+// end::amazon-bedrock[]

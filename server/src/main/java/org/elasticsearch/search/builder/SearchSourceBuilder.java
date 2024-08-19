@@ -10,12 +10,16 @@ package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
@@ -28,6 +32,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchExtBuilder;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -43,7 +48,9 @@ import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -71,6 +78,7 @@ import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
@@ -78,10 +86,9 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
 
 /**
  * A search source builder allowing to easily build search source. Simple
- * construction using
- * {@link org.elasticsearch.search.builder.SearchSourceBuilder#searchSource()}.
+ * construction using {@link SearchSourceBuilder#searchSource()}.
  *
- * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
+ * @see SearchRequest#source(SearchSourceBuilder)
  */
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);
@@ -140,6 +147,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static HighlightBuilder highlight() {
         return new HighlightBuilder();
     }
+
+    private transient RetrieverBuilder retrieverBuilder;
 
     private List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>();
 
@@ -283,6 +292,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (retrieverBuilder != null) {
+            throw new IllegalStateException("SearchSourceBuilder should be rewritten first");
+        }
         out.writeOptionalWriteable(aggregations);
         out.writeOptionalBoolean(explain);
         out.writeOptionalWriteable(fetchSourceContext);
@@ -365,6 +377,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         } else if (rankBuilder != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
         }
+    }
+
+    /**
+     * Sets the retriever for this request.
+     */
+    public SearchSourceBuilder retriever(RetrieverBuilder retrieverBuilder) {
+        this.retrieverBuilder = retrieverBuilder;
+        return this;
+    }
+
+    public RetrieverBuilder retriever() {
+        return retrieverBuilder;
     }
 
     /**
@@ -1134,6 +1158,21 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 highlightBuilder
             )
         ));
+        if (retrieverBuilder != null) {
+            var newRetriever = retrieverBuilder.rewrite(context);
+            if (newRetriever != retrieverBuilder) {
+                var rewritten = shallowCopy();
+                rewritten.retrieverBuilder = newRetriever;
+                return rewritten;
+            } else {
+                // retriever is transient, the rewritten version is extracted in this source.
+                var retriever = retrieverBuilder;
+                retrieverBuilder = null;
+                retriever.extractToSearchSourceBuilder(this, false);
+                validate();
+            }
+        }
+
         List<SubSearchSourceBuilder> subSearchSourceBuilders = Rewriteable.rewrite(this.subSearchSourceBuilders, context);
         QueryBuilder postQueryBuilder = null;
         if (this.postQueryBuilder != null) {
@@ -1293,7 +1332,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         List<KnnSearchBuilder.Builder> knnBuilders = new ArrayList<>();
 
-        RetrieverBuilder retrieverBuilder = null;
         SearchUsage searchUsage = new SearchUsage();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -1627,39 +1665,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         knnSearch = knnBuilders.stream().map(knnBuilder -> knnBuilder.build(size())).collect(Collectors.toList());
-
-        if (retrieverBuilder != null) {
-            List<String> specified = new ArrayList<>();
-            if (subSearchSourceBuilders.isEmpty() == false) {
-                specified.add(QUERY_FIELD.getPreferredName());
-            }
-            if (knnSearch.isEmpty() == false) {
-                specified.add(KNN_FIELD.getPreferredName());
-            }
-            if (searchAfterBuilder != null) {
-                specified.add(SEARCH_AFTER.getPreferredName());
-            }
-            if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
-                specified.add(TERMINATE_AFTER_FIELD.getPreferredName());
-            }
-            if (sorts != null) {
-                specified.add(SORT_FIELD.getPreferredName());
-            }
-            if (rescoreBuilders != null) {
-                specified.add(RESCORE_FIELD.getPreferredName());
-            }
-            if (minScore != null) {
-                specified.add(MIN_SCORE_FIELD.getPreferredName());
-            }
-            if (rankBuilder != null) {
-                specified.add(RANK_FIELD.getPreferredName());
-            }
-            if (specified.isEmpty() == false) {
-                throw new IllegalArgumentException("cannot specify [" + RETRIEVER.getPreferredName() + "] and " + specified);
-            }
-            retrieverBuilder.extractToSearchSourceBuilder(this, false);
-        }
-
         searchUsageConsumer.accept(searchUsage);
         return this;
     }
@@ -1687,6 +1692,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         if (terminateAfter != SearchContext.DEFAULT_TERMINATE_AFTER) {
             builder.field(TERMINATE_AFTER_FIELD.getPreferredName(), terminateAfter);
+        }
+
+        if (retrieverBuilder != null) {
+            builder.field(RETRIEVER.getPreferredName(), retrieverBuilder);
         }
 
         if (subSearchSourceBuilders.isEmpty() == false) {
@@ -2182,5 +2191,180 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         return collapse == null && (aggregations == null || aggregations.supportsParallelCollection(fieldCardinality));
+    }
+
+    private void validate() throws ValidationException {
+        var exceptions = validate(null, false, false);
+        if (exceptions != null) {
+            throw exceptions;
+        }
+    }
+
+    public ActionRequestValidationException validate(
+        ActionRequestValidationException validationException,
+        boolean isScroll,
+        boolean allowPartialSearchResults
+    ) {
+        if (retriever() != null) {
+            if (allowPartialSearchResults && retriever().isCompound()) {
+                validationException = addValidationError(
+                    "cannot specify a compound retriever and [allow_partial_search_results]",
+                    validationException
+                );
+            }
+            List<String> specified = new ArrayList<>();
+            if (subSearches().isEmpty() == false) {
+                specified.add(QUERY_FIELD.getPreferredName());
+            }
+            if (knnSearch().isEmpty() == false) {
+                specified.add(KNN_FIELD.getPreferredName());
+            }
+            if (searchAfter() != null) {
+                specified.add(SEARCH_AFTER.getPreferredName());
+            }
+            if (terminateAfter() != DEFAULT_TERMINATE_AFTER) {
+                specified.add(TERMINATE_AFTER_FIELD.getPreferredName());
+            }
+            if (sorts() != null) {
+                specified.add(SORT_FIELD.getPreferredName());
+            }
+            if (rescores() != null) {
+                specified.add(RESCORE_FIELD.getPreferredName());
+            }
+            if (minScore() != null) {
+                specified.add(MIN_SCORE_FIELD.getPreferredName());
+            }
+            if (rankBuilder() != null) {
+                specified.add(RANK_FIELD.getPreferredName());
+            }
+            if (specified.isEmpty() == false) {
+                validationException = addValidationError(
+                    "cannot specify [" + RETRIEVER.getPreferredName() + "] and " + specified,
+                    validationException
+                );
+            }
+        }
+        if (isScroll) {
+            if (trackTotalHitsUpTo() != null && trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+                validationException = addValidationError(
+                    "disabling [track_total_hits] is not allowed in a scroll context",
+                    validationException
+                );
+            }
+            if (from() > 0) {
+                validationException = addValidationError("using [from] is not allowed in a scroll context", validationException);
+            }
+            if (size() == 0) {
+                validationException = addValidationError("[size] cannot be [0] in a scroll context", validationException);
+            }
+            if (rescores() != null && rescores().isEmpty() == false) {
+                validationException = addValidationError("using [rescore] is not allowed in a scroll context", validationException);
+            }
+            if (CollectionUtils.isEmpty(searchAfter()) == false) {
+                validationException = addValidationError("[search_after] cannot be used in a scroll context", validationException);
+            }
+            if (collapse() != null) {
+                validationException = addValidationError("cannot use `collapse` in a scroll context", validationException);
+            }
+        }
+        if (slice() != null) {
+            if (pointInTimeBuilder() == null && (isScroll == false)) {
+                validationException = addValidationError(
+                    "[slice] can only be used with [scroll] or [point-in-time] requests",
+                    validationException
+                );
+            }
+        }
+        if (from() > 0 && CollectionUtils.isEmpty(searchAfter()) == false) {
+            validationException = addValidationError("[from] parameter must be set to 0 when [search_after] is used", validationException);
+        }
+        if (storedFields() != null) {
+            if (storedFields().fetchFields() == false) {
+                if (fetchSource() != null && fetchSource().fetchSource()) {
+                    validationException = addValidationError(
+                        "[stored_fields] cannot be disabled if [_source] is requested",
+                        validationException
+                    );
+                }
+                if (fetchFields() != null) {
+                    validationException = addValidationError(
+                        "[stored_fields] cannot be disabled when using the [fields] option",
+                        validationException
+                    );
+                }
+            }
+        }
+        if (subSearches().size() >= 2 && rankBuilder() == null) {
+            validationException = addValidationError("[sub_searches] requires [rank]", validationException);
+        }
+        if (aggregations() != null) {
+            validationException = aggregations().validate(validationException);
+        }
+
+        if (rankBuilder() != null) {
+            int s = size() == -1 ? SearchService.DEFAULT_SIZE : size();
+            if (s == 0) {
+                validationException = addValidationError("[rank] requires [size] greater than [0]", validationException);
+            }
+            if (s > rankBuilder().rankWindowSize()) {
+                validationException = addValidationError(
+                    "[rank] requires [rank_window_size: "
+                        + rankBuilder().rankWindowSize()
+                        + "]"
+                        + " be greater than or equal to [size: "
+                        + s
+                        + "]",
+                    validationException
+                );
+            }
+            int queryCount = subSearches().size() + knnSearch().size();
+            if (rankBuilder().isCompoundBuilder() && queryCount < 2) {
+                validationException = addValidationError(
+                    "[rank] requires a minimum of [2] result sets using a combination of sub searches and/or knn searches",
+                    validationException
+                );
+            }
+            if (isScroll) {
+                validationException = addValidationError("[rank] cannot be used in a scroll context", validationException);
+            }
+            if (rescores() != null && rescores().isEmpty() == false) {
+                validationException = addValidationError("[rank] cannot be used with [rescore]", validationException);
+            }
+            if (sorts() != null && sorts().isEmpty() == false) {
+                validationException = addValidationError("[rank] cannot be used with [sort]", validationException);
+            }
+            if (collapse() != null) {
+                validationException = addValidationError("[rank] cannot be used with [collapse]", validationException);
+            }
+            if (suggest() != null && suggest().getSuggestions().isEmpty() == false) {
+                validationException = addValidationError("[rank] cannot be used with [suggest]", validationException);
+            }
+            if (highlighter() != null) {
+                validationException = addValidationError("[rank] cannot be used with [highlighter]", validationException);
+            }
+            if (pointInTimeBuilder() != null) {
+                validationException = addValidationError("[rank] cannot be used with [point in time]", validationException);
+            }
+        }
+
+        if (rescores() != null) {
+            for (@SuppressWarnings("rawtypes")
+            var rescorer : rescores()) {
+                validationException = rescorer.validate(this, validationException);
+            }
+        }
+
+        if (pointInTimeBuilder() == null && sorts() != null) {
+            for (var sortBuilder : sorts()) {
+                if (sortBuilder instanceof FieldSortBuilder fieldSortBuilder
+                    && ShardDocSortField.NAME.equals(fieldSortBuilder.getFieldName())) {
+                    validationException = addValidationError(
+                        "[" + FieldSortBuilder.SHARD_DOC_FIELD_NAME + "] sort field cannot be used without [point in time]",
+                        validationException
+                    );
+                }
+            }
+        }
+        return validationException;
     }
 }

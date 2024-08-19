@@ -90,11 +90,11 @@ public class FailureStoreDocumentConverterTests extends ESTestCase {
         assertThat(ObjectPath.eval("error.message", convertedRequest.sourceAsMap()), is(equalTo("Test exception please ignore")));
         assertThat(
             ObjectPath.eval("error.stack_trace", convertedRequest.sourceAsMap()),
-            startsWith("org.elasticsearch.ElasticsearchException: Test exception please ignore")
+            startsWith("o.e.ElasticsearchException: Test exception please ignore")
         );
         assertThat(
             ObjectPath.eval("error.stack_trace", convertedRequest.sourceAsMap()),
-            containsString("at org.elasticsearch.action.bulk.FailureStoreDocumentConverterTests.testFailureStoreDocumentConversion")
+            containsString("at o.e.a.b.FailureStoreDocumentConverterTests.testFailureStoreDocumentConversion")
         );
         assertThat(
             ObjectPath.eval("error.pipeline_trace", convertedRequest.sourceAsMap()),

@@ -8,12 +8,9 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;
@@ -66,29 +63,6 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) delegate;
             assertTrue(preLoadMMapDirectory.useDelegate("foo.dvd"));
             assertTrue(preLoadMMapDirectory.useDelegate("foo.tmp"));
-        }
-    }
-
-    public void testDisableRandomAdvice() throws IOException {
-        Directory dir = new FilterDirectory(new ByteBuffersDirectory()) {
-            @Override
-            public IndexInput openInput(String name, IOContext context) throws IOException {
-                assertFalse(context.randomAccess);
-                return super.openInput(name, context);
-            }
-        };
-        Directory noRandomAccessDir = FsDirectoryFactory.disableRandomAdvice(dir);
-        try (IndexOutput out = noRandomAccessDir.createOutput("foo", IOContext.DEFAULT)) {
-            out.writeInt(42);
-        }
-        // Test the tester
-        expectThrows(AssertionError.class, () -> dir.openInput("foo", IOContext.RANDOM));
-
-        // The wrapped directory shouldn't fail regardless of the IOContext
-        for (IOContext context : Arrays.asList(IOContext.READ, IOContext.DEFAULT, IOContext.READONCE, IOContext.RANDOM)) {
-            try (IndexInput in = noRandomAccessDir.openInput("foo", context)) {
-                assertEquals(42, in.readInt());
-            }
         }
     }
 

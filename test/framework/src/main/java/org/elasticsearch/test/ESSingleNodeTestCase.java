@@ -9,6 +9,9 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -69,6 +72,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.action.search.SearchTransportService.FREE_CONTEXT_ACTION_NAME;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataNode;
@@ -95,7 +99,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         indicesAdmin().preparePutTemplate("one_shard_index_template")
             .setPatterns(Collections.singletonList("*"))
             .setOrder(0)
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+            .setSettings(indexSettings(1, 0))
             .get();
         indicesAdmin().preparePutTemplate("random-soft-deletes-template")
             .setPatterns(Collections.singletonList("*"))
@@ -130,11 +134,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         awaitIndexShardCloseAsyncTasks();
         ensureNoInitializingShards();
-        SearchService searchService = getInstanceFromNode(SearchService.class);
-        assertThat(searchService.getActiveContexts(), equalTo(0));
-        assertThat(searchService.getOpenScrollContexts(), equalTo(0));
+        ensureAllFreeContextActionsAreConsumed();
+
+        ensureAllContextsReleased(getInstanceFromNode(SearchService.class));
         super.tearDown();
-        var deleteDataStreamsRequest = new DeleteDataStreamAction.Request("*");
+        var deleteDataStreamsRequest = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "*");
         deleteDataStreamsRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
         try {
             assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamsRequest));
@@ -289,6 +293,15 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     public Client client() {
         return wrapClient(NODE.client());
+    }
+
+    /**
+     * Execute the given {@link ActionRequest} using the given {@link ActionType} and the default node client, wait for it to complete with
+     * a timeout of {@link #SAFE_AWAIT_TIMEOUT}, and then return the result. An exceptional response, timeout or interrupt triggers a test
+     * failure.
+     */
+    public <T extends ActionResponse> T safeExecute(ActionType<T> action, ActionRequest request) {
+        return safeExecute(client(), action, request);
     }
 
     /**
@@ -453,6 +466,14 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .actionGet();
 
         assertFalse("timed out waiting for shards to initialize", actionGet.isTimedOut());
+    }
+
+    /**
+     * waits until all free_context actions have been handled by the generic thread pool
+     */
+    protected void ensureAllFreeContextActionsAreConsumed() throws Exception {
+        logger.info("--> waiting for all free_context tasks to complete within a reasonable time");
+        safeGet(clusterAdmin().prepareListTasks().setActions(FREE_CONTEXT_ACTION_NAME + "*").setWaitForCompletion(true).execute());
     }
 
     /**

@@ -32,31 +32,32 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 
 public class AliasTests extends AbstractWireTestCase<Alias> {
-    @Override
-    protected Alias createTestInstance() {
+    public static Alias randomAlias() {
         Source source = SourceTests.randomSource();
         String name = randomAlphaOfLength(5);
-        String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
         // TODO better randomChild
         Expression child = ReferenceAttributeTests.randomReferenceAttribute();
         boolean synthetic = randomBoolean();
-        return new Alias(source, name, qualifier, child, new NameId(), synthetic);
+        return new Alias(source, name, child, new NameId(), synthetic);
+    }
+
+    @Override
+    protected Alias createTestInstance() {
+        return randomAlias();
     }
 
     @Override
     protected Alias mutateInstance(Alias instance) throws IOException {
         Source source = instance.source();
         String name = instance.name();
-        String qualifier = instance.qualifier();
         Expression child = instance.child();
         boolean synthetic = instance.synthetic();
-        switch (between(0, 3)) {
+        switch (between(0, 2)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
-            case 1 -> qualifier = randomValueOtherThan(qualifier, () -> randomBoolean() ? null : randomAlphaOfLength(3));
-            case 2 -> child = randomValueOtherThan(child, ReferenceAttributeTests::randomReferenceAttribute);
-            case 3 -> synthetic = false == synthetic;
+            case 1 -> child = randomValueOtherThan(child, ReferenceAttributeTests::randomReferenceAttribute);
+            case 2 -> synthetic = false == synthetic;
         }
-        return new Alias(source, name, qualifier, child, instance.id(), synthetic);
+        return new Alias(source, name, child, instance.id(), synthetic);
     }
 
     @Override
@@ -81,6 +82,7 @@ public class AliasTests extends AbstractWireTestCase<Alias> {
         entries.addAll(Attribute.getNamedWriteables());
         entries.add(UnsupportedAttribute.ENTRY);
         entries.addAll(EsField.getNamedWriteables());
+        entries.addAll(Expression.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }
 }

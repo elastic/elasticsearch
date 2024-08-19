@@ -111,6 +111,9 @@ s|Description
 |{wikipedia}/Smile_(data_interchange_format)[Smile] binary data format similar
 to CBOR
 
+|arrow
+|application/vnd.apache.arrow.stream
+|**Experimental.** https://arrow.apache.org/[Apache Arrow] dataframes, https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format[IPC streaming format]
 |===
 
 The `csv` format accepts a formatting URL query attribute, `delimiter`, which
@@ -268,6 +271,47 @@ POST /_query
     | WHERE page_count > ? AND author == ?
     | STATS count = COUNT(*) by year
     | WHERE count > ?
+    | LIMIT 5
+  """,
+  "params": [300, "Frank Herbert", 0]
+}
+----
+// TEST[setup:library]
+
+The parameters can be named parameters or positional parameters.
+
+Named parameters use question mark placeholders (`?`) followed by a string.
+
+[source,console]
+----
+POST /_query
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_EXTRACT("year", release_date)
+    | WHERE page_count > ?page_count AND author == ?author
+    | STATS count = COUNT(*) by year
+    | WHERE count > ?count
+    | LIMIT 5
+  """,
+  "params": [{"page_count" : 300}, {"author" : "Frank Herbert"}, {"count" : 0}]
+}
+----
+// TEST[setup:library]
+
+Positional parameters use question mark placeholders (`?`) followed by an
+integer.
+
+[source,console]
+----
+POST /_query
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_EXTRACT("year", release_date)
+    | WHERE page_count > ?1 AND author == ?2
+    | STATS count = COUNT(*) by year
+    | WHERE count > ?3
     | LIMIT 5
   """,
   "params": [300, "Frank Herbert", 0]

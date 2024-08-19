@@ -35,14 +35,13 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtUtil;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.core.security.authc.jwt.JwtUtil.toStringRedactSignature;
+import static org.elasticsearch.xpack.security.authc.jwt.JwtUtil.toStringRedactSignature;
 
 public interface JwtSignatureValidator extends Releasable {
 

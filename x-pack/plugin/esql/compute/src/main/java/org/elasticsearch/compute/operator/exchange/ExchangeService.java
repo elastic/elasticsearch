@@ -115,7 +115,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @throws IllegalStateException if a sink handler for the given id already exists
      */
     public ExchangeSinkHandler createSinkHandler(String exchangeId, int maxBufferSize) {
-        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool::relativeTimeInMillis);
+        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool.relativeTimeInMillisSupplier());
         if (sinks.putIfAbsent(exchangeId, sinkHandler) != null) {
             throw new IllegalStateException("sink exchanger for id [" + exchangeId + "] already exists");
         }
@@ -250,21 +250,20 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         protected void doRun() {
             assert Transports.assertNotTransportThread("reaping inactive exchanges can be expensive");
             assert ThreadPool.assertNotScheduleThread("reaping inactive exchanges can be expensive");
+            logger.debug("start removing inactive sinks");
             final long nowInMillis = threadPool.relativeTimeInMillis();
             for (Map.Entry<String, ExchangeSinkHandler> e : sinks.entrySet()) {
                 ExchangeSinkHandler sink = e.getValue();
                 if (sink.hasData() && sink.hasListeners()) {
                     continue;
                 }
-                long elapsed = nowInMillis - sink.lastUpdatedTimeInMillis();
-                if (elapsed > keepAlive.millis()) {
+                long elapsedInMillis = nowInMillis - sink.lastUpdatedTimeInMillis();
+                if (elapsedInMillis > keepAlive.millis()) {
+                    TimeValue elapsedTime = TimeValue.timeValueMillis(elapsedInMillis);
+                    logger.debug("removed sink {} inactive for {}", e.getKey(), elapsedTime);
                     finishSinkHandler(
                         e.getKey(),
-                        new ElasticsearchTimeoutException(
-                            "Exchange sink {} has been inactive for {}",
-                            e.getKey(),
-                            TimeValue.timeValueMillis(elapsed)
-                        )
+                        new ElasticsearchTimeoutException("Exchange sink {} has been inactive for {}", e.getKey(), elapsedTime)
                     );
                 }
             }

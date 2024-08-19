@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -64,11 +65,11 @@ public final class Utils {
         var clusterService = mock(ClusterService.class);
 
         var registeredSettings = Stream.of(
-            HttpSettings.getSettings(),
-            HttpClientManager.getSettings(),
-            ThrottlerManager.getSettings(),
+            HttpSettings.getSettingsDefinitions(),
+            HttpClientManager.getSettingsDefinitions(),
+            ThrottlerManager.getSettingsDefinitions(),
             RetrySettings.getSettingsDefinitions(),
-            Truncator.getSettings(),
+            Truncator.getSettingsDefinitions(),
             RequestExecutorServiceSettings.getSettingsDefinitions()
         ).flatMap(Collection::stream).collect(Collectors.toSet());
 
@@ -97,10 +98,15 @@ public final class Utils {
         storeModel(client, model);
     }
 
-    public static void storeDenseModel(Client client, int dimensions, SimilarityMeasure similarityMeasure) throws Exception {
+    public static void storeDenseModel(
+        Client client,
+        int dimensions,
+        SimilarityMeasure similarityMeasure,
+        DenseVectorFieldMapper.ElementType elementType
+    ) throws Exception {
         Model model = new TestDenseInferenceServiceExtension.TestDenseModel(
             TestDenseInferenceServiceExtension.TestInferenceService.NAME,
-            new TestDenseInferenceServiceExtension.TestServiceSettings("dense_model", dimensions, similarityMeasure)
+            new TestDenseInferenceServiceExtension.TestServiceSettings("dense_model", dimensions, similarityMeasure, elementType)
         );
 
         storeModel(client, model);
@@ -172,11 +178,16 @@ public final class Utils {
         Map<String, Object> taskSettings,
         Map<String, Object> secretSettings
     ) {
+        var secrets = secretSettings == null ? null : new HashMap<String, Object>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings));
 
         return new PersistedConfig(
             new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
-            new HashMap<>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings))
+            secrets
         );
+    }
+
+    public static PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings) {
+        return Utils.getPersistedConfigMap(serviceSettings, new HashMap<>(), null);
     }
 
     public static PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings, Map<String, Object> taskSettings) {

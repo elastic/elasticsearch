@@ -1,0 +1,6 @@
+pr: 110427
+summary: "[Inference API] Remove unused Cohere rerank service settings fields in a\
+  \ BWC way"
+area: Machine Learning
+type: bug
+issues: []

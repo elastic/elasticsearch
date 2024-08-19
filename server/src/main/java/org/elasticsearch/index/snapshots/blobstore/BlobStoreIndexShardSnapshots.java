@@ -33,8 +33,8 @@ import java.util.stream.Collectors;
 /**
  * Contains information about all snapshots for the given shard in repository
  * <p>
- * This class is used to find files that were already snapshotted and clear out files that no longer referenced by any
- * snapshots.
+ * This class is used to find shard files that were already snapshotted and clear out shard files that are no longer referenced by any
+ * snapshots of the shard.
  */
 public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, ToXContentFragment {
 
@@ -48,6 +48,10 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         this.files = files;
     }
 
+    /**
+     * Creates a new list of the shard's snapshots ({@link BlobStoreIndexShardSnapshots}) retaining only the shard snapshots
+     * specified by ID in {@code retainedSnapshots}. Typically used for snapshot deletions, which reduce the shard snapshots.
+     */
     public BlobStoreIndexShardSnapshots withRetainedSnapshots(Set<SnapshotId> retainedSnapshots) {
         if (retainedSnapshots.isEmpty()) {
             return EMPTY;
@@ -68,6 +72,10 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         return new BlobStoreIndexShardSnapshots(newFiles, updatedSnapshots);
     }
 
+    /**
+     * Creates a new list of the shard's snapshots ({@link BlobStoreIndexShardSnapshots}) adding a new shard snapshot
+     * ({@link SnapshotFiles}).
+     */
     public BlobStoreIndexShardSnapshots withAddedSnapshot(SnapshotFiles snapshotFiles) {
         Map<String, FileInfo> updatedFiles = null;
         for (FileInfo fileInfo : snapshotFiles.indexFiles()) {
@@ -256,6 +264,8 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         return builder;
     }
 
+    static volatile boolean INTEGRITY_ASSERTIONS_ENABLED = true;
+
     public static BlobStoreIndexShardSnapshots fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == null) { // New parser
@@ -309,7 +319,12 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
             List<FileInfo> fileInfosBuilder = new ArrayList<>();
             for (String file : entry.v2()) {
                 FileInfo fileInfo = files.get(file);
-                assert fileInfo != null;
+                if (fileInfo == null) {
+                    // could happen in production if the repo contents are corrupted
+                    final var exception = new IllegalStateException("shard index inconsistent at file [" + file + "]");
+                    assert INTEGRITY_ASSERTIONS_ENABLED == false : exception;
+                    throw exception;
+                }
                 fileInfosBuilder.add(fileInfo);
             }
             snapshots.add(new SnapshotFiles(entry.v1(), Collections.unmodifiableList(fileInfosBuilder), historyUUIDs.get(entry.v1())));

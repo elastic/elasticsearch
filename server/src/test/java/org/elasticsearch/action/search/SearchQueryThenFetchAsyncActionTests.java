@@ -103,7 +103,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                SearchActionListener<? super SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener
             ) {
                 int shardId = request.shardId().id();
                 if (request.canReturnNullResponseIfMatchNoDocs()) {
@@ -447,7 +447,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                SearchActionListener<? super SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener
             ) {
                 int shardId = request.shardId().id();
                 QuerySearchResult queryResult = new QuerySearchResult(
@@ -598,7 +598,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                SearchActionListener<? super SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener
             ) {
                 int shardId = request.shardId().id();
                 QuerySearchResult queryResult = new QuerySearchResult(

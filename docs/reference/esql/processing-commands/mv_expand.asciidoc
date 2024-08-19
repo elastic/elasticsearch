@@ -4,6 +4,9 @@
 
 preview::[]
 
+The `MV_EXPAND` processing command expands multivalued columns into one row per
+value, duplicating other columns.
+
 **Syntax**
 
 [source,esql]
@@ -15,11 +18,6 @@ MV_EXPAND column
 
 `column`::
 The multivalued column to expand.
-
-*Description*
-
-The `MV_EXPAND` processing command expands multivalued columns into one row per
-value, duplicating other columns.
 
 *Example*
 

@@ -84,6 +84,7 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseContext;
@@ -475,6 +476,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     protected ReaderContext removeReaderContext(long id) {
+        logger.trace("removing reader context [{}]", id);
         return activeReaders.remove(id);
     }
 
@@ -1129,7 +1131,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 reader,
                 request,
                 shardTarget,
-                threadPool::relativeTimeInMillis,
+                threadPool.relativeTimeInMillisSupplier(),
                 timeout,
                 fetchPhase,
                 lowLevelCancellation,
@@ -1175,6 +1177,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public boolean freeReaderContext(ShardSearchContextId contextId) {
+        logger.trace("freeing reader context [{}]", contextId);
         if (sessionId.equals(contextId.getSessionId())) {
             try (ReaderContext context = removeReaderContext(contextId.getId())) {
                 return context != null;
@@ -1576,6 +1579,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return this.responseCollectorService;
     }
 
+    public long getDefaultKeepAliveInMillis() {
+        return defaultKeepAlive;
+    }
+
     /**
      * Used to indicate which result object should be instantiated when creating a search context
      */
@@ -1819,8 +1826,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices) {
-        return indicesService.getRewriteContext(nowInMillis, resolvedIndices);
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
+        return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
@@ -1838,7 +1845,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
-                return new AggregationReduceContext.ForPartial(bigArrays, scriptService, isCanceled, aggs);
+                return new AggregationReduceContext.ForPartial(
+                    bigArrays,
+                    scriptService,
+                    isCanceled,
+                    aggs,
+                    multiBucketConsumerService.createForPartial()
+                );
             }
 
             @Override
@@ -1848,7 +1861,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     scriptService,
                     isCanceled,
                     aggs,
-                    multiBucketConsumerService.create()
+                    multiBucketConsumerService.createForFinal()
                 );
             }
         };

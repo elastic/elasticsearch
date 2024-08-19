@@ -1,6 +1,0 @@
-pr: 109824
-summary: Check array size before returning array item in script doc values
-area: Infra/Scripting
-type: bug
-issues:
- - 104998

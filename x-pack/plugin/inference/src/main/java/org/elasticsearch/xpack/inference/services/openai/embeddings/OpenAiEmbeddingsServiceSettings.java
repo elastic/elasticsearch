@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
@@ -99,8 +100,13 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String organizationId = extractOptionalString(map, ORGANIZATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
+        Integer maxInputTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
@@ -144,7 +150,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.uri = uri;
-        this.modelId = modelId;
+        this.modelId = Objects.requireNonNull(modelId);
         this.organizationId = organizationId;
         this.similarity = similarity;
         this.dimensions = dimensions;

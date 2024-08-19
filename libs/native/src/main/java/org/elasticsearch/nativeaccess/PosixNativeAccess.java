@@ -8,16 +8,22 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 abstract class PosixNativeAccess extends AbstractNativeAccess {
 
     public static final int MCL_CURRENT = 1;
     public static final int ENOMEM = 12;
+    public static final int O_RDONLY = 0;
+    public static final int O_WRONLY = 1;
 
     protected final PosixCLibrary libc;
     protected final VectorSimilarityFunctions vectorDistance;
@@ -120,6 +126,64 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     }
 
     protected abstract void logMemoryLimitInstructions();
+
+    @Override
+    public OptionalLong allocatedSizeInBytes(Path path) {
+        assert Files.isRegularFile(path) : path;
+        var stats = libc.newStat64(constants.statStructSize(), constants.statStructSizeOffset(), constants.statStructBlocksOffset());
+
+        int fd = libc.open(path.toAbsolutePath().toString(), O_RDONLY);
+        if (fd == -1) {
+            logger.warn("Could not open file [" + path + "] to get allocated size: " + libc.strerror(libc.errno()));
+            return OptionalLong.empty();
+        }
+
+        if (libc.fstat64(fd, stats) != 0) {
+            logger.warn("Could not get stats for file [" + path + "] to get allocated size: " + libc.strerror(libc.errno()));
+            return OptionalLong.empty();
+        }
+        if (libc.close(fd) != 0) {
+            logger.warn("Failed to close file [" + path + "] after getting stats: " + libc.strerror(libc.errno()));
+        }
+        return OptionalLong.of(stats.st_blocks() * 512);
+    }
+
+    @SuppressForbidden(reason = "Using mkdirs")
+    @Override
+    public void tryPreallocate(Path file, long newSize) {
+        var absolutePath = file.toAbsolutePath();
+        var directory = absolutePath.getParent();
+        directory.toFile().mkdirs();
+        // get fd and current size, then pass to OS variant
+        // We pass down O_CREAT, so open will create the file if it does not exist.
+        // From the open man page (https://www.man7.org/linux/man-pages/man2/open.2.html):
+        // - The mode parameter is needed when specifying O_CREAT
+        // - The effective mode is modified by the process's umask: in the absence of a default ACL, the mode of the created file is
+        // (mode & ~umask).
+        // We choose to pass down 0666 (r/w permission for user/group/others) to mimic what the JDK does for its open operations;
+        // see for example the fileOpen implementation in libjava:
+        // https://github.com/openjdk/jdk/blob/98562166e4a4c8921709014423c6cbc993aa0d97/src/java.base/unix/native/libjava/io_util_md.c#L105
+        int fd = libc.open(absolutePath.toString(), O_WRONLY | constants.O_CREAT(), 0666);
+        if (fd == -1) {
+            logger.warn("Could not open file [" + file + "] to preallocate size: " + libc.strerror(libc.errno()));
+            return;
+        }
+
+        var stats = libc.newStat64(constants.statStructSize(), constants.statStructSizeOffset(), constants.statStructBlocksOffset());
+        if (libc.fstat64(fd, stats) != 0) {
+            logger.warn("Could not get stats for file [" + file + "] to preallocate size: " + libc.strerror(libc.errno()));
+        } else {
+            if (nativePreallocate(fd, stats.st_size(), newSize)) {
+                logger.debug("pre-allocated file [{}] to {} bytes", file, newSize);
+            } // OS specific preallocate logs its own errors
+        }
+
+        if (libc.close(fd) != 0) {
+            logger.warn("Could not close file [" + file + "] after trying to preallocate size: " + libc.strerror(libc.errno()));
+        }
+    }
+
+    protected abstract boolean nativePreallocate(int fd, long currentSize, long newSize);
 
     @Override
     public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {

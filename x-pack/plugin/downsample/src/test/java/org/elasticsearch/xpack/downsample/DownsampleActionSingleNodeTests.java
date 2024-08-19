@@ -640,7 +640,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         downsample(sourceIndex, downsampleIndex, config);
         assertDownsampleIndex(sourceIndex, downsampleIndex, config);
 
-        var r = client().execute(GetDataStreamAction.INSTANCE, new GetDataStreamAction.Request(new String[] { dataStreamName })).get();
+        var r = client().execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName })
+        ).get();
         assertEquals(1, r.getDataStreams().size());
         List<Index> indices = r.getDataStreams().get(0).getDataStream().getIndices();
         // Assert that the downsample index has not been added to the data stream
@@ -1270,12 +1273,15 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, String> labelFields
     ) {
         final AggregationBuilder aggregations = buildAggregations(config, metricFields, labelFields, config.getTimestampField());
-        InternalAggregations origResp = aggregate(sourceIndex, aggregations);
-        InternalAggregations downsampleResp = aggregate(downsampleIndex, aggregations);
-        assertEquals(origResp.asMap().keySet(), downsampleResp.asMap().keySet());
+        List<InternalAggregation> origList = aggregate(sourceIndex, aggregations).asList();
+        List<InternalAggregation> downsampleList = aggregate(downsampleIndex, aggregations).asList();
+        assertEquals(origList.size(), downsampleList.size());
+        for (int i = 0; i < origList.size(); i++) {
+            assertEquals(origList.get(i).getName(), downsampleList.get(i).getName());
+        }
 
-        StringTerms originalTsIdTermsAggregation = (StringTerms) origResp.getAsMap().values().stream().toList().get(0);
-        StringTerms downsampleTsIdTermsAggregation = (StringTerms) downsampleResp.getAsMap().values().stream().toList().get(0);
+        StringTerms originalTsIdTermsAggregation = (StringTerms) origList.get(0);
+        StringTerms downsampleTsIdTermsAggregation = (StringTerms) downsampleList.get(0);
         originalTsIdTermsAggregation.getBuckets().forEach(originalBucket -> {
 
             StringTerms.Bucket downsampleBucket = downsampleTsIdTermsAggregation.getBucketByKey(originalBucket.getKeyAsString());
@@ -1318,7 +1324,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                     .stream()
                     .filter(agg -> agg.getType().equals("top_hits"))
                     .toList();
-                assertEquals(topHitsDownsampleAggregations.size(), topHitsDownsampleAggregations.size());
+                assertEquals(topHitsOriginalAggregations.size(), topHitsDownsampleAggregations.size());
 
                 for (int j = 0; j < topHitsDownsampleAggregations.size(); ++j) {
                     InternalTopHits originalTopHits = (InternalTopHits) topHitsOriginalAggregations.get(j);
@@ -1581,7 +1587,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             dataStreamName + "_template"
         ).indexTemplate(template);
         assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet());
-        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).get());
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
+            ).get()
+        );
         return dataStreamName;
     }
 

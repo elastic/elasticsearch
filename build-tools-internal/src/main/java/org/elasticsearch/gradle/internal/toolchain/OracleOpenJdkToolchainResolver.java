@@ -88,7 +88,7 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
     List<JdkBuild> builds = List.of(
         getBundledJdkBuild(),
         // 23 early access
-        new EarlyAccessJdkBuild(JavaLanguageVersion.of(23), "23", "23")
+        new EarlyAccessJdkBuild(JavaLanguageVersion.of(23), "23", "24")
     );
 
     private JdkBuild getBundledJdkBuild() {

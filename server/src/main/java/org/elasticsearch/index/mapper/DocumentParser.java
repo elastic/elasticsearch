@@ -23,7 +23,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -76,9 +76,9 @@ public final class DocumentParser {
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
 
-        DocumentSizeObserver documentSizeObserver = source.getDocumentSizeObserver();
+        XContentMeteringParserDecorator meteringParserDecorator = source.getDocumentSizeObserver();
         try (
-            XContentParser parser = documentSizeObserver.wrapParser(
+            XContentParser parser = meteringParserDecorator.decorate(
                 XContentHelper.createParser(parserConfiguration, source.source(), xContentType)
             )
         ) {
@@ -106,7 +106,7 @@ public final class DocumentParser {
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
             dynamicUpdate,
-            documentSizeObserver
+            meteringParserDecorator.meteredDocumentSize()
         ) {
             @Override
             public String documentDescription() {
@@ -161,7 +161,13 @@ public final class DocumentParser {
         SearchLookup searchLookup = new SearchLookup(
             context.mappingLookup().indexTimeLookup()::get,
             (ft, lookup, fto) -> ft.fielddataBuilder(
-                new FieldDataContext(context.indexSettings().getIndex().getName(), lookup, context.mappingLookup()::sourcePaths, fto)
+                new FieldDataContext(
+                    context.indexSettings().getIndex().getName(),
+                    context.indexSettings(),
+                    lookup,
+                    context.mappingLookup()::sourcePaths,
+                    fto
+                )
             ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             (ctx, doc) -> Source.fromBytes(context.sourceToParse().source())
         );

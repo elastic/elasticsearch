@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -113,7 +112,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             MountSnapshotStep mountSnapshotStep = createRandomInstance();
             Exception e = expectThrows(
                 IllegalStateException.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> mountSnapshotStep.performAction(indexMetadata, clusterState, null, f))
+                () -> performActionAndWait(mountSnapshotStep, indexMetadata, clusterState, null)
             );
             assertThat(
                 e.getMessage(),
@@ -139,7 +138,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             MountSnapshotStep mountSnapshotStep = createRandomInstance();
             Exception e = expectThrows(
                 IllegalStateException.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> mountSnapshotStep.performAction(indexMetadata, clusterState, null, f))
+                () -> performActionAndWait(mountSnapshotStep, indexMetadata, clusterState, null)
             );
             assertThat(e.getMessage(), is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
         }
@@ -182,7 +181,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 RESTORED_INDEX_PREFIX,
                 randomStorageType()
             );
-            PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
+            performActionAndWait(step, indexMetadata, clusterState, null);
         }
     }
 
@@ -217,7 +216,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                     RESTORED_INDEX_PREFIX,
                     randomStorageType()
                 );
-                PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
+                performActionAndWait(step, indexMetadata, clusterState, null);
             }
         }
 
@@ -232,7 +231,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                     RESTORED_INDEX_PREFIX,
                     randomStorageType()
                 );
-                PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
+                performActionAndWait(step, indexMetadata, clusterState, null);
             }
         }
     }
@@ -306,7 +305,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                     RESTORED_INDEX_PREFIX,
                     randomStorageType()
                 );
-                PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
+                performActionAndWait(step, indexMetadata, clusterState, null);
             }
         }
     }
@@ -348,7 +347,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 RESTORED_INDEX_PREFIX,
                 randomStorageType()
             );
-            PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
+            performActionAndWait(step, indexMetadata, clusterState, null);
         }
     }
 

@@ -471,6 +471,8 @@ public class MetadataCreateIndexService {
         final ActionListener<Void> rerouteListener
     ) throws Exception {
         // create the index here (on the master) to validate it can be created, as well as adding the mapping
+        assert indicesService.hasIndex(temporaryIndexMeta.getIndex()) == false
+            : Strings.format("Index [%s] already exists", temporaryIndexMeta.getIndex().getName());
         return indicesService.<ClusterState, Exception>withTempIndexService(temporaryIndexMeta, indexService -> {
             try {
                 updateIndexMappingsAndBuildSortOrder(indexService, request, mappings, sourceMetadata);

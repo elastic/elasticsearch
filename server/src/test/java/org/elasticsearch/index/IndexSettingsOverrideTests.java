@@ -10,17 +10,12 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 
-@ESTestCase.WithoutSecurityManager
-@SuppressForbidden(reason = "manipulates system properties for testing")
 public class IndexSettingsOverrideTests extends ESTestCase {
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
@@ -29,12 +24,13 @@ public class IndexSettingsOverrideTests extends ESTestCase {
             .build();
     }
 
-    @BeforeClass
-    public static void setSystemProperty() {
-        System.setProperty(IndexSettings.RefreshIntervalValidator.STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "true");
-    }
-
     public void testStatelessMinRefreshIntervalOverride() {
+        assumeTrue(
+            "This test depends on system property configured in build.gradle",
+            Boolean.parseBoolean(
+                System.getProperty(IndexSettings.RefreshIntervalValidator.STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false")
+            )
+        );
         IndexMetadata metadata = newIndexMeta(
             "index",
             Settings.builder()
@@ -46,10 +42,5 @@ public class IndexSettingsOverrideTests extends ESTestCase {
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(TimeValue.timeValueSeconds(1), settings.getRefreshInterval());
-    }
-
-    @AfterClass
-    public static void clearSystemProperty() {
-        System.clearProperty(IndexSettings.RefreshIntervalValidator.STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE);
     }
 }

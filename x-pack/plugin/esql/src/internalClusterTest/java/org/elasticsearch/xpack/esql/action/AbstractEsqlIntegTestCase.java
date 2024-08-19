@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -44,7 +45,11 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         for (String node : internalCluster().getNodeNames()) {
             TransportEsqlQueryAction esqlQueryAction = internalCluster().getInstance(TransportEsqlQueryAction.class, node);
             ExchangeService exchangeService = esqlQueryAction.exchangeService();
-            assertBusy(() -> assertTrue("Leftover exchanges " + exchangeService + " on node " + node, exchangeService.isEmpty()));
+            assertBusy(() -> {
+                if (exchangeService.lifecycleState() == Lifecycle.State.STARTED) {
+                    assertTrue("Leftover exchanges " + exchangeService + " on node " + node, exchangeService.isEmpty());
+                }
+            });
         }
     }
 

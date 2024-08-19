@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.esql.optimizer.rules;
 
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xpack.esql.core.analyzer.AnalyzerRules;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.List;

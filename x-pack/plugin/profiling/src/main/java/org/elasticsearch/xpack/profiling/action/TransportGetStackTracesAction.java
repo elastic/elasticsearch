@@ -22,13 +22,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.countedterms.CountedTermsAggregationBuilder;
@@ -138,7 +139,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         ProfilingLicenseChecker licenseChecker,
         IndexNameExpressionResolver resolver
     ) {
-        super(GetStackTracesAction.NAME, actionFilters, transportService.getTaskManager());
+        super(GetStackTracesAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nodeClient = nodeClient;
         this.licenseChecker = licenseChecker;
         this.clusterService = clusterService;

@@ -15,8 +15,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
+import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Arrays;
@@ -32,17 +32,17 @@ public class TextFormatterTests extends ESTestCase {
 
     static BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
-    private final List<ColumnInfo> columns = Arrays.asList(
-        new ColumnInfo("foo", "keyword"),
-        new ColumnInfo("bar", "long"),
-        new ColumnInfo("15charwidename!", "double"),
-        new ColumnInfo("null_field1", "integer"),
-        new ColumnInfo("superduperwidename!!!", "double"),
-        new ColumnInfo("baz", "keyword"),
-        new ColumnInfo("date", "date"),
-        new ColumnInfo("location", "geo_point"),
-        new ColumnInfo("location2", "cartesian_point"),
-        new ColumnInfo("null_field2", "keyword")
+    private final List<ColumnInfoImpl> columns = Arrays.asList(
+        new ColumnInfoImpl("foo", "keyword"),
+        new ColumnInfoImpl("bar", "long"),
+        new ColumnInfoImpl("15charwidename!", "double"),
+        new ColumnInfoImpl("null_field1", "integer"),
+        new ColumnInfoImpl("superduperwidename!!!", "double"),
+        new ColumnInfoImpl("baz", "keyword"),
+        new ColumnInfoImpl("date", "date"),
+        new ColumnInfoImpl("location", "geo_point"),
+        new ColumnInfoImpl("location2", "cartesian_point"),
+        new ColumnInfoImpl("null_field2", "keyword")
     );
 
     private static final BytesRefArray geoPoints = new BytesRefArray(2, BigArrays.NON_RECYCLING_INSTANCE);
@@ -183,7 +183,7 @@ public class TextFormatterTests extends ESTestCase {
             getTextBodyContent(
                 new TextFormatter(
                     new EsqlQueryResponse(
-                        List.of(new ColumnInfo("foo", "keyword")),
+                        List.of(new ColumnInfoImpl("foo", "keyword")),
                         List.of(
                             new Page(
                                 blockFactory.newBytesRefBlockBuilder(2)

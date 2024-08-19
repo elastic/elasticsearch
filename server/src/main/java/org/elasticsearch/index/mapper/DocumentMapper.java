@@ -9,7 +9,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
@@ -21,6 +23,9 @@ public class DocumentMapper {
     private final MappingLookup mappingLookup;
     private final DocumentParser documentParser;
     private final MapperMetrics mapperMetrics;
+    private final IndexVersion indexVersion;
+
+    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
 
     /**
      * Create a new {@link DocumentMapper} that holds empty mappings.
@@ -54,6 +59,7 @@ public class DocumentMapper {
         this.mappingLookup = MappingLookup.fromMapping(mapping);
         this.mappingSource = source;
         this.mapperMetrics = mapperMetrics;
+        this.indexVersion = version;
 
         assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version)
             : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
@@ -134,7 +140,18 @@ public class DocumentMapper {
         }
 
         if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {
-            throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
+            if (indexVersion.before(IndexVersions.INDEX_SORTING_ON_NESTED)) {
+                throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
+            }
+            for (String field : settings.getValue(IndexSortConfig.INDEX_SORT_FIELD_SETTING)) {
+                for (NestedObjectMapper nestedObjectMapper : mappers().nestedLookup().getNestedMappers().values()) {
+                    if (field.startsWith(nestedObjectMapper.fullPath())) {
+                        throw new IllegalArgumentException(
+                            "cannot apply index sort to field [" + field + "] under nested object [" + nestedObjectMapper.fullPath() + "]"
+                        );
+                    }
+                }
+            }
         }
         List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
         for (String path : routingPaths) {

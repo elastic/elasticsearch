@@ -570,3 +570,123 @@ ROW long = TO_LONG(100), double = 99., int = 100
       b1:double|      b2:double|      b3:double
 99.0           |0.0            |99.0
 ;
+
+
+zeroBucketsRow#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+ROW a = 1
+| STATS max = max(a) BY b = BUCKET(a, 0, 0, 0)
+;
+warningRegex:evaluation of \[BUCKET\(a, 0, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:java.lang.ArithmeticException: / by zero
+
+max:integer | b:double
+1          | null
+;
+
+
+zeroBuckets#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| STATS max = max(salary) BY b = BUCKET(salary, 0, 0, 0)
+;
+warningRegex:evaluation of \[BUCKET\(salary, 0, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:java.lang.ArithmeticException: / by zero
+
+max:integer | b:double
+74999       | null
+;
+
+
+zeroBucketsDouble#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| STATS max = max(salary) BY b = BUCKET(salary, 0.)
+;
+warningRegex:evaluation of \[BUCKET\(salary, 0.\)\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:java.lang.ArithmeticException: / by zero
+
+max:integer | b:double
+74999       | null
+;
+
+minusOneBucketsRow#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+ROW a = 1
+| STATS max = max(a) BY b = BUCKET(a, -1, 0, 0)
+;
+warningRegex:evaluation of \[BUCKET\(a, -1, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:java.lang.ArithmeticException: / by zero
+
+max:integer | b:double
+1          | null
+;
+
+
+minusOneBuckets#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| STATS max = max(salary) BY b = BUCKET(salary, -1, 0, 0)
+;
+warningRegex:evaluation of \[BUCKET\(salary, -1, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:java.lang.ArithmeticException: / by zero
+
+max:integer | b:double
+74999       | null
+;
+
+
+tooManyBucketsRow#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+ROW a = 1
+| STATS max = max(a) BY b = BUCKET(a, 100000000000, 0, 0)
+;
+warningRegex:evaluation of \[BUCKET\(a, 100000000000, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:java.lang.ArithmeticException: / by zero
+
+max:integer | b:double
+1          | null
+;
+
+
+tooManyBuckets#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| STATS max = max(salary) BY b = BUCKET(salary, 100000000000, 0, 0)
+;
+warningRegex:evaluation of \[BUCKET\(salary, 100000000000, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:java.lang.ArithmeticException: / by zero
+
+max:integer | b:double
+74999       | null
+;
+
+
+foldableBuckets
+required_capability: casting_operator
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| EVAL c = concat("2", "0")::int
+| STATS hires_per_month = COUNT(*) BY month = BUCKET(hire_date, c, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| SORT month
+;
+
+  hires_per_month:long |    month:date
+2                      |1985-02-01T00:00:00.000Z
+1                      |1985-05-01T00:00:00.000Z
+1                      |1985-07-01T00:00:00.000Z
+1                      |1985-09-01T00:00:00.000Z
+2                      |1985-10-01T00:00:00.000Z
+4                      |1985-11-01T00:00:00.000Z
+;
+
+
+foldableBucketsInline
+required_capability: casting_operator
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS hires_per_month = COUNT(*) BY month = BUCKET(hire_date, concat("2", "0")::int, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| SORT month
+;
+
+  hires_per_month:long |    month:date
+2                      |1985-02-01T00:00:00.000Z
+1                      |1985-05-01T00:00:00.000Z
+1                      |1985-07-01T00:00:00.000Z
+1                      |1985-09-01T00:00:00.000Z
+2                      |1985-10-01T00:00:00.000Z
+4                      |1985-11-01T00:00:00.000Z
+;

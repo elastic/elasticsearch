@@ -13,13 +13,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -28,7 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -37,7 +37,9 @@ import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.Result;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -45,6 +47,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
@@ -143,7 +146,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        EsqlConfiguration configuration = new EsqlConfiguration(
+        Configuration configuration = new Configuration(
             ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
             // TODO: plug-in security
@@ -157,35 +160,32 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.tables()
         );
         String sessionId = sessionID(task);
+        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase = (physicalPlan, resultListener) -> computeService.execute(
+            sessionId,
+            (CancellableTask) task,
+            physicalPlan,
+            configuration,
+            resultListener
+        );
+
         planExecutor.esql(
             request,
             sessionId,
             configuration,
             enrichPolicyResolver,
-            listener.delegateFailureAndWrap(
-                (delegate, physicalPlan) -> computeService.execute(
-                    sessionId,
-                    (CancellableTask) task,
-                    physicalPlan,
-                    configuration,
-                    delegate.map(result -> {
-                        List<ColumnInfo> columns = physicalPlan.output()
-                            .stream()
-                            .map(c -> new ColumnInfo(c.qualifiedName(), c.dataType().outputType()))
-                            .toList();
-                        EsqlQueryResponse.Profile profile = configuration.profile()
-                            ? new EsqlQueryResponse.Profile(result.profiles())
-                            : null;
-                        if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
-                            String id = asyncTask.getExecutionId().getEncoded();
-                            return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), id, false, request.async());
-                        } else {
-                            return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async());
-                        }
-                    })
-                )
-            )
+            runPhase,
+            listener.map(result -> toResponse(task, request, configuration, result))
         );
+    }
+
+    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {
+        List<ColumnInfoImpl> columns = result.schema().stream().map(c -> new ColumnInfoImpl(c.name(), c.dataType().outputType())).toList();
+        EsqlQueryResponse.Profile profile = configuration.profile() ? new EsqlQueryResponse.Profile(result.profiles()) : null;
+        if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
+            String id = asyncTask.getExecutionId().getEncoded();
+            return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), id, false, request.async());
+        }
+        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async());
     }
 
     /**

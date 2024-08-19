@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.features.FeatureService;
@@ -49,6 +48,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -107,7 +107,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
-            System::nanoTime
+            threadPool::relativeTimeInNanos
         );
     }
 
@@ -197,7 +197,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         BulkRequest bulkRequest,
         Executor executor,
         ActionListener<BulkResponse> listener,
-        long relativeStartTime
+        long relativeStartTimeNanos
     ) {
         Map<String, CreateIndexRequest> indicesToAutoCreate = new HashMap<>();
         Set<String> dataStreamsToBeRolledOver = new HashSet<>();
@@ -212,7 +212,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             indicesToAutoCreate,
             dataStreamsToBeRolledOver,
             failureStoresToBeRolledOver,
-            relativeStartTime
+            relativeStartTimeNanos
         );
     }
 
@@ -309,19 +309,19 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Map<String, CreateIndexRequest> indicesToAutoCreate,
         Set<String> dataStreamsToBeRolledOver,
         Set<String> failureStoresToBeRolledOver,
-        long startTime
+        long startTimeNanos
     ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         // Optimizing when there are no prerequisite actions
         if (indicesToAutoCreate.isEmpty() && dataStreamsToBeRolledOver.isEmpty() && failureStoresToBeRolledOver.isEmpty()) {
-            executeBulk(task, bulkRequest, startTime, listener, executor, responses, Map.of());
+            executeBulk(task, bulkRequest, startTimeNanos, listener, executor, responses, Map.of());
             return;
         }
         final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
         Runnable executeBulkRunnable = () -> executor.execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
-                executeBulk(task, bulkRequest, startTime, listener, executor, responses, indicesThatCannotBeCreated);
+                executeBulk(task, bulkRequest, startTimeNanos, listener, executor, responses, indicesThatCannotBeCreated);
             }
         });
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
@@ -417,13 +417,12 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         }
     }
 
-    static void prohibitAppendWritesInBackingIndices(DocWriteRequest<?> writeRequest, Metadata metadata) {
+    static void prohibitAppendWritesInBackingIndices(DocWriteRequest<?> writeRequest, IndexAbstraction indexAbstraction) {
         DocWriteRequest.OpType opType = writeRequest.opType();
         if ((opType == OpType.CREATE || opType == OpType.INDEX) == false) {
             // op type not create or index, then bail early
             return;
         }
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(writeRequest.index());
         if (indexAbstraction == null) {
             return;
         }
@@ -452,9 +451,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                     + "] instead"
             );
         }
-        if (opType == DocWriteRequest.OpType.INDEX
-            && writeRequest.ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM
-            && writeRequest.ifSeqNo() == UNASSIGNED_SEQ_NO) {
+        if (writeRequest.ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM && writeRequest.ifSeqNo() == UNASSIGNED_SEQ_NO) {
             throw new IllegalArgumentException(
                 "index request with op_type=index and no if_primary_term and if_seq_no set "
                     + "targeting backing indices is disallowed, target corresponding data stream ["
@@ -464,8 +461,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         }
     }
 
-    static void prohibitCustomRoutingOnDataStream(DocWriteRequest<?> writeRequest, Metadata metadata) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(writeRequest.index());
+    static void prohibitCustomRoutingOnDataStream(DocWriteRequest<?> writeRequest, IndexAbstraction indexAbstraction) {
         if (indexAbstraction == null) {
             return;
         }
@@ -537,7 +533,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             responses,
             indicesThatCannotBeCreated,
             indexNameExpressionResolver,
-            relativeTimeProvider,
+            relativeTimeNanosProvider,
             startTimeNanos,
             listener
         ).run();

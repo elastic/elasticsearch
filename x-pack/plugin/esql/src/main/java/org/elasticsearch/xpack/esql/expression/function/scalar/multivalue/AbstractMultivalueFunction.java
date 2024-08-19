@@ -18,7 +18,6 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -45,6 +44,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
             MvMax.ENTRY,
             MvMedian.ENTRY,
             MvMin.ENTRY,
+            MvPSeriesWeightedSum.ENTRY,
             MvSlice.ENTRY,
             MvSort.ENTRY,
             MvSum.ENTRY,
@@ -57,13 +57,13 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
     }
 
     protected AbstractMultivalueFunction(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readExpression());
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(field);
+        out.writeNamedWriteable(field);
     }
 
     /**

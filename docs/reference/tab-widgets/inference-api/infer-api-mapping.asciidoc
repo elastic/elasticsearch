@@ -31,6 +31,34 @@ the {infer} pipeline configuration in the next step.
 
 // end::cohere[]
 
+// tag::elser[]
+
+[source,console]
+--------------------------------------------------
+PUT elser-embeddings
+{
+  "mappings": {
+    "properties": {
+      "content_embedding": { <1>
+        "type": "sparse_vector" <2>
+      },
+      "content": { <3>
+        "type": "text" <4>
+      }
+    }
+  }
+}
+--------------------------------------------------
+<1> The name of the field to contain the generated tokens. It must be refrenced
+in the {infer} pipeline configuration in the next step.
+<2> The field to contain the tokens is a `sparse_vector` field for ELSER.
+<3> The name of the field from which to create the dense vector representation.
+In this example, the name of the field is `content`. It must be referenced in
+the {infer} pipeline configuration in the next step.
+<4> The field type which is text in this example.
+
+// end::elser[]
+
 // tag::hugging-face[]
 
 [source,console]
@@ -207,3 +235,38 @@ the {infer} pipeline configuration in the next step.
 <6> The field type which is text in this example.
 
 // end::mistral[]
+
+// tag::amazon-bedrock[]
+
+[source,console]
+--------------------------------------------------
+PUT amazon-bedrock-embeddings
+{
+  "mappings": {
+    "properties": {
+      "content_embedding": { <1>
+        "type": "dense_vector", <2>
+        "dims": 1024, <3>
+        "element_type": "float",
+        "similarity": "dot_product" <4>
+      },
+      "content": { <5>
+        "type": "text" <6>
+      }
+    }
+  }
+}
+--------------------------------------------------
+<1> The name of the field to contain the generated tokens. It must be referenced
+in the {infer} pipeline configuration in the next step.
+<2> The field to contain the tokens is a `dense_vector` field.
+<3> The output dimensions of the model. This value may be different depending on the underlying model used.
+See the https://docs.aws.amazon.com/bedrock/latest/userguide/titan-multiemb-models.html[Amazon Titan model] or the https://docs.cohere.com/reference/embed[Cohere Embeddings model] documentation.
+<4> For Amazon Bedrock embeddings, the `dot_product` function should be used to
+calculate similarity for Amazon titan models, or `cosine` for Cohere models.
+<5> The name of the field from which to create the dense vector representation.
+In this example, the name of the field is `content`. It must be referenced in
+the {infer} pipeline configuration in the next step.
+<6> The field type which is text in this example.
+
+// end::amazon-bedrock[]

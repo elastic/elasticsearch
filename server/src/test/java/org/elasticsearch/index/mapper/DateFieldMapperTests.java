@@ -731,7 +731,18 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Function<Object, Object> loadBlockExpected() {
-        return v -> ((Number) v).longValue();
+        return v -> asJacksonNumberOutput(((Number) v).longValue());
+    }
+
+    protected static Object asJacksonNumberOutput(long l) {
+        // If a long value fits in int, Jackson will write it as int in NumberOutput.outputLong()
+        // and we hit this during serialization of expected values.
+        // Code below mimics that behaviour in order for matching to work.
+        if (l < 0 && l >= Integer.MIN_VALUE || l >= 0 && l <= Integer.MAX_VALUE) {
+            return (int) l;
+        } else {
+            return l;
+        }
     }
 
     public void testLegacyField() throws Exception {

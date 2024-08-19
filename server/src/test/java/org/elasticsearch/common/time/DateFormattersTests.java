@@ -695,6 +695,23 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(javaFormatted, equalTo("-292275055-05-16T16:47:04.192Z"));
     }
 
+    public void testMinNanos() {
+        String javaFormatted = DateFormatter.forPattern("strict_date_optional_time").formatNanos(Long.MIN_VALUE);
+        assertThat(javaFormatted, equalTo("1677-09-21T00:12:43.145Z"));
+
+        // Note - since this is a negative value, the nanoseconds are being subtracted, which is why we get this value.
+        javaFormatted = DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos(Long.MIN_VALUE);
+        assertThat(javaFormatted, equalTo("1677-09-21T00:12:43.145224192Z"));
+    }
+
+    public void testMaxNanos() {
+        String javaFormatted = DateFormatter.forPattern("strict_date_optional_time").formatNanos(Long.MAX_VALUE);
+        assertThat(javaFormatted, equalTo("2262-04-11T23:47:16.854Z"));
+
+        javaFormatted = DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos(Long.MAX_VALUE);
+        assertThat(javaFormatted, equalTo("2262-04-11T23:47:16.854775807Z"));
+    }
+
     public void testYearParsing() {
         // this one is considered a year
         assertParses("1234", "strict_date_optional_time||epoch_millis");

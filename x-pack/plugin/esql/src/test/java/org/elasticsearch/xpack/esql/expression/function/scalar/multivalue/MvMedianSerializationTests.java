@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.io.IOException;
 
-public class MvMedianSerializationTests extends AbstractMvSerializationTests<MvMedian> {
+public class MvMedianSerializationTests extends AbstractExpressionSerializationTests<MvMedian> {
     @Override
     protected MvMedian createTestInstance() {
         return new MvMedian(randomSource(), randomChild());

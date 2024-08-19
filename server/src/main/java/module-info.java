@@ -34,7 +34,6 @@ module org.elasticsearch.server {
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.simdvec;
 
-    requires com.sun.jna;
     requires hppc;
     requires HdrHistogram;
     requires jopt.simple;
@@ -189,17 +188,16 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.compress;
     exports org.elasticsearch.common.document;
     exports org.elasticsearch.common.file;
-    exports org.elasticsearch.common.filesystem;
     exports org.elasticsearch.common.geo;
     exports org.elasticsearch.common.hash;
-    exports org.elasticsearch.common.inject;
-    exports org.elasticsearch.common.inject.binder;
-    exports org.elasticsearch.common.inject.internal;
-    exports org.elasticsearch.common.inject.matcher;
-    exports org.elasticsearch.common.inject.multibindings;
-    exports org.elasticsearch.common.inject.name;
-    exports org.elasticsearch.common.inject.spi;
-    exports org.elasticsearch.common.inject.util;
+    exports org.elasticsearch.injection.guice;
+    exports org.elasticsearch.injection.guice.binder;
+    exports org.elasticsearch.injection.guice.internal;
+    exports org.elasticsearch.injection.guice.matcher;
+    exports org.elasticsearch.injection.guice.multibindings;
+    exports org.elasticsearch.injection.guice.name;
+    exports org.elasticsearch.injection.guice.spi;
+    exports org.elasticsearch.injection.guice.util;
     exports org.elasticsearch.common.io;
     exports org.elasticsearch.common.io.stream;
     exports org.elasticsearch.common.logging;
@@ -424,6 +422,7 @@ module org.elasticsearch.server {
 
     provides org.elasticsearch.features.FeatureSpecification
         with
+            org.elasticsearch.action.bulk.BulkFeatures,
             org.elasticsearch.features.FeatureInfrastructureFeatures,
             org.elasticsearch.health.HealthFeatures,
             org.elasticsearch.cluster.service.TransportFeatures,
@@ -432,6 +431,8 @@ module org.elasticsearch.server {
             org.elasticsearch.indices.IndicesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
+            org.elasticsearch.ingest.IngestGeoIpFeatures,
+            org.elasticsearch.search.SearchFeatures,
             org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
             org.elasticsearch.reservedstate.service.FileSettingsFeatures;
@@ -464,4 +465,5 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.shardhealth,
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.lucene.spatial;
+
 }

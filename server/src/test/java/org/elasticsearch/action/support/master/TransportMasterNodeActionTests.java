@@ -524,7 +524,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
         assertTrue(capturedRequest.node().isMasterNode());
-        assertThat(capturedRequest.request(), equalTo(request));
+        assertThat(asInstanceOf(TermOverridingMasterNodeRequest.class, capturedRequest.request()).request, equalTo(request));
         assertThat(capturedRequest.action(), equalTo("internal:testAction"));
 
         Response response = new Response();
@@ -552,7 +552,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         assertThat(capturedRequests.length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
         assertTrue(capturedRequest.node().isMasterNode());
-        assertThat(capturedRequest.request(), equalTo(request));
+        assertThat(asInstanceOf(TermOverridingMasterNodeRequest.class, capturedRequest.request()).request, equalTo(request));
         assertThat(capturedRequest.action(), equalTo("internal:testAction"));
 
         if (rejoinSameMaster) {
@@ -586,7 +586,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             assertThat(capturedRequests.length, equalTo(1));
             capturedRequest = capturedRequests[0];
             assertTrue(capturedRequest.node().isMasterNode());
-            assertThat(capturedRequest.request(), equalTo(request));
+            assertThat(asInstanceOf(TermOverridingMasterNodeRequest.class, capturedRequest.request()).request, equalTo(request));
             assertThat(capturedRequest.action(), equalTo("internal:testAction"));
         } else if (failsWithConnectTransportException) {
             transport.handleRemoteError(capturedRequest.requestId(), new ConnectTransportException(masterNode, "Fake error"));
@@ -639,7 +639,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
         assertTrue(capturedRequest.node().isMasterNode());
-        assertThat(capturedRequest.request(), equalTo(request));
+        assertThat(asInstanceOf(TermOverridingMasterNodeRequest.class, capturedRequest.request()).request, equalTo(request));
         assertThat(capturedRequest.action(), equalTo("internal:testAction"));
 
         transport.handleResponse(capturedRequest.requestId(), response);

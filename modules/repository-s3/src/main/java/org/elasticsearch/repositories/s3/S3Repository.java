@@ -518,6 +518,7 @@ class S3Repository extends MeteredBlobStoreRepository {
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn("failed to get multipart uploads for cleanup during snapshot delete", e);
+                    assert false : e; // getMultipartUploadCleanupListener doesn't throw and snapshotExecutor doesn't reject anything
                     snapshotDeleteListener.onFailure(e);
                 }
             }

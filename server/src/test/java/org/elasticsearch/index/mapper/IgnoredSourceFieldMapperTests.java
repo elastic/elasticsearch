@@ -678,7 +678,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"path":{"to":[{"name":"A"},{"name":"B"}]}}""", booleanValue), syntheticSource);
     }
 
-    public void testArrayWithinHigherLevelArray() throws IOException {
+    public void testStoredArrayWithinHigherLevelArray() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("path");
             {
@@ -756,7 +756,31 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endArray();
         });
         assertEquals(String.format(Locale.ROOT, """
-            {"path":{"name":["A, "B"]}}""", booleanValue), syntheticSource);
+            {"path":{"name":["A","B"]}}""", booleanValue), syntheticSource);
+    }
+
+    public void testDynamicRuntimeFieldWithinHigherLevelArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.field("dynamic", "runtime");
+            }
+            b.endObject();
+        })).documentMapper();
+
+        boolean booleanValue = randomBoolean();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+
+                b.startObject().field("name", "A").endObject();
+                b.startObject().field("name", "B").endObject();
+            }
+            b.endArray();
+        });
+        assertEquals(String.format(Locale.ROOT, """
+            {"path":{"name":["A","B"]}}""", booleanValue), syntheticSource);
     }
 
     public void testFieldOrdering() throws IOException {

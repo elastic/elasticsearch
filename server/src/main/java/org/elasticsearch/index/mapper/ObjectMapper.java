@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -31,6 +32,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
@@ -848,7 +850,6 @@ public class ObjectMapper extends Mapper {
                 // Use an ordered map between field names and writer functions, to order writing by field name.
                 Map<String, FieldWriter> orderedFields = new TreeMap<>();
                 for (IgnoredSourceFieldMapper.NameValue value : ignoredValues) {
-                    // orderedFields.computeIfAbsent(value.name(), k -> new ArrayList<>()).add(value::write);
                     var existing = orderedFields.get(value.name());
                     if (existing == null) {
                         orderedFields.put(value.name(), new FieldWriter.IgnoredSource(value));
@@ -927,26 +928,25 @@ public class ObjectMapper extends Mapper {
             }
 
             class CompositeIgnoredSource implements IgnoredSourceWriter {
-                private final List<IgnoredSourceFieldMapper.NameValue> values;
+                private final String fieldName;
+                private final List<BytesRef> values;
 
                 CompositeIgnoredSource(List<IgnoredSourceFieldMapper.NameValue> initialValues) {
-                    this.values = initialValues;
+                    assert initialValues.size() > 1;
+                    this.fieldName = initialValues.get(0).getFieldName();
+                    this.values = initialValues.stream().map(IgnoredSourceFieldMapper.NameValue::value).toList();
                 }
 
                 @Override
                 public void writeTo(XContentBuilder builder) throws IOException {
-                    var name = values.get(0).parentOffset() == 0 ? values.get(0).name() : values.get(0).name().substring(values.get(0).parentOffset());
-                    builder.startArray(name);
-                    for (var value : values) {
-                        // value.write(builder);
-                        XContentDataHelper.decodeAndWrite(builder, value.value());
-                    }
-                    builder.endArray();
+                    XContentDataHelper.writeMerged(builder, fieldName, values);
                 }
 
                 @Override
-                public FieldWriter mergeWith(IgnoredSourceFieldMapper.NameValue value) {
-                    values.add(value);
+                public FieldWriter mergeWith(IgnoredSourceFieldMapper.NameValue nameValue) {
+                    assert Objects.equals(nameValue.name(), fieldName);
+
+                    values.add(nameValue.value());
                     return this;
                 }
             }

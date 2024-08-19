@@ -26,6 +26,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Optional;
 
 /**
  * Helper class for processing field data of any type, as provided by the {@link XContentParser}.
@@ -90,6 +92,45 @@ public final class XContentDataHelper {
             case NULL_ENCODING -> TypeUtils.NULL.decodeAndWrite(b, r);
             default -> throw new IllegalArgumentException("Can't decode " + r);
         }
+    }
+
+    static void writeMerged(XContentBuilder b, String fieldName, Collection<BytesRef> encodedParts) throws IOException {
+        assert encodedParts.size() > 1;
+
+        b.startArray(fieldName);
+
+        for (var encodedValue : encodedParts) {
+            Optional<XContentType> encodedXContentType = switch ((char) encodedValue.bytes[encodedValue.offset]) {
+                case CBOR_OBJECT_ENCODING, JSON_OBJECT_ENCODING, YAML_OBJECT_ENCODING, SMILE_OBJECT_ENCODING -> Optional.of(getXContentType(encodedValue));
+                default -> Optional.empty();
+            };
+            if (encodedXContentType.isEmpty()) {
+                // This is a plain value, we can just write it
+                XContentDataHelper.decodeAndWrite(b, encodedValue);
+            } else {
+                // Encoded value could be an array which needs to be flattened
+                // since we are already inside an array.
+                try (
+                    XContentParser parser = encodedXContentType.get().xContent().createParser(XContentParserConfiguration.EMPTY, encodedValue.bytes, encodedValue.offset + 1, encodedValue.length - 1)
+                ) {
+                    if (parser.currentToken() == null) {
+                        parser.nextToken();
+                    }
+
+                    // It's an array, we will flatten it.
+                    if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            b.copyCurrentStructure(parser);
+                        }
+                    } else {
+                        // It is a single complex structure (an object), write it as is.
+                        b.copyCurrentStructure(parser);
+                    }
+                }
+            }
+        }
+
+        b.endArray();
     }
 
     /**

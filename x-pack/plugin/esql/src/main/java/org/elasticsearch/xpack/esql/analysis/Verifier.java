@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
-import org.elasticsearch.xpack.esql.core.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -19,12 +20,11 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
@@ -34,28 +34,39 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.core.analyzer.VerifierChecks.checkFilterConditionType;
-import static org.elasticsearch.xpack.esql.core.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
 
+/**
+ * This class is part of the planner. Responsible for failing impossible queries with a human-readable error message.  In particular, this
+ * step does type resolution and fails queries based on invalid type expressions.
+ */
 public class Verifier {
 
     private final Metrics metrics;
@@ -100,16 +111,23 @@ public class Verifier {
                 }
 
                 e.forEachUp(ae -> {
-                    // we're only interested in the children
+                    // Special handling for Project and unsupported/union types: disallow renaming them but pass them through otherwise.
+                    if (p instanceof Project) {
+                        if (ae instanceof Alias as && as.child() instanceof UnsupportedAttribute ua) {
+                            failures.add(fail(ae, ua.unresolvedMessage()));
+                        }
+                        if (ae instanceof UnsupportedAttribute) {
+                            return;
+                        }
+                    }
+
+                    // Do not fail multiple times in case the children are already unresolved.
                     if (ae.childrenResolved() == false) {
                         return;
                     }
 
                     if (ae instanceof Unresolvable u) {
-                        // special handling for Project and unsupported types
-                        if (p instanceof Project == false || u instanceof UnsupportedAttribute == false) {
-                            failures.add(fail(ae, u.unresolvedMessage()));
-                        }
+                        failures.add(fail(ae, u.unresolvedMessage()));
                     }
                     if (ae.typeResolved().unresolved()) {
                         failures.add(fail(ae, ae.typeResolved().message()));
@@ -166,6 +184,9 @@ public class Verifier {
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
             checkForSortOnSpatialTypes(p, failures);
+
+            checkFilterMatchConditions(p, failures);
+            checkMatchCommand(p, failures);
         });
         checkRemoteEnrich(plan, failures);
 
@@ -175,6 +196,15 @@ public class Verifier {
         }
 
         return failures;
+    }
+
+    private static void checkFilterConditionType(LogicalPlan p, Set<Failure> localFailures) {
+        if (p instanceof Filter f) {
+            Expression condition = f.condition();
+            if (condition.dataType() != BOOLEAN) {
+                localFailures.add(fail(condition, "Condition expression needs to be boolean, found [{}]", condition.dataType()));
+            }
+        }
     }
 
     private static void checkAggregate(LogicalPlan p, Set<Failure> failures) {
@@ -333,7 +363,7 @@ public class Verifier {
         if (p instanceof RegexExtract re) {
             Expression expr = re.input();
             DataType type = expr.dataType();
-            if (EsqlDataTypes.isString(type) == false) {
+            if (DataType.isString(type) == false) {
                 failures.add(
                     fail(
                         expr,
@@ -350,7 +380,7 @@ public class Verifier {
     private static void checkRow(LogicalPlan p, Set<Failure> failures) {
         if (p instanceof Row row) {
             row.fields().forEach(a -> {
-                if (EsqlDataTypes.isRepresentable(a.dataType()) == false) {
+                if (DataType.isRepresentable(a.dataType()) == false) {
                     failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
                 }
             });
@@ -362,7 +392,7 @@ public class Verifier {
             eval.fields().forEach(field -> {
                 // check supported types
                 DataType dataType = field.dataType();
-                if (EsqlDataTypes.isRepresentable(dataType) == false) {
+                if (DataType.isRepresentable(dataType) == false) {
                     failures.add(
                         fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
                     );
@@ -375,6 +405,11 @@ public class Verifier {
                         failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
                     }
                 });
+                // check no MATCH expressions are used
+                field.forEachDown(
+                    MatchQueryPredicate.class,
+                    mqp -> { failures.add(fail(mqp, "EVAL does not support MATCH expressions")); }
+                );
             });
         }
     }
@@ -514,7 +549,7 @@ public class Verifier {
         if (p instanceof OrderBy ob) {
             ob.forEachExpression(Attribute.class, attr -> {
                 DataType dataType = attr.dataType();
-                if (EsqlDataTypes.isSpatial(dataType)) {
+                if (DataType.isSpatial(dataType)) {
                     localFailures.add(fail(attr, "cannot sort on " + dataType.typeName()));
                 }
             });
@@ -559,5 +594,62 @@ public class Verifier {
                 }
             }
         });
+    }
+
+    /**
+     * Currently any filter condition using MATCH needs to be pushed down to the Lucene query.
+     * Conditions that use a combination of MATCH and ES|QL functions (e.g. `title MATCH "anna" OR DATE_EXTRACT("year", date) > 2010)
+     * cannot be pushed down to Lucene.
+     * Another condition is for MATCH to use index fields that have been mapped as text or keyword.
+     * We are using canPushToSource at the Verifier level because we want to detect any condition that cannot be pushed down
+     * early in the execution, rather than fail at the compute engine level.
+     * In the future we will be able to handle MATCH at the compute and we will no longer need these checks.
+     */
+    private static void checkFilterMatchConditions(LogicalPlan plan, Set<Failure> failures) {
+        if (plan instanceof Filter f) {
+            Expression condition = f.condition();
+
+            Holder<Boolean> hasMatch = new Holder<>(false);
+            condition.forEachDown(MatchQueryPredicate.class, mqp -> {
+                hasMatch.set(true);
+                var field = mqp.field();
+                if (field instanceof FieldAttribute == false) {
+                    failures.add(fail(mqp, "MATCH requires a mapped index field, found [" + field.sourceText() + "]"));
+                }
+
+                if (DataType.isString(field.dataType()) == false) {
+                    var message = LoggerMessageFormat.format(
+                        null,
+                        "MATCH requires a text or keyword field, but [{}] has type [{}]",
+                        field.sourceText(),
+                        field.dataType().esType()
+                    );
+                    failures.add(fail(mqp, message));
+                }
+            });
+
+            if (canPushToSource(condition, x -> false)) {
+                return;
+            }
+            if (hasMatch.get()) {
+                failures.add(fail(condition, "Invalid condition using MATCH"));
+            }
+        }
+    }
+
+    private static void checkMatchCommand(LogicalPlan plan, Set<Failure> failures) {
+        if (plan instanceof Filter f) {
+            Expression condition = f.condition();
+            if (condition instanceof StringQueryPredicate) {
+                // Similar to cases present in org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters -
+                // we can't check if it can be pushed down as we don't have yet information about the fields present in the
+                // StringQueryPredicate
+                plan.forEachDown(LogicalPlan.class, lp -> {
+                    if ((lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation) == false) {
+                        failures.add(fail(plan, "MATCH cannot be used after {}", lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)));
+                    }
+                });
+            }
+        }
     }
 }

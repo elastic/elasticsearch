@@ -1825,4 +1825,21 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         assertEquals(isDataStream, nestedBuilderContext.isDataStream());
         assertEquals(parentContainsDimensions, nestedBuilderContext.parentObjectContainsDimensions());
     }
+
+    public void testIsInNestedContext() {
+        NestedObjectMapper.NestedMapperBuilderContext context = new NestedObjectMapper.NestedMapperBuilderContext(
+            "nested_path",
+            false,
+            false,
+            false,
+            null,
+            false,
+            Dynamic.FALSE,
+            MergeReason.INDEX_TEMPLATE
+        );
+        assertTrue(context.isInNestedContext());
+
+        MapperBuilderContext childContext = context.createChildContext("child", false, Dynamic.FALSE);
+        assertTrue(childContext.isInNestedContext());
+    }
 }

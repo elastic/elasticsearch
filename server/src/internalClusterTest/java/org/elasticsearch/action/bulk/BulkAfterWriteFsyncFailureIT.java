@@ -10,7 +10,6 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.tests.mockfile.FilterFileChannel;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
@@ -29,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
+import static org.elasticsearch.indices.IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -48,18 +48,17 @@ public class BulkAfterWriteFsyncFailureIT extends ESSingleNodeTestCase {
         PathUtilsForTesting.teardown();
     }
 
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), false).build();
+    }
+
     public void testFsyncFailureDoesNotAdvanceLocalCheckpoints() {
         String indexName = randomIdentifier();
         client().admin()
             .indices()
             .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .build()
-            )
+            .setSettings(indexSettings(1, 0).put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1))
             .setMapping("key", "type=keyword", "val", "type=long")
             .get();
         ensureGreen(indexName);

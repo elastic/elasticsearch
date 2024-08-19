@@ -7,21 +7,18 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.io.IOException;
 
-/**
- * Interface for streams that can serialize plan components. This exists so
- * ESQL proper can expose streaming capability to ESQL-core. If the world is kind
- * and just we'll remove this when we flatten everything from ESQL-core into
- * ESQL proper.
- */
 public interface PlanStreamOutput {
+
     /**
-     * Write an {@link Expression} to the stream. This will soon be replaced with
-     * {@link StreamOutput#writeNamedWriteable}.
+     * Writes a cache header for an {@link Attribute} and caches it if it is not already in the cache.
+     * In that case, the attribute will have to serialize itself into this stream immediately after this method call.
+     * @param attribute The attribute to serialize
+     * @return true if the attribute needs to serialize itself, false otherwise (ie. if already cached)
+     * @throws IOException
      */
-    void writeExpression(Expression expression) throws IOException;
+    boolean writeAttributeCacheHeader(Attribute attribute) throws IOException;
 }

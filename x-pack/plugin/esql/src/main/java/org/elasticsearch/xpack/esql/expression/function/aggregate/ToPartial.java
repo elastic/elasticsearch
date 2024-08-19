@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -66,25 +65,25 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
 
     private final Expression function;
 
-    public ToPartial(Source source, AggregateFunction function) {
-        super(source, function.field(), List.of(function));
-        this.function = function;
-    }
-
-    private ToPartial(Source source, Expression field, Expression function) {
+    public ToPartial(Source source, Expression field, Expression function) {
         super(source, field, List.of(function));
         this.function = function;
     }
 
     private ToPartial(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readExpression(), ((PlanStreamInput) in).readExpression());
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        PlanStreamOutput planOut = (PlanStreamOutput) out;
-        planOut.writeExpression(function);
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeNamedWriteable(function);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public Expression function() {

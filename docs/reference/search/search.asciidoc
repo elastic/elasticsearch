@@ -141,7 +141,7 @@ When unspecified, the pre-filter phase is executed if any of these conditions is
   - The primary sort of the query targets an indexed field.
 
 [[search-preference]]
-tag::search-preference[]
+// tag::search-preference[]
 `preference`::
 (Optional, string)
 Nodes and shards used for the search. By default, {es} selects from eligible
@@ -178,7 +178,7 @@ Any string that does not start with `_`. If the cluster state and selected
 shards do not change, searches using the same `<custom-string>` value are routed
 to the same shards in the same order.
 ====
-end::search-preference[]
+// end::search-preference[]
 
 
 [[search-api-query-params-q]]

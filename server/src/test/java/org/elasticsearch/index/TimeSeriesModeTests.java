@@ -121,9 +121,10 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
 
     public void testRequiredRouting() {
         Settings s = getSettings();
+        var mapperService = new TestMapperServiceBuilder().settings(s).applyDefaultMapping(false).build();
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> createMapperService(s, topMapping(b -> b.startObject("_routing").field("required", true).endObject()))
+            () -> withMapping(mapperService, topMapping(b -> b.startObject("_routing").field("required", true).endObject()))
         );
         assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
     }

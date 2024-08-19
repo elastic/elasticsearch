@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -24,6 +23,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
@@ -40,9 +40,9 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
@@ -111,7 +111,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(),
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getDefault(Settings.EMPTY)
             )
-            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(500, 2000)))
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
             .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING, ByteSizeValue.ofBytes(between(0, 256)))
             .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING, ByteSizeValue.ofBytes(between(0, 1024)))
             // allow reading pages from network can trip the circuit breaker
@@ -226,12 +226,12 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
 
     public void testSumDurationByArtist() {
         Function<EsqlQueryResponse, Map<String, Double>> extractStats = resp -> {
-            List<ColumnInfo> columns = resp.columns();
+            List<ColumnInfoImpl> columns = resp.columns();
             assertThat(columns, hasSize(2));
             assertThat(columns.get(0).name(), equalTo("sum(duration)"));
-            assertThat(columns.get(0).type(), equalTo("double"));
+            assertThat(columns.get(0).type(), equalTo(DataType.DOUBLE));
             assertThat(columns.get(1).name(), equalTo("artist"));
-            assertThat(columns.get(1).type(), equalTo("keyword"));
+            assertThat(columns.get(1).type(), equalTo(DataType.KEYWORD));
             Iterator<Iterator<Object>> rows = resp.values();
             Map<String, Double> actualValues = new HashMap<>();
             while (rows.hasNext()) {
@@ -256,12 +256,12 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
 
     public void testAvgDurationByArtist() {
         Function<EsqlQueryResponse, Map<String, Double>> extractStats = resp -> {
-            List<ColumnInfo> columns = resp.columns();
+            List<ColumnInfoImpl> columns = resp.columns();
             assertThat(columns, hasSize(2));
             assertThat(columns.get(0).name(), equalTo("avg(duration)"));
-            assertThat(columns.get(0).type(), equalTo("double"));
+            assertThat(columns.get(0).type(), equalTo(DataType.DOUBLE));
             assertThat(columns.get(1).name(), equalTo("artist"));
-            assertThat(columns.get(1).type(), equalTo("keyword"));
+            assertThat(columns.get(1).type(), equalTo(DataType.KEYWORD));
             Iterator<Iterator<Object>> rows = resp.values();
             Map<String, Double> actualValues = new HashMap<>();
             while (rows.hasNext()) {
@@ -282,12 +282,12 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
 
     public void testListeningRatio() {
         Function<EsqlQueryResponse, Map<String, Double>> extractStats = resp -> {
-            List<ColumnInfo> columns = resp.columns();
+            List<ColumnInfoImpl> columns = resp.columns();
             assertThat(columns, hasSize(2));
             assertThat(columns.get(0).name(), equalTo("ratio"));
-            assertThat(columns.get(0).type(), equalTo("double"));
+            assertThat(columns.get(0).type(), equalTo(DataType.DOUBLE));
             assertThat(columns.get(1).name(), equalTo("artist"));
-            assertThat(columns.get(1).type(), equalTo("keyword"));
+            assertThat(columns.get(1).type(), equalTo(DataType.KEYWORD));
             Iterator<Iterator<Object>> rows = resp.values();
             Map<String, Double> actualValues = new HashMap<>();
             while (rows.hasNext()) {

@@ -46,9 +46,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.RemoteTransportException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -675,13 +673,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
     }
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/108237",
-        value = "org.elasticsearch.snapshots.SnapshotsService:DEBUG,"
-            + "org.elasticsearch.cluster.service.MasterService:DEBUG,"
-            + "org.elasticsearch.repositories.blobstore.BlobStoreRepository:DEBUG,"
-            + "org.elasticsearch.snapshots.mockstore.MockRepository:DEBUG"
-    )
     public void testQueuedOperationsOnMasterDisconnect() throws Exception {
         internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
@@ -796,18 +787,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ensureStableCluster(3);
 
         awaitNoMoreRunningOperations();
-        var innerException = expectThrows(ExecutionException.class, RuntimeException.class, deleteFuture::get);
-
-        // There may be many layers of RTE to unwrap here, see https://github.com/elastic/elasticsearch/issues/102351.
-        // ExceptionsHelper#unwrapCause gives up at 10 layers of wrapping so we must unwrap more tenaciously by hand here:
-        while (true) {
-            if (innerException instanceof RemoteTransportException remoteTransportException) {
-                innerException = asInstanceOf(RuntimeException.class, remoteTransportException.getCause());
-            } else {
-                assertThat(innerException, instanceOf(RepositoryException.class));
-                break;
-            }
-        }
+        expectThrows(RepositoryException.class, deleteFuture::actionGet);
     }
 
     public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOver() throws Exception {
@@ -2229,7 +2209,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                     .anyMatch(e -> e.snapshot().getSnapshotId().getName().equals("snapshot-with-index-1") && e.state().completed())
             )
             // execute the index deletion _directly on the master_ so it happens before the snapshot finalization executes
-            .andThen((l, ignored) -> masterDeleteIndexService.deleteIndices(new DeleteIndexClusterStateUpdateRequest(l.map(r -> {
+            .andThen(l -> masterDeleteIndexService.deleteIndices(new DeleteIndexClusterStateUpdateRequest(l.map(r -> {
                 assertTrue(r.isAcknowledged());
                 return null;
             })).indices(new Index[] { internalCluster().clusterService().state().metadata().index(indexToDelete).getIndex() })

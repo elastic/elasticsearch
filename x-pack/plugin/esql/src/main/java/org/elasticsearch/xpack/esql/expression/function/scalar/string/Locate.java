@@ -15,16 +15,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,7 +48,7 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "integer",
-        description = "Returns an integer that indicates the position of a keyword substring within another string",
+        description = "Returns an integer that indicates the position of a keyword substring within another string.",
         examples = @Example(file = "string", tag = "locate")
     )
     public Locate(
@@ -71,18 +70,18 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
     private Locate(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readOptionalNamed(Expression.class)
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(str);
-        ((PlanStreamOutput) out).writeExpression(substr);
-        ((PlanStreamOutput) out).writeOptionalExpression(start);
+        out.writeNamedWriteable(str);
+        out.writeNamedWriteable(substr);
+        out.writeOptionalNamedWriteable(start);
     }
 
     @Override

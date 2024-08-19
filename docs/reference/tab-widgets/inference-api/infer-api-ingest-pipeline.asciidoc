@@ -35,6 +35,32 @@ and the `output_field` that will contain the {infer} results.
 
 // end::cohere[]
 
+// tag::elser[]
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/elser_embeddings
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": "elser_embeddings", <1>
+        "input_output": { <2>
+          "input_field": "content",
+          "output_field": "content_embedding"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+<1> The name of the inference endpoint you created by using the
+<<put-inference-api>>, it's referred to as `inference_id` in that step.
+<2> Configuration object that defines the `input_field` for the {infer} process
+and the `output_field` that will contain the {infer} results.
+
+// end::elser[]
+
 // tag::hugging-face[]
 
 [source,console]
@@ -164,3 +190,29 @@ PUT _ingest/pipeline/mistral_embeddings
 and the `output_field` that will contain the {infer} results.
 
 // end::mistral[]
+
+// tag::amazon-bedrock[]
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/amazon_bedrock_embeddings
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": "amazon_bedrock_embeddings", <1>
+        "input_output": { <2>
+          "input_field": "content",
+          "output_field": "content_embedding"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+<1> The name of the inference endpoint you created by using the
+<<put-inference-api>>, it's referred to as `inference_id` in that step.
+<2> Configuration object that defines the `input_field` for the {infer} process
+and the `output_field` that will contain the {infer} results.
+
+// end::amazon-bedrock[]

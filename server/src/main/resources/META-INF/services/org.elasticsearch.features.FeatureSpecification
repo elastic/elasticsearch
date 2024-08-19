@@ -6,6 +6,7 @@
 # Side Public License, v 1.
 #
 
+org.elasticsearch.action.bulk.BulkFeatures
 org.elasticsearch.features.FeatureInfrastructureFeatures
 org.elasticsearch.health.HealthFeatures
 org.elasticsearch.cluster.service.TransportFeatures
@@ -14,7 +15,9 @@ org.elasticsearch.rest.RestFeatures
 org.elasticsearch.indices.IndicesFeatures
 org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures
 org.elasticsearch.index.mapper.MapperFeatures
+org.elasticsearch.ingest.IngestGeoIpFeatures
 org.elasticsearch.search.SearchFeatures
 org.elasticsearch.search.retriever.RetrieversFeatures
 org.elasticsearch.script.ScriptFeatures
 org.elasticsearch.reservedstate.service.FileSettingsFeatures
+org.elasticsearch.cluster.routing.RoutingFeatures

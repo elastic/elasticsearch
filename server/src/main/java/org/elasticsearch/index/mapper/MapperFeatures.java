@@ -27,7 +27,11 @@ public class MapperFeatures implements FeatureSpecification {
             SourceFieldMapper.SYNTHETIC_SOURCE_FALLBACK,
             DenseVectorFieldMapper.INT4_QUANTIZATION,
             DenseVectorFieldMapper.BIT_VECTORS,
-            DocumentMapper.INDEX_SORTING_ON_NESTED
+            DocumentMapper.INDEX_SORTING_ON_NESTED,
+            KeywordFieldMapper.KEYWORD_DIMENSION_IGNORE_ABOVE,
+            IndexModeFieldMapper.QUERYING_INDEX_MODE,
+            NodeMappingStats.SEGMENT_LEVEL_FIELDS_STATS,
+            BooleanFieldMapper.BOOLEAN_DIMENSION
         );
     }
 }

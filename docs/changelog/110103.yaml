@@ -1,5 +1,0 @@
-pr: 110103
-summary: Fix automatic tracking of collapse with `docvalue_fields`
-area: Search
-type: bug
-issues: []

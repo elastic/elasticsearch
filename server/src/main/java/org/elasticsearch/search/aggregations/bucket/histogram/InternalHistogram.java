@@ -44,31 +44,22 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
     implements
         Histogram,
         HistogramFactory {
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket, KeyComparable<Bucket> {
+    public static class Bucket extends AbstractHistogramBucket implements KeyComparable<Bucket> {
 
         final double key;
-        final long docCount;
-        final InternalAggregations aggregations;
         private final transient boolean keyed;
-        protected final transient DocValueFormat format;
 
         public Bucket(double key, long docCount, boolean keyed, DocValueFormat format, InternalAggregations aggregations) {
-            this.format = format;
+            super(docCount, aggregations, format);
             this.keyed = keyed;
             this.key = key;
-            this.docCount = docCount;
-            this.aggregations = aggregations;
         }
 
         /**
          * Read from a stream.
          */
-        public Bucket(StreamInput in, boolean keyed, DocValueFormat format) throws IOException {
-            this.format = format;
-            this.keyed = keyed;
-            key = in.readDouble();
-            docCount = in.readVLong();
-            aggregations = InternalAggregations.readFrom(in);
+        public static Bucket readFrom(StreamInput in, boolean keyed, DocValueFormat format) throws IOException {
+            return new Bucket(in.readDouble(), in.readVLong(), keyed, format, InternalAggregations.readFrom(in));
         }
 
         @Override
@@ -105,16 +96,6 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
         }
 
         @Override
-        public long getDocCount() {
-            return docCount;
-        }
-
-        @Override
-        public InternalAggregations getAggregations() {
-            return aggregations;
-        }
-
-        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             String keyAsString = format.format(key).toString();
             if (keyed) {
@@ -135,10 +116,6 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
         @Override
         public int compareKey(Bucket other) {
             return Double.compare(key, other.key);
-        }
-
-        public DocValueFormat getFormatter() {
-            return format;
         }
 
         public boolean getKeyed() {
@@ -242,9 +219,9 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
         }
         format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
-        buckets = in.readCollectionAsList(stream -> new Bucket(stream, keyed, format));
+        buckets = in.readCollectionAsList(stream -> Bucket.readFrom(stream, keyed, format));
         // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
-        if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED)) {
+        if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.V_8_14_0)) {
             // list is mutable by #readCollectionAsList contract
             buckets.sort(Comparator.comparingDouble(b -> b.key));
         }
@@ -282,17 +259,11 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
 
     @Override
     public InternalHistogram create(List<Bucket> buckets) {
-        if (this.buckets.equals(buckets)) {
-            return this;
-        }
         return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata);
     }
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-        if (prototype.aggregations.equals(aggregations)) {
-            return prototype;
-        }
         return new Bucket(prototype.key, prototype.docCount, prototype.keyed, prototype.format, aggregations);
     }
 
@@ -471,18 +442,13 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
                     }
                     if (InternalOrder.isKeyDesc(order)) {
                         // we just need to reverse here...
-                        List<Bucket> reverse = new ArrayList<>(reducedBuckets);
-                        Collections.reverse(reverse);
-                        reducedBuckets = reverse;
+                        Collections.reverse(reducedBuckets);
                     } else if (InternalOrder.isKeyAsc(order) == false) {
                         // nothing to do when sorting by key ascending, as data is already sorted since shards return
                         // sorted buckets and the merge-sort performed by reduceBuckets maintains order.
                         // otherwise, sorted by compound order or sub-aggregation, we need to fall back to a costly n*log(n) sort
                         CollectionUtil.introSort(reducedBuckets, order.comparator());
                     }
-                }
-                if (reducedBuckets.equals(buckets)) {
-                    return InternalHistogram.this;
                 }
                 return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
             }
@@ -529,9 +495,14 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
     }
 
     @Override
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     public InternalAggregation createAggregation(List<MultiBucketsAggregation.Bucket> buckets) {
-        return new InternalHistogram(name, (List) buckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
+        // convert buckets to the right type
+        List<Bucket> buckets2 = new ArrayList<>(buckets.size());
+        for (Object b : buckets) {
+            buckets2.add((Bucket) b);
+        }
+        buckets2 = Collections.unmodifiableList(buckets2);
+        return new InternalHistogram(name, buckets2, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
     }
 
     @Override

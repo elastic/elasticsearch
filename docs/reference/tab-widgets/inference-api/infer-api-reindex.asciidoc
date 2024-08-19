@@ -25,6 +25,29 @@ may affect the throughput of the reindexing process.
 
 // end::cohere[]
 
+// tag::elser[]
+
+[source,console]
+----
+POST _reindex?wait_for_completion=false
+{
+  "source": {
+    "index": "test-data",
+    "size": 50 <1>
+  },
+  "dest": {
+    "index": "elser-embeddings",
+    "pipeline": "elser_embeddings"
+  }
+}
+----
+// TEST[skip:TBD]
+<1> The default batch size for reindexing is 1000. Reducing `size` to a smaller
+number makes the update of the reindexing process quicker which enables you to
+follow the progress closely and detect errors early.
+
+// end::elser[]
+
 // tag::hugging-face[]
 
 [source,console]
@@ -154,3 +177,26 @@ number makes the update of the reindexing process quicker which enables you to
 follow the progress closely and detect errors early.
 
 // end::mistral[]
+
+// tag::amazon-bedrock[]
+
+[source,console]
+----
+POST _reindex?wait_for_completion=false
+{
+  "source": {
+    "index": "test-data",
+    "size": 50 <1>
+  },
+  "dest": {
+    "index": "amazon-bedrock-embeddings",
+    "pipeline": "amazon_bedrock_embeddings"
+  }
+}
+----
+// TEST[skip:TBD]
+<1> The default batch size for reindexing is 1000. Reducing `size` to a smaller
+number makes the update of the reindexing process quicker which enables you to
+follow the progress closely and detect errors early.
+
+// end::amazon-bedrock[]

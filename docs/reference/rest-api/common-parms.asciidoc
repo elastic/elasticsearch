@@ -649,8 +649,9 @@ tag::level[]
 +
 --
 (Optional, string)
-Indicates whether statistics are aggregated
-at the cluster, index, or shard level.
+Indicates whether statistics are aggregated at the cluster, index, or shard level.
+If the shards level is requested, some additional
+<<cluster-nodes-stats,shard-specific statistics>> are shown.
 
 Valid values are:
 

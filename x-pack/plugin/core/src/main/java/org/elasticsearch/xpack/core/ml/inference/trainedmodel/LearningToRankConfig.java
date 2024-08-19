@@ -7,16 +7,21 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.license.License;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearningToRankFeatureExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
@@ -30,6 +35,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class LearningToRankConfig extends RegressionConfig implements Rewriteable<LearningToRankConfig> {
 
     public static final ParseField NAME = new ParseField("learning_to_rank");
@@ -42,6 +49,8 @@ public class LearningToRankConfig extends RegressionConfig implements Rewriteabl
 
     private static final ObjectParser<LearningToRankConfig.Builder, Boolean> LENIENT_PARSER = createParser(true);
     private static final ObjectParser<LearningToRankConfig.Builder, Boolean> STRICT_PARSER = createParser(false);
+
+    private static final TrainedModelInput DEFAULT_INPUT = new TrainedModelInput(List.of());
 
     private static ObjectParser<LearningToRankConfig.Builder, Boolean> createParser(boolean lenient) {
         ObjectParser<LearningToRankConfig.Builder, Boolean> parser = new ObjectParser<>(
@@ -220,6 +229,14 @@ public class LearningToRankConfig extends RegressionConfig implements Rewriteabl
     }
 
     @Override
+    public License.OperationMode getMinLicenseSupportedForAction(RestRequest.Method method) {
+        if (method == RestRequest.Method.PUT) {
+            return License.OperationMode.ENTERPRISE;
+        }
+        return super.getMinLicenseSupportedForAction(method);
+    }
+
+    @Override
     public LearningToRankConfig rewrite(QueryRewriteContext ctx) throws IOException {
         if (this.featureExtractorBuilders.isEmpty()) {
             return this;
@@ -235,6 +252,24 @@ public class LearningToRankConfig extends RegressionConfig implements Rewriteabl
             return new LearningToRankConfig(getNumTopFeatureImportanceValues(), rewrittenExtractors, paramsDefaults);
         }
         return this;
+    }
+
+    @Override
+    public TrainedModelInput getDefaultInput(TrainedModelType modelType) {
+        return DEFAULT_INPUT;
+    }
+
+    @Override
+    public ActionRequestValidationException validateTrainedModelInput(
+        TrainedModelInput input,
+        boolean forCreation,
+        ActionRequestValidationException validationException
+    ) {
+        if (forCreation && input != null && input.getFieldNames().isEmpty() == false) {
+            return addValidationError("cannot specify [input.field_names] for a model of type [learning_to_rank]", validationException);
+        }
+
+        return validationException;
     }
 
     public static class Builder {

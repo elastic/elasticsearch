@@ -6,9 +6,16 @@ experimental[]
 
 Creates an {infer} endpoint to perform an {infer} task.
 
-IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in {ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Mistral, Azure OpenAI, Google AI Studio or Hugging Face.
-For built-in models and models uploaded though Eland, the {infer} APIs offer an alternative way to use and manage trained models.
-However, if you do not plan to use the {infer} APIs to use these models or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
+[IMPORTANT]
+====
+* The {infer} APIs enable you to use certain services, such as built-in
+{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Mistral,
+Azure OpenAI, Google AI Studio, Google Vertex AI, Anthropic or Hugging Face.
+* For built-in models and models uploaded through Eland, the {infer} APIs offer an
+alternative way to use and manage trained models. However, if you do not plan to
+use the {infer} APIs to use these models or if you want to use non-NLP models,
+use the <<ml-df-trained-models-apis>>.
+====
 
 
 [discrete]
@@ -24,22 +31,26 @@ However, if you do not plan to use the {infer} APIs to use these models or if yo
 * Requires the `manage_inference` <<privileges-list-cluster,cluster privilege>>
 (the built-in `inference_admin` role grants this privilege)
 
-
 [discrete]
 [[put-inference-api-desc]]
 ==== {api-description-title}
-
 
 The create {infer} API enables you to create an {infer} endpoint and configure a {ml} model to perform a specific {infer} task.
 
 The following services are available through the {infer} API, click the links to review the configuration details of the services:
 
+* <<infer-service-amazon-bedrock,Amazon Bedrock>>
+* <<infer-service-anthropic,Anthropic>>
 * <<infer-service-azure-ai-studio,Azure AI Studio>>
 * <<infer-service-azure-openai,Azure OpenAI>>
 * <<infer-service-cohere,Cohere>>
 * <<infer-service-elasticsearch,Elasticsearch>> (for built-in models and models uploaded through Eland)
 * <<infer-service-elser,ELSER>>
 * <<infer-service-google-ai-studio,Google AI Studio>>
+* <<infer-service-google-vertex-ai,Google Vertex AI>>
 * <<infer-service-hugging-face,Hugging Face>>
 * <<infer-service-mistral,Mistral>>
 * <<infer-service-openai,OpenAI>>
+
+The {es} and ELSER services run on a {ml} node in your {es} cluster. The rest of
+the services connect to external providers.

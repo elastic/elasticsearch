@@ -12,14 +12,14 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.ArrayList;
@@ -106,14 +106,7 @@ public final class ReplaceStatsAggExpressionWithEval extends OptimizerRules.Opti
                         Alias alias = rootAggs.get(canonical);
                         if (alias == null) {
                             // create synthetic alias ove the found agg function
-                            alias = new Alias(
-                                af.source(),
-                                syntheticName(canonical, child, counter[0]++),
-                                as.qualifier(),
-                                canonical,
-                                null,
-                                true
-                            );
+                            alias = new Alias(af.source(), syntheticName(canonical, child, counter[0]++), canonical, null, true);
                             // and remember it to remove duplicates
                             rootAggs.put(canonical, alias);
                             // add it to the list of aggregates and continue
@@ -150,6 +143,6 @@ public final class ReplaceStatsAggExpressionWithEval extends OptimizerRules.Opti
     }
 
     static String syntheticName(Expression expression, Expression af, int counter) {
-        return SubstituteSurrogates.temporaryName(expression, af, counter);
+        return LogicalPlanOptimizer.temporaryName(expression, af, counter);
     }
 }

@@ -153,6 +153,8 @@ The only requirements are that each node must be:
   cluster, and by any remote clusters that will discover it using
   <<sniff-mode>>.
 
+Each node must have its own distinct publish address.
+
 If you specify the transport publish address using a hostname then {es} will
 resolve this hostname to an IP address once during startup, and other nodes
 will use the resulting IP address instead of resolving the name again

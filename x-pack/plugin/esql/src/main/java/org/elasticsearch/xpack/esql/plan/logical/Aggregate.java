@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -14,21 +15,23 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Aggregate extends UnaryPlan {
+public class Aggregate extends UnaryPlan implements Stats {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        "Aggregate",
+        Aggregate::new
+    );
 
     public enum AggregateType {
         STANDARD,
@@ -55,6 +58,7 @@ public class Aggregate extends UnaryPlan {
     private final AggregateType aggregateType;
     private final List<Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
+    private List<Attribute> lazyOutput;
 
     public Aggregate(
         Source source,
@@ -69,22 +73,28 @@ public class Aggregate extends UnaryPlan {
         this.aggregates = aggregates;
     }
 
-    public Aggregate(PlanStreamInput in) throws IOException {
+    public Aggregate(StreamInput in) throws IOException {
         this(
-            Source.readFrom(in),
-            in.readLogicalPlanNode(),
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(LogicalPlan.class),
             AggregateType.readType(in),
-            in.readCollectionAsList(readerFromPlanReader(org.elasticsearch.xpack.esql.io.stream.PlanStreamInput::readExpression)),
+            in.readNamedWriteableCollectionAsList(Expression.class),
             in.readNamedWriteableCollectionAsList(NamedExpression.class)
         );
     }
 
-    public static void writeAggregate(PlanStreamOutput out, Aggregate aggregate) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        out.writeLogicalPlanNode(aggregate.child());
-        AggregateType.writeType(out, aggregate.aggregateType());
-        out.writeCollection(aggregate.groupings(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
-        out.writeNamedWriteableCollection(aggregate.aggregates());
+        out.writeNamedWriteable(child());
+        AggregateType.writeType(out, aggregateType());
+        out.writeNamedWriteableCollection(groupings);
+        out.writeNamedWriteableCollection(aggregates());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -95,6 +105,11 @@ public class Aggregate extends UnaryPlan {
     @Override
     public Aggregate replaceChild(LogicalPlan newChild) {
         return new Aggregate(source(), newChild, aggregateType, groupings, aggregates);
+    }
+
+    @Override
+    public Aggregate with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
+        return new Aggregate(source(), child(), aggregateType(), newGroupings, newAggregates);
     }
 
     public AggregateType aggregateType() {
@@ -116,7 +131,10 @@ public class Aggregate extends UnaryPlan {
 
     @Override
     public List<Attribute> output() {
-        return Expressions.asAttributes(aggregates);
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(Expressions.asAttributes(aggregates()), emptyList());
+        }
+        return lazyOutput;
     }
 
     @Override

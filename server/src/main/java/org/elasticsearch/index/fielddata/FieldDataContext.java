@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -25,6 +26,7 @@ import java.util.function.Supplier;
  */
 public record FieldDataContext(
     String fullyQualifiedIndexName,
+    IndexSettings indexSettings,
     Supplier<SearchLookup> lookupSupplier,
     Function<String, Set<String>> sourcePathsLookup,
     MappedFieldType.FielddataOperation fielddataOperation
@@ -38,11 +40,8 @@ public record FieldDataContext(
      * @param reason the reason that runtime fields are not supported
      */
     public static FieldDataContext noRuntimeFields(String reason) {
-        return new FieldDataContext(
-            "",
-            () -> { throw new UnsupportedOperationException("Runtime fields not supported for [" + reason + "]"); },
-            Set::of,
-            MappedFieldType.FielddataOperation.SEARCH
-        );
+        return new FieldDataContext("", null, () -> {
+            throw new UnsupportedOperationException("Runtime fields not supported for [" + reason + "]");
+        }, Set::of, MappedFieldType.FielddataOperation.SEARCH);
     }
 }

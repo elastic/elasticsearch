@@ -673,10 +673,11 @@ public abstract class DocumentParserContext {
         return new MapperBuilderContext(
             p,
             mappingLookup.isSourceSynthetic(),
-            false,
+            mappingLookup.isDataStreamTimestampFieldEnabled(),
             containsDimensions,
             dynamic,
-            MergeReason.MAPPING_UPDATE
+            MergeReason.MAPPING_UPDATE,
+            false
         );
     }
 

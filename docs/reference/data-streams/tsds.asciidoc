@@ -53,8 +53,9 @@ shard segments by `_tsid` and `@timestamp`.
 documents, the document `_id` is a hash of the document's dimensions and
 `@timestamp`. A TSDS doesn't support custom document `_id` values.
 
+
 * A TSDS uses <<synthetic-source,synthetic `_source`>>, and as a result is
-subject to a number of <<synthetic-source-restrictions,restrictions>>.
+subject to some <<synthetic-source-restrictions,restrictions>> and <<synthetic-source-modifications,modifications>> applied to the `_source` field.
 
 NOTE: A time series index can contain fields other than dimensions or metrics.
 
@@ -106,6 +107,7 @@ parameter:
 * <<number,`integer`>>
 * <<number,`long`>>
 * <<number,`unsigned_long`>>
+* <<boolean,`boolean`>>
 
 For a flattened field, use the `time_series_dimensions` parameter to configure an array of fields as dimensions. For details refer to <<flattened-params,`flattened`>>.
 

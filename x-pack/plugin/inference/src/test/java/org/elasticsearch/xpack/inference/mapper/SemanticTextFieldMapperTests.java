@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.document.FeatureField;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -42,6 +45,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -61,6 +65,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -128,6 +133,25 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
+    @Override
+    public MappedFieldType getMappedFieldType() {
+        return new SemanticTextFieldMapper.SemanticTextFieldType(
+            "field",
+            "fake-inference-id",
+            null,
+            null,
+            IndexVersion.current(),
+            Map.of()
+        );
+    }
+
+    @Override
+    protected void assertSearchable(MappedFieldType fieldType) {
+        assertThat(fieldType, instanceOf(SemanticTextFieldMapper.SemanticTextFieldType.class));
+        assertTrue(fieldType.isIndexed());
+        assertTrue(fieldType.isSearchable());
+    }
+
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
@@ -137,6 +161,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
         // No indexable fields
         assertTrue(fields.isEmpty());
+    }
+
+    @Override
+    public void testFieldHasValue() {
+        MappedFieldType fieldType = getMappedFieldType();
+        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName(getEmbeddingsFieldName("field")) });
+        assertTrue(fieldType.fieldHasValue(fieldInfos));
     }
 
     public void testInferenceIdNotPresent() {
@@ -180,36 +211,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         final String fieldName = "semantic";
         final String inferenceId = "test_service";
 
-        MapperService mapperService = createMapperService(mapping(b -> {}));
-        mapperService.merge(
-            "_doc",
-            new CompressedXContent(
-                Strings.toString(PutMappingRequest.simpleMapping(fieldName, "type=semantic_text,inference_id=" + inferenceId))
-            ),
-            MapperService.MergeReason.MAPPING_UPDATE
-        );
-
-        SemanticTextField semanticTextField = new SemanticTextField(
+        MapperService mapperService = mapperServiceForFieldWithModelSettings(
             fieldName,
-            List.of(),
-            new SemanticTextField.InferenceResult(
-                inferenceId,
-                new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null),
-                List.of()
-            ),
-            XContentType.JSON
-        );
-        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        builder.field(semanticTextField.fieldName());
-        builder.value(semanticTextField);
-        builder.endObject();
-
-        SourceToParse sourceToParse = new SourceToParse("test", BytesReference.bytes(builder), XContentType.JSON);
-        ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
-        mapperService.merge(
-            "_doc",
-            parsedDocument.dynamicMappingsUpdate().toCompressedXContent(),
-            MapperService.MergeReason.MAPPING_UPDATE
+            inferenceId,
+            new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null)
         );
         assertSemanticTextField(mapperService, fieldName, true);
     }
@@ -563,6 +568,51 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             MapperService.MergeReason.MAPPING_UPDATE
         );
         return mapperService;
+    }
+
+    public void testExistsQuerySparseVector() throws IOException {
+        final String fieldName = "semantic";
+        final String inferenceId = "test_service";
+
+        MapperService mapperService = mapperServiceForFieldWithModelSettings(
+            fieldName,
+            inferenceId,
+            new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null)
+        );
+
+        Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
+        assertNotNull(mapper);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
+        Query existsQuery = ((SemanticTextFieldMapper) mapper).fieldType().existsQuery(searchExecutionContext);
+        assertThat(existsQuery, instanceOf(ESToParentBlockJoinQuery.class));
+    }
+
+    public void testExistsQueryDenseVector() throws IOException {
+        final String fieldName = "semantic";
+        final String inferenceId = "test_service";
+
+        MapperService mapperService = mapperServiceForFieldWithModelSettings(
+            fieldName,
+            inferenceId,
+            new SemanticTextField.ModelSettings(
+                TaskType.TEXT_EMBEDDING,
+                1024,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            )
+        );
+
+        Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
+        assertNotNull(mapper);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
+        Query existsQuery = ((SemanticTextFieldMapper) mapper).fieldType().existsQuery(searchExecutionContext);
+        assertThat(existsQuery, instanceOf(ESToParentBlockJoinQuery.class));
+    }
+
+    @Override
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
+        // Until a doc is indexed, the query is rewritten as match no docs
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
     }
 
     private static void addSemanticTextMapping(XContentBuilder mappingBuilder, String fieldName, String modelId) throws IOException {

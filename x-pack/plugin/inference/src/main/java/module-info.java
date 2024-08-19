@@ -20,8 +20,13 @@ module org.elasticsearch.inference {
     requires org.apache.lucene.join;
     requires com.ibm.icu;
     requires com.google.auth.oauth2;
+    requires com.google.auth;
     requires com.google.api.client;
     requires com.google.gson;
+    requires aws.java.sdk.bedrockruntime;
+    requires aws.java.sdk.core;
+    requires com.fasterxml.jackson.databind;
+    requires org.joda.time;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;

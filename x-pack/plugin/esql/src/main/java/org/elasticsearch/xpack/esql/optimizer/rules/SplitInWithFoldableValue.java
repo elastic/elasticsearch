@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 
 import java.util.ArrayList;

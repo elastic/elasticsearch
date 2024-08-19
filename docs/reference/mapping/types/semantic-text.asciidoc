@@ -8,7 +8,7 @@
 beta[]
 
 The `semantic_text` field type automatically generates embeddings for text
-content using an inference endpoint. 
+content using an inference endpoint.
 
 The `semantic_text` field type specifies an inference endpoint identifier that will be used to generate embeddings.
 You can create the inference endpoint by using the <<put-inference-api>>.
@@ -24,7 +24,7 @@ PUT my-index-000001
 {
   "mappings": {
     "properties": {
-      "inference_field": { 
+      "inference_field": {
         "type": "semantic_text",
         "inference_id": "my-elser-endpoint"
       }
@@ -40,7 +40,7 @@ PUT my-index-000001
 ==== Parameters for `semantic_text` fields
 
 `inference_id`::
-(Required, string)  
+(Required, string)
 Inference endpoint that will be used to generate the embeddings for the field.
 Use the <<put-inference-api>> to create the endpoint.
 
@@ -52,8 +52,8 @@ Use the <<put-inference-api>> to create the endpoint.
 The `inference_id` will not be validated when the mapping is created, but when documents are ingested into the index.
 When the first document is indexed, the `inference_id` will be used to generate underlying indexing structures for the field.
 
-WARNING: Removing an inference endpoint will cause ingestion of documents and semantic queries to fail on indices that define `semantic_text` fields with that inference endpoint as their `inference_id`.
-Please check that inference endpoints are not used in `semantic_text` fields before removal.
+WARNING: Removing an {infer} endpoint will cause ingestion of documents and semantic queries to fail on indices that define `semantic_text` fields with that {infer} endpoint as their `inference_id`.
+Trying to <<delete-inference-api,delete an {infer} endpoint>> that is used on a `semantic_text` field will result in an error.
 
 [discrete]
 [[auto-text-chunking]]
@@ -64,6 +64,9 @@ To allow for large amounts of text to be used in semantic search, `semantic_text
 
 Each chunk will include the text subpassage and the corresponding embedding generated from it.
 When querying, the individual passages will be automatically searched for each document, and the most relevant passage will be used to compute a score.
+
+Documents are split into 250-word sections with a 100-word overlap so that each section shares 100 words with the previous section.
+This overlap ensures continuity and prevents vital contextual information in the input text from being lost by a hard break.
 
 
 [discrete]
@@ -118,13 +121,19 @@ In case you want to customize data indexing, use the
 <<sparse-vector,`sparse_vector`>> or <<dense-vector,`dense_vector`>> field
 types and create an ingest pipeline with an
 <<inference-processor, {infer} processor>> to generate the embeddings.
-<<semantic-search-inference,This tutorial>> walks you through the process.
+<<semantic-search-inference,This tutorial>> walks you through the process. In
+these cases - when you use `sparse_vector` or `dense_vector` field types instead
+of the `semantic_text` field type to customize indexing - using the 
+<<query-dsl-semantic-query,`semantic_query`>> is not supported for querying the 
+field data.
+
 
 [discrete]
 [[update-script]]
 ==== Updates to `semantic_text` fields
 
-Updates that use scripts are not supported when the index contains a `semantic_text` field.
+Updates that use scripts are not supported for an index contains a `semantic_text` field.
+Even if the script targets non-`semantic_text` fields, the update will fail when the index contains a `semantic_text` field.
 
 
 [discrete]
@@ -137,8 +146,42 @@ field to collect the values of other fields for semantic search. Each value has
 its embeddings calculated separately; each field value is a separate set of chunk(s) in
 the resulting embeddings.
 
-This imposes a restriction on bulk updates to documents with `semantic_text`. 
-In bulk requests, all fields that are copied to a `semantic_text` field must have a value to ensure every embedding is calculated correctly.
+This imposes a restriction on bulk requests and ingestion pipelines that update documents with `semantic_text` fields.
+In these cases, all fields that are copied to a `semantic_text` field, including the `semantic_text` field value, must have a value to ensure every embedding is calculated correctly.
+
+For example, the following mapping:
+
+[source,console]
+------------------------------------------------------------
+PUT test-index
+{
+    "mappings": {
+        "properties": {
+            "infer_field": {
+                "type": "semantic_text",
+                "inference_id": "my-elser-endpoint"
+            },
+            "source_field": {
+                "type": "text",
+                "copy_to": "infer_field"
+            }
+        }
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+Will need the following bulk update request to ensure that `infer_field` is updated correctly:
+
+[source,console]
+------------------------------------------------------------
+PUT test-index/_bulk
+{"update": {"_id": "1"}}
+{"doc": {"infer_field": "updated inference field", "source_field": "updated source field"}}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+Notice that both the `semantic_text` field and the source field are updated in the bulk request.
 
 [discrete]
 [[limitations]]

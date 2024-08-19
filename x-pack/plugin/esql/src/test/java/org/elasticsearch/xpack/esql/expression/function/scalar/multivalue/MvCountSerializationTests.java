@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.io.IOException;
 
-public class MvCountSerializationTests extends AbstractMvSerializationTests<MvCount> {
+public class MvCountSerializationTests extends AbstractExpressionSerializationTests<MvCount> {
     @Override
     protected MvCount createTestInstance() {
         return new MvCount(randomSource(), randomChild());

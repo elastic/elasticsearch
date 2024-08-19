@@ -28,14 +28,11 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
@@ -50,11 +47,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScoreDocQueryBuilder> {
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(TestGeoShapeFieldMapperPlugin.class);
-    }
-
-    @Override
     protected KnnScoreDocQueryBuilder doCreateTestQueryBuilder() {
         List<ScoreDoc> scoreDocs = new ArrayList<>();
         int numDocs = randomInt(10);
@@ -64,7 +56,8 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
         return new KnnScoreDocQueryBuilder(
             scoreDocs.toArray(new ScoreDoc[0]),
             randomBoolean() ? "field" : null,
-            randomBoolean() ? randomVector(10) : null
+            randomBoolean() ? VectorData.fromFloats(randomVector(10)) : null,
+            randomBoolean() ? randomFloat() : null
         );
     }
 
@@ -73,7 +66,8 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
         KnnScoreDocQueryBuilder query = new KnnScoreDocQueryBuilder(
             new ScoreDoc[] { new ScoreDoc(0, 4.25f), new ScoreDoc(5, 1.6f) },
             "field",
-            new float[] { 1.0f, 2.0f }
+            VectorData.fromFloats(new float[] { 1.0f, 2.0f }),
+            null
         );
         String expected = """
             {
@@ -163,7 +157,8 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
         KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(
             new ScoreDoc[0],
             randomBoolean() ? "field" : null,
-            randomBoolean() ? randomVector(10) : null
+            randomBoolean() ? VectorData.fromFloats(randomVector(10)) : null,
+            randomBoolean() ? randomFloat() : null
         );
         QueryRewriteContext context = randomBoolean()
             ? new InnerHitsRewriteContext(createSearchExecutionContext().getParserConfig(), System::currentTimeMillis)
@@ -177,7 +172,8 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
         KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(
             new ScoreDoc[] { new ScoreDoc(0, 4.25f), new ScoreDoc(5, 1.6f) },
             randomAlphaOfLength(10),
-            randomVector(10)
+            VectorData.fromFloats(randomVector(10)),
+            randomBoolean() ? randomFloat() : null
         );
         queryBuilder.boost(randomFloat());
         queryBuilder.queryName(randomAlphaOfLength(10));
@@ -188,6 +184,7 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
         assertEquals(queryBuilder.fieldName(), exactKnnQueryBuilder.getField());
         assertEquals(queryBuilder.boost(), exactKnnQueryBuilder.boost(), 0.0001f);
         assertEquals(queryBuilder.queryName(), exactKnnQueryBuilder.queryName());
+        assertEquals(queryBuilder.vectorSimilarity(), exactKnnQueryBuilder.vectorSimilarity());
     }
 
     @Override
@@ -226,7 +223,12 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                 }
                 ScoreDoc[] scoreDocs = scoreDocsList.toArray(new ScoreDoc[0]);
 
-                KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(scoreDocs, "field", randomVector(10));
+                KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(
+                    scoreDocs,
+                    "field",
+                    VectorData.fromFloats(randomVector(10)),
+                    null
+                );
                 Query query = queryBuilder.doToQuery(context);
                 final Weight w = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0f);
                 for (LeafReaderContext leafReaderContext : searcher.getLeafContexts()) {
@@ -269,7 +271,12 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                 }
                 ScoreDoc[] scoreDocs = scoreDocsList.toArray(new ScoreDoc[0]);
 
-                KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(scoreDocs, "field", randomVector(10));
+                KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(
+                    scoreDocs,
+                    "field",
+                    VectorData.fromFloats(randomVector(10)),
+                    null
+                );
                 final Query query = queryBuilder.doToQuery(context);
                 final Weight w = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0f);
 

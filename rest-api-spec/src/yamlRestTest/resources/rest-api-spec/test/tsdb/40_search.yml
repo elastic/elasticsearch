@@ -337,3 +337,20 @@ sort by tsid:
 
   - match: {hits.hits.7.sort: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o", 1619635864467]}
   - match: {hits.hits.7.fields._tsid: [ "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"]}
+
+---
+aggs by index_mode:
+  - requires:
+      cluster_features: ["mapper.query_index_mode"]
+      reason: require _index_mode metadata field
+  - do:
+      search:
+        index: test
+        body:
+          aggs:
+            modes:
+              terms:
+                field: "_index_mode"
+  - match: {aggregations.modes.buckets.0.key: "time_series"}
+  - match: {aggregations.modes.buckets.0.doc_count: 8}
+

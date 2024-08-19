@@ -256,4 +256,3 @@ In this guide, we covered how to:
 * {ml-docs}/ml-nlp-deploy-models.html[Deploying a model ML guide^]
 * {ml-docs}/ml-nlp-import-model.html#ml-nlp-authentication[Eland Authentication methods^]
 * <<ingest-pipeline-search-inference-add-inference-processors,Adding inference pipelines>>
-// * <<elser-text-expansion,Using ELSER for text expansion>>

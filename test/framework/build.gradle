@@ -16,7 +16,6 @@ dependencies {
   api project(':libs:elasticsearch-ssl-config')
   api project(":server")
   api project(":libs:elasticsearch-cli")
-  api project(':libs:elasticsearch-preallocate')
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -32,6 +31,9 @@ dependencies {
   api 'org.objenesis:objenesis:3.3'
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
+
+  testImplementation project(':x-pack:plugin:mapper-unsigned-long')
+  testImplementation project(":modules:mapper-extras")
 }
 
 sourceSets {
@@ -64,7 +66,15 @@ tasks.named("thirdPartyAudit").configure {
           // mockito
           'net.bytebuddy.agent.ByteBuddyAgent',
           'org.mockito.internal.creation.bytebuddy.inject.MockMethodDispatcher',
-          'org.opentest4j.AssertionFailedError'
+          'org.opentest4j.AssertionFailedError',
+
+          // not using JNA
+         'com.sun.jna.FunctionMapper',
+         'com.sun.jna.JNIEnv',
+         'com.sun.jna.Library',
+         'com.sun.jna.Native',
+         'com.sun.jna.NativeLibrary',
+         'com.sun.jna.Platform'
   )
 
   ignoreViolations(

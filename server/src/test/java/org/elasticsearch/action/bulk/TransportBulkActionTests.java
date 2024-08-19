@@ -33,6 +33,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.features.FeatureService;
@@ -54,6 +56,7 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -199,7 +202,10 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest invalidRequest1 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.CREATE);
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest1, metadata)
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(
+                invalidRequest1,
+                metadata.getIndicesLookup().get(invalidRequest1.index())
+            )
         );
         assertThat(
             e.getMessage(),
@@ -213,7 +219,10 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest invalidRequest2 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX);
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest2, metadata)
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(
+                invalidRequest2,
+                metadata.getIndicesLookup().get(invalidRequest2.index())
+            )
         );
         assertThat(
             e.getMessage(),
@@ -227,28 +236,28 @@ public class TransportBulkActionTests extends ESTestCase {
         DocWriteRequest<?> validRequest = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX)
             .setIfSeqNo(1)
             .setIfPrimaryTerm(1);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
         validRequest = new DeleteRequest(backingIndexName);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
         validRequest = new UpdateRequest(backingIndexName, "_id");
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
 
         // Testing append only write via ds name
         validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
 
         validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.INDEX);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
 
         // Append only for a backing index that doesn't exist is allowed:
         validRequest = new IndexRequest(DataStream.getDefaultBackingIndexName("logs-barbaz", 1)).opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
 
         // Some other index names:
         validRequest = new IndexRequest("my-index").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
         validRequest = new IndexRequest("foobar").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
     }
 
     public void testProhibitCustomRoutingOnDataStream() throws Exception {
@@ -261,7 +270,10 @@ public class TransportBulkActionTests extends ESTestCase {
             .routing("custom");
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> prohibitCustomRoutingOnDataStream(writeRequestAgainstDataStream, metadata)
+            () -> prohibitCustomRoutingOnDataStream(
+                writeRequestAgainstDataStream,
+                metadata.getIndicesLookup().get(writeRequestAgainstDataStream.index())
+            )
         );
         assertThat(
             exception.getMessage(),
@@ -275,10 +287,10 @@ public class TransportBulkActionTests extends ESTestCase {
         DocWriteRequest<?> writeRequestAgainstIndex = new IndexRequest(DataStream.getDefaultBackingIndexName(dataStreamName, 1L)).opType(
             DocWriteRequest.OpType.INDEX
         ).routing("custom");
-        prohibitCustomRoutingOnDataStream(writeRequestAgainstIndex, metadata);
+        prohibitCustomRoutingOnDataStream(writeRequestAgainstIndex, metadata.getIndicesLookup().get(writeRequestAgainstIndex.index()));
     }
 
-    public void testOnlySystem() {
+    public void testOnlySystem() throws IOException {
         SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         indicesLookup.put(
@@ -294,15 +306,23 @@ public class TransportBulkActionTests extends ESTestCase {
         );
         List<String> onlySystem = List.of(".foo", ".bar");
         assertTrue(TransportBulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
+        /* Test forwarded bulk requests (that are serialized then deserialized) */
+        assertTrue(TransportBulkAction.isOnlySystem(buildBulkStreamRequest(onlySystem), indicesLookup, systemIndices));
 
         onlySystem = List.of(".foo", ".bar", ".test");
         assertTrue(TransportBulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
+        /* Test forwarded bulk requests (that are serialized then deserialized) */
+        assertTrue(TransportBulkAction.isOnlySystem(buildBulkStreamRequest(onlySystem), indicesLookup, systemIndices));
 
         List<String> nonSystem = List.of("foo", "bar");
         assertFalse(TransportBulkAction.isOnlySystem(buildBulkRequest(nonSystem), indicesLookup, systemIndices));
+        /* Test forwarded bulk requests (that are serialized then deserialized) */
+        assertFalse(TransportBulkAction.isOnlySystem(buildBulkStreamRequest(nonSystem), indicesLookup, systemIndices));
 
         List<String> mixed = List.of(".foo", ".test", "other");
         assertFalse(TransportBulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
+        /* Test forwarded bulk requests (that are serialized then deserialized) */
+        assertFalse(TransportBulkAction.isOnlySystem(buildBulkStreamRequest(mixed), indicesLookup, systemIndices));
     }
 
     private void blockWriteThreadPool(CountDownLatch blockingLatch) {
@@ -453,5 +473,13 @@ public class TransportBulkActionTests extends ESTestCase {
             request.add(subRequest);
         }
         return request;
+    }
+
+    private BulkRequest buildBulkStreamRequest(List<String> indices) throws IOException {
+        BulkRequest request = buildBulkRequest(indices);
+        BytesStreamOutput out = new BytesStreamOutput();
+        request.writeTo(out);
+        StreamInput streamInput = out.bytes().streamInput();
+        return (new BulkRequest(streamInput));
     }
 }

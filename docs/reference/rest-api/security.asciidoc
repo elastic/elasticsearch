@@ -45,9 +45,12 @@ Use the following APIs to add, remove, update, and retrieve role mappings:
 Use the following APIs to add, remove, update, and retrieve roles in the native realm:
 
 * <<security-api-put-role,Create or update roles>>
+* <<security-api-bulk-put-role, Bulk create or update roles>>
 * <<security-api-clear-role-cache,Clear roles cache>>
 * <<security-api-delete-role,Delete roles>>
+* <<security-api-bulk-delete-role, Bulk delete roles>>
 * <<security-api-get-role,Get roles>>
+* <<security-api-query-role,Query roles>>
 
 [discrete]
 [[security-token-apis]]
@@ -171,6 +174,8 @@ include::security/create-api-keys.asciidoc[]
 include::security/put-app-privileges.asciidoc[]
 include::security/create-role-mappings.asciidoc[]
 include::security/create-roles.asciidoc[]
+include::security/bulk-create-roles.asciidoc[]
+include::security/bulk-delete-roles.asciidoc[]
 include::security/create-users.asciidoc[]
 include::security/create-service-token.asciidoc[]
 include::security/delegate-pki-authentication.asciidoc[]
@@ -188,6 +193,7 @@ include::security/get-app-privileges.asciidoc[]
 include::security/get-builtin-privileges.asciidoc[]
 include::security/get-role-mappings.asciidoc[]
 include::security/get-roles.asciidoc[]
+include::security/query-role.asciidoc[]
 include::security/get-service-accounts.asciidoc[]
 include::security/get-service-credentials.asciidoc[]
 include::security/get-settings.asciidoc[]

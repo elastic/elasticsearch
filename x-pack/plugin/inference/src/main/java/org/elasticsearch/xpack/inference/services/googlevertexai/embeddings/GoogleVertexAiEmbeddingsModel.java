@@ -110,6 +110,11 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         return (GoogleVertexAiSecretSettings) super.getSecretSettings();
     }
 
+    @Override
+    public GoogleVertexAiEmbeddingsRateLimitServiceSettings rateLimitServiceSettings() {
+        return (GoogleVertexAiEmbeddingsRateLimitServiceSettings) super.rateLimitServiceSettings();
+    }
+
     public URI uri() {
         return uri;
     }

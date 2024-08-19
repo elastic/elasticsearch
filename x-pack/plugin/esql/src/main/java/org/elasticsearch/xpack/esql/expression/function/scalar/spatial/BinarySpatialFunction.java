@@ -18,11 +18,8 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.List;
@@ -66,8 +63,8 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     protected BinarySpatialFunction(StreamInput in, boolean leftDocValues, boolean rightDocValues, boolean pointsOnly) throws IOException {
         this(
             Source.EMPTY,
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression(),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
             leftDocValues,
             rightDocValues,
             pointsOnly
@@ -76,8 +73,8 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeExpression(left());
-        ((PlanStreamOutput) out).writeExpression(right());
+        out.writeNamedWriteable(left());
+        out.writeNamedWriteable(right());
     }
 
     @Override
@@ -165,7 +162,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
                 ? isType(expression, dt -> dt == spatialDataType, operationName, paramOrd, compatibleTypeNames(spatialDataType))
                 : isType(
                     expression,
-                    dt -> EsqlDataTypes.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt),
+                    dt -> DataType.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt),
                     operationName,
                     paramOrd,
                     compatibleTypeNames(spatialDataType)
@@ -182,12 +179,12 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     private static final String[] CARTESIAN_TYPE_NAMES = new String[] { GEO_POINT.typeName(), GEO_SHAPE.typeName() };
 
     protected static boolean spatialCRSCompatible(DataType spatialDataType, DataType otherDataType) {
-        return EsqlDataTypes.isSpatialGeo(spatialDataType) && EsqlDataTypes.isSpatialGeo(otherDataType)
-            || EsqlDataTypes.isSpatialGeo(spatialDataType) == false && EsqlDataTypes.isSpatialGeo(otherDataType) == false;
+        return DataType.isSpatialGeo(spatialDataType) && DataType.isSpatialGeo(otherDataType)
+            || DataType.isSpatialGeo(spatialDataType) == false && DataType.isSpatialGeo(otherDataType) == false;
     }
 
     static String[] compatibleTypeNames(DataType spatialDataType) {
-        return EsqlDataTypes.isSpatialGeo(spatialDataType) ? GEO_TYPE_NAMES : CARTESIAN_TYPE_NAMES;
+        return DataType.isSpatialGeo(spatialDataType) ? GEO_TYPE_NAMES : CARTESIAN_TYPE_NAMES;
     }
 
     @Override
@@ -216,8 +213,8 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         UNSPECIFIED;
 
         public static SpatialCrsType fromDataType(DataType dataType) {
-            return EsqlDataTypes.isSpatialGeo(dataType) ? SpatialCrsType.GEO
-                : EsqlDataTypes.isSpatial(dataType) ? SpatialCrsType.CARTESIAN
+            return DataType.isSpatialGeo(dataType) ? SpatialCrsType.GEO
+                : DataType.isSpatial(dataType) ? SpatialCrsType.CARTESIAN
                 : SpatialCrsType.UNSPECIFIED;
         }
     }

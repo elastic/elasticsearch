@@ -11,12 +11,12 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -134,10 +134,10 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
     }
 
     @Override
-    public ActionRequestValidationException validate(SearchRequest searchRequest, ActionRequestValidationException validationException) {
-        validationException = super.validate(searchRequest, validationException);
+    public ActionRequestValidationException validate(SearchSourceBuilder source, ActionRequestValidationException validationException) {
+        validationException = super.validate(source, validationException);
 
-        int searchRequestPaginationSize = searchRequest.source().from() + searchRequest.source().size();
+        int searchRequestPaginationSize = source.from() + source.size();
 
         if (windowSize() < searchRequestPaginationSize) {
             return addValidationError(
@@ -151,7 +151,7 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
         }
 
         @SuppressWarnings("rawtypes")
-        List<RescorerBuilder> rescorers = searchRequest.source().rescores();
+        List<RescorerBuilder> rescorers = source.rescores();
         assert rescorers != null && rescorers.contains(this);
 
         for (int i = rescorers.indexOf(this) + 1; i < rescorers.size(); i++) {

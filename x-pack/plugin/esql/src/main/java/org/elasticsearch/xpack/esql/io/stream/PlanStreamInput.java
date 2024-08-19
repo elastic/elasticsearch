@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.io.stream;
 
+import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -21,15 +23,15 @@ import org.elasticsearch.compute.data.BooleanBigArrayBlock;
 import org.elasticsearch.compute.data.DoubleBigArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -61,27 +63,25 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     private final Map<Integer, Block> cachedBlocks = new HashMap<>();
 
+    private Attribute[] attributesCache = new Attribute[64];
+
     private final PlanNameRegistry registry;
 
     // hook for nameId, where can cache and map, for now just return a NameId of the same long value.
     private final LongFunction<NameId> nameIdFunction;
 
-    private final EsqlConfiguration configuration;
+    private final Configuration configuration;
 
     public PlanStreamInput(
         StreamInput streamInput,
         PlanNameRegistry registry,
         NamedWriteableRegistry namedWriteableRegistry,
-        EsqlConfiguration configuration
+        Configuration configuration
     ) {
         super(streamInput, namedWriteableRegistry);
         this.registry = registry;
         this.configuration = configuration;
         this.nameIdFunction = new NameIdMapper();
-    }
-
-    public LogicalPlan readLogicalPlanNode() throws IOException {
-        return readNamed(LogicalPlan.class);
     }
 
     public PhysicalPlan readPhysicalPlanNode() throws IOException {
@@ -90,11 +90,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     public PhysicalPlan readOptionalPhysicalPlanNode() throws IOException {
         return readOptionalNamed(PhysicalPlan.class);
-    }
-
-    @Override
-    public Expression readExpression() throws IOException {
-        return readNamed(Expression.class);
     }
 
     public <T> T readNamed(Class<T> type) throws IOException {
@@ -120,19 +115,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         }
     }
 
-    public <T> T readOptionalWithReader(PlanReader<T> reader) throws IOException {
-        if (readBoolean()) {
-            T t = reader.read(this);
-            if (t == null) {
-                throwOnNullOptionalRead(reader);
-            }
-            return t;
-        } else {
-            return null;
-        }
-    }
-
-    public EsqlConfiguration configuration() throws IOException {
+    public Configuration configuration() throws IOException {
         return configuration;
     }
 
@@ -141,7 +124,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
      * <p>
      *     These {@link Block}s are not tracked by {@link BlockFactory} and closing them
      *     does nothing so they should be small. We do make sure not to send duplicates,
-     *     reusing blocks sent as part of the {@link EsqlConfiguration#tables()} if
+     *     reusing blocks sent as part of the {@link Configuration#tables()} if
      *     possible, otherwise sending a {@linkplain Block} inline.
      * </p>
      */
@@ -186,7 +169,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
      * <p>
      *     These {@link Block}s are not tracked by {@link BlockFactory} and closing them
      *     does nothing so they should be small. We do make sure not to send duplicates,
-     *     reusing blocks sent as part of the {@link EsqlConfiguration#tables()} if
+     *     reusing blocks sent as part of the {@link Configuration#tables()} if
      *     possible, otherwise sending a {@linkplain Block} inline.
      * </p>
      */
@@ -220,14 +203,51 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         throw e;
     }
 
-    static void throwOnNullOptionalRead(PlanReader<?> reader) throws IOException {
-        final IOException e = new IOException("read optional named returned null which is not allowed, reader:" + reader);
-        assert false : e;
-        throw e;
-    }
-
     @Override
     public NameId mapNameId(long l) {
         return nameIdFunction.apply(l);
+    }
+
+    /**
+     * @param constructor the constructor needed to build the actual attribute when read from the wire
+     * @throws IOException
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public <A extends Attribute> A readAttributeWithCache(CheckedFunction<StreamInput, A, IOException> constructor) throws IOException {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION)) {
+            // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
+            int cacheId = Math.toIntExact(readZLong());
+            if (cacheId < 0) {
+                cacheId = -1 - cacheId;
+                Attribute result = constructor.apply(this);
+                cacheAttribute(cacheId, result);
+                return (A) result;
+            } else {
+                return (A) attributeFromCache(cacheId);
+            }
+        } else {
+            return constructor.apply(this);
+        }
+    }
+
+    private Attribute attributeFromCache(int id) throws IOException {
+        if (attributesCache[id] == null) {
+            throw new IOException("Attribute ID not found in serialization cache [" + id + "]");
+        }
+        return attributesCache[id];
+    }
+
+    /**
+     * Add and attribute to the cache, based on the serialization ID generated by {@link PlanStreamOutput}
+     * @param id The ID that will reference the attribute. Generated  at serialization time
+     * @param attr The attribute to cache
+     */
+    private void cacheAttribute(int id, Attribute attr) {
+        assert id >= 0;
+        if (id >= attributesCache.length) {
+            attributesCache = ArrayUtil.grow(attributesCache);
+        }
+        attributesCache[id] = attr;
     }
 }

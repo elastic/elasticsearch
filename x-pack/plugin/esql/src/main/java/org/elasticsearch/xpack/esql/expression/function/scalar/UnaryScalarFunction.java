@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cbrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Exp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
@@ -60,9 +62,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -70,53 +72,55 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNum
 
 public abstract class UnaryScalarFunction extends EsqlScalarFunction {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            Abs.ENTRY,
-            Acos.ENTRY,
-            Asin.ENTRY,
-            Atan.ENTRY,
-            Cbrt.ENTRY,
-            Ceil.ENTRY,
-            Cos.ENTRY,
-            Cosh.ENTRY,
-            Floor.ENTRY,
-            FromBase64.ENTRY,
-            IsNotNull.ENTRY,
-            IsNull.ENTRY,
-            Length.ENTRY,
-            Log10.ENTRY,
-            LTrim.ENTRY,
-            Neg.ENTRY,
-            Not.ENTRY,
-            RLike.ENTRY,
-            RTrim.ENTRY,
-            Signum.ENTRY,
-            Sin.ENTRY,
-            Sinh.ENTRY,
-            Sqrt.ENTRY,
-            StX.ENTRY,
-            StY.ENTRY,
-            Tan.ENTRY,
-            Tanh.ENTRY,
-            ToBase64.ENTRY,
-            ToBoolean.ENTRY,
-            ToCartesianPoint.ENTRY,
-            ToDatetime.ENTRY,
-            ToDegrees.ENTRY,
-            ToDouble.ENTRY,
-            ToGeoShape.ENTRY,
-            ToCartesianShape.ENTRY,
-            ToGeoPoint.ENTRY,
-            ToIP.ENTRY,
-            ToInteger.ENTRY,
-            ToLong.ENTRY,
-            ToRadians.ENTRY,
-            ToString.ENTRY,
-            ToUnsignedLong.ENTRY,
-            ToVersion.ENTRY,
-            Trim.ENTRY,
-            WildcardLike.ENTRY
-        );
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.add(Abs.ENTRY);
+        entries.add(Acos.ENTRY);
+        entries.add(Asin.ENTRY);
+        entries.add(Atan.ENTRY);
+        entries.add(Cbrt.ENTRY);
+        entries.add(Ceil.ENTRY);
+        entries.add(Cos.ENTRY);
+        entries.add(Cosh.ENTRY);
+        entries.add(Exp.ENTRY);
+        entries.add(Floor.ENTRY);
+        entries.add(FromBase64.ENTRY);
+        entries.add(IsNotNull.ENTRY);
+        entries.add(IsNull.ENTRY);
+        entries.add(Length.ENTRY);
+        entries.add(Log10.ENTRY);
+        entries.add(LTrim.ENTRY);
+        entries.add(Neg.ENTRY);
+        entries.add(Not.ENTRY);
+        entries.add(RLike.ENTRY);
+        entries.add(RTrim.ENTRY);
+        entries.add(Signum.ENTRY);
+        entries.add(Sin.ENTRY);
+        entries.add(Sinh.ENTRY);
+        entries.add(Sqrt.ENTRY);
+        entries.add(StX.ENTRY);
+        entries.add(StY.ENTRY);
+        entries.add(Tan.ENTRY);
+        entries.add(Tanh.ENTRY);
+        entries.add(ToBase64.ENTRY);
+        entries.add(ToBoolean.ENTRY);
+        entries.add(ToCartesianPoint.ENTRY);
+        entries.add(ToDatetime.ENTRY);
+        entries.add(ToDegrees.ENTRY);
+        entries.add(ToDouble.ENTRY);
+        entries.add(ToGeoShape.ENTRY);
+        entries.add(ToCartesianShape.ENTRY);
+        entries.add(ToGeoPoint.ENTRY);
+        entries.add(ToIP.ENTRY);
+        entries.add(ToInteger.ENTRY);
+        entries.add(ToLong.ENTRY);
+        entries.add(ToRadians.ENTRY);
+        entries.add(ToString.ENTRY);
+        entries.add(ToUnsignedLong.ENTRY);
+        entries.add(ToVersion.ENTRY);
+        entries.add(Trim.ENTRY);
+        entries.add(WildcardLike.ENTRY);
+        entries.addAll(AbstractMultivalueFunction.getNamedWriteables());
+        return entries;
     }
 
     protected final Expression field;
@@ -127,13 +131,13 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
     }
 
     protected UnaryScalarFunction(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readExpression());
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(field);
+        out.writeNamedWriteable(field);
     }
 
     @Override

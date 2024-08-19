@@ -35,7 +35,7 @@ Available task types:
 
 `service`::
 (Required, string)
-The type of service supported for the specified task type. In this case, 
+The type of service supported for the specified task type. In this case,
 `azureaistudio`.
 
 `service_settings`::
@@ -102,7 +102,7 @@ include::inference-shared.asciidoc[tag=task-settings]
 `do_sample`:::
 (Optional, float)
 Instructs the inference process to perform sampling or not.
-Has not affect unless `temperature` or `top_p` is specified.
+Has no effect unless `temperature` or `top_p` is specified.
 
 `max_new_tokens`:::
 (Optional, integer)

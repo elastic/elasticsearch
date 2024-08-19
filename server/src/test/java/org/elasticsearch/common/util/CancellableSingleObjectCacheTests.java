@@ -10,6 +10,7 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -48,7 +49,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         expectThrows(ExecutionException.class, TaskCancelledException.class, future::get);
     }
 
-    public void testListenersCompletedByRefresh() {
+    public void testListenersCompletedByRefresh() throws ExecutionException {
         final TestCache testCache = new TestCache();
 
         // The first get() calls the refresh function
@@ -81,7 +82,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         assertThat(future3.result(), equalTo(2));
     }
 
-    public void testListenerCompletedByRefreshEvenIfDiscarded() {
+    public void testListenerCompletedByRefreshEvenIfDiscarded() throws ExecutionException {
         final TestCache testCache = new TestCache();
 
         // This computation is discarded before it completes.
@@ -103,7 +104,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         assertThat(future1.result(), sameInstance(future2.result()));
     }
 
-    public void testListenerCompletedWithCancellationExceptionIfRefreshCancelled() {
+    public void testListenerCompletedWithCancellationExceptionIfRefreshCancelled() throws ExecutionException {
         final TestCache testCache = new TestCache();
 
         // This computation is discarded before it completes.
@@ -120,12 +121,12 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         testCache.get("bar", () -> false, future2);
         testCache.assertPendingRefreshes(2);
         testCache.assertNextRefreshCancelled();
-        expectThrows(TaskCancelledException.class, future1::result);
+        expectThrows(ExecutionException.class, TaskCancelledException.class, future1::result);
         testCache.completeNextRefresh("bar", 2);
         assertThat(future2.result(), equalTo(2));
     }
 
-    public void testListenerCompletedWithFresherInputIfSuperseded() {
+    public void testListenerCompletedWithFresherInputIfSuperseded() throws ExecutionException {
         final TestCache testCache = new TestCache();
 
         // This computation is superseded before it completes.
@@ -164,10 +165,10 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
 
         isCancelled.set(true);
         testCache.completeNextRefresh("bar", 1);
-        expectThrows(TaskCancelledException.class, future1::result);
+        expectThrows(ExecutionException.class, TaskCancelledException.class, future1::result);
     }
 
-    public void testExceptionCompletesListenersButIsNotCached() {
+    public void testExceptionCompletesListenersButIsNotCached() throws ExecutionException {
         final TestCache testCache = new TestCache();
 
         // If a refresh results in an exception then all the pending get() calls complete exceptionally
@@ -178,8 +179,8 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         testCache.assertPendingRefreshes(1);
         final ElasticsearchException exception = new ElasticsearchException("simulated");
         testCache.completeNextRefresh(exception);
-        assertSame(exception, expectThrows(ElasticsearchException.class, future0::result));
-        assertSame(exception, expectThrows(ElasticsearchException.class, future1::result));
+        assertSame(exception, expectThrows(ExecutionException.class, ElasticsearchException.class, future0::result));
+        assertSame(exception, expectThrows(ExecutionException.class, ElasticsearchException.class, future1::result));
 
         testCache.assertNoPendingRefreshes();
         // The exception is not cached, however, so a subsequent get() call with a matching key performs another refresh
@@ -187,7 +188,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         testCache.get("foo", () -> false, future2);
         testCache.assertPendingRefreshes(1);
         testCache.completeNextRefresh("foo", 1);
-        assertThat(future2.actionResult(), equalTo(1));
+        assertThat(future2.result(), equalTo(1));
     }
 
     public void testConcurrentRefreshesAndCancellation() throws InterruptedException {
@@ -202,7 +203,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                     BooleanSupplier supersedeIfStale,
                     ActionListener<Integer> listener
                 ) {
-                    threadPool.generic().execute(() -> ActionListener.completeWith(listener, () -> {
+                    threadPool.generic().execute(ActionRunnable.supply(listener, () -> {
                         ensureNotCancelled.run();
                         if (s.equals("FAIL")) {
                             throw new ElasticsearchException("simulated");
@@ -416,7 +417,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         testCache.get("successful", () -> false, successfulFuture);
         cancelledThread.join();
 
-        expectThrows(TaskCancelledException.class, cancelledFuture::result);
+        expectThrows(ExecutionException.class, TaskCancelledException.class, cancelledFuture::result);
     }
 
     private static final ThreadContext testThreadContext = new ThreadContext(Settings.EMPTY);

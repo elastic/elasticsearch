@@ -65,11 +65,11 @@ public final class Utils {
         var clusterService = mock(ClusterService.class);
 
         var registeredSettings = Stream.of(
-            HttpSettings.getSettings(),
-            HttpClientManager.getSettings(),
-            ThrottlerManager.getSettings(),
+            HttpSettings.getSettingsDefinitions(),
+            HttpClientManager.getSettingsDefinitions(),
+            ThrottlerManager.getSettingsDefinitions(),
             RetrySettings.getSettingsDefinitions(),
-            Truncator.getSettings(),
+            Truncator.getSettingsDefinitions(),
             RequestExecutorServiceSettings.getSettingsDefinitions()
         ).flatMap(Collection::stream).collect(Collectors.toSet());
 
@@ -178,11 +178,16 @@ public final class Utils {
         Map<String, Object> taskSettings,
         Map<String, Object> secretSettings
     ) {
+        var secrets = secretSettings == null ? null : new HashMap<String, Object>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings));
 
         return new PersistedConfig(
             new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
-            new HashMap<>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings))
+            secrets
         );
+    }
+
+    public static PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings) {
+        return Utils.getPersistedConfigMap(serviceSettings, new HashMap<>(), null);
     }
 
     public static PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings, Map<String, Object> taskSettings) {

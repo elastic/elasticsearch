@@ -16,8 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
@@ -27,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -148,12 +147,12 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
                     return rateAgg.toAttribute();
                 });
                 if (changed.get()) {
-                    secondPassAggs.add(new Alias(alias.source(), alias.name(), null, outerAgg, agg.id()));
+                    secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
                 } else {
-                    var toPartial = new Alias(agg.source(), alias.name(), new ToPartial(agg.source(), af));
+                    var toPartial = new Alias(agg.source(), alias.name(), new ToPartial(agg.source(), af.field(), af));
                     var fromPartial = new FromPartial(agg.source(), toPartial.toAttribute(), af);
                     firstPassAggs.add(toPartial);
-                    secondPassAggs.add(new Alias(alias.source(), alias.name(), null, fromPartial, alias.id()));
+                    secondPassAggs.add(new Alias(alias.source(), alias.name(), fromPartial, alias.id()));
                 }
             }
         }
@@ -201,10 +200,10 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
                 newFinalGroup = timeBucket.toAttribute();
                 firstPassGroupings.add(newFinalGroup);
             } else {
-                newFinalGroup = new Alias(g.source(), g.name(), null, new Values(g.source(), g), g.id());
+                newFinalGroup = new Alias(g.source(), g.name(), new Values(g.source(), g), g.id());
                 firstPassAggs.add(newFinalGroup);
             }
-            secondPassGroupings.add(new Alias(g.source(), g.name(), null, newFinalGroup.toAttribute(), g.id()));
+            secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
         }
         return newAggregate(
             newAggregate(metrics.child(), Aggregate.AggregateType.METRICS, firstPassAggs, firstPassGroupings),
@@ -218,7 +217,7 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
         final LogicalPlan child = metrics.child().transformDown(EsRelation.class, r -> {
             var attributes = new ArrayList<>(new AttributeSet(metrics.inputSet()));
             attributes.removeIf(a -> a.name().equals(MetadataAttribute.TSID_FIELD));
-            if (attributes.stream().noneMatch(a -> a.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) == false) {
+            if (attributes.stream().noneMatch(a -> a.name().equals(MetadataAttribute.TIMESTAMP_FIELD))) {
                 attributes.removeIf(a -> a.name().equals(MetadataAttribute.TIMESTAMP_FIELD));
             }
             return new EsRelation(r.source(), r.index(), new ArrayList<>(attributes), IndexMode.STANDARD);

@@ -52,7 +52,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
@@ -395,16 +394,13 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         }
 
         logger.info("--> specify all snapshot names with ignoreUnavailable=false");
-        GetSnapshotsResponse getSnapshotsResponse2 = client.admin()
+        final var failingFuture = client.admin()
             .cluster()
             .prepareGetSnapshots(TEST_REQUEST_TIMEOUT, randomFrom("_all", "repo*"))
             .setIgnoreUnavailable(false)
             .setSnapshots(snapshotList.toArray(new String[0]))
-            .get();
-
-        for (String repo : repoList) {
-            assertThat(getSnapshotsResponse2.getFailures().get(repo), instanceOf(SnapshotMissingException.class));
-        }
+            .execute();
+        expectThrows(SnapshotMissingException.class, failingFuture::actionGet);
 
         logger.info("--> specify all snapshot names with ignoreUnavailable=true");
         GetSnapshotsResponse getSnapshotsResponse3 = client.admin()

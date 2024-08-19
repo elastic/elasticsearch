@@ -23,16 +23,18 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.common.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.googlevertexai.GoogleVertexAiActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 
 import java.util.List;
 import java.util.Map;
@@ -139,6 +141,8 @@ public class GoogleVertexAiService extends SenderService {
                 this,
                 listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)))
             );
+        } else {
+            listener.onResponse(model);
         }
     }
 
@@ -174,7 +178,16 @@ public class GoogleVertexAiService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        throw new UnsupportedOperationException("Query input not supported for Google Vertex AI");
+        if (model instanceof GoogleVertexAiModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        GoogleVertexAiModel googleVertexAiModel = (GoogleVertexAiModel) model;
+        var actionCreator = new GoogleVertexAiActionCreator(getSender(), getServiceComponents());
+
+        var action = googleVertexAiModel.accept(actionCreator, taskSettings);
+        action.execute(new QueryAndDocsInputs(query, input), timeout, listener);
     }
 
     @Override
@@ -259,6 +272,15 @@ public class GoogleVertexAiService extends SenderService {
     ) {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new GoogleVertexAiEmbeddingsModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings,
+                context
+            );
+            case RERANK -> new GoogleVertexAiRerankModel(
                 inferenceEntityId,
                 taskType,
                 NAME,

@@ -11,6 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -56,12 +58,14 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC;
 import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.bytesFromLong;
 import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.longFromBytes;
 import static org.hamcrest.Matchers.allOf;
@@ -85,9 +89,26 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         return List.of(TestPlugin.class, LocalStateCompositeXPackPlugin.class, SnapshotRepositoryTestKit.class);
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // no throttling, so that even analyses which run to completion do not take too long
+            .put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), ByteSizeValue.ZERO)
+            .build();
+    }
+
     @Before
     public void createBlobStore() {
-        createRepositoryNoVerify("test-repo", TestPlugin.DISRUPTABLE_REPO_TYPE);
+        createRepository(
+            "test-repo",
+            TestPlugin.DISRUPTABLE_REPO_TYPE,
+            randomRepositorySettings()
+                // no throttling, so that even analyses which run to completion do not take too long
+                .put(MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO)
+                .put(MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO),
+            false
+        );
 
         blobStore = new DisruptableBlobStore();
         for (final RepositoriesService repositoriesService : internalCluster().getInstances(RepositoriesService.class)) {
@@ -103,8 +124,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.blobCount(1);
         request.maxBlobSize(ByteSizeValue.ofBytes(10L));
-
-        analyseRepository(request);
+        safeAwait((ActionListener<RepositoryAnalyzeAction.Response> l) -> analyseRepository(request, l));
     }
 
     public void testFailsOnReadError() {
@@ -123,7 +143,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        final Exception exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        final Exception exception = analyseRepositoryExpectFailure(request);
+        assertAnalysisFailureMessage(exception.getMessage());
         final IOException ioException = (IOException) ExceptionsHelper.unwrap(exception, IOException.class);
         assert ioException != null : exception;
         assertThat(ioException.getMessage(), equalTo("simulated"));
@@ -147,7 +168,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
     public void testFailsOnChecksumMismatch() {
@@ -178,7 +199,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
     public void testFailsOnWriteException() {
@@ -199,7 +220,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         });
 
-        final Exception exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        final Exception exception = analyseRepositoryExpectFailure(request);
+        assertAnalysisFailureMessage(exception.getMessage());
         final IOException ioException = (IOException) ExceptionsHelper.unwrap(exception, IOException.class);
         assert ioException != null : exception;
         assertThat(ioException.getMessage(), equalTo("simulated"));
@@ -221,7 +243,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         });
 
-        expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
     public void testFailsOnListingException() {
@@ -241,7 +263,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
     public void testFailsOnDeleteException() {
@@ -256,7 +278,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
     public void testFailsOnIncompleteDelete() {
@@ -284,7 +306,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
     public void testFailsIfBlobCreatedOnAbort() {
@@ -301,12 +323,21 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        try {
-            analyseRepository(request);
-            assertFalse(writeWasAborted.get());
-        } catch (RepositoryVerificationException e) {
-            assertTrue(writeWasAborted.get());
-        }
+        safeAwait((ActionListener<RepositoryAnalyzeAction.Response> l) -> analyseRepository(request, l.delegateResponse((ll, e) -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof RepositoryVerificationException repositoryVerificationException) {
+                assertAnalysisFailureMessage(repositoryVerificationException.getMessage());
+                assertTrue(
+                    "did not abort write, so why did the verification fail?",
+                    // clear flag for final assertion
+                    writeWasAborted.compareAndSet(true, false)
+                );
+                ll.onResponse(null);
+            } else {
+                ll.onFailure(e);
+            }
+        })));
+
+        assertFalse(writeWasAborted.get());
     }
 
     public void testFailsIfRegisterIncorrect() {
@@ -323,7 +354,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                 return register.compareAndExchange(expected, updated);
             }
         });
-        expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
     public void testFailsIfRegisterHoldsSpuriousValue() {
@@ -353,14 +384,33 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                 return register.compareAndExchange(expected, updated);
             }
         });
-        try {
-            analyseRepository(request);
-            assertFalse(sawSpuriousValue.get());
-        } catch (RepositoryVerificationException e) {
-            if (sawSpuriousValue.get() == false) {
-                fail(e, "did not see spurious value, so why did the verification fail?");
+
+        safeAwait((ActionListener<RepositoryAnalyzeAction.Response> l) -> analyseRepository(request, l.delegateResponse((ll, e) -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof RepositoryVerificationException repositoryVerificationException) {
+                assertAnalysisFailureMessage(repositoryVerificationException.getMessage());
+                assertTrue(
+                    "did not see spurious value, so why did the verification fail?",
+                    // clear flag for final assertion
+                    sawSpuriousValue.compareAndSet(true, false)
+                );
+                ll.onResponse(null);
+            } else {
+                ll.onFailure(e);
             }
-        }
+        })));
+
+        assertFalse(sawSpuriousValue.get());
+    }
+
+    private static void assertAnalysisFailureMessage(String message) {
+        assertThat(
+            message,
+            allOf(
+                containsString("Elasticsearch observed the storage system underneath this repository behaved incorrectly"),
+                containsString("not suitable for use with Elasticsearch snapshots"),
+                containsString(ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS.toString())
+            )
+        );
     }
 
     public void testTimesOutSpinningRegisterAnalysis() {
@@ -374,8 +424,14 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                 return isContendedRegisterKey(key) == false;
             }
         });
-        final var exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
-        assertThat(exception.getMessage(), containsString("analysis failed"));
+        final var exception = analyseRepositoryExpectFailure(request);
+        assertThat(
+            exception.getMessage(),
+            allOf(
+                containsString("Repository analysis timed out. Consider specifying a longer timeout"),
+                containsString(ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS.toString())
+            )
+        );
         assertThat(
             asInstanceOf(RepositoryVerificationException.class, exception.getCause()).getMessage(),
             containsString("analysis timed out")
@@ -390,8 +446,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                 return false;
             }
         });
-        final var exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
-        assertThat(exception.getMessage(), containsString("analysis failed"));
+        final var exception = analyseRepositoryExpectFailure(request);
+        assertAnalysisFailureMessage(exception.getMessage());
         assertThat(
             asInstanceOf(RepositoryVerificationException.class, ExceptionsHelper.unwrapCause(exception.getCause())).getMessage(),
             allOf(containsString("uncontended register operation failed"), containsString("did not observe any value"))
@@ -406,8 +462,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                 return false;
             }
         });
-        final var exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
-        assertThat(exception.getMessage(), containsString("analysis failed"));
+        final var exception = analyseRepositoryExpectFailure(request);
+        assertAnalysisFailureMessage(exception.getMessage());
         final var cause = ExceptionsHelper.unwrapCause(exception.getCause());
         if (cause instanceof IOException ioException) {
             assertThat(ioException.getMessage(), containsString("empty register update rejected"));
@@ -422,8 +478,18 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private void analyseRepository(RepositoryAnalyzeAction.Request request) {
-        client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(5L, TimeUnit.MINUTES);
+    private RepositoryVerificationException analyseRepositoryExpectFailure(RepositoryAnalyzeAction.Request request) {
+        return asInstanceOf(
+            RepositoryVerificationException.class,
+            ExceptionsHelper.unwrapCause(safeAwaitFailure(RepositoryAnalyzeAction.Response.class, l -> analyseRepository(request, l)))
+        );
+    }
+
+    private void analyseRepository(RepositoryAnalyzeAction.Request request, ActionListener<RepositoryAnalyzeAction.Response> listener) {
+        client().execute(RepositoryAnalyzeAction.INSTANCE, request, listener.delegateFailureAndWrap((l, response) -> {
+            RepositoryAnalysisSuccessIT.assertNoThrottling(response);
+            l.onResponse(response);
+        }));
     }
 
     private static void assertPurpose(OperationPurpose purpose) {

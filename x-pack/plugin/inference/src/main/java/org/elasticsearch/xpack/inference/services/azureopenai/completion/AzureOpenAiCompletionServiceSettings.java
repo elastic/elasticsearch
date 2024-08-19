@@ -128,6 +128,11 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
     }
 
     @Override
+    public String modelId() {
+        return null;
+    }
+
+    @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
     }

@@ -223,8 +223,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         Optional<SequenceNumbers.CommitInfo> safeCommit = shard.store().findSafeIndexCommit(globalCheckpoint);
         assertTrue(safeCommit.isPresent());
         int expectedTotalLocal = 0;
-        if (safeCommit.get().localCheckpoint < globalCheckpoint) {
-            try (Translog.Snapshot snapshot = getTranslog(shard).newSnapshot(safeCommit.get().localCheckpoint + 1, globalCheckpoint)) {
+        if (safeCommit.get().localCheckpoint() < globalCheckpoint) {
+            try (Translog.Snapshot snapshot = getTranslog(shard).newSnapshot(safeCommit.get().localCheckpoint() + 1, globalCheckpoint)) {
                 Translog.Operation op;
                 while ((op = snapshot.next()) != null) {
                     if (op.seqNo() <= globalCheckpoint) {
@@ -276,7 +276,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
         if (safeCommit.isPresent()) {
-            assertThat(recoverLocallyUpToGlobalCheckpoint(replica), equalTo(safeCommit.get().localCheckpoint + 1));
+            assertThat(recoverLocallyUpToGlobalCheckpoint(replica), equalTo(safeCommit.get().localCheckpoint() + 1));
             assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(0));
         } else {
             assertThat(recoverLocallyUpToGlobalCheckpoint(replica), equalTo(UNASSIGNED_SEQ_NO));
@@ -313,7 +313,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         );
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
-        assertThat(recoverLocallyUpToGlobalCheckpoint(replica), equalTo(safeCommit.get().localCheckpoint + 1));
+        assertThat(recoverLocallyUpToGlobalCheckpoint(replica), equalTo(safeCommit.get().localCheckpoint() + 1));
         assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(0));
         assertThat(replica.recoveryState().getTranslog().recoveredOperations(), equalTo(0));
         assertThat(replica.getLastKnownGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));

@@ -22,6 +22,7 @@ hamcrest = "org.hamcrest:hamcrest:2.1"
 httpcore = "org.apache.httpcomponents:httpcore:4.4.12"
 httpclient = "org.apache.httpcomponents:httpclient:4.5.14"
 idea-ext = "gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:1.1.4"
+javaparser = "com.github.javaparser:javaparser-core:3.18.0"
 json-schema-validator = "com.networknt:json-schema-validator:1.0.72"
 json-assert = "org.skyscreamer:jsonassert:1.5.0"
 jackson-core = { group = "com.fasterxml.jackson.core", name="jackson-core", version.ref="jackson" }
@@ -39,6 +40,7 @@ mockito-core = "org.mockito:mockito-core:1.9.5"
 nebula-info = "com.netflix.nebula:gradle-info-plugin:11.3.3"
 reflections = "org.reflections:reflections:0.9.12"
 shadow-plugin = "com.github.breskeby:shadow:3b035f2"
+snakeyaml = { group = "org.yaml", name = "snakeyaml", version = { strictly = "2.0" } }
 spock-core = { group = "org.spockframework", name="spock-core", version.ref="spock" }
 spock-junit4 = { group = "org.spockframework", name="spock-junit4", version.ref="spock" }
 spock-platform = { group = "org.spockframework", name="spock-bom", version.ref="spock" }

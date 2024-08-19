@@ -170,6 +170,17 @@ do not have a dedicated frozen tier, you must configure the
 cache on one or more nodes. Partially mounted indices are only allocated to
 nodes that have a shared cache.
 
+[[manually-mounting-snapshots]]
+[WARNING]
+.Manual snapshot mounting
+====
+Manually mounting snapshots captured by an Index Lifecycle Management ({ilm-init}) policy can
+interfere with {ilm-init}'s automatic management. This may lead to issues such as data loss
+or complications with snapshot handling. For optimal results, allow {ilm-init} to manage
+snapshots automatically. If manual mounting is necessary, be aware of its potential
+impact on {ilm-init} processes. For more information, learn about <<index-lifecycle-management,{ilm-init} snapshot management>>.
+====
+
 [[searchable-snapshots-shared-cache]]
 `xpack.searchable.snapshot.shared_cache.size`::
 (<<static-cluster-setting,Static>>)

@@ -55,7 +55,7 @@ setup:
 "document scoring with custom explanation":
 
   - requires:
-      cluster_features: [ "gte_v8.16.0" ]
+      cluster_features: [ "gte_v8.15.1" ]
       reason: "bug fixed where explanations were throwing npe prior to 8.16"
 
   - do:

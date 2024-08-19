@@ -443,8 +443,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 // We don't test that functions don't take date_period or time_duration. We should.
                 return false;
             }
-            if (t == DataType.DATE_NANOS) {
-                // Date nanos is still under construction
+            if (DataType.UNDER_CONSTRUCTION.containsKey(t)) {
+                /*
+                 * Types under construction aren't checked because we're actively
+                 * adding support for them to functions. That's *why* they are
+                 * under construction.
+                 */
                 return false;
             }
             if (t.isCounter()) {
@@ -1286,10 +1290,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Should this particular signature be hidden from the docs even though we test it?
      */
     private static boolean shouldHideSignature(List<DataType> argTypes, DataType returnType) {
-        // DATE_NANOS are under construction and behind a feature flag.
-        if (returnType == DataType.DATE_NANOS) {
-            return true;
+        for (DataType dt : DataType.UNDER_CONSTRUCTION.keySet()) {
+            if (returnType == dt) {
+                return true;
+            }
+            return argTypes.contains(dt);
         }
-        return argTypes.contains(DataType.DATE_NANOS);
+        return false;
     }
 }

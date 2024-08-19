@@ -95,13 +95,15 @@ public final class XContentDataHelper {
     }
 
     static void writeMerged(XContentBuilder b, String fieldName, Collection<BytesRef> encodedParts) throws IOException {
-        assert encodedParts.size() > 1;
+        assert encodedParts.size() > 1 : "writeMerged should only be used with multiple parts";
 
         b.startArray(fieldName);
 
         for (var encodedValue : encodedParts) {
             Optional<XContentType> encodedXContentType = switch ((char) encodedValue.bytes[encodedValue.offset]) {
-                case CBOR_OBJECT_ENCODING, JSON_OBJECT_ENCODING, YAML_OBJECT_ENCODING, SMILE_OBJECT_ENCODING -> Optional.of(getXContentType(encodedValue));
+                case CBOR_OBJECT_ENCODING, JSON_OBJECT_ENCODING, YAML_OBJECT_ENCODING, SMILE_OBJECT_ENCODING -> Optional.of(
+                    getXContentType(encodedValue)
+                );
                 default -> Optional.empty();
             };
             if (encodedXContentType.isEmpty()) {
@@ -111,7 +113,14 @@ public final class XContentDataHelper {
                 // Encoded value could be an array which needs to be flattened
                 // since we are already inside an array.
                 try (
-                    XContentParser parser = encodedXContentType.get().xContent().createParser(XContentParserConfiguration.EMPTY, encodedValue.bytes, encodedValue.offset + 1, encodedValue.length - 1)
+                    XContentParser parser = encodedXContentType.get()
+                        .xContent()
+                        .createParser(
+                            XContentParserConfiguration.EMPTY,
+                            encodedValue.bytes,
+                            encodedValue.offset + 1,
+                            encodedValue.length - 1
+                        )
                 ) {
                     if (parser.currentToken() == null) {
                         parser.nextToken();

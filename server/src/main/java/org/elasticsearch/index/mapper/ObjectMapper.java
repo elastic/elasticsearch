@@ -34,6 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
@@ -929,22 +930,26 @@ public class ObjectMapper extends Mapper {
 
             class CompositeIgnoredSource implements IgnoredSourceWriter {
                 private final String fieldName;
+                private final String leafName;
                 private final List<BytesRef> values;
 
                 CompositeIgnoredSource(List<IgnoredSourceFieldMapper.NameValue> initialValues) {
-                    assert initialValues.size() > 1;
-                    this.fieldName = initialValues.get(0).getFieldName();
-                    this.values = initialValues.stream().map(IgnoredSourceFieldMapper.NameValue::value).toList();
+                    assert initialValues.size() > 1 : "CompositeIgnoredSource should only be used with multiple values";
+
+                    var first = initialValues.get(0);
+                    this.fieldName = first.name();
+                    this.leafName = first.getFieldName();
+                    this.values = initialValues.stream().map(IgnoredSourceFieldMapper.NameValue::value).collect(Collectors.toList());
                 }
 
                 @Override
                 public void writeTo(XContentBuilder builder) throws IOException {
-                    XContentDataHelper.writeMerged(builder, fieldName, values);
+                    XContentDataHelper.writeMerged(builder, leafName, values);
                 }
 
                 @Override
                 public FieldWriter mergeWith(IgnoredSourceFieldMapper.NameValue nameValue) {
-                    assert Objects.equals(nameValue.name(), fieldName);
+                    assert Objects.equals(nameValue.name(), fieldName) : "CompositeIgnoredSource is merged with wrong field data";
 
                     values.add(nameValue.value());
                     return this;

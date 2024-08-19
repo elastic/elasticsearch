@@ -32,7 +32,14 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
     }
 
     private Supplier<Map<String, Object>> numberMapping() {
-        return () -> Map.of("store", ESTestCase.randomBoolean(), "index", ESTestCase.randomBoolean(), "doc_values", ESTestCase.randomBoolean());
+        return () -> Map.of(
+            "store",
+            ESTestCase.randomBoolean(),
+            "index",
+            ESTestCase.randomBoolean(),
+            "doc_values",
+            ESTestCase.randomBoolean()
+        );
     }
 
     private Supplier<Map<String, Object>> unsignedLongMapping() {

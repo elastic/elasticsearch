@@ -1,9 +1,13 @@
 ---
 "friendlier BUCKET interval hourly: #110916":
   - requires:
-      cluster_features: ["gte_v8.14.0"]
-      reason: "BUCKET extended in 8.14.0"
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [bucket_inclusive_upper_bound]
+      reason: "BUCKET auto mode now generates different bucket sizes"
   - do:
       indices.create:
         index: test_bucket
@@ -86,8 +90,13 @@
 "friendlier BUCKET interval: monthly #110916":
   - requires:
       cluster_features: ["gte_v8.14.0"]
-      reason: "BUCKET extended in 8.14.0"
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [bucket_inclusive_upper_bound]
+      reason: "BUCKET auto mode now generates different bucket sizes"
   - do:
       indices.create:
         index: test_bucket

@@ -9,30 +9,55 @@
 package org.elasticsearch.logsdb.datageneration.fields;
 
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 public class ObjectFieldDataGenerator implements FieldDataGenerator {
-    private final GenericSubObjectFieldDataGenerator delegate;
-
-    public ObjectFieldDataGenerator(DataGeneratorSpecification specification) {
-        this(new Context(specification));
-    }
+    private final Context context;
+    private final Map<String, Object> mappingParameters;
+    private final List<GenericSubObjectFieldDataGenerator.ChildField> childFields;
 
     ObjectFieldDataGenerator(Context context) {
-        this.delegate = new GenericSubObjectFieldDataGenerator(context);
+        this.context = context;
+
+        this.mappingParameters = context.specification()
+            .dataSource()
+            .get(new DataSourceRequest.ObjectMappingParametersGenerator(false))
+            .mappingGenerator()
+            .get();
+
+        var genericGenerator = new GenericSubObjectFieldDataGenerator(context);
+        this.childFields = genericGenerator.generateChildFields();
     }
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
-        return delegate.mappingWriter(b -> {});
+        return b -> {
+            b.startObject();
+
+            for (var entry : mappingParameters.entrySet()) {
+                b.field(entry.getKey(), entry.getValue());
+            }
+
+            b.startObject("properties");
+            GenericSubObjectFieldDataGenerator.writeChildFieldsMapping(b, childFields);
+            b.endObject();
+
+            b.endObject();
+        };
     }
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
-        return delegate.fieldValueGenerator();
+        CheckedConsumer<XContentBuilder, IOException> objectWriter = object -> GenericSubObjectFieldDataGenerator.writeSingleObject(
+            object,
+            childFields
+        );
+        return b -> GenericSubObjectFieldDataGenerator.writeObjectsData(b, context, objectWriter);
     }
 }

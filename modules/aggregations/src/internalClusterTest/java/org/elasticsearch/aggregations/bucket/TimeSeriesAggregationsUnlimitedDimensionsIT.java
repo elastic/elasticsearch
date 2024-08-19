@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.aggregations.AggregationIntegTestCase;
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -102,15 +101,11 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
         final String[] routingDimensions
     ) {
         return prepareCreate("index").setSettings(
-            Settings.builder()
-                .put("mode", "time_series")
+            indexSettings(randomIntBetween(1, 3), randomIntBetween(1, 3)).put("mode", "time_series")
                 .put("routing_path", String.join(",", routingDimensions))
-                .put("index.number_of_shards", randomIntBetween(1, 3))
-                .put("index.number_of_replicas", randomIntBetween(1, 3))
                 .put("time_series.start_time", startMillis)
                 .put("time_series.end_time", endMillis)
                 .put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), 4192)
-                .build()
         ).setMapping(mapping).get();
     }
 

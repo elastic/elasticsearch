@@ -900,7 +900,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             mock(NamedXContentRegistry.class),
             mock(SystemIndices.class),
             new IndexSettingProviders(Set.of()),
-            null
+            globalRetentionSettings
         );
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).metadata(metadata).build();

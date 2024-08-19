@@ -303,7 +303,7 @@ public class PermissionsIT extends ESRestTestCase {
             """);
         Response response = client().performRequest(painlessExecute);
         assertOK(response);
-        assertThat(EntityUtils.toString(response.getEntity()), containsString("Thu"));
+        assertThat(EntityUtils.toString(response.getEntity()), containsString("Thursday"));
     }
 
     public void testPainlessExecuteWithoutIndexRequiresClusterPrivileges() {

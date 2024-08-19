@@ -21,7 +21,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
@@ -92,9 +91,10 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
-        SnapshotDeleteListener listener
+        ActionListener<RepositoryData> repositoryDataUpdateListener,
+        Runnable onCompletion
     ) {
-        listener.onFailure(createCreationException());
+        repositoryDataUpdateListener.onFailure(createCreationException());
     }
 
     @Override

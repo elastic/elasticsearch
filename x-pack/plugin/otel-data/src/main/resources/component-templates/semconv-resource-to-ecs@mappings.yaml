@@ -1,0 +1,128 @@
+---
+version: ${xpack.oteldata.template.version}
+_meta:
+  description: Aliases from OpenTelemetry SemConv fields to ECS (and some non-ECS) fields
+  managed: true
+template:
+  mappings:
+    properties:
+      resource:
+        properties:
+          attributes:
+            type: passthrough
+            dynamic: true
+            priority: 30
+            time_series_dimension: true
+            properties:
+              host.name:
+                type: keyword
+                ignore_above: 1024
+              telemetry.sdk.language:
+                type: keyword
+                ignore_above: 1024
+              service.instance.id:
+                type: keyword
+                ignore_above: 1024
+              deployment.environment:
+                type: keyword
+                ignore_above: 1024
+              cloud.platform:
+                type: keyword
+                ignore_above: 1024
+              container.image.tags:
+                type: keyword
+                ignore_above: 1024
+              host.arch:
+                type: keyword
+                ignore_above: 1024
+              process.executable.path:
+                type: keyword
+                ignore_above: 1024
+              process.runtime.name:
+                type: keyword
+                ignore_above: 1024
+              process.runtime.version:
+                type: keyword
+                ignore_above: 1024
+              os.name:
+                type: keyword
+                ignore_above: 1024
+              os.type:
+                type: keyword
+                ignore_above: 1024
+              os.description:
+                type: keyword
+                ignore_above: 1024
+              os.version:
+                type: keyword
+                ignore_above: 1024
+              k8s.deployment.name:
+                type: keyword
+                ignore_above: 1024
+              k8s.namespace.name:
+                type: keyword
+                ignore_above: 1024
+              k8s.node.name:
+                type: keyword
+                ignore_above: 1024
+              k8s.pod.name:
+                type: keyword
+                ignore_above: 1024
+              k8s.pod.uid:
+                type: keyword
+                ignore_above: 1024
+      service.node.name:
+        type: alias
+        path: resource.attributes.service.instance.id
+      service.environment:
+        type: alias
+        path: resource.attributes.deployment.environment
+      cloud.service.name:
+        type: alias
+        path: resource.attributes.cloud.platform
+      container.image.tag:
+        type: alias
+        path: resource.attributes.container.image.tags
+      host.architecture:
+        type: alias
+        path: resource.attributes.host.arch
+      process.executable:
+        type: alias
+        path: resource.attributes.process.executable.path
+      service.runtime.name:
+        type: alias
+        path: resource.attributes.process.runtime.name
+      service.runtime.version:
+        type: alias
+        path: resource.attributes.process.runtime.version
+      host.os.name:
+        type: alias
+        path: resource.attributes.os.name
+      host.os.platform:
+        type: alias
+        path: resource.attributes.os.type
+      host.os.full:
+        type: alias
+        path: resource.attributes.os.description
+      host.os.version:
+        type: alias
+        path: resource.attributes.os.version
+      kubernetes.deployment.name:
+        type: alias
+        path: resource.attributes.k8s.deployment.name
+      kubernetes.namespace:
+        type: alias
+        path: resource.attributes.k8s.namespace.name
+      kubernetes.node.name:
+        type: alias
+        path: resource.attributes.k8s.node.name
+      kubernetes.pod.name:
+        type: alias
+        path: resource.attributes.k8s.pod.name
+      kubernetes.pod.uid:
+        type: alias
+        path: resource.attributes.k8s.pod.uid
+# Below are non-ECS fields that may be used by Kibana.
+      service.language.name:
+        type: alias
+        path: resource.attributes.telemetry.sdk.language

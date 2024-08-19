@@ -473,9 +473,6 @@ public class ObjectMapper extends Mapper {
 
     @Override
     public void validate(MappingLookup mappers) {
-        if (storeArraySource() && mappers.isSourceSynthetic() == false) {
-            throw new MapperParsingException("Parameter [" + STORE_ARRAY_SOURCE_PARAM + "] can only be set in synthetic source mode.");
-        }
         for (Mapper mapper : this.mappers.values()) {
             mapper.validate(mappers);
         }

@@ -32,11 +32,6 @@ Rollup::
 Search::
 * Change `skip_unavailable` remote cluster setting default value to true {es-pull}105792[#105792]
 
-[[known-issues-8.15.0]]
-[float]
-=== Known issues
-* Elasticsearch will not start on Windows machines when the recommended [bootstrap.memory_lock: true](https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-configuration-memory.html#bootstrap-memory_lock) setting is configured due to [native access refactoring](https://github.com/elastic/elasticsearch/pull/111866). The workaround for 8.15.0 is to downgrade to the previous version.  This issue will be fixed in 8.15.1.
-
 [[bug-8.15.0]]
 [float]
 === Bug fixes

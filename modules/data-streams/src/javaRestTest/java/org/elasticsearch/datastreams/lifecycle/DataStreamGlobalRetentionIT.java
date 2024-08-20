@@ -55,21 +55,14 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
     public void cleanUp() throws IOException {
         adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
         updateClusterSettings(
-            Settings.builder()
-                .putNull("data_streams.lifecycle.retention.default")
-                .putNull("data_streams.lifecycle.retention.max")
-                .build()
+            Settings.builder().putNull("data_streams.lifecycle.retention.default").putNull("data_streams.lifecycle.retention.max").build()
         );
     }
 
     @SuppressWarnings("unchecked")
     public void testDefaultRetention() throws Exception {
         // Set default global retention
-        updateClusterSettings(
-            Settings.builder()
-                .put("data_streams.lifecycle.retention.default", "10s")
-                .build()
-        );
+        updateClusterSettings(Settings.builder().put("data_streams.lifecycle.retention.default", "10s").build());
 
         // Verify that the effective retention matches the default retention
         {
@@ -100,11 +93,7 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
     @SuppressWarnings("unchecked")
     public void testMaxRetention() throws Exception {
         // Set default global retention
-        updateClusterSettings(
-            Settings.builder()
-                .put("data_streams.lifecycle.retention.max", "10s")
-                .build()
-        );
+        updateClusterSettings(Settings.builder().put("data_streams.lifecycle.retention.max", "10s").build());
         boolean withDataStreamLevelRetention = randomBoolean();
         if (withDataStreamLevelRetention) {
             Request request = new Request("PUT", "_data_stream/my-data-stream/_lifecycle");

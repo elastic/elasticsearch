@@ -473,9 +473,6 @@ public class ObjectMapper extends Mapper {
 
     @Override
     public void validate(MappingLookup mappers) {
-        if (storeArraySource() && mappers.isSourceSynthetic() == false) {
-            throw new MapperParsingException("Parameter [" + STORE_ARRAY_SOURCE_PARAM + "] can only be set in synthetic source mode.");
-        }
         for (Mapper mapper : this.mappers.values()) {
             mapper.validate(mappers);
         }
@@ -843,12 +840,10 @@ public class ObjectMapper extends Mapper {
                 return;
             }
 
-            if (isFragment == false) {
-                if (isRoot()) {
-                    b.startObject();
-                } else {
-                    b.startObject(leafName());
-                }
+            if (isRoot() || isFragment) {
+                b.startObject();
+            } else {
+                b.startObject(leafName());
             }
 
             if (ignoredValues != null && ignoredValues.isEmpty() == false) {
@@ -875,9 +870,7 @@ public class ObjectMapper extends Mapper {
                 }
             }
             hasValue = false;
-            if (isFragment == false) {
-                b.endObject();
-            }
+            b.endObject();
         }
 
         @Override

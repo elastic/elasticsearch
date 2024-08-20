@@ -65,9 +65,6 @@ tests:
 - class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110408"
   method: "testCreateAndRestorePartialSearchableSnapshot"
-- class: org.elasticsearch.xpack.security.LicenseDLSFLSRoleIT
-  method: testQueryDLSFLSRolesShowAsDisabled
-  issue: https://github.com/elastic/elasticsearch/issues/110729
 - class: org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests
   method: testPopulationOfCacheWhenLoadingPrivilegesForAllApplications
   issue: https://github.com/elastic/elasticsearch/issues/110789
@@ -137,9 +134,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799
-- class: org.elasticsearch.indices.breaker.HierarchyCircuitBreakerTelemetryTests
-  method: testCircuitBreakerTripCountMetric
-  issue: https://github.com/elastic/elasticsearch/issues/111778
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {comparison.RangeVersion SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/111814
@@ -185,6 +179,11 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111923
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcCsvSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/111923
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/111944
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testScaledFloat
+  issue: https://github.com/elastic/elasticsearch/issues/112003
 
 # Examples:
 #

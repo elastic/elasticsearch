@@ -451,15 +451,12 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
 
     private static String evaluatorString(DataType fieldDataType, DataType percentileDataType) {
         var fieldTypeName = StringUtils.underscoreToLowerCamelCase(fieldDataType.name());
-        var percentileTypeName = StringUtils.underscoreToLowerCamelCase(percentileDataType.name());
 
         fieldTypeName = fieldTypeName.substring(0, 1).toUpperCase(Locale.ROOT) + fieldTypeName.substring(1);
-        percentileTypeName = percentileTypeName.substring(0, 1).toUpperCase(Locale.ROOT) + percentileTypeName.substring(1);
 
-        return "MvPercentile"
-            + fieldTypeName
-            + percentileTypeName
-            + "Evaluator[values=Attribute[channel=0], percentile=Attribute[channel=1]]";
+        var percentileEvaluator = TestCaseSupplier.castToDoubleEvaluator("Attribute[channel=1]", percentileDataType);
+
+        return "MvPercentile" + fieldTypeName + "Evaluator[values=Attribute[channel=0], percentile=" + percentileEvaluator + "]";
     }
 
     @Override

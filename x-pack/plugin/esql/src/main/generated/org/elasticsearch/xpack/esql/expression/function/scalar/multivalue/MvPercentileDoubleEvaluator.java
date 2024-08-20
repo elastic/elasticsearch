@@ -10,7 +10,6 @@ import java.lang.String;
 import java.util.function.Function;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -22,7 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.Warnings;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvPercentile}.
  * This class is generated. Do not edit it.
  */
-public final class MvPercentileDoubleLongEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class MvPercentileDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
   private final EvalOperator.ExpressionEvaluator values;
@@ -33,7 +32,7 @@ public final class MvPercentileDoubleLongEvaluator implements EvalOperator.Expre
 
   private final DriverContext driverContext;
 
-  public MvPercentileDoubleLongEvaluator(Source source, EvalOperator.ExpressionEvaluator values,
+  public MvPercentileDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator values,
       EvalOperator.ExpressionEvaluator percentile, MvPercentile.DoubleSortingScratch scratch,
       DriverContext driverContext) {
     this.values = values;
@@ -46,13 +45,13 @@ public final class MvPercentileDoubleLongEvaluator implements EvalOperator.Expre
   @Override
   public Block eval(Page page) {
     try (DoubleBlock valuesBlock = (DoubleBlock) values.eval(page)) {
-      try (LongBlock percentileBlock = (LongBlock) percentile.eval(page)) {
+      try (DoubleBlock percentileBlock = (DoubleBlock) percentile.eval(page)) {
         return eval(page.getPositionCount(), valuesBlock, percentileBlock);
       }
     }
   }
 
-  public DoubleBlock eval(int positionCount, DoubleBlock valuesBlock, LongBlock percentileBlock) {
+  public DoubleBlock eval(int positionCount, DoubleBlock valuesBlock, DoubleBlock percentileBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
@@ -75,7 +74,7 @@ public final class MvPercentileDoubleLongEvaluator implements EvalOperator.Expre
           continue position;
         }
         try {
-          MvPercentile.process(result, p, valuesBlock, percentileBlock.getLong(percentileBlock.getFirstValueIndex(p)), this.scratch);
+          MvPercentile.process(result, p, valuesBlock, percentileBlock.getDouble(percentileBlock.getFirstValueIndex(p)), this.scratch);
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -87,7 +86,7 @@ public final class MvPercentileDoubleLongEvaluator implements EvalOperator.Expre
 
   @Override
   public String toString() {
-    return "MvPercentileDoubleLongEvaluator[" + "values=" + values + ", percentile=" + percentile + "]";
+    return "MvPercentileDoubleEvaluator[" + "values=" + values + ", percentile=" + percentile + "]";
   }
 
   @Override
@@ -114,13 +113,13 @@ public final class MvPercentileDoubleLongEvaluator implements EvalOperator.Expre
     }
 
     @Override
-    public MvPercentileDoubleLongEvaluator get(DriverContext context) {
-      return new MvPercentileDoubleLongEvaluator(source, values.get(context), percentile.get(context), scratch.apply(context), context);
+    public MvPercentileDoubleEvaluator get(DriverContext context) {
+      return new MvPercentileDoubleEvaluator(source, values.get(context), percentile.get(context), scratch.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "MvPercentileDoubleLongEvaluator[" + "values=" + values + ", percentile=" + percentile + "]";
+      return "MvPercentileDoubleEvaluator[" + "values=" + values + ", percentile=" + percentile + "]";
     }
   }
 }

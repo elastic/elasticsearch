@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
@@ -38,6 +39,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
 public class MvPercentile extends EsqlScalarFunction {
@@ -120,72 +122,12 @@ public class MvPercentile extends EsqlScalarFunction {
     @Override
     public final ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var fieldEval = toEvaluator.apply(field);
-        var percentileEval = toEvaluator.apply(percentile);
+        var percentileEval = Cast.cast(source(), percentile.dataType(), DOUBLE, toEvaluator.apply(percentile));
 
         return switch (PlannerUtils.toElementType(field.dataType())) {
-            case INT -> switch (PlannerUtils.toElementType(percentile.dataType())) {
-                case INT -> new MvPercentileIntegerIntegerEvaluator.Factory(
-                    source(),
-                    fieldEval,
-                    percentileEval,
-                    (d) -> new IntSortingScratch()
-                );
-                case LONG -> new MvPercentileIntegerLongEvaluator.Factory(
-                    source(),
-                    fieldEval,
-                    percentileEval,
-                    (d) -> new IntSortingScratch()
-                );
-                case DOUBLE -> new MvPercentileIntegerDoubleEvaluator.Factory(
-                    source(),
-                    fieldEval,
-                    percentileEval,
-                    (d) -> new IntSortingScratch()
-                );
-                default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
-            };
-            case LONG -> switch (PlannerUtils.toElementType(percentile.dataType())) {
-                case INT -> new MvPercentileLongIntegerEvaluator.Factory(
-                    source(),
-                    fieldEval,
-                    percentileEval,
-                    (d) -> new LongSortingScratch()
-                );
-                case LONG -> new MvPercentileLongLongEvaluator.Factory(
-                    source(),
-                    fieldEval,
-                    percentileEval,
-                    (d) -> new LongSortingScratch()
-                );
-                case DOUBLE -> new MvPercentileLongDoubleEvaluator.Factory(
-                    source(),
-                    fieldEval,
-                    percentileEval,
-                    (d) -> new LongSortingScratch()
-                );
-                default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
-            };
-            case DOUBLE -> switch (PlannerUtils.toElementType(percentile.dataType())) {
-                case INT -> new MvPercentileDoubleIntegerEvaluator.Factory(
-                    source(),
-                    fieldEval,
-                    percentileEval,
-                    (d) -> new DoubleSortingScratch()
-                );
-                case LONG -> new MvPercentileDoubleLongEvaluator.Factory(
-                    source(),
-                    fieldEval,
-                    percentileEval,
-                    (d) -> new DoubleSortingScratch()
-                );
-                case DOUBLE -> new MvPercentileDoubleDoubleEvaluator.Factory(
-                    source(),
-                    fieldEval,
-                    percentileEval,
-                    (d) -> new DoubleSortingScratch()
-                );
-                default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
-            };
+            case INT -> new MvPercentileIntegerEvaluator.Factory(source(), fieldEval, percentileEval, (d) -> new IntSortingScratch());
+            case LONG -> new MvPercentileLongEvaluator.Factory(source(), fieldEval, percentileEval, (d) -> new LongSortingScratch());
+            case DOUBLE -> new MvPercentileDoubleEvaluator.Factory(source(), fieldEval, percentileEval, (d) -> new DoubleSortingScratch());
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }
@@ -220,29 +162,7 @@ public class MvPercentile extends EsqlScalarFunction {
 
     // Evaluators
 
-    @Evaluator(extraName = "DoubleInteger", warnExceptions = IllegalArgumentException.class)
-    static void process(
-        DoubleBlock.Builder builder,
-        int position,
-        DoubleBlock values,
-        int percentile,
-        @Fixed(includeInToString = false, build = true) DoubleSortingScratch scratch
-    ) {
-        processDoubles(builder, position, values, percentile, scratch);
-    }
-
-    @Evaluator(extraName = "DoubleLong", warnExceptions = IllegalArgumentException.class)
-    static void process(
-        DoubleBlock.Builder builder,
-        int position,
-        DoubleBlock values,
-        long percentile,
-        @Fixed(includeInToString = false, build = true) DoubleSortingScratch scratch
-    ) {
-        processDoubles(builder, position, values, percentile, scratch);
-    }
-
-    @Evaluator(extraName = "DoubleDouble", warnExceptions = IllegalArgumentException.class)
+    @Evaluator(extraName = "Double", warnExceptions = IllegalArgumentException.class)
     static void process(
         DoubleBlock.Builder builder,
         int position,
@@ -250,86 +170,8 @@ public class MvPercentile extends EsqlScalarFunction {
         double percentile,
         @Fixed(includeInToString = false, build = true) DoubleSortingScratch scratch
     ) {
-        processDoubles(builder, position, values, percentile, scratch);
-    }
-
-    @Evaluator(extraName = "IntegerInteger", warnExceptions = IllegalArgumentException.class)
-    static void process(
-        IntBlock.Builder builder,
-        int position,
-        IntBlock values,
-        int percentile,
-        @Fixed(includeInToString = false, build = true) IntSortingScratch scratch
-    ) {
-        processInts(builder, position, values, percentile, scratch);
-    }
-
-    @Evaluator(extraName = "IntegerLong", warnExceptions = IllegalArgumentException.class)
-    static void process(
-        IntBlock.Builder builder,
-        int position,
-        IntBlock values,
-        long percentile,
-        @Fixed(includeInToString = false, build = true) IntSortingScratch scratch
-    ) {
-        processInts(builder, position, values, percentile, scratch);
-    }
-
-    @Evaluator(extraName = "IntegerDouble", warnExceptions = IllegalArgumentException.class)
-    static void process(
-        IntBlock.Builder builder,
-        int position,
-        IntBlock values,
-        double percentile,
-        @Fixed(includeInToString = false, build = true) IntSortingScratch scratch
-    ) {
-        processInts(builder, position, values, percentile, scratch);
-    }
-
-    @Evaluator(extraName = "LongInteger", warnExceptions = IllegalArgumentException.class)
-    static void process(
-        LongBlock.Builder builder,
-        int position,
-        LongBlock values,
-        int percentile,
-        @Fixed(includeInToString = false, build = true) LongSortingScratch scratch
-    ) {
-        processLongs(builder, position, values, percentile, scratch);
-    }
-
-    @Evaluator(extraName = "LongLong", warnExceptions = IllegalArgumentException.class)
-    static void process(
-        LongBlock.Builder builder,
-        int position,
-        LongBlock values,
-        long percentile,
-        @Fixed(includeInToString = false, build = true) LongSortingScratch scratch
-    ) {
-        processLongs(builder, position, values, percentile, scratch);
-    }
-
-    @Evaluator(extraName = "LongDouble", warnExceptions = IllegalArgumentException.class)
-    static void process(
-        LongBlock.Builder builder,
-        int position,
-        LongBlock values,
-        double percentile,
-        @Fixed(includeInToString = false, build = true) LongSortingScratch scratch
-    ) {
-        processLongs(builder, position, values, percentile, scratch);
-    }
-
-    // Per-field-type processors
-
-    private static void processDoubles(
-        DoubleBlock.Builder builder,
-        int position,
-        DoubleBlock valuesBlock,
-        double percentile,
-        DoubleSortingScratch scratch
-    ) {
-        int valueCount = valuesBlock.getValueCount(position);
-        int firstValueIndex = valuesBlock.getFirstValueIndex(position);
+        int valueCount = values.getValueCount(position);
+        int firstValueIndex = values.getFirstValueIndex(position);
 
         if (valueCount == 0) {
             builder.appendNull();
@@ -340,18 +182,19 @@ public class MvPercentile extends EsqlScalarFunction {
             throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");
         }
 
-        builder.appendDouble(calculateDoublePercentile(valuesBlock, firstValueIndex, valueCount, percentile, scratch));
+        builder.appendDouble(calculateDoublePercentile(values, firstValueIndex, valueCount, percentile, scratch));
     }
 
-    private static void processInts(
+    @Evaluator(extraName = "Integer", warnExceptions = IllegalArgumentException.class)
+    static void process(
         IntBlock.Builder builder,
         int position,
-        IntBlock valuesBlock,
+        IntBlock values,
         double percentile,
-        IntSortingScratch scratch
+        @Fixed(includeInToString = false, build = true) IntSortingScratch scratch
     ) {
-        int valueCount = valuesBlock.getValueCount(position);
-        int firstValueIndex = valuesBlock.getFirstValueIndex(position);
+        int valueCount = values.getValueCount(position);
+        int firstValueIndex = values.getFirstValueIndex(position);
 
         if (valueCount == 0) {
             builder.appendNull();
@@ -362,18 +205,19 @@ public class MvPercentile extends EsqlScalarFunction {
             throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");
         }
 
-        builder.appendInt(calculateIntPercentile(valuesBlock, firstValueIndex, valueCount, percentile, scratch));
+        builder.appendInt(calculateIntPercentile(values, firstValueIndex, valueCount, percentile, scratch));
     }
 
-    private static void processLongs(
+    @Evaluator(extraName = "Long", warnExceptions = IllegalArgumentException.class)
+    static void process(
         LongBlock.Builder builder,
         int position,
-        LongBlock valuesBlock,
+        LongBlock values,
         double percentile,
-        LongSortingScratch scratch
+        @Fixed(includeInToString = false, build = true) LongSortingScratch scratch
     ) {
-        int valueCount = valuesBlock.getValueCount(position);
-        int firstValueIndex = valuesBlock.getFirstValueIndex(position);
+        int valueCount = values.getValueCount(position);
+        int firstValueIndex = values.getFirstValueIndex(position);
 
         if (valueCount == 0) {
             builder.appendNull();
@@ -384,7 +228,7 @@ public class MvPercentile extends EsqlScalarFunction {
             throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");
         }
 
-        builder.appendLong(calculateLongPercentile(valuesBlock, firstValueIndex, valueCount, percentile, scratch));
+        builder.appendLong(calculateLongPercentile(values, firstValueIndex, valueCount, percentile, scratch));
     }
 
     // Percentile calculators

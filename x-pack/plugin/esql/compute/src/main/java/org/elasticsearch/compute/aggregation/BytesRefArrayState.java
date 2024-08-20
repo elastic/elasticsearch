@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -32,13 +33,19 @@ import org.elasticsearch.core.Releasables;
  *     This class is a specialized version of the {@code X-ArrayState.java.st} template.
  * </p>
  */
-public final class BytesRefArrayState extends AbstractArrayState implements GroupingAggregatorState {
+public final class BytesRefArrayState implements GroupingAggregatorState, Releasable {
+    private final BigArrays bigArrays;
     private final CircuitBreaker breaker;
     private final String breakerLabel;
     private ObjectArray<BreakingBytesRefBuilder> values;
+    /**
+     * If false, no group id is expected to have nulls.
+     * If true, they may have nulls.
+     */
+    private boolean groupIdTrackingEnabled;
 
     BytesRefArrayState(BigArrays bigArrays, CircuitBreaker breaker, String breakerLabel) {
-        super(bigArrays);
+        this.bigArrays = bigArrays;
         this.breaker = breaker;
         this.breakerLabel = breakerLabel;
         this.values = bigArrays.newObjectArray(0);
@@ -58,17 +65,10 @@ public final class BytesRefArrayState extends AbstractArrayState implements Grou
         }
 
         currentBuilder.copyBytes(value);
-
-        trackGroupId(groupId);
-    }
-
-    @Override
-    boolean hasValue(int groupId) {
-        return groupId < values.size() && values.get(groupId) != null;
     }
 
     Block toValuesBlock(IntVector selected, DriverContext driverContext) {
-        if (false == trackingGroupIds()) {
+        if (false == groupIdTrackingEnabled) {
             try (var builder = driverContext.blockFactory().newBytesRefVectorBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int group = selected.getInt(i);
@@ -124,12 +124,30 @@ public final class BytesRefArrayState extends AbstractArrayState implements Grou
         }
     }
 
+    boolean hasValue(int groupId) {
+        return groupId < values.size() && values.get(groupId) != null;
+    }
+
+    /**
+     * Switches this array state into tracking which group ids are set. This is
+     * idempotent and fast if already tracking so it's safe to, say, call it once
+     * for every block of values that arrives containing {@code null}.
+     *
+     * <p>
+     *     This class tracks seen group IDs differently from {@code AbstractArrayState}, as it just
+     *     stores a flag to know if optimizations can be made.
+     * </p>
+     */
+    void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
+        this.groupIdTrackingEnabled = true;
+    }
+
     @Override
     public void close() {
         for (int i = 0; i < values.size(); i++) {
             Releasables.closeWhileHandlingException(values.get(i));
         }
 
-        Releasables.close(values, super::close);
+        Releasables.close(values);
     }
 }

@@ -9,13 +9,13 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,7 +30,7 @@ import java.util.function.Supplier;
 public class ExchangeSourceOperator extends SourceOperator {
 
     private final ExchangeSource source;
-    private SubscribableListener<Void> isBlocked = NOT_BLOCKED;
+    private IsBlockedResult isBlocked = NOT_BLOCKED;
     private int pagesEmitted;
 
     public record ExchangeSourceOperatorFactory(Supplier<ExchangeSource> exchangeSources) implements SourceOperatorFactory {
@@ -70,10 +70,10 @@ public class ExchangeSourceOperator extends SourceOperator {
     }
 
     @Override
-    public SubscribableListener<Void> isBlocked() {
-        if (isBlocked.isDone()) {
+    public IsBlockedResult isBlocked() {
+        if (isBlocked.listener().isDone()) {
             isBlocked = source.waitForReading();
-            if (isBlocked.isDone()) {
+            if (isBlocked.listener().isDone()) {
                 isBlocked = NOT_BLOCKED;
             }
         }

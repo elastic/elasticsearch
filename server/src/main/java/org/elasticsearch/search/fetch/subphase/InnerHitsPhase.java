@@ -11,7 +11,9 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -22,10 +24,12 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -84,7 +88,23 @@ public final class InnerHitsPhase implements FetchSubPhase {
             if (results == null) {
                 hit.setInnerHits(results = new HashMap<>());
             }
-            innerHitsContext.queryResult().topDocs(topDoc, innerHitsContext.sort() == null ? null : innerHitsContext.sort().formats);
+
+            // TODO: What inner hits context sort formats need to be enforced here?
+            DocValueFormat[] sortValueFormats = innerHitsContext.sort() == null ? null : innerHitsContext.sort().formats;
+            List<RescoreContext> rescore = innerHitsContext.rescore();
+            if (rescore != null) {
+                TopDocs justTopDocs = topDoc.topDocs;
+                for (RescoreContext ctx : rescore) {
+                    justTopDocs = ctx.rescorer().rescore(justTopDocs, innerHitsContext.searcher(), ctx);
+                    // TODO: Check that top docs are sorted by score
+                }
+
+                // TODO: Can there ever be no docs to rescore?
+                topDoc = new TopDocsAndMaxScore(justTopDocs, justTopDocs.scoreDocs[0].score);
+                sortValueFormats = null;
+            }
+
+            innerHitsContext.queryResult().topDocs(topDoc, sortValueFormats);
             int[] docIdsToLoad = new int[topDoc.topDocs.scoreDocs.length];
             for (int j = 0; j < topDoc.topDocs.scoreDocs.length; j++) {
                 docIdsToLoad[j] = topDoc.topDocs.scoreDocs[j].doc;

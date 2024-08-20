@@ -169,7 +169,10 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     public QueryRescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException {
         QueryRescoreContext queryRescoreContext = new QueryRescoreContext(windowSize);
         // query is rewritten at this point already
-        queryRescoreContext.setQuery(context.toQuery(queryBuilder));
+        // Copy context so that calling toQuery does not reset the passed-in context.
+        // This causes problems when the passed-in context has a nested scope that is not at root level.
+        SearchExecutionContext contextCopy = new SearchExecutionContext(context);
+        queryRescoreContext.setQuery(contextCopy.toQuery(queryBuilder));
         queryRescoreContext.setQueryWeight(this.queryWeight);
         queryRescoreContext.setRescoreQueryWeight(this.rescoreQueryWeight);
         queryRescoreContext.setScoreMode(this.scoreMode);

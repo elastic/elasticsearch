@@ -76,7 +76,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         this(path, query, scoreMode, null);
     }
 
-    private NestedQueryBuilder(String path, QueryBuilder query, ScoreMode scoreMode, InnerHitBuilder innerHitBuilder) {
+    public NestedQueryBuilder(String path, QueryBuilder query, ScoreMode scoreMode, InnerHitBuilder innerHitBuilder) {
         this.path = requireValue(path, "[" + NAME + "] requires 'path' field");
         this.query = requireValue(query, "[" + NAME + "] requires 'query' field");
         this.scoreMode = requireValue(scoreMode, "[" + NAME + "] requires 'score_mode' field");

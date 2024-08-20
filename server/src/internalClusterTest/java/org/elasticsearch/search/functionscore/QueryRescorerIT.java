@@ -9,6 +9,7 @@
 package org.elasticsearch.search.functionscore;
 
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -17,6 +18,8 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -30,6 +33,7 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -981,6 +985,67 @@ public class QueryRescorerIT extends ESIntegTestCase {
     private QueryBuilder fieldValueScoreQuery(String scoreField) {
         return functionScoreQuery(termQuery("shouldFilter", false), ScoreFunctionBuilders.fieldValueFactorFunction(scoreField)).boostMode(
             CombineFunction.REPLACE
+        );
+    }
+
+    public void testRescoreOnInnerHits() throws Exception {
+        assertAcked(
+            prepareCreate("test").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("nested_field")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("type", "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1))
+        );
+
+        prepareIndex("test").setId("1").setSource("""
+            {
+              "nested_field": [
+                { "field1": "the quick brown fox" },
+                { "field1": "the quick fox" }
+              ]
+            }
+            """, XContentType.JSON).get();
+        refresh();
+
+        assertResponse(
+            prepareSearch("test").setQuery(
+                new NestedQueryBuilder(
+                    "nested_field",
+                    QueryBuilders.matchQuery("nested_field.field1", "brown fox"),
+                    ScoreMode.Max,
+                    new InnerHitBuilder("field1").addRescoreBuilder(
+                        new QueryRescorerBuilder(QueryBuilders.matchPhraseQuery("nested_field.field1", "quick fox")).setQueryWeight(0.1f)
+                            .setRescoreQueryWeight(0.9f)
+                    )
+                )
+            ),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+
+                SearchHit searchHit = response.getHits().getHits()[0];
+                assertThat(response.getHits().getMaxScore(), equalTo(searchHit.getScore()));
+                assertThat(searchHit.getId(), equalTo("1"));
+                assertThat(searchHit.getInnerHits().size(), equalTo(1));
+
+                SearchHits innerHits = searchHit.getInnerHits().get("field1");
+                assertThat(innerHits, notNullValue());
+                assertThat(innerHits.getTotalHits().value, equalTo(2L));
+                assertThat(innerHits.getHits().length, equalTo(2));
+                assertThat(innerHits.getMaxScore(), equalTo(innerHits.getAt(0).getScore()));
+                assertThat(innerHits.getAt(0).docId(), equalTo(1));
+                assertThat(innerHits.getAt(1).docId(), equalTo(0));
+            }
         );
     }
 }

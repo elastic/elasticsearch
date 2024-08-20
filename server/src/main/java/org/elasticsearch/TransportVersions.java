@@ -193,6 +193,7 @@ public class TransportVersions {
     public static final TransportVersion REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES = def(8_723_00_0);
     public static final TransportVersion RANDOM_RERANKER_RETRIEVER = def(8_724_00_0);
     public static final TransportVersion ESQL_PROFILE_SLEEPS = def(8_725_00_0);
+    public static final TransportVersion BULK_INCREMENTAL_STATE = def(8_726_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
@@ -54,7 +52,9 @@ import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
-import java.util.List;
+import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode;
+import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
+import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PARTIAL;
 
 /**
  * <p>This class is part of the planner</p>
@@ -216,13 +216,9 @@ public class Mapper {
     }
 
     private PhysicalPlan map(Aggregate aggregate, PhysicalPlan child) {
-        List<Attribute> intermediateAttributes = AbstractPhysicalOperationProviders.intermediateAttributes(
-            aggregate.aggregates(),
-            aggregate.groupings()
-        );
         // in local mode the only aggregate that can appear is the partial side under an exchange
         if (localMode) {
-            child = aggExec(aggregate, child, AggregatorMode.INITIAL, intermediateAttributes);
+            child = aggExec(aggregate, child, PARTIAL);
         }
         // otherwise create both sides of the aggregate (for parallelism purposes), if no fragment is present
         // TODO: might be easier long term to end up with just one node and split if necessary instead of doing that always at this stage
@@ -230,35 +226,23 @@ public class Mapper {
             child = addExchangeForFragment(aggregate, child);
             // exchange was added - use the intermediates for the output
             if (child instanceof ExchangeExec exchange) {
-                child = new ExchangeExec(child.source(), intermediateAttributes, true, exchange.child());
+                var output = AbstractPhysicalOperationProviders.intermediateAttributes(aggregate.aggregates(), aggregate.groupings());
+                child = new ExchangeExec(child.source(), output, true, exchange.child());
             }
             // if no exchange was added, create the partial aggregate
             else {
-                child = aggExec(aggregate, child, AggregatorMode.INITIAL, intermediateAttributes);
+                child = aggExec(aggregate, child, PARTIAL);
             }
 
             // regardless, always add the final agg
-            child = aggExec(aggregate, child, AggregatorMode.FINAL, intermediateAttributes);
+            child = aggExec(aggregate, child, FINAL);
         }
 
         return child;
     }
 
-    private static AggregateExec aggExec(
-        Aggregate aggregate,
-        PhysicalPlan child,
-        AggregatorMode aggMode,
-        List<Attribute> intermediateAttributes
-    ) {
-        return new AggregateExec(
-            aggregate.source(),
-            child,
-            aggregate.groupings(),
-            aggregate.aggregates(),
-            aggMode,
-            intermediateAttributes,
-            null
-        );
+    private static AggregateExec aggExec(Aggregate aggregate, PhysicalPlan child, Mode aggMode) {
+        return new AggregateExec(aggregate.source(), child, aggregate.groupings(), aggregate.aggregates(), aggMode, null);
     }
 
     private PhysicalPlan map(Limit limit, PhysicalPlan child) {

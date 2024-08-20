@@ -13,9 +13,9 @@ task queue.
 **Check the thread pool status**
 
 A <<high-cpu-usage,depleted thread pool>> can result in
-<<rejected-requests,rejected requests>>. This may surface restricted to a
-<<data-tiers,data tier>>'s traffic, potentially with <<hotspotting,hot spotting>>
-symptoms.
+<<rejected-requests,rejected requests>>. 
+
+Thread pool depletion might be restricted to a specific <<data-tiers,data tier>>. If <<hotspotting,hot spotting>> is occuring, one node might experience depletion faster than other nodes, leading to performance issues and a growing task backlog.
 
 You can use the <<cat-thread-pool,cat thread pool API>> to see the number of
 active threads in each thread pool and how many tasks are queued, how many

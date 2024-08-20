@@ -234,7 +234,12 @@ public class EsqlCapabilities {
         /**
          * Changed error messages for fields with conflicting types in different indices.
          */
-        SHORT_ERROR_MESSAGES_FOR_UNSUPPORTED_FIELDS;
+        SHORT_ERROR_MESSAGES_FOR_UNSUPPORTED_FIELDS,
+
+        /**
+         * Support for the whole number spans in BUCKET function.
+         */
+        BUCKET_WHOLE_NUMBER_AS_SPAN;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

@@ -20,6 +20,7 @@ import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -68,6 +69,14 @@ public final class LicenseDLSFLSRoleIT extends ESRestTestCase {
         assertTrue((boolean) responseAsMap(response).get("trial_was_started"));
     }
 
+    @After
+    public void removeLicense() throws IOException {
+        // start with trial license
+        Request request = new Request("DELETE", "/_license");
+        Response response = adminClient().performRequest(request);
+        assertOK(response);
+    }
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
@@ -85,7 +94,6 @@ public final class LicenseDLSFLSRoleIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    @SuppressWarnings("unchecked")
     public void testQueryDLSFLSRolesShowAsDisabled() throws Exception {
         // neither DLS nor FLS role
         {

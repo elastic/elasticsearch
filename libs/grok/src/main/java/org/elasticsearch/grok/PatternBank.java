@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
 
 public class PatternBank {
 
@@ -63,30 +62,18 @@ public class PatternBank {
     }
 
     /**
-     * Checks whether patterns reference each other in a circular manner and if so fail with an exception.
+     * Checks whether patterns reference each other in a circular manner and if so fail with an IllegalArgumentException. It will also
+     * fail if any pattern value contains a pattern name that does not exist in the bank.
      * <p>
      * In a pattern, anything between <code>%{</code> and <code>}</code> or <code>:</code> is considered
      * a reference to another named pattern. This method will navigate to all these named patterns and
      * check for a circular reference.
      */
     static void forbidCircularReferences(Map<String, String> bank) {
-        detectCycles(bank, PatternBank::getPatternNamesForPattern);
-    }
-
-    /*
-     * This method traverses the directed graph, and throws an IllegalArgumentException if any cycles are detected.
-     * @param directedGraph A directed graph. The keys are all the nodes in the graph. The values are strings that can be converted to
-     *                     a list of neighboring nodes using nodeToNeighborsFunction
-     * @param nodeToNeighborsFunction A function that maps the values of directedGraph to a list of neighboring nodes
-     */
-    private static void detectCycles(
-        Map<String, String> directedGraph,
-        BiFunction<Map<String, String>, String, List<String>> nodeToNeighborsFunction
-    ) {
         Set<String> allVisitedNodes = new HashSet<>();
         Set<String> nodesVisitedMoreThanOnceInAPath = new HashSet<>();
         // Walk the full path starting at each node in the graph:
-        for (String traversalStartNode : directedGraph.keySet()) {
+        for (String traversalStartNode : bank.keySet()) {
             if (nodesVisitedMoreThanOnceInAPath.contains(traversalStartNode) == false && allVisitedNodes.contains(traversalStartNode)) {
                 // If we have seen this node before in a path, and it only appeared once in that path, there is no need to check it again
                 continue;
@@ -109,7 +96,7 @@ public class PatternBank {
                     continue;
                 }
                 visited.add(node);
-                for (String neighbor : nodeToNeighborsFunction.apply(directedGraph, node)) {
+                for (String neighbor : getPatternNamesForPattern(bank, node)) {
                     toBeVisited.push(neighbor);
                 }
             }

@@ -2327,7 +2327,7 @@ public class MetadataTests extends ESTestCase {
             "templates",
             "clusterUUID",
             "clusterUUIDCommitted",
-            "customs",
+            "sections",
             "reservedStateMetadata"
         );
         Set<String> excludedFromGlobalStateCheck = Set.of(

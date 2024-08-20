@@ -5,8 +5,10 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 lhs | rhs | result
-date | null | date
-date | null | date
+date | date_period | date
+date | time_duration | date
+date_period | date | date
+date_period | date_period | date_period
 double | double | double
 double | integer | double
 double | long | double
@@ -16,9 +18,7 @@ integer | long | long
 long | double | double
 long | integer | long
 long | long | long
-null | date | date
-null | date | date
-null | null | null
-null | null | null
+time_duration | date | date
+time_duration | time_duration | time_duration
 unsigned_long | unsigned_long | unsigned_long
 |===

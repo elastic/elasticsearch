@@ -5,9 +5,9 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 field | buckets | from | to | result
+date | date_period | | | date
 date | integer | date | date | date
-date | null | | | date
-date | null | | | date
+date | time_duration | | | date
 double | double | | | double
 double | integer | double | double | double
 double | integer | double | integer | double

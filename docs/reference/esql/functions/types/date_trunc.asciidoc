@@ -5,6 +5,6 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 interval | date | result
-null | date | date
-null | date | date
+date_period | date | date
+time_duration | date | date
 |===

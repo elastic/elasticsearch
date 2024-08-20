@@ -246,7 +246,7 @@ public class IngestMetricsService implements ClusterStateListener {
             var weight = i < nodesNotShuttingDown ? lowIngestionLoadWeightDuringScaling : highIngestionLoadWeightDuringScaling;
             return new NodeIngestLoadSnapshot(load * weight, MetricQuality.MINIMUM);
         }).toList();
-        logger.info(
+        logger.debug(
             () -> Strings.format(
                 "adjusting ingest loads from %s to %s "
                     + "(number of indexing nodes: %d, number of indexing nodes with a shutdown marker: %d, %s: %.2f, %s: %.2f",

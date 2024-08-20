@@ -5,7 +5,7 @@
 <titleabbrev>Using {esql} in {elastic-sec}</titleabbrev>
 ++++
 
-You can use <<esql,{esql}>> in {elastic-sec} to investigate events in Timeline and create
+You can use {esql} in {elastic-sec} to investigate events in Timeline and create
 detection rules. Use the Elastic AI Assistant to build {esql} queries, or answer
 questions about the {esql} query language.
 

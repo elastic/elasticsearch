@@ -5,7 +5,7 @@
 <titleabbrev>Multivalued fields</titleabbrev>
 ++++
 
-<<esql,{esql}>> is fine reading from multivalued fields:
+{esql} is fine reading from multivalued fields:
 
 [source,console,id=esql-multivalued-fields-reorders]
 ----

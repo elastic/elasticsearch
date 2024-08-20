@@ -147,7 +147,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     }
 
     @Override
-    public AttributeSet childrenReferences() {
+    public AttributeSet computeReferences() {
         return mode.isInputPartial() ? new AttributeSet(intermediateAttributes) : Aggregate.requiredInputAttributes(aggregates, groupings);
     }
 

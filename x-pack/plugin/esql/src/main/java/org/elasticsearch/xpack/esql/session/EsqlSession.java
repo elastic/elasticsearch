@@ -299,7 +299,7 @@ public class EsqlSession {
                 enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
                 references.addAll(enrichRefs);
             } else {
-                references.addAll(p.childrenReferences());
+                references.addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
                     references.add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
                 }
@@ -313,7 +313,7 @@ public class EsqlSession {
                     }
                 });
                 if (p instanceof Keep) {
-                    keepCommandReferences.addAll(p.childrenReferences());
+                    keepCommandReferences.addAll(p.references());
                 }
             }
 

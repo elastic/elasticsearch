@@ -79,7 +79,7 @@ public class MvExpand extends UnaryPlan {
     }
 
     @Override
-    public AttributeSet childrenReferences() {
+    public AttributeSet computeReferences() {
         return target.references();
     }
 

@@ -105,7 +105,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 }
             } while (recheck);
 
-            used.addAll(p.childrenReferences());
+            used.addAll(p.references());
 
             // preserve the state before going to the next node
             return p;

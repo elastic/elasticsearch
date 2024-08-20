@@ -34,7 +34,7 @@ public abstract class RegexExtractExec extends UnaryExec implements EstimatesRow
     }
 
     @Override
-    public AttributeSet childrenReferences() {
+    public AttributeSet computeReferences() {
         return inputExpression.references();
     }
 

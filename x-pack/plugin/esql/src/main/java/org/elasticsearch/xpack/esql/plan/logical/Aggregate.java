@@ -143,7 +143,7 @@ public class Aggregate extends UnaryPlan implements Stats {
     }
 
     @Override
-    public AttributeSet childrenReferences() {
+    public AttributeSet computeReferences() {
         return requiredInputAttributes(aggregates, groupings);
     }
 

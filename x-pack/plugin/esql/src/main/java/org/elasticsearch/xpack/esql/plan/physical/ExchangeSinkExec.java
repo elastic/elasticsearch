@@ -33,7 +33,7 @@ public class ExchangeSinkExec extends UnaryExec {
     }
 
     @Override
-    public AttributeSet childrenReferences() {
+    public AttributeSet computeReferences() {
         return Expressions.references(expressions());
     }
 

@@ -45,7 +45,7 @@ public class FilterExec extends UnaryExec {
     }
 
     @Override
-    public AttributeSet childrenReferences() {
+    public AttributeSet computeReferences() {
         return Expressions.references(expressions());
     }
 

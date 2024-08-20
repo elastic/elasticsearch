@@ -25,7 +25,7 @@ public class LimitExec extends UnaryExec {
     }
 
     @Override
-    public AttributeSet childrenReferences() {
+    public AttributeSet computeReferences() {
         return Expressions.references(expressions());
     }
 

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -65,8 +64,6 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         return lazyExpressions;
     }
 
-    public abstract AttributeSet childrenReferences();
-
     /**
      * The attributes required to be in the {@link QueryPlan#inputSet()} for this plan to be valid.
      * Excludes generated references.
@@ -77,10 +74,12 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
      */
     public AttributeSet references() {
         if (lazyReferences == null) {
-            lazyReferences = Expressions.references(expressions());
+            lazyReferences = computeReferences();
         }
         return lazyReferences;
     }
+
+    protected abstract AttributeSet computeReferences();
 
     //
     // pass Object.class as a type token to pick Collections of expressions not just expressions

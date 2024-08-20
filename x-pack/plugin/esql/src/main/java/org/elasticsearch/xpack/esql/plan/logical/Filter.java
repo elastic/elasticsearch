@@ -51,7 +51,7 @@ public class Filter extends UnaryPlan {
     }
 
     @Override
-    public AttributeSet childrenReferences() {
+    public AttributeSet computeReferences() {
         return Expressions.references(expressions());
     }
 

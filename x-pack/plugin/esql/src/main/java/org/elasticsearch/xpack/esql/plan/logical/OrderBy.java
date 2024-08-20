@@ -71,7 +71,7 @@ public class OrderBy extends UnaryPlan {
     }
 
     @Override
-    public AttributeSet childrenReferences() {
+    public AttributeSet computeReferences() {
         return Expressions.references(expressions());
     }
 

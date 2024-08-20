@@ -231,7 +231,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         }
 
         @Override
-        public AttributeSet childrenReferences() {
+        public AttributeSet computeReferences() {
             return AttributeSet.EMPTY;
         }
 

@@ -31,7 +31,7 @@ public class MvExpandExec extends UnaryExec {
     }
 
     @Override
-    public AttributeSet childrenReferences() {
+    public AttributeSet computeReferences() {
         return target.references();
     }
 

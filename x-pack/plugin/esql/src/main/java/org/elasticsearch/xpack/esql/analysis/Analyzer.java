@@ -987,7 +987,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         continue;
                     }
                 }
-                if (castMixedNumericTypes(f) && arg.resolved() && arg.dataType().isNumeric()) {
+                if (canCastMixedNumericTypes(f) && arg.resolved() && arg.dataType().isNumeric()) {
                     if (targetNumericType.isNumeric() == false) {
                         targetNumericType = arg.dataType();  // target data type is the first numeric data type
                     } else if (arg.dataType() != targetNumericType) {
@@ -1069,7 +1069,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return childrenChanged ? in.replaceChildren(newChildren) : in;
         }
 
-        private static boolean castMixedNumericTypes(EsqlScalarFunction f) {
+        private static boolean canCastMixedNumericTypes(EsqlScalarFunction f) {
             return f instanceof Coalesce;
         }
 

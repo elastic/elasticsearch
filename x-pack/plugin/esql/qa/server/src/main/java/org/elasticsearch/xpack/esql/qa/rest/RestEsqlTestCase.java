@@ -576,7 +576,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             () -> runEsqlSync(
                 requestObjectBuilder().query("row a = 1 | eval x = ?, y = ?")
                     .params(
-                        "[{\"1\": \"v1\"}, {\"1-\": \"v1\"}, {\"-a\": \"v1\"}, {\"@-#\": \"v1\"}, true, 123, "
+                        "[{\"1\": \"v1\"}, {\"1-\": \"v1\"}, {\"-a\": \"v1\"}, {\"@-#\": \"v1\"}, {\"_1\": \"v1\"}, true, 123, "
                             + "{\"type\": \"byte\", \"value\": 5}]"
                     )
             )
@@ -586,6 +586,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(error, containsString("[1-] is not a valid parameter name"));
         assertThat(error, containsString("[-a] is not a valid parameter name"));
         assertThat(error, containsString("[@-#] is not a valid parameter name"));
+        assertThat(error, containsString("[_1] is not a valid parameter name"));
         assertThat(error, containsString("Params cannot contain both named and unnamed parameters"));
         assertThat(error, containsString("Cannot parse more than one key:value pair as parameter"));
         re = expectThrows(

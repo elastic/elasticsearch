@@ -398,22 +398,42 @@ public final class StringUtils {
 
     public static boolean isInteger(String value) {
         for (char c : value.trim().toCharArray()) {
-            if (Character.isDigit(c) == false) {
+            if (isDigit(c) == false) {
                 return false;
             }
         }
         return true;
     }
 
+    private static boolean isLetter(char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+    }
+
+    private static boolean isDigit(char c) {
+        return c >= '0' && c <= '9';
+    }
+
+    private static boolean isUnderscore(char c) {
+        return c == '_';
+    }
+
+    private static boolean isLetterOrDigitOrUnderscore(char c) {
+        return isLetter(c) || isDigit(c) || isUnderscore(c);
+    }
+
+    private static boolean isLetterOrUnderscore(char c) {
+        return isLetter(c) || isUnderscore(c);
+    }
+
     public static boolean isValidParamName(String value) {
         // A valid name starts with a letter or _ followed by a letter
-        if (Character.isLetter(value.charAt(0)) == false
-            && (value.trim().length() > 1 && value.charAt(0) == '_' && Character.isLetter(value.charAt(1))) == false) {
+        if (isLetter(value.charAt(0)) == false
+            && (value.trim().length() > 1 && isUnderscore(value.charAt(0)) && isLetterOrUnderscore(value.charAt(1))) == false) {
             return false;
         }
         // contain only letter, digit or _
         for (char c : value.trim().toCharArray()) {
-            if (Character.isLetterOrDigit(c) == false && c != '_') {
+            if (isLetterOrDigitOrUnderscore(c) == false) {
                 return false;
             }
         }

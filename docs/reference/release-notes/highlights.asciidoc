@@ -32,19 +32,6 @@ endif::[]
 // tag::notable-highlights[]
 
 [discrete]
-[[stored_fields_are_compressed_with_zstandard_instead_of_lz4_deflate]]
-=== Stored fields are now compressed with ZStandard instead of LZ4/DEFLATE
-Stored fields are now compressed by splitting documents into blocks, which
-are then compressed independently with ZStandard. `index.codec: default`
-(default) uses blocks of at most 14kB or 128 documents compressed with level
-0, while `index.codec: best_compression` uses blocks of at most 240kB or
-2048 documents compressed at level 3. On most datasets that we tested
-against, this yielded storage improvements in the order of 10%, slightly
-faster indexing and similar retrieval latencies.
-
-{es-pull}103374[#103374]
-
-[discrete]
 [[stricter_failure_handling_in_multi_repo_get_snapshots_request_handling]]
 === Stricter failure handling in multi-repo get-snapshots request handling
 If a multi-repo get-snapshots request encounters a failure in one of the

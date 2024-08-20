@@ -413,7 +413,6 @@ Search::
 * Add support for hiragana_uppercase & katakana_uppercase token filters in kuromoji analysis plugin {es-pull}106553[#106553]
 * Adding support for explain in rrf {es-pull}108682[#108682]
 * Allow rescorer with field collapsing {es-pull}107779[#107779] (issue: {es-issue}27243[#27243])
-* Cut over stored fields to ZSTD for compression {es-pull}103374[#103374]
 * Limit the value in prefix query {es-pull}108537[#108537] (issue: {es-issue}108486[#108486])
 * Make dense vector field type updatable {es-pull}106591[#106591]
 * Multivalue Sparse Vector Support {es-pull}109007[#109007]

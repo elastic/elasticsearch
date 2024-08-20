@@ -23,7 +23,6 @@ component-templates:
   - metrics-apm.service_summary@mappings
   - metrics-apm.service_transaction@mappings
   - metrics-apm.transaction@mappings
-  - traces@mappings
   - traces-apm@mappings
   - traces-apm.rum@mappings
 

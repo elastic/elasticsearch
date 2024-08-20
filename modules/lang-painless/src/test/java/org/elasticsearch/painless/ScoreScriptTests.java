@@ -12,11 +12,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.script.NumberSortScript;
+import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -33,7 +34,9 @@ public class ScoreScriptTests extends ESSingleNodeTestCase {
         IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
 
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(NumberSortScript.CONTEXT, PAINLESS_BASE_WHITELIST);
+        List<Whitelist> whitelists = new ArrayList<>(PAINLESS_BASE_WHITELIST);
+        whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.score.txt"));
+        contexts.put(ScoreScript.CONTEXT, whitelists);
         PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts);
 
         SearchExecutionContext searchExecutionContext = index.newSearchExecutionContext(0, 0, null, () -> 0, null, emptyMap());
@@ -50,7 +53,7 @@ public class ScoreScriptTests extends ESSingleNodeTestCase {
         ss = factory.newFactory(Collections.emptyMap(), searchExecutionContext.lookup());
         assertTrue(ss.needs_termStats());
 
-        factory = service.compile(null, "doc['d'].value * _termStats.docFreq().sum()", ScoreScript.CONTEXT, Collections.emptyMap());
+        factory = service.compile(null, "doc['d'].value * _termStats.docFreq().getSum()", ScoreScript.CONTEXT, Collections.emptyMap());
         ss = factory.newFactory(Collections.emptyMap(), searchExecutionContext.lookup());
         assertTrue(ss.needs_termStats());
     }

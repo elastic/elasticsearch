@@ -1575,6 +1575,13 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(mapper.mapping().getRoot().getMapper("o"));
     }
 
+    public void testStoreArraySourceNoopInNonSyntheticSourceMode() throws IOException {
+        DocumentMapper mapper =  createDocumentMapper(mapping(b -> {
+            b.startObject("o").field("type", "nested").field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true).endObject();
+        }));
+        assertNotNull(mapper.mapping().getRoot().getMapper("o"));
+    }
+
     public void testSyntheticNestedWithObject() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("path").field("type", "nested");

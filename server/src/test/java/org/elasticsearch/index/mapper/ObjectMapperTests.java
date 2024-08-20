@@ -546,6 +546,14 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(mapper.mapping().getRoot().getMapper("o"));
     }
 
+
+    public void testStoreArraySourceNoopInNonSyntheticSourceMode() throws IOException {
+        DocumentMapper mapper =  createDocumentMapper(mapping(b -> {
+            b.startObject("o").field("type", "object").field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true).endObject();
+        }));
+        assertNotNull(mapper.mapping().getRoot().getMapper("o"));
+    }
+
     public void testNestedObjectWithMultiFieldsgetTotalFieldsCount() {
         ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1", Explicit.IMPLICIT_TRUE).add(
             new ObjectMapper.Builder("child_size_2", Explicit.IMPLICIT_TRUE).add(

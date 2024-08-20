@@ -137,6 +137,11 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         return mode;
     }
 
+    /**
+     * Aggregations are usually performed in two steps, first partial (e.g. locally on a data node) then final (on the coordinator node).
+     * These are the intermediate attributes output by a partial aggregation or consumed by a final one.
+     * C.f. {@link org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders#intermediateAttributes}.
+     */
     public List<Attribute> intermediateAttributes() {
         return intermediateAttributes;
     }

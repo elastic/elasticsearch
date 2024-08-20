@@ -181,6 +181,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {mv_percentile.FromIndex SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/112036
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {mv_percentile.FromIndex ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/112037
 
 # Examples:
 #

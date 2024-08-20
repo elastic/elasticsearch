@@ -4,7 +4,7 @@
 <titleabbrev>Functions and operators</titleabbrev>
 ++++
 
-<<esql,{esql}>> provides a comprehensive set of functions and operators for working with data.
+{esql} provides a comprehensive set of functions and operators for working with data.
 The reference documentation is divided into the following categories:
 
 [[esql-functions]]

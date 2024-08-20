@@ -13,7 +13,7 @@ preview::["{ccs-cap} for {esql} is in technical preview and may be changed or re
 For {ccs-cap} with {esql} on version 8.16 or later, remote clusters must also be on version 8.16 or later.
 ====
 
-With <<esql,{esql}>>, you can execute a single query across multiple clusters.
+With {esql}, you can execute a single query across multiple clusters.
 
 [discrete]
 [[esql-ccs-prerequisites]]

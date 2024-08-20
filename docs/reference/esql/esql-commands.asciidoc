@@ -9,7 +9,7 @@
 // tag::source_commands[]
 ==== Source commands
 
-An <<esql,{esql}>> source command produces a table, typically with data from {es}. An {esql} query must start with a source command.
+An {esql} source command produces a table, typically with data from {es}. An {esql} query must start with a source command.
 
 image::images/esql/source-command.svg[A source command producing a table from {es},align="center"]
 

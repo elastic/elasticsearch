@@ -5,17 +5,17 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 field | buckets | from | to | result
-datetime | date_period | | | datetime
-datetime | integer | datetime | datetime | datetime
-datetime | integer | datetime | keyword | datetime
-datetime | integer | datetime | text | datetime
-datetime | integer | keyword | datetime | datetime
-datetime | integer | keyword | keyword | datetime
-datetime | integer | keyword | text | datetime
-datetime | integer | text | datetime | datetime
-datetime | integer | text | keyword | datetime
-datetime | integer | text | text | datetime
-datetime | time_duration | | | datetime
+date | date_period | | | date
+date | integer | date | date | date
+date | integer | date | keyword | date
+date | integer | date | text | date
+date | integer | keyword | date | date
+date | integer | keyword | keyword | date
+date | integer | keyword | text | date
+date | integer | text | date | date
+date | integer | text | keyword | date
+date | integer | text | text | date
+date | time_duration | | | date
 double | double | | | double
 double | integer | double | double | double
 double | integer | double | integer | double

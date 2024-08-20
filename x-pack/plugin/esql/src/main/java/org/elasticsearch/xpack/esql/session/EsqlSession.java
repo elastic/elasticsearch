@@ -293,13 +293,14 @@ public class EsqlSession {
                 references.addAll(re.input().references());
             } else if (p instanceof Enrich enrich) {
                 AttributeSet enrichRefs = Expressions.references(enrich.enrichFields());
-                enrichRefs.addAll(enrich.matchField().references());
+                enrichRefs = enrichRefs.combine(enrich.matchField().references());
                 // Enrich adds an EmptyAttribute if no match field is specified
                 // The exact name of the field will be added later as part of enrichPolicyMatchFields Set
                 enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
                 references.addAll(enrichRefs);
             } else {
                 references.addAll(p.references());
+                // TODO: Is this still needed? This branch used to live in UnresolvedRelation.references().
                 if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
                     references.add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
                 }

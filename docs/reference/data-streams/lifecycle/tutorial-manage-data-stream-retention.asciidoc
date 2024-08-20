@@ -34,7 +34,6 @@ PUT /_data_stream/my-data-stream
 ----
 DELETE /_data_stream/my-data-stream*
 DELETE /_index_template/template
-DELETE /_data_stream/_global_retention
 PUT /_cluster/settings
 {
   "persistent" : {

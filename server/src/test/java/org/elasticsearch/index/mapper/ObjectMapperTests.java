@@ -546,9 +546,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(mapper.mapping().getRoot().getMapper("o"));
     }
 
-
     public void testStoreArraySourceNoopInNonSyntheticSourceMode() throws IOException {
-        DocumentMapper mapper =  createDocumentMapper(mapping(b -> {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("o").field("type", "object").field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true).endObject();
         }));
         assertNotNull(mapper.mapping().getRoot().getMapper("o"));

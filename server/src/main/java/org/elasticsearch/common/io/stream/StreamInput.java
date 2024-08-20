@@ -902,7 +902,13 @@ public abstract class StreamInput extends InputStream {
 
     private ZonedDateTime readZonedDateTime() throws IOException {
         final String timeZoneId = readString();
-        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(readLong()), ZoneId.of(timeZoneId));
+        final Instant instant;
+        if (getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT)) {
+            instant = Instant.ofEpochSecond(readVLong(), readInt());
+        } else {
+            instant = Instant.ofEpochMilli(readLong());
+        }
+        return ZonedDateTime.ofInstant(instant, ZoneId.of(timeZoneId));
     }
 
     private OffsetTime readOffsetTime() throws IOException {

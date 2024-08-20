@@ -102,7 +102,7 @@ Column `name` and `type` for each column returned in `values`. Each object is a 
 Column `name` and `type` for each queried column. Each object is a single column. This is only
 returned if `drop_null_columns` is sent with the request.
 
-`rows`::
+`values`::
 (array of arrays)
 Values for the search results.
 

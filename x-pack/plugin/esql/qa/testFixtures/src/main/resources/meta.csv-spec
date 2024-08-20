@@ -92,21 +92,21 @@ double tau()
 "boolean to_boolean(field:boolean|keyword|text|double|long|unsigned_long|integer)"
 "cartesian_point to_cartesianpoint(field:cartesian_point|keyword|text)"
 "cartesian_shape to_cartesianshape(field:cartesian_point|cartesian_shape|keyword|text)"
-"date to_datetime(field:date|keyword|text|double|long|unsigned_long|integer)"
+"date to_datetime(field:date|date_nanos|keyword|text|double|long|unsigned_long|integer)"
 "double to_dbl(field:boolean|date|keyword|text|double|long|unsigned_long|integer|counter_double|counter_integer|counter_long)"
 "double to_degrees(number:double|integer|long|unsigned_long)"
 "double to_double(field:boolean|date|keyword|text|double|long|unsigned_long|integer|counter_double|counter_integer|counter_long)"
-"date to_dt(field:date|keyword|text|double|long|unsigned_long|integer)"
+"date to_dt(field:date|date_nanos|keyword|text|double|long|unsigned_long|integer)"
 "geo_point to_geopoint(field:geo_point|keyword|text)"
 "geo_shape to_geoshape(field:geo_point|geo_shape|keyword|text)"
 "integer to_int(field:boolean|date|keyword|text|double|long|unsigned_long|integer|counter_integer)"
 "integer to_integer(field:boolean|date|keyword|text|double|long|unsigned_long|integer|counter_integer)"
 "ip to_ip(field:ip|keyword|text)"
-"long to_long(field:boolean|date|keyword|text|double|long|unsigned_long|integer|counter_integer|counter_long)"
+"long to_long(field:boolean|date|date_nanos|keyword|text|double|long|unsigned_long|integer|counter_integer|counter_long)"
 "keyword|text to_lower(str:keyword|text)"
 "double to_radians(number:double|integer|long|unsigned_long)"
-"keyword to_str(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
-"keyword to_string(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
+"keyword to_str(field:boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
+"keyword to_string(field:boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
 "unsigned_long to_ul(field:boolean|date|keyword|text|double|long|unsigned_long|integer)"
 "unsigned_long to_ulong(field:boolean|date|keyword|text|double|long|unsigned_long|integer)"
 "unsigned_long to_unsigned_long(field:boolean|date|keyword|text|double|long|unsigned_long|integer)"
@@ -215,21 +215,21 @@ to_bool       |field                               |"boolean|keyword|text|double
 to_boolean    |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
 to_cartesianpo|field                               |"cartesian_point|keyword|text"                                                                                                    |Input value. The input can be a single- or multi-valued column or an expression.
 to_cartesiansh|field                               |"cartesian_point|cartesian_shape|keyword|text"                                                                                    |Input value. The input can be a single- or multi-valued column or an expression.
-to_datetime   |field                               |"date|keyword|text|double|long|unsigned_long|integer"                                                                             |Input value. The input can be a single- or multi-valued column or an expression.
+to_datetime   |field                               |"date|date_nanos|keyword|text|double|long|unsigned_long|integer"                                                                             |Input value. The input can be a single- or multi-valued column or an expression.
 to_dbl        |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer|counter_double|counter_integer|counter_long"                         |Input value. The input can be a single- or multi-valued column or an expression.
 to_degrees    |number                              |"double|integer|long|unsigned_long"                                                                                               |Input value. The input can be a single- or multi-valued column or an expression.
 to_double     |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer|counter_double|counter_integer|counter_long"                         |Input value. The input can be a single- or multi-valued column or an expression.
-to_dt         |field                               |"date|keyword|text|double|long|unsigned_long|integer"                                                                             |Input value. The input can be a single- or multi-valued column or an expression.
+to_dt         |field                               |"date|date_nanos|keyword|text|double|long|unsigned_long|integer"                                                                             |Input value. The input can be a single- or multi-valued column or an expression.
 to_geopoint   |field                               |"geo_point|keyword|text"                                                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
 to_geoshape   |field                               |"geo_point|geo_shape|keyword|text"                                                                                                |Input value. The input can be a single- or multi-valued column or an expression.
 to_int        |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer|counter_integer"                                                     |Input value. The input can be a single- or multi-valued column or an expression.
 to_integer    |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer|counter_integer"                                                     |Input value. The input can be a single- or multi-valued column or an expression.
 to_ip         |field                               |"ip|keyword|text"                                                                                                                 |Input value. The input can be a single- or multi-valued column or an expression.
-to_long       |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer|counter_integer|counter_long"                                        |Input value. The input can be a single- or multi-valued column or an expression.
+to_long       |field                               |"boolean|date|date_nanos|keyword|text|double|long|unsigned_long|integer|counter_integer|counter_long"                                        |Input value. The input can be a single- or multi-valued column or an expression.
 to_lower      |str                                 |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 to_radians    |number                              |"double|integer|long|unsigned_long"                                                                                               |Input value. The input can be a single- or multi-valued column or an expression.
-to_str        |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Input value. The input can be a single- or multi-valued column or an expression.
-to_string     |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Input value. The input can be a single- or multi-valued column or an expression.
+to_str        |field                               |"boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Input value. The input can be a single- or multi-valued column or an expression.
+to_string     |field                               |"boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Input value. The input can be a single- or multi-valued column or an expression.
 to_ul         |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
 to_ulong      |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
 to_unsigned_lo|field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.

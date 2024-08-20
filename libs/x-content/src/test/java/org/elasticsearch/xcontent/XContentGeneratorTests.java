@@ -27,7 +27,6 @@ public class XContentGeneratorTests extends ESTestCase {
         assertTypeCopy("long", "5000000000");
         assertTypeCopy("double", "1.123456789");
         assertTypeCopy("biginteger", "18446744073709551615");
-        assertTypeCopy("bigdecimal", "1.1234567890123456789");
     }
 
     private void assertTypeCopy(String typename, String value) throws Exception {

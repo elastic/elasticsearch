@@ -143,21 +143,17 @@ public interface XContentGenerator extends Closeable, Flushable {
                 }
                 break;
             case VALUE_NUMBER:
-                Number n = parser.numberValue();
-                if (n instanceof Integer) {
-                    writeNumber(n.intValue());
-                } else if (n instanceof Float) {
-                    writeNumber(n.floatValue());
-                } else if (n instanceof Long) {
-                    writeNumber(n.longValue());
-                } else if (n instanceof Double) {
-                    writeNumber(n.doubleValue());
-                } else if (n instanceof BigInteger bi) {
-                    writeNumber(bi);
-                } else if (n instanceof BigDecimal bd) {
-                    writeNumber(bd);
-                } else {
-                    assert false : "unknown number type [" + n.getClass() + "]";
+                switch (parser.numberType()) {
+                    case INT -> writeNumber(parser.intValue());
+                    case LONG -> writeNumber(parser.longValue());
+                    case FLOAT -> writeNumber(parser.floatValue());
+                    case DOUBLE -> writeNumber(parser.doubleValue());
+                    case BIG_INTEGER -> writeNumber((BigInteger) parser.numberValue());
+                    // note: BIG_DECIMAL is not supported, ES only supports up to double.
+                    // BIG_INTEGER above is only for representing unsigned long
+                    default -> {
+                        assert false : "missing xcontent number handling for type [" + parser.numberType() + "]";
+                    }
                 }
                 break;
             case VALUE_BOOLEAN:

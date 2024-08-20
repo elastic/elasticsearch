@@ -31,7 +31,7 @@ public class FlatNumberOrByteSizeValueTests extends ESTestCase {
         );
         assertThrows(ElasticsearchParseException.class, () -> FlatNumberOrByteSizeValue.parse("5GB%", SETTING_NAME, null));
         assertThrows(ElasticsearchParseException.class, () -> FlatNumberOrByteSizeValue.parse("5%GB", SETTING_NAME, null));
-        assertThrows(NumberFormatException.class, () -> FlatNumberOrByteSizeValue.parse("5GBX", SETTING_NAME, null));
+        assertThrows(ElasticsearchParseException.class, () -> FlatNumberOrByteSizeValue.parse("5GBX", SETTING_NAME, null));
     }
 
     private void assertEquals(FlatNumberOrByteSizeValue expected, FlatNumberOrByteSizeValue actual) {

@@ -306,10 +306,10 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         }
 
         public static FlatNumberOrByteSizeValue parse(String value, String settingName, FlatNumberOrByteSizeValue defaultValue) {
-            if (value == null) {
+            if (value == null || value.isEmpty()) {
                 return defaultValue;
             }
-            if (value.endsWith("%") || value.endsWith("b") | value.endsWith("B")) {
+            if (Character.isDigit(value.charAt(value.length() - 1)) == false) {
                 return new FlatNumberOrByteSizeValue(MemorySizeValue.parseBytesSizeValueOrHeapRatio(value, settingName));
             }
             return new FlatNumberOrByteSizeValue(Long.parseLong(value));

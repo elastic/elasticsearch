@@ -1,0 +1,27 @@
+---
+version: ${xpack.oteldata.template.version}
+index_patterns: ["traces-*.otel-*"]
+priority: 120
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: default OpenTelemetry traces template installed by x-pack
+  managed: true
+composed_of:
+  - traces@mappings
+  - traces@settings
+  - otel@mappings
+  - traces-otel@mappings
+  - semconv-resource-to-ecs@mappings
+  - traces@custom
+  - traces-otel@custom
+  - ecs@mappings
+ignore_missing_component_templates:
+  - traces@custom
+  - traces-otel@custom
+template:
+  mappings:
+    properties:
+      data_stream.type:
+        type: constant_keyword
+        value: traces

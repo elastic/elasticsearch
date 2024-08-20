@@ -23,7 +23,7 @@ import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.action.support.master.AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
-import static org.elasticsearch.rest.RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS;
+import static org.elasticsearch.rest.RestRequest.PATH_RESTRICTED;
 
 public class RestUtils {
 
@@ -85,10 +85,8 @@ public class RestUtils {
     }
 
     private static void addParam(Map<String, String> params, String name, String value) {
-        for (var reservedParameter : INTERNAL_MARKER_REQUEST_PARAMETERS) {
-            if (reservedParameter.equalsIgnoreCase(name)) {
-                throw new IllegalArgumentException("parameter [" + name + "] is reserved and may not be set");
-            }
+        if (PATH_RESTRICTED.equalsIgnoreCase(name)) {
+            throw new IllegalArgumentException("parameter [" + PATH_RESTRICTED + "] is reserved and may not set");
         }
         params.put(name, value);
     }

@@ -371,12 +371,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             for (int i = between(10, 10_000); i >= 0; i--) {
                 indexRequestBuilders.add(prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
             }
-            try {
-                safeAwait(cyclicBarrier);
-                indexRandom(true, true, indexRequestBuilders);
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(cyclicBarrier);
+            indexRandom(true, true, indexRequestBuilders);
             refresh(indexName);
             assertThat(
                 indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),

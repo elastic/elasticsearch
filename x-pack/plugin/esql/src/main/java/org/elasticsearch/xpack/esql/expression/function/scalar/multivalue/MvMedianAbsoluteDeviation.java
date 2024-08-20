@@ -242,8 +242,8 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
      * If the values are ascending pick the middle value or average the two middle values together.
      */
     static long ascendingUnsignedLong(Longs longs, LongBlock values, int firstValue, int count) {
-        if (longs.values.length < longs.count + 1) {
-            longs.values = ArrayUtil.grow(longs.values, longs.count + 1);
+        if (longs.values.length < count) {
+            longs.values = ArrayUtil.grow(longs.values, count);
         }
         int middle = firstValue + count / 2;
         long median;
@@ -258,8 +258,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
             long value = values.getLong(firstValue + i);
             longs.values[i] = value > median ? unsignedLongSubtractExact(value, median) : unsignedLongSubtractExact(median, value);
         }
-        long mad = unsignedLongMedianOf(longs.values, longs.count);
-        longs.count = 0;
+        long mad = unsignedLongMedianOf(longs.values, count);
         return mad;
     }
 

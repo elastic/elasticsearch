@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.core.analyzer.TableInfo;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -31,20 +31,20 @@ import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.index.IndexResolution;
-import org.elasticsearch.xpack.esql.core.index.MappingException;
-import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.index.MappingException;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -75,7 +75,7 @@ public class EsqlSession {
     private static final Logger LOGGER = LogManager.getLogger(EsqlSession.class);
 
     private final String sessionId;
-    private final EsqlConfiguration configuration;
+    private final Configuration configuration;
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
 
@@ -89,7 +89,7 @@ public class EsqlSession {
 
     public EsqlSession(
         String sessionId,
-        EsqlConfiguration configuration,
+        Configuration configuration,
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         PreAnalyzer preAnalyzer,
@@ -284,7 +284,7 @@ public class EsqlSession {
             if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // remove other down-the-tree references to the extracted fields
                 for (Attribute extracted : re.extractedFields()) {
-                    references.removeIf(attr -> matchByName(attr, extracted.qualifiedName(), false));
+                    references.removeIf(attr -> matchByName(attr, extracted.name(), false));
                 }
                 // but keep the inputs needed by Grok/Dissect
                 references.addAll(re.input().references());
@@ -316,16 +316,16 @@ public class EsqlSession {
             p.forEachExpressionDown(Alias.class, alias -> {
                 // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id = id"
                 // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
-                if (p.references().names().contains(alias.qualifiedName())) {
+                if (p.references().names().contains(alias.name())) {
                     return;
                 }
-                references.removeIf(attr -> matchByName(attr, alias.qualifiedName(), keepCommandReferences.contains(attr)));
+                references.removeIf(attr -> matchByName(attr, alias.name(), keepCommandReferences.contains(attr)));
             });
         });
 
         // remove valid metadata attributes because they will be filtered out by the IndexResolver anyway
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
-        references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.qualifiedName()));
+        references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
         Set<String> fieldNames = references.names();
 
         if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
@@ -340,11 +340,11 @@ public class EsqlSession {
     }
 
     private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {
-        boolean isPattern = Regex.isSimpleMatchPattern(attr.qualifiedName());
+        boolean isPattern = Regex.isSimpleMatchPattern(attr.name());
         if (skipIfPattern && isPattern) {
             return false;
         }
-        var name = attr.qualifiedName();
+        var name = attr.name();
         return isPattern ? Regex.simpleMatch(name, other) : name.equals(other);
     }
 

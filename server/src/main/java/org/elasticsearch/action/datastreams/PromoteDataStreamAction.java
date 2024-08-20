@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -34,8 +35,8 @@ public class PromoteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
         private final String name;
 
-        public Request(String name) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, String name) {
+            super(masterNodeTimeout);
             this.name = Objects.requireNonNull(name);
         }
 

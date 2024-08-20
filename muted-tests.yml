@@ -74,9 +74,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFileTests
   method: testCacheFileCreatedAsSparseFile
   issue: https://github.com/elastic/elasticsearch/issues/110801
-- class: org.elasticsearch.nativeaccess.PreallocateTests
-  method: testPreallocate
-  issue: https://github.com/elastic/elasticsearch/issues/110948
 - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
   method: testSystemPropertyDisabled
   issue: https://github.com/elastic/elasticsearch/issues/110949
@@ -119,12 +116,77 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111448
 - class: org.elasticsearch.search.SearchServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/111529
-- class: org.elasticsearch.repositories.blobstore.testkit.AzureSnapshotRepoTestKitIT
-  issue: https://github.com/elastic/elasticsearch/issues/111607
-- class: org.elasticsearch.repositories.azure.RepositoryAzureClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/111345
-- class: org.elasticsearch.xpack.esql.CsvTests
-  issue: https://github.com/elastic/elasticsearch/issues/111612
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=rollup/security_tests/Index-based access}
+  issue: https://github.com/elastic/elasticsearch/issues/111631
+- class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
+  method: testGetModel
+  issue: https://github.com/elastic/elasticsearch/issues/111570
+- class: org.elasticsearch.tdigest.ComparisonTests
+  method: testSparseGaussianDistribution
+  issue: https://github.com/elastic/elasticsearch/issues/111721
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSnapshotRestore {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111777
+- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
+  method: testSnapshotRestore {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111775
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSnapshotRestore {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111798
+- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
+  method: testSnapshotRestore {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111799
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {comparison.RangeVersion SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111814
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: "test {p0=esql/26_aggs_bucket/friendlier BUCKET interval hourly: #110916}"
+  issue: https://github.com/elastic/elasticsearch/issues/111901
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: "test {p0=esql/26_aggs_bucket/friendlier BUCKET interval: monthly #110916}"
+  issue: https://github.com/elastic/elasticsearch/issues/111902
+- class: org.elasticsearch.xpack.sql.qa.security.JdbcCsvSpecIT
+  method: test {agg-ordering.testHistogramDateTimeWithCountAndOrder_1}
+  issue: https://github.com/elastic/elasticsearch/issues/111918
+- class: org.elasticsearch.xpack.sql.qa.security.JdbcCsvSpecIT
+  method: test {agg-ordering.testHistogramDateTimeWithCountAndOrder_2}
+  issue: https://github.com/elastic/elasticsearch/issues/111919
+- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcCsvSpecIT
+  method: test {agg-ordering.testHistogramDateTimeWithCountAndOrder_2}
+  issue: https://github.com/elastic/elasticsearch/issues/111919
+- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcCsvSpecIT
+  method: test {date.testDateParseHaving}
+  issue: https://github.com/elastic/elasticsearch/issues/111921
+- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcCsvSpecIT
+  method: test {datetime.testDateTimeParseHaving}
+  issue: https://github.com/elastic/elasticsearch/issues/111922
+- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcCsvSpecIT
+  method: test {agg-ordering.testHistogramDateTimeWithCountAndOrder_1}
+  issue: https://github.com/elastic/elasticsearch/issues/111918
+- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcCsvSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/111923
+- class: org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.JdbcCsvSpecIT
+  method: test {datetime.testDateTimeParseHaving}
+  issue: https://github.com/elastic/elasticsearch/issues/111922
+- class: org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.JdbcCsvSpecIT
+  method: test {agg-ordering.testHistogramDateTimeWithCountAndOrder_1}
+  issue: https://github.com/elastic/elasticsearch/issues/111918
+- class: org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.JdbcCsvSpecIT
+  method: test {date.testDateParseHaving}
+  issue: https://github.com/elastic/elasticsearch/issues/111921
+- class: org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.JdbcCsvSpecIT
+  method: test {agg-ordering.testHistogramDateTimeWithCountAndOrder_2}
+  issue: https://github.com/elastic/elasticsearch/issues/111919
+- class: org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.JdbcCsvSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/111923
+- class: org.elasticsearch.xpack.sql.qa.security.JdbcCsvSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/111923
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/111944
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testScaledFloat
+  issue: https://github.com/elastic/elasticsearch/issues/112003
 
 # Examples:
 #

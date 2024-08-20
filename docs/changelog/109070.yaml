@@ -1,6 +1,0 @@
-pr: 109070
-summary: "ESQL: Add `ip_prefix` function"
-area: ES|QL
-type: feature
-issues:
- - 99064

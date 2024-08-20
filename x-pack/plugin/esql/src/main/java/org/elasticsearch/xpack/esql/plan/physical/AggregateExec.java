@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -67,6 +68,8 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     }
 
     private AggregateExec(StreamInput in) throws IOException {
+        // This is only deserialized as part of node level reduction, which is turned off until at least 8.16.
+        // So, we do not have to consider previous transport versions here.
         this(
             Source.readFrom((PlanStreamInput) in),
             ((PlanStreamInput) in).readPhysicalPlanNode(),
@@ -84,8 +87,12 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         ((PlanStreamOutput) out).writePhysicalPlanNode(child());
         out.writeNamedWriteableCollection(groupings());
         out.writeNamedWriteableCollection(aggregates());
-        out.writeEnum(getMode());
-        out.writeNamedWriteableCollection(intermediateAttributes());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_AGGREGATE_EXEC_TRACKS_INTERMEDIATE_ATTRS)) {
+            out.writeEnum(getMode());
+            out.writeNamedWriteableCollection(intermediateAttributes());
+        } else {
+            out.writeEnum(AggregateExec.Mode.fromAggregatorMode(getMode()));
+        }
         out.writeOptionalVInt(estimatedRowSize());
     }
 
@@ -135,6 +142,29 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
 
     public AggregatorMode getMode() {
         return mode;
+    }
+
+    /**
+     * Used only for bwc when de-/serializing.
+     */
+    @Deprecated
+    private enum Mode {
+        SINGLE,
+        PARTIAL, // maps raw inputs to intermediate outputs
+        FINAL; // maps intermediate inputs to final outputs
+
+        static Mode fromAggregatorMode(AggregatorMode aggregatorMode) {
+            return switch (aggregatorMode) {
+                case SINGLE -> SINGLE;
+                case INITIAL -> PARTIAL;
+                case FINAL -> FINAL;
+                // If needed, we could have this return an PARTIAL instead; that's how intermediate aggs were encoded in the past for
+                // data node level reduction.
+                case INTERMEDIATE -> throw new UnsupportedOperationException(
+                    "cannot turn intermediate aggregation into single, partial or final."
+                );
+            };
+        }
     }
 
     /**

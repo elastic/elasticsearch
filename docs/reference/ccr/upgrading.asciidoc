@@ -5,7 +5,7 @@
 <titleabbrev>Upgrading clusters</titleabbrev>
 ++++
 
-Clusters that are actively using <<xpack-ccr,{ccr}>> require a careful approach to upgrades.
+Clusters that are actively using {ccr} require a careful approach to upgrades.
 The following conditions could cause index following to fail during rolling
 upgrades:
 

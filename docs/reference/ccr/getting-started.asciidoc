@@ -46,7 +46,7 @@ PUT /server-metrics
 // TESTSETUP
 ////
 
-Use this guide to set up <<xpack-ccr,{ccr}>> (CCR) between clusters in two
+Use this guide to set up {ccr} (CCR) between clusters in two
 datacenters. Replicating your data across datacenters provides several benefits:
 
 * Brings data closer to your users or application server to reduce latency and

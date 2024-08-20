@@ -28,7 +28,7 @@ Auto-follow patterns are especially useful with
 new indices on the cluster containing the leader index.
 
 [[ccr-access-ccr-auto-follow]]
-To start using <<xpack-ccr,{ccr}>> auto-follow patterns from Stack Management in {kib}, select
+To start using {ccr} auto-follow patterns from Stack Management in {kib}, select
 *Cross-Cluster Replication* from the side navigation and choose the
 *Auto-follow patterns* tab.
 

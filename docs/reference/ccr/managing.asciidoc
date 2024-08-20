@@ -2,7 +2,7 @@
 
 [[ccr-managing]]
 === Manage {ccr}
-Use the following information to manage <<xpack-ccr,{ccr}>> tasks, such as inspecting
+Use the following information to manage {ccr} tasks, such as inspecting
 replication progress, pausing and resuming replication, recreating a follower
 index, and terminating replication.
 

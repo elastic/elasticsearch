@@ -52,6 +52,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
             containsInAnyOrder(
                 "elastic/auto-ops",
                 "elastic/enterprise-search-server",
+                "elastic/enterprise-search-connector",
                 "elastic/fleet-server",
                 "elastic/fleet-server-remote",
                 "elastic/kibana"

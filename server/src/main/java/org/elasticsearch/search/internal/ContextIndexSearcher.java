@@ -355,7 +355,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     /**
      * Similar to the lucene implementation, with the following changes made:
-     * 1) postCollection is performed after each segment is collected. This is needed for aggregations, performed by search worker threads
+     * 1) postCollection is performed after each segment is collected. This is needed for aggregations, performed by search threads
      * so it can be parallelized. Also, it needs to happen in the same thread where doc_values are read, as it consumes them and Lucene
      * does not allow consuming them from a different thread.
      * 2) handles the ES TimeExceededException

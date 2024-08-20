@@ -13,15 +13,9 @@ There are several thread pools, but the important ones include:
 
 [[search-threadpool]]
 `search`::
-    For coordination of count/search operations at the shard level whose computation
-    is offloaded to the search_worker thread pool. Used also by fetch and other search
+    For count/search operations at the shard level. Used also by fetch and other search
     related operations  Thread pool type is `fixed` with a size of `int((`<<node.processors,
     `# of allocated processors`>>`pass:[ * ]3) / 2) + 1`, and queue_size of `1000`.
-
-`search_worker`::
-    For the heavy workload of count/search operations that may be executed concurrently
-    across segments within the same shard when possible. Thread pool type is `fixed`
-    with a size of `int((`<<node.processors, `# of allocated processors`>>`pass:[ * ]3) / 2) + 1`, and unbounded queue_size .
 
 [[search-throttled]]`search_throttled`::
     For count/search/suggest/get operations on `search_throttled indices`.

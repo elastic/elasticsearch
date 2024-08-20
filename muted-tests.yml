@@ -65,9 +65,6 @@ tests:
 - class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110408"
   method: "testCreateAndRestorePartialSearchableSnapshot"
-- class: org.elasticsearch.xpack.security.LicenseDLSFLSRoleIT
-  method: testQueryDLSFLSRolesShowAsDisabled
-  issue: https://github.com/elastic/elasticsearch/issues/110729
 - class: org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests
   method: testPopulationOfCacheWhenLoadingPrivilegesForAllApplications
   issue: https://github.com/elastic/elasticsearch/issues/110789

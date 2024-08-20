@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster.health;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -29,6 +30,7 @@ public final class ClusterStateHealth implements Writeable {
     private final int relocatingShards;
     private final int activePrimaryShards;
     private final int initializingShards;
+    private final int unassignedPrimaryShards;
     private final int unassignedShards;
     private final double activeShardsPercent;
     private final ClusterHealthStatus status;
@@ -58,6 +60,7 @@ public final class ClusterStateHealth implements Writeable {
         int computeActiveShards = 0;
         int computeRelocatingShards = 0;
         int computeInitializingShards = 0;
+        int computeUnassignedPrimaryShards = 0;
         int computeUnassignedShards = 0;
         int totalShardCount = 0;
 
@@ -76,6 +79,9 @@ public final class ClusterStateHealth implements Writeable {
             computeActiveShards += indexHealth.getActiveShards();
             computeRelocatingShards += indexHealth.getRelocatingShards();
             computeInitializingShards += indexHealth.getInitializingShards();
+            if (indexHealth.getUnassignedPrimaryShards() > 0) {
+                computeUnassignedPrimaryShards += indexHealth.getUnassignedPrimaryShards();
+            }
             computeUnassignedShards += indexHealth.getUnassignedShards();
             if (indexHealth.getStatus() == ClusterHealthStatus.RED) {
                 computeStatus = ClusterHealthStatus.RED;
@@ -93,6 +99,7 @@ public final class ClusterStateHealth implements Writeable {
         this.activeShards = computeActiveShards;
         this.relocatingShards = computeRelocatingShards;
         this.initializingShards = computeInitializingShards;
+        this.unassignedPrimaryShards = computeUnassignedPrimaryShards;
         this.unassignedShards = computeUnassignedShards;
 
         // shortcut on green
@@ -114,6 +121,11 @@ public final class ClusterStateHealth implements Writeable {
         status = ClusterHealthStatus.readFrom(in);
         indices = in.readMapValues(ClusterIndexHealth::new, ClusterIndexHealth::getIndex);
         activeShardsPercent = in.readDouble();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.UNASSIGNED_PRIMARY_COUNT_ON_CLUSTER_HEALTH)) {
+            unassignedPrimaryShards = in.readVInt();
+        } else {
+            unassignedPrimaryShards = 0;
+        }
     }
 
     /**
@@ -124,6 +136,7 @@ public final class ClusterStateHealth implements Writeable {
         int activeShards,
         int relocatingShards,
         int initializingShards,
+        int unassignedPrimaryShards,
         int unassignedShards,
         int numberOfNodes,
         int numberOfDataNodes,
@@ -135,6 +148,7 @@ public final class ClusterStateHealth implements Writeable {
         this.activeShards = activeShards;
         this.relocatingShards = relocatingShards;
         this.initializingShards = initializingShards;
+        this.unassignedPrimaryShards = unassignedPrimaryShards;
         this.unassignedShards = unassignedShards;
         this.numberOfNodes = numberOfNodes;
         this.numberOfDataNodes = numberOfDataNodes;
@@ -157,6 +171,10 @@ public final class ClusterStateHealth implements Writeable {
 
     public int getInitializingShards() {
         return initializingShards;
+    }
+
+    public int getUnassignedPrimaryShards() {
+        return unassignedPrimaryShards;
     }
 
     public int getUnassignedShards() {
@@ -195,6 +213,9 @@ public final class ClusterStateHealth implements Writeable {
         out.writeByte(status.value());
         out.writeMapValues(indices);
         out.writeDouble(activeShardsPercent);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.UNASSIGNED_PRIMARY_COUNT_ON_CLUSTER_HEALTH)) {
+            out.writeVInt(unassignedPrimaryShards);
+        }
     }
 
     @Override
@@ -212,6 +233,8 @@ public final class ClusterStateHealth implements Writeable {
             + activePrimaryShards
             + ", initializingShards="
             + initializingShards
+            + ", unassignedPrimaryShards="
+            + unassignedPrimaryShards
             + ", unassignedShards="
             + unassignedShards
             + ", activeShardsPercent="
@@ -234,6 +257,7 @@ public final class ClusterStateHealth implements Writeable {
             && relocatingShards == that.relocatingShards
             && activePrimaryShards == that.activePrimaryShards
             && initializingShards == that.initializingShards
+            && unassignedPrimaryShards == that.unassignedPrimaryShards
             && unassignedShards == that.unassignedShards
             && Double.compare(that.activeShardsPercent, activeShardsPercent) == 0
             && status == that.status
@@ -249,6 +273,7 @@ public final class ClusterStateHealth implements Writeable {
             relocatingShards,
             activePrimaryShards,
             initializingShards,
+            unassignedPrimaryShards,
             unassignedShards,
             activeShardsPercent,
             status,

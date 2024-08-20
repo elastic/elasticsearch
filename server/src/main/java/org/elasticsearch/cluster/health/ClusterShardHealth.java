@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.health;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -29,6 +30,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
     static final String ACTIVE_SHARDS = "active_shards";
     static final String RELOCATING_SHARDS = "relocating_shards";
     static final String INITIALIZING_SHARDS = "initializing_shards";
+    static final String UNASSIGNED_PRIMARY_SHARDS = "unassigned_primary_shards";
     static final String UNASSIGNED_SHARDS = "unassigned_shards";
     static final String PRIMARY_ACTIVE = "primary_active";
 
@@ -37,6 +39,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
     private final int activeShards;
     private final int relocatingShards;
     private final int initializingShards;
+    private final int unassignedPrimaryShards;
     private final int unassignedShards;
     private final boolean primaryActive;
 
@@ -45,6 +48,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         int computeActiveShards = 0;
         int computeRelocatingShards = 0;
         int computeInitializingShards = 0;
+        int computeUnassignedPrimaryShards = 0;
         int computeUnassignedShards = 0;
         for (int j = 0; j < shardRoutingTable.size(); j++) {
             ShardRouting shardRouting = shardRoutingTable.shard(j);
@@ -57,6 +61,9 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
             } else if (shardRouting.initializing()) {
                 computeInitializingShards++;
             } else if (shardRouting.unassigned()) {
+                if (shardRouting.primary()) {
+                    computeUnassignedPrimaryShards++;
+                }
                 computeUnassignedShards++;
             }
         }
@@ -75,6 +82,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         this.activeShards = computeActiveShards;
         this.relocatingShards = computeRelocatingShards;
         this.initializingShards = computeInitializingShards;
+        this.unassignedPrimaryShards = computeUnassignedPrimaryShards;
         this.unassignedShards = computeUnassignedShards;
         this.primaryActive = primaryRouting.active();
     }
@@ -87,6 +95,11 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         initializingShards = in.readVInt();
         unassignedShards = in.readVInt();
         primaryActive = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.UNASSIGNED_PRIMARY_COUNT_ON_CLUSTER_HEALTH)) {
+            unassignedPrimaryShards = in.readVInt();
+        } else {
+            unassignedPrimaryShards = 0;
+        }
     }
 
     /**
@@ -98,6 +111,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         int activeShards,
         int relocatingShards,
         int initializingShards,
+        int unassignedPrimaryShards,
         int unassignedShards,
         boolean primaryActive
     ) {
@@ -106,6 +120,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         this.activeShards = activeShards;
         this.relocatingShards = relocatingShards;
         this.initializingShards = initializingShards;
+        this.unassignedPrimaryShards = unassignedPrimaryShards;
         this.unassignedShards = unassignedShards;
         this.primaryActive = primaryActive;
     }
@@ -134,6 +149,10 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         return initializingShards;
     }
 
+    public int getUnassignedPrimaryShards() {
+        return unassignedPrimaryShards;
+    }
+
     public int getUnassignedShards() {
         return unassignedShards;
     }
@@ -147,6 +166,9 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         out.writeVInt(initializingShards);
         out.writeVInt(unassignedShards);
         out.writeBoolean(primaryActive);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.UNASSIGNED_PRIMARY_COUNT_ON_CLUSTER_HEALTH)) {
+            out.writeVInt(unassignedPrimaryShards);
+        }
     }
 
     /**
@@ -186,6 +208,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         builder.field(ACTIVE_SHARDS, getActiveShards());
         builder.field(RELOCATING_SHARDS, getRelocatingShards());
         builder.field(INITIALIZING_SHARDS, getInitializingShards());
+        builder.field(UNASSIGNED_PRIMARY_SHARDS, getUnassignedPrimaryShards());
         builder.field(UNASSIGNED_SHARDS, getUnassignedShards());
         builder.endObject();
         return builder;
@@ -205,6 +228,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
             && activeShards == that.activeShards
             && relocatingShards == that.relocatingShards
             && initializingShards == that.initializingShards
+            && unassignedPrimaryShards == that.unassignedPrimaryShards
             && unassignedShards == that.unassignedShards
             && primaryActive == that.primaryActive
             && status == that.status;
@@ -212,6 +236,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(shardId, status, activeShards, relocatingShards, initializingShards, unassignedShards, primaryActive);
+        return Objects.hash(shardId, status, activeShards, relocatingShards, initializingShards, unassignedPrimaryShards, unassignedShards,
+                            primaryActive);
     }
 }

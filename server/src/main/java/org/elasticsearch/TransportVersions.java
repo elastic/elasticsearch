@@ -194,6 +194,7 @@ public class TransportVersions {
     public static final TransportVersion RANDOM_RERANKER_RETRIEVER = def(8_724_00_0);
     public static final TransportVersion ESQL_PROFILE_SLEEPS = def(8_725_00_0);
     public static final TransportVersion ZDT_NANOS_SUPPORT = def(8_726_00_0);
+    public static final TransportVersion UNASSIGNED_PRIMARY_COUNT_ON_CLUSTER_HEALTH = def(8_727_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

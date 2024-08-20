@@ -463,17 +463,14 @@ public class NestedObjectMapper extends ObjectMapper {
         public void write(XContentBuilder b) throws IOException {
             assert (children != null && children.size() > 0);
             if (children.size() == 1) {
-                b.startObject(leafName());
+                b.field(leafName());
                 leafStoredFieldLoader.advanceTo(children.get(0));
                 leafSourceLoader.write(leafStoredFieldLoader, children.get(0), b);
-                b.endObject();
             } else {
                 b.startArray(leafName());
                 for (int childId : children) {
-                    b.startObject();
                     leafStoredFieldLoader.advanceTo(childId);
                     leafSourceLoader.write(leafStoredFieldLoader, childId, b);
-                    b.endObject();
                 }
                 b.endArray();
             }

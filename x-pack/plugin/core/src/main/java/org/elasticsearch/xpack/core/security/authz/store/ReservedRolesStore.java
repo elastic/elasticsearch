@@ -870,7 +870,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 // Observability
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".slo*")
+                    .indices(".slo-*")
                     .privileges("read", "read_cross_cluster", "view_index_metadata")
                     .build(),
                 // Security

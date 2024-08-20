@@ -255,9 +255,29 @@ public class VerifierTests extends ESTestCase {
             "1:31: second argument of [round(a, 3.5)] must be [integer], found value [3.5] type [double]",
             error("row a = 1, b = \"c\" | eval x = round(a, 3.5)")
         );
+    }
+
+    public void testImplicitCastingErrorMessages() {
         assertEquals(
             "1:23: Cannot convert string [c] to [INTEGER], error [Cannot parse number [c]]",
             error("row a = round(123.45, \"c\")")
+        );
+        assertEquals(
+            "1:27: Cannot convert string [c] to [DOUBLE], error [Cannot parse number [c]]",
+            error("row a = 1 | eval x = acos(\"c\")")
+        );
+        assertEquals(
+            "1:33: Cannot convert string [c] to [DOUBLE], error [Cannot parse number [c]]\n"
+                + "line 1:38: Cannot convert string [a] to [INTEGER], error [Cannot parse number [a]]",
+            error("row a = 1 | eval x = round(acos(\"c\"),\"a\")")
+        );
+        assertEquals(
+            "1:63: Cannot convert string [x] to [INTEGER], error [Cannot parse number [x]]",
+            error("row ip4 = to_ip(\"1.2.3.4\") | eval ip4_prefix = ip_prefix(ip4, \"x\", 0)")
+        );
+        assertEquals(
+            "1:42: Cannot convert string [a] to [DOUBLE], error [Cannot parse number [a]]",
+            error("ROW a=[3, 5, 1, 6] | EVAL avg_a = MV_AVG(\"a\")")
         );
     }
 

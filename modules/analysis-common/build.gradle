@@ -36,3 +36,6 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search.query/50_queries_with_synonyms/Test common terms query with stacked tokens", "#42654 -  `common` query throws an exception")
 }
 
+artifacts {
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}

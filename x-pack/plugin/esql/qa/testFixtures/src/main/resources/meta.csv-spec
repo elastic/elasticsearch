@@ -54,6 +54,7 @@ double e()
 "boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version mv_max(field:boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version)"
 "double|integer|long|unsigned_long mv_median(number:double|integer|long|unsigned_long)"
 "boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version mv_min(field:boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version)"
+"double|integer|long mv_percentile(number:double|integer|long, percentile:double|integer|long)"
 "double mv_pseries_weighted_sum(number:double, p:double)"
 "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_slice(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, start:integer, ?end:integer)"
 "boolean|date|double|integer|ip|keyword|long|text|version mv_sort(field:boolean|date|double|integer|ip|keyword|long|text|version, ?order:keyword)"
@@ -177,6 +178,7 @@ mv_last       |field                               |"boolean|cartesian_point|car
 mv_max        |field                               |"boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version"                                               |Multivalue expression.
 mv_median     |number                              |"double|integer|long|unsigned_long"                                                                                               |Multivalue expression.
 mv_min        |field                               |"boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version"                                               |Multivalue expression.
+mv_percentile |[number, percentile]                |["double|integer|long", "double|integer|long"]                                                                                    |[Multivalue expression., The percentile to calculate. Must be a number between 0 and 100. Numbers out of range will return a null instead.]
 mv_pseries_wei|[number, p]                         |[double, double]                                                                                                                  |[Multivalue expression., It is a constant number that represents the 'p' parameter in the P-Series. It impacts every element's contribution to the weighted sum.]
 mv_slice      |[field, start, end]                 |["boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version", integer, integer]|[Multivalue expression. If `null`\, the function returns `null`., Start position. If `null`\, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list., End position(included). Optional; if omitted\, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list.]
 mv_sort       |[field, order]                      |["boolean|date|double|integer|ip|keyword|long|text|version", keyword]                                                             |[Multivalue expression. If `null`\, the function returns `null`., Sort order. The valid options are ASC and DESC\, the default is ASC.]
@@ -300,6 +302,7 @@ mv_last       |Converts a multivalue expression into a single valued column cont
 mv_max        |Converts a multivalued expression into a single valued column containing the maximum value.
 mv_median     |Converts a multivalued field into a single valued field containing the median value.
 mv_min        |Converts a multivalued expression into a single valued column containing the minimum value.
+mv_percentile |Converts a multivalued field into a single valued field containing the value at which a certain percentage of observed values occur.
 mv_pseries_wei|Converts a multivalued expression into a single-valued column by multiplying every element on the input list by its corresponding term in P-Series and computing the sum.
 mv_slice      |Returns a subset of the multivalued field using the start and end index values.
 mv_sort       |Sorts a multivalued field in lexicographical order.
@@ -425,6 +428,7 @@ mv_last       |"boolean|cartesian_point|cartesian_shape|date|date_nanos|double|g
 mv_max        |"boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version"                                         |false                       |false           |false
 mv_median     |"double|integer|long|unsigned_long"                                                                                         |false                       |false           |false
 mv_min        |"boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version"                                         |false                       |false           |false
+mv_percentile |"double|integer|long"                                                                                                       |[false, false]              |false           |false
 mv_pseries_wei|"double"                                                                                                                    |[false, false]              |false           |false 
 mv_slice      |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"              |[false, false, true]        |false           |false
 mv_sort       |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |[false, true]               |false           |false
@@ -504,5 +508,5 @@ countFunctions#[skip:-8.15.99]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-114    | 114    | 114
+115    | 115    | 115
 ;

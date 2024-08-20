@@ -15,6 +15,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentDimensions;
@@ -297,6 +298,11 @@ public enum IndexMode {
         public boolean isSyntheticSourceEnabled() {
             return true;
         }
+
+        @Override
+        public String getDefaultCodec() {
+            return CodecService.BEST_COMPRESSION_CODEC;
+        }
     };
 
     private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
@@ -465,6 +471,10 @@ public enum IndexMode {
      * @return whether synthetic source is the only allowed source mode.
      */
     public abstract boolean isSyntheticSourceEnabled();
+
+    public String getDefaultCodec() {
+        return CodecService.DEFAULT_CODEC;
+    }
 
     /**
      * Parse a string into an {@link IndexMode}.

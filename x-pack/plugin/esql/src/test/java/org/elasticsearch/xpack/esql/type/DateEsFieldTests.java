@@ -5,7 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core.type;
+package org.elasticsearch.xpack.esql.type;
+
+import org.elasticsearch.xpack.esql.core.type.DateEsField;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.util.Map;
 

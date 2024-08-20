@@ -5,10 +5,19 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core.type;
+package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,6 +40,25 @@ public abstract class AbstractEsFieldTypeTests<T extends EsField> extends Abstra
     protected abstract T createTestInstance();
 
     protected abstract T mutate(T instance);
+
+    @Override
+    protected EsField copyInstance(EsField instance, TransportVersion version) throws IOException {
+        NamedWriteableRegistry namedWriteableRegistry = getNamedWriteableRegistry();
+        try (
+            BytesStreamOutput output = new BytesStreamOutput();
+            var pso = new PlanStreamOutput(output, new PlanNameRegistry(), EsqlTestUtils.TEST_CFG)
+        ) {
+            pso.setTransportVersion(version);
+            pso.writeNamedWriteable(instance);
+            try (
+                StreamInput in1 = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry);
+                var psi = new PlanStreamInput(in1, new PlanNameRegistry(), in1.namedWriteableRegistry(), EsqlTestUtils.TEST_CFG)
+            ) {
+                psi.setTransportVersion(version);
+                return psi.readNamedWriteable(categoryClass());
+            }
+        }
+    }
 
     /**
      * Generate sub-properties.

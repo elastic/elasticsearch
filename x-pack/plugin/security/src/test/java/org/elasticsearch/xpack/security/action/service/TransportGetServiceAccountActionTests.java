@@ -46,7 +46,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         final PlainActionFuture<GetServiceAccountResponse> future1 = new PlainActionFuture<>();
         transportGetServiceAccountAction.doExecute(mock(Task.class), request1, future1);
         final GetServiceAccountResponse getServiceAccountResponse1 = future1.actionGet();
-        assertThat(getServiceAccountResponse1.getServiceAccountInfos().length, equalTo(5));
+        assertThat(getServiceAccountResponse1.getServiceAccountInfos().length, equalTo(6));
         assertThat(
             Arrays.stream(getServiceAccountResponse1.getServiceAccountInfos()).map(ServiceAccountInfo::getPrincipal).toList(),
             containsInAnyOrder(

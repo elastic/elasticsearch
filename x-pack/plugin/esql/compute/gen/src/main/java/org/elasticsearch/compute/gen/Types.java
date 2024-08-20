@@ -34,6 +34,7 @@ public class Types {
     static final TypeName BLOCK_ARRAY = ArrayTypeName.of(BLOCK);
     static final ClassName VECTOR = ClassName.get(DATA_PACKAGE, "Vector");
 
+    static final ClassName CIRCUIT_BREAKER = ClassName.get("org.elasticsearch.common.breaker", "CircuitBreaker");
     static final ClassName BIG_ARRAYS = ClassName.get("org.elasticsearch.common.util", "BigArrays");
 
     static final ClassName BOOLEAN_BLOCK = ClassName.get(DATA_PACKAGE, "BooleanBlock");

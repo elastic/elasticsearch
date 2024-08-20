@@ -77,6 +77,20 @@ final class ElasticServiceAccounts {
         )
     );
 
+    private static final ServiceAccount ENTERPRISE_SEARCH_CONNECTOR_ACCOUNT = new ElasticServiceAccount(
+        "enterprise-search-connector",
+        new RoleDescriptor(
+            NAMESPACE + "/enterprise-search-connector",
+            new String[] { "read_security", "manage_own_api_key" },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        )
+    );
+
     private static final ServiceAccount FLEET_ACCOUNT = new ElasticServiceAccount(
         "fleet-server",
         new RoleDescriptor(
@@ -194,6 +208,7 @@ final class ElasticServiceAccounts {
     static final Map<String, ServiceAccount> ACCOUNTS = Stream.of(
         AUTO_OPS_ACCOUNT,
         ENTERPRISE_SEARCH_ACCOUNT,
+        ENTERPRISE_SEARCH_CONNECTOR_ACCOUNT,
         FLEET_ACCOUNT,
         FLEET_REMOTE_ACCOUNT,
         KIBANA_SYSTEM_ACCOUNT

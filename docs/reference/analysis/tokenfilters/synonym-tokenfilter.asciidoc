@@ -17,7 +17,7 @@ include::synonyms-format.asciidoc[]
 [[analysis-synonym-configure-sets]]
 ==== Configure synonyms sets
 
-Synonyms can be configured using the <<synonyms-store-synonyms-api,synonyms API>>, a <<synonyms-store-synonyms-file,synonyms file>>, or directly <<synonyms-store-synonyms-inline,inlined>> in the token filter configuration.
+Synonyms can be configured using the <<synonyms-store-synonyms-api,synonyms API>> (note: this API applies only during searches), a <<synonyms-store-synonyms-file,synonyms file>>, or directly <<synonyms-store-synonyms-inline,inlined>> in the token filter configuration.
 See <<synonyms-store-synonyms,store your synonyms set>> for more details on each option.
 
 Use `synonyms_set` configuration option to provide a synonym set created via Synonyms Management APIs:

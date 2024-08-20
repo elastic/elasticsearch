@@ -10,6 +10,7 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.set.Sets;
@@ -109,10 +110,16 @@ public abstract class BaseRestHandler implements RestHandler {
                 throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
             }
 
-            if (request.hasContent() && request.isContentConsumed() == false) {
+            if (request.hasContent() && (request.isContentConsumed() == false && request.isFullContent())) {
                 throw new IllegalArgumentException(
                     "request [" + request.method() + " " + request.path() + "] does not support having a body"
                 );
+            }
+
+            if (request.isStreamedContent()) {
+                assert action instanceof RequestBodyChunkConsumer;
+                var chunkConsumer = (RequestBodyChunkConsumer) action;
+                request.contentStream().setHandler((chunk, isLast) -> chunkConsumer.handleChunk(channel, chunk, isLast));
             }
 
             usageCount.increment();
@@ -170,6 +177,10 @@ public abstract class BaseRestHandler implements RestHandler {
          */
         @Override
         default void close() {}
+    }
+
+    public interface RequestBodyChunkConsumer extends RestChannelConsumer {
+        void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast);
     }
 
     /**

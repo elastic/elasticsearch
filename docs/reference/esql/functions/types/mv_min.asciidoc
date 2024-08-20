@@ -6,7 +6,6 @@
 |===
 field | result
 boolean | boolean
-date_nanos | date_nanos
 datetime | datetime
 double | double
 integer | integer

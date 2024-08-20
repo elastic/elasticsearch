@@ -33,7 +33,7 @@ dependencies {
   api "org.opensaml:opensaml-storage-api:3.4.5"
   api "org.opensaml:opensaml-storage-impl:3.4.5"
   api "net.shibboleth.utilities:java-support:7.5.1"
-  api "org.apache.santuario:xmlsec:2.1.4"
+  api "org.apache.santuario:xmlsec:2.2.6"
   api "io.dropwizard.metrics:metrics-core:3.2.2"
   api ("org.cryptacular:cryptacular:1.2.4") {
       exclude group: 'org.bouncycastle'

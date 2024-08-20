@@ -96,6 +96,7 @@ public class PatternBankTests extends ESTestCase {
             bank.put("NAME3", "!!!%{NAME2}!!!");
             PatternBank.forbidCircularReferences(bank);
         });
+
         assertEquals("circular reference detected: NAME2->NAME3->NAME2", e.getMessage());
         {
             Map<String, String> bank = new HashMap<>();

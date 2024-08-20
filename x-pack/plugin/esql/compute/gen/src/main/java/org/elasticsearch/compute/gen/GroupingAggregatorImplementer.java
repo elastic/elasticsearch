@@ -337,16 +337,15 @@ public class GroupingAggregatorImplementer {
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
             if (groupsIsBlock) {
-                // TODO we can drop this once we stop sending null group keys
                 builder.beginControlFlow("if (groups.isNull(groupPosition))");
                 builder.addStatement("continue");
                 builder.endControlFlow();
                 builder.addStatement("int groupStart = groups.getFirstValueIndex(groupPosition)");
                 builder.addStatement("int groupEnd = groupStart + groups.getValueCount(groupPosition)");
                 builder.beginControlFlow("for (int g = groupStart; g < groupEnd; g++)");
-                builder.addStatement("int groupId = Math.toIntExact(groups.getInt(g))");
+                builder.addStatement("int groupId = groups.getInt(g)");
             } else {
-                builder.addStatement("int groupId = Math.toIntExact(groups.getInt(groupPosition))");
+                builder.addStatement("int groupId = groups.getInt(groupPosition)");
             }
 
             if (valuesIsBlock) {
@@ -479,7 +478,7 @@ public class GroupingAggregatorImplementer {
         }
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
-            builder.addStatement("int groupId = Math.toIntExact(groups.getInt(groupPosition))");
+            builder.addStatement("int groupId = groups.getInt(groupPosition)");
             if (hasPrimitiveState()) {
                 assert intermediateState.size() == 2;
                 assert intermediateState.get(1).name().equals("seen");

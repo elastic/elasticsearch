@@ -78,7 +78,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
-import static org.elasticsearch.xpack.esql.core.util.StringUtils.isPositionalParam;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
@@ -740,8 +740,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         Token token = node.getSymbol();
         String nameOrPosition = token.getText().substring(1);
-        if (isPositionalParam(nameOrPosition)) {
-            nameOrPosition = nameOrPosition.startsWith("_") ? nameOrPosition.substring(1) : nameOrPosition;
+        if (isInteger(nameOrPosition)) {
             int index = Integer.parseInt(nameOrPosition);
             if (params.get(index) == null) {
                 String message = "";

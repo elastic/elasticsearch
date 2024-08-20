@@ -161,7 +161,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertThat(e1.getCause().getMessage(), containsString("[2:31] [1x] is not a valid parameter name"));
         assertThat(e1.getCause().getMessage(), containsString("[2:47] [@a] is not a valid parameter name"));
         assertThat(e1.getCause().getMessage(), containsString("[2:63] [@-#] is not a valid parameter name"));
-        assertThat(e1.getCause().getMessage(), containsString("[2:86] [_1] is not a valid parameter name"));
         assertThat(e1.getCause().getMessage(), containsString("[2:102] [Å] is not a valid parameter name"));
 
         assertThat(

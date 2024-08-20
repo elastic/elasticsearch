@@ -426,9 +426,8 @@ public final class StringUtils {
     }
 
     public static boolean isValidParamName(String value) {
-        // A valid name starts with a letter or _ followed by a letter
-        if (isLetter(value.charAt(0)) == false
-            && (value.trim().length() > 1 && isUnderscore(value.charAt(0)) && isLetterOrUnderscore(value.charAt(1))) == false) {
+        // A valid name starts with a letter or _
+        if (isLetterOrUnderscore(value.charAt(0)) == false) {
             return false;
         }
         // contain only letter, digit or _
@@ -438,10 +437,5 @@ public final class StringUtils {
             }
         }
         return true;
-    }
-
-    public static boolean isPositionalParam(String value) {
-        // A positional parameter name is an integer or an _ followed by an integer
-        return isInteger(value) || (value.startsWith("_") && isInteger(value.substring(1)));
     }
 }

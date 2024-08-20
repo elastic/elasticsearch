@@ -161,9 +161,8 @@ SLASH : '/';
 PERCENT : '%';
 
 NAMED_OR_POSITIONAL_PARAM
-    : PARAM LETTER UNQUOTED_ID_BODY*
+    : PARAM (LETTER | UNDERSCORE) UNQUOTED_ID_BODY*
     | PARAM DIGIT+
-    | PARAM UNDERSCORE UNQUOTED_ID_BODY+
     ;
 
 // Brackets are funny. We can happen upon a CLOSING_BRACKET in two ways - one

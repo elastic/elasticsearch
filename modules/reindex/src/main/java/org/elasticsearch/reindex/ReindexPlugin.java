@@ -84,10 +84,11 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        final Collection<Object> components = new ArrayList<>();
-        components.add(new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService()));
-        components.add(new ReindexMetrics(services.telemetryProvider().getMeterRegistry()));
-        return (components);
+        return List.of(
+            new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService()),
+            new ReindexMetrics(services.telemetryProvider().getMeterRegistry())
+        );
+
         /*
         return Collections.singletonList(
             new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService())

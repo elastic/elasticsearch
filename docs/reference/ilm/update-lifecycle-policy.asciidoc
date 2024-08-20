@@ -5,7 +5,7 @@
 <titleabbrev>Policy updates</titleabbrev>
 ++++
 
-You can change how the <<index-lifecycle-management,lifecycle>> of an index or collection of rolling indices is managed
+You can change how the lifecycle of an index or collection of rolling indices is managed
 by modifying the current policy or switching to a different policy.
 
 To ensure that policy updates don't put an index into a state where it can't

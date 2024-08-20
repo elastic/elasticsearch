@@ -153,7 +153,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         // TODO quickselect
         Arrays.sort(values, 0, count);
         int middle = count / 2;
-        return count % 2 == 1 ? values[middle] : (values[middle - 1] + values[middle]) / 2;
+        return count % 2 == 1 ? values[middle] : (values[middle - 1] / 2 + values[middle] / 2);
     }
 
     static class Longs {
@@ -229,9 +229,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         long median = unsignedLongMedianOf(longs.values, longs.count);
         for (int i = 0; i < longs.count; i++) {
             long value = longs.values[i];
-            longs.values[i] = value > median
-                ? unsignedLongSubtractExact(value, median)
-                : unsignedLongSubtractExact(median, value);
+            longs.values[i] = value > median ? unsignedLongSubtractExact(value, median) : unsignedLongSubtractExact(median, value);
         }
         long mad = unsignedLongMedianOf(longs.values, longs.count);
         longs.count = 0;

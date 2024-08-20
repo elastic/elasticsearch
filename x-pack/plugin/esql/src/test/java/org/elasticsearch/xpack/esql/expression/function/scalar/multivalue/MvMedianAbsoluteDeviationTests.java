@@ -13,6 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -37,9 +39,6 @@ public class MvMedianAbsoluteDeviationTests extends AbstractMultivalueFunctionTe
             int middle = size / 2;
             if (size % 2 == 1) {
                 double median = values[middle];
-                var a = Arrays.stream(values).map(d -> Math.abs(d - median)).toArray();
-                var b = Arrays.stream(values).map(d -> Math.abs(d - median)).sorted().toArray();
-                var c = Arrays.stream(values).map(d -> Math.abs(d - median)).sorted().skip(middle).findFirst().orElseThrow();
                 return equalTo(Arrays.stream(values).map(d -> Math.abs(d - median)).sorted().skip(middle).findFirst().orElseThrow());
             } else {
                 double median = (values[middle - 1] + values[middle]) / 2;
@@ -61,31 +60,134 @@ public class MvMedianAbsoluteDeviationTests extends AbstractMultivalueFunctionTe
             return equalTo(mad);
         });
 
-        cases.add(
-            new TestCaseSupplier(
-                "mv_median_absolute_deviation(<1, 2>)",
-                List.of(DataType.INTEGER),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(List.of(1, 2), DataType.INTEGER, "field")),
-                    "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
-                    DataType.INTEGER,
-                    equalTo(0)
+        cases.addAll(
+            List.of(
+                // Simple cases
+                new TestCaseSupplier(
+                    "mv_median_absolute_deviation(<1, 2>)",
+                    List.of(DataType.INTEGER),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(new TestCaseSupplier.TypedData(List.of(1, 2), DataType.INTEGER, "field")),
+                        "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
+                        DataType.INTEGER,
+                        equalTo(0)
+                    )
+                ),
+                new TestCaseSupplier(
+                    "mv_median_absolute_deviation(<-1, -2>)",
+                    List.of(DataType.INTEGER),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(new TestCaseSupplier.TypedData(List.of(-1, -2), DataType.INTEGER, "field")),
+                        "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
+                        DataType.INTEGER,
+                        equalTo(0)
+                    )
                 )
             )
         );
-        cases.add(
-            new TestCaseSupplier(
-                "mv_median_absolute_deviation(<-1, -2>)",
-                List.of(DataType.INTEGER),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(List.of(-1, -2), DataType.INTEGER, "field")),
-                    "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
-                    DataType.INTEGER,
-                    equalTo(0)
-                )
+
+        cases.addAll(
+            overflowCasesFor(
+                DataType.INTEGER,
+                Integer.MAX_VALUE,
+                Integer.MIN_VALUE,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE / 2,
+                Integer.MAX_VALUE / 2 + 1
             )
         );
+        cases.addAll(
+            overflowCasesFor(DataType.LONG, Long.MAX_VALUE, Long.MIN_VALUE, Long.MAX_VALUE, Long.MAX_VALUE / 2L, Long.MAX_VALUE / 2L + 1)
+        );
+        cases.addAll(
+            overflowCasesFor(
+                DataType.DOUBLE,
+                Double.MAX_VALUE,
+                -Double.MAX_VALUE,
+                Double.MAX_VALUE,
+                Double.MAX_VALUE / 2.,
+                Double.MAX_VALUE / 2.
+            )
+        );
+        cases.addAll(
+            overflowCasesFor(
+                DataType.UNSIGNED_LONG,
+                NumericUtils.asLongUnsigned(NumericUtils.UNSIGNED_LONG_MAX),
+                NumericUtils.ZERO_AS_UNSIGNED_LONG,
+                NumericUtils.UNSIGNED_LONG_MAX.divide(BigInteger.valueOf(2)),
+                NumericUtils.UNSIGNED_LONG_MAX.divide(BigInteger.valueOf(2)),
+                BigInteger.ZERO
+            )
+        );
+
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases, (v, p) -> "numeric");
+    }
+
+    private static List<TestCaseSupplier> overflowCasesFor(
+        DataType type,
+        Number max,
+        Number min,
+        Number maxMinMad,
+        Number maxZeroMad,
+        Number minZeroMad
+    ) {
+        var zeroExpected = DataTypeConverter.convert(0, type);
+        var zeroValue = type == DataType.UNSIGNED_LONG ? NumericUtils.ZERO_AS_UNSIGNED_LONG : zeroExpected;
+
+        var typeName = type.name().toLowerCase();
+
+        return List.of(
+            new TestCaseSupplier(
+                "mv_median_absolute_deviation(<max_" + typeName + ", min_" + typeName + ">)",
+                List.of(type),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(List.of(max, min), type, "field")),
+                    "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
+                    type,
+                    equalTo(maxMinMad)
+                )
+            ),
+            new TestCaseSupplier(
+                "mv_median_absolute_deviation(<max_" + typeName + ", 0>)",
+                List.of(type),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(List.of(max, zeroValue), type, "field")),
+                    "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
+                    type,
+                    equalTo(maxZeroMad)
+                )
+            ),
+            new TestCaseSupplier(
+                "mv_median_absolute_deviation(<min_" + typeName + ", 0>)",
+                List.of(type),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(List.of(min, zeroValue), type, "field")),
+                    "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
+                    type,
+                    equalTo(minZeroMad)
+                )
+            ),
+            new TestCaseSupplier(
+                "mv_median_absolute_deviation(<max_" + typeName + ", max_" + typeName + ">)",
+                List.of(type),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(List.of(max, max), type, "field")),
+                    "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
+                    type,
+                    equalTo(zeroExpected)
+                )
+            ),
+            new TestCaseSupplier(
+                "mv_median_absolute_deviation(<min_" + typeName + ", min_" + typeName + ">)",
+                List.of(type),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(List.of(min, min), type, "field")),
+                    "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
+                    type,
+                    equalTo(zeroExpected)
+                )
+            )
+        );
     }
 
     private static BigInteger calculateMedianAbsoluteDeviation(int size, Stream<BigInteger> valuesStream) {

@@ -441,7 +441,7 @@ public class NestedObjectMapper extends ObjectMapper {
 
         private List<Integer> collectChildren(int parentDoc, BitSet parentDocs, DocIdSetIterator childIt) throws IOException {
             assert parentDocs.get(parentDoc) : "wrong context, doc " + parentDoc + " is not a parent of " + nestedTypePath;
-            final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
+            final int prevParentDoc = parentDoc > 0 ? parentDocs.prevSetBit(parentDoc - 1) : -1;
             int childDocId = childIt.docID();
             if (childDocId <= prevParentDoc) {
                 childDocId = childIt.advance(prevParentDoc + 1);

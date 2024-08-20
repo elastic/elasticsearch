@@ -178,6 +178,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   method: testScaledFloat
   issue: https://github.com/elastic/elasticsearch/issues/112003
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {mv_percentile.FromIndex SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/112036
 
 # Examples:
 #

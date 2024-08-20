@@ -118,7 +118,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
 
         // publisher sends data
         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
-        assertThat("onNext was called with " + new String(message), subscriber.httpResult.body(), equalTo(message));
+        assertThat("onNext was called with " + new String(message, StandardCharsets.UTF_8), subscriber.httpResult.body(), equalTo(message));
     }
 
     /**

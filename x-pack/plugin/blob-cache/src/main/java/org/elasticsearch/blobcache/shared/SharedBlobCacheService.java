@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
-import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
@@ -39,7 +38,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -1162,9 +1160,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             RangeMissingHandler writer,
             int region
         ) throws InterruptedException, ExecutionException {
-            final PlainActionFuture<Integer> readFuture = new UnsafePlainActionFuture<>(
-                BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME
-            );
+            final PlainActionFuture<Integer> readFuture = new PlainActionFuture<>();
             final CacheFileRegion fileRegion = get(cacheKey, length, region);
             final long regionStart = getRegionStart(region);
             fileRegion.populateAndRead(
@@ -1186,9 +1182,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             int startRegion,
             int endRegion
         ) throws InterruptedException, ExecutionException {
-            final PlainActionFuture<Void> readsComplete = new UnsafePlainActionFuture<>(
-                BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME
-            );
+            final PlainActionFuture<Void> readsComplete = new PlainActionFuture<>();
             final AtomicInteger bytesRead = new AtomicInteger();
             try (var listeners = new RefCountingListener(1, readsComplete)) {
                 for (int region = startRegion; region <= endRegion; region++) {

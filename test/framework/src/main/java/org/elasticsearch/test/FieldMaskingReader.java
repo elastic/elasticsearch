@@ -14,7 +14,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.tests.index.FieldFilterLeafReader;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Set;
 
 public class FieldMaskingReader extends FilterDirectoryReader {

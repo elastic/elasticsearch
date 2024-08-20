@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionProvider;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -44,7 +44,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
     ExplainDataStreamLifecycleAction.Response> {
 
     private final DataStreamLifecycleErrorStore errorStore;
-    private final DataStreamGlobalRetentionProvider globalRetentionResolver;
+    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
 
     @Inject
     public TransportExplainDataStreamLifecycleAction(
@@ -54,7 +54,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         DataStreamLifecycleErrorStore dataLifecycleServiceErrorStore,
-        DataStreamGlobalRetentionProvider globalRetentionResolver
+        DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
         super(
             ExplainDataStreamLifecycleAction.INSTANCE.name(),
@@ -68,7 +68,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.errorStore = dataLifecycleServiceErrorStore;
-        this.globalRetentionResolver = globalRetentionResolver;
+        this.globalRetentionSettings = globalRetentionSettings;
     }
 
     @Override
@@ -118,7 +118,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             new ExplainDataStreamLifecycleAction.Response(
                 explainIndices,
                 request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
-                globalRetentionResolver.provide()
+                globalRetentionSettings.get()
             )
         );
     }

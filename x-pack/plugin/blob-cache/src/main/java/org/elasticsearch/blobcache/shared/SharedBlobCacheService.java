@@ -335,7 +335,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         NodeEnvironment environment,
         Settings settings,
         ThreadPool threadPool,
-        Executor ioExecutor,
+        String ioExecutor,
         BlobCacheMetrics blobCacheMetrics
     ) {
         this(environment, settings, threadPool, ioExecutor, blobCacheMetrics, System::nanoTime);
@@ -345,12 +345,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         NodeEnvironment environment,
         Settings settings,
         ThreadPool threadPool,
-        Executor ioExecutor,
+        String ioExecutor,
         BlobCacheMetrics blobCacheMetrics,
         LongSupplier relativeTimeInNanosSupplier
     ) {
         this.threadPool = threadPool;
-        this.ioExecutor = ioExecutor;
+        this.ioExecutor = threadPool.executor(ioExecutor);
         long totalFsSize;
         try {
             totalFsSize = FsProbe.getTotal(Environment.getFileStore(environment.nodeDataPaths()[0]));
@@ -396,6 +396,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return SHARED_CACHE_SIZE_SETTING.get(settings)
             .calculateValue(ByteSizeValue.ofBytes(totalFsSize), SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings))
             .getBytes();
+    }
+
+    public BlobCacheMetrics getBlobCacheMetrics() {
+        return blobCacheMetrics;
     }
 
     public int getRangeSize() {

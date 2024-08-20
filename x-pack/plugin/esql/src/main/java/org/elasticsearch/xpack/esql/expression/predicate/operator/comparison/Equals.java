@@ -35,6 +35,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataType.LONG, EqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.UNSIGNED_LONG, EqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.DATETIME, EqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATE_NANOS, EqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.GEO_POINT, EqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.CARTESIAN_POINT, EqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.GEO_SHAPE, EqualsGeometriesEvaluator.Factory::new),

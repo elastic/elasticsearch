@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,9 +25,10 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
         PhysicalPlan child = randomChild(depth);
         List<Expression> groupings = randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList();
         List<? extends NamedExpression> aggregates = AggregateSerializationTests.randomAggregates();
-        AggregateExec.Mode mode = randomFrom(AggregateExec.Mode.values());
+        AggregatorMode mode = randomFrom(AggregatorMode.values());
+        List<Attribute> intermediateAttributes = randomFieldAttributes(0, 5, false);
         Integer estimatedRowSize = randomEstimatedRowSize();
-        return new AggregateExec(source, child, groupings, aggregates, mode, estimatedRowSize);
+        return new AggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
     }
 
     @Override
@@ -38,20 +41,22 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
         PhysicalPlan child = instance.child();
         List<? extends Expression> groupings = instance.groupings();
         List<? extends NamedExpression> aggregates = instance.aggregates();
-        AggregateExec.Mode mode = instance.getMode();
+        List<Attribute> intermediateAttributes = instance.intermediateAttributes();
+        AggregatorMode mode = instance.getMode();
         Integer estimatedRowSize = instance.estimatedRowSize();
-        switch (between(0, 4)) {
+        switch (between(0, 5)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> groupings = randomValueOtherThan(groupings, () -> randomFieldAttributes(0, 5, false));
             case 2 -> aggregates = randomValueOtherThan(aggregates, AggregateSerializationTests::randomAggregates);
-            case 3 -> mode = randomValueOtherThan(mode, () -> randomFrom(AggregateExec.Mode.values()));
-            case 4 -> estimatedRowSize = randomValueOtherThan(
+            case 3 -> mode = randomValueOtherThan(mode, () -> randomFrom(AggregatorMode.values()));
+            case 4 -> intermediateAttributes = randomValueOtherThan(intermediateAttributes, () -> randomFieldAttributes(0, 5, false));
+            case 5 -> estimatedRowSize = randomValueOtherThan(
                 estimatedRowSize,
                 AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize
             );
             default -> throw new IllegalStateException();
         }
-        return new AggregateExec(instance.source(), child, groupings, aggregates, mode, estimatedRowSize);
+        return new AggregateExec(instance.source(), child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
     }
 
     @Override

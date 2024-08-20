@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -73,7 +74,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -242,7 +242,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
-        assertThat(agg.getMode(), is(FINAL));
+        assertThat(agg.getMode(), is(AggregatorMode.FINAL));
         assertThat(Expressions.names(agg.aggregates()), contains("c"));
         var exchange = as(agg.child(), ExchangeExec.class);
         var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
@@ -352,7 +352,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
-        assertThat(agg.getMode(), is(FINAL));
+        assertThat(agg.getMode(), is(AggregatorMode.FINAL));
         assertThat(Expressions.names(agg.aggregates()), contains("c"));
         var exchange = as(agg.child(), ExchangeExec.class);
         var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
@@ -501,7 +501,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
-        assertThat(agg.getMode(), is(FINAL));
+        assertThat(agg.getMode(), is(AggregatorMode.FINAL));
         assertThat(Expressions.names(agg.aggregates()), contains("c"));
         var exchange = as(agg.child(), ExchangeExec.class);
         assertThat(exchange.isInBetweenAggs(), is(true));

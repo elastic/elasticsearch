@@ -26,7 +26,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -94,8 +94,24 @@ public final class XContentDataHelper {
         }
     }
 
-    static void writeMerged(XContentBuilder b, String fieldName, Collection<BytesRef> encodedParts) throws IOException {
-        assert encodedParts.size() > 1 : "writeMerged should only be used with multiple parts";
+    /**
+     * Writes encoded values to provided builder. If there are multiple values they are merged into
+     * a single resulting array.
+     * @param b destination
+     * @param fieldName name of the field that is written
+     * @param encodedParts subset of field data encoded using methods of this class. Can contain arrays which will be flattened.
+     * @throws IOException
+     */
+    static void writeMerged(XContentBuilder b, String fieldName, List<BytesRef> encodedParts) throws IOException {
+        if (encodedParts.isEmpty()) {
+            return;
+        }
+
+        if (encodedParts.size() == 1) {
+            b.field(fieldName);
+            XContentDataHelper.decodeAndWrite(b, encodedParts.get(0));
+            return;
+        }
 
         b.startArray(fieldName);
 

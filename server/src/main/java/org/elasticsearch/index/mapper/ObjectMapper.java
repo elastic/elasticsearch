@@ -34,7 +34,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
@@ -854,14 +853,14 @@ public class ObjectMapper extends Mapper {
                     var existing = orderedFields.get(value.name());
                     if (existing == null) {
                         orderedFields.put(value.name(), new FieldWriter.IgnoredSource(value));
-                    } else if (existing instanceof FieldWriter.IgnoredSourceWriter isw) {
+                    } else if (existing instanceof FieldWriter.IgnoredSource isw) {
                         orderedFields.put(value.name(), isw.mergeWith(value));
                     }
                 }
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
                     if (field.hasValue()) {
                         // Skip if the field source is stored separately, to avoid double-printing.
-                        orderedFields.putIfAbsent(field.fieldName(), new FieldWriter.FieldLoader(field));
+                        orderedFields.computeIfAbsent(field.fieldName(), k -> new FieldWriter.FieldLoader(field));
                     }
                 }
 
@@ -908,38 +907,16 @@ public class ObjectMapper extends Mapper {
                 }
             }
 
-            interface IgnoredSourceWriter extends FieldWriter {
-                FieldWriter mergeWith(IgnoredSourceFieldMapper.NameValue value);
-            }
-
-            record IgnoredSource(IgnoredSourceFieldMapper.NameValue value) implements IgnoredSourceWriter {
-                @Override
-                public void writeTo(XContentBuilder builder) throws IOException {
-                    value.write(builder);
-                }
-
-                @Override
-                public FieldWriter mergeWith(IgnoredSourceFieldMapper.NameValue merged) {
-                    var initialValues = new ArrayList<IgnoredSourceFieldMapper.NameValue>();
-                    initialValues.add(value);
-                    initialValues.add(merged);
-
-                    return new CompositeIgnoredSource(initialValues);
-                }
-            }
-
-            class CompositeIgnoredSource implements IgnoredSourceWriter {
+            class IgnoredSource implements FieldWriter {
                 private final String fieldName;
                 private final String leafName;
                 private final List<BytesRef> values;
 
-                CompositeIgnoredSource(List<IgnoredSourceFieldMapper.NameValue> initialValues) {
-                    assert initialValues.size() > 1 : "CompositeIgnoredSource should only be used with multiple values";
-
-                    var first = initialValues.get(0);
-                    this.fieldName = first.name();
-                    this.leafName = first.getFieldName();
-                    this.values = initialValues.stream().map(IgnoredSourceFieldMapper.NameValue::value).collect(Collectors.toList());
+                IgnoredSource(IgnoredSourceFieldMapper.NameValue initialValue) {
+                    this.fieldName = initialValue.name();
+                    this.leafName = initialValue.getFieldName();
+                    this.values = new ArrayList<>();
+                    this.values.add(initialValue.value());
                 }
 
                 @Override
@@ -947,7 +924,6 @@ public class ObjectMapper extends Mapper {
                     XContentDataHelper.writeMerged(builder, leafName, values);
                 }
 
-                @Override
                 public FieldWriter mergeWith(IgnoredSourceFieldMapper.NameValue nameValue) {
                     assert Objects.equals(nameValue.name(), fieldName) : "CompositeIgnoredSource is merged with wrong field data";
 

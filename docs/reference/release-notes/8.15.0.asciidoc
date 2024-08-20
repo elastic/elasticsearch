@@ -22,6 +22,10 @@ Either downgrade to an earlier version, upgrade to 8.15.1, or else follow the
 recommendation in the manual to entirely disable swap instead of using the
 memory lock feature (issue: {es-issue}111847[#111847])
 
+* The `took` field of the response to the <<docs-bulk>> API is incorrect and may be rather large. Clients which
+<<api-conventions-number-values,incorrectly>> assume that this value will be within a particular range (e.g. that it fits into a 32-bit
+signed integer) may encounter errors (issue: {es-issue}111854[#111854])
+
 [[breaking-8.15.0]]
 [float]
 === Breaking changes

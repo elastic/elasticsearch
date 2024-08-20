@@ -17,7 +17,9 @@ import org.elasticsearch.plugins.PluginsService;
  * Holds the factory retention configuration. Factory retention is the global retention configuration meant to be
  * used if a user hasn't provided other retention configuration via {@link DataStreamGlobalRetention} metadata in the
  * cluster state.
+ * @deprecated This interface is deprecated, please use {@link DataStreamGlobalRetentionSettings}.
  */
+@Deprecated
 public interface DataStreamFactoryRetention {
 
     @Nullable

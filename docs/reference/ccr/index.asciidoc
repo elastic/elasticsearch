@@ -1,7 +1,7 @@
 [role="xpack"]
 [[xpack-ccr]]
 == {ccr-cap}
-With <<xpack-ccr,{ccr}>>, you can replicate indices across clusters to:
+With {ccr}, you can replicate indices across clusters to:
 
 * Continue handling search requests in the event of a datacenter outage
 * Prevent search volume from impacting indexing throughput

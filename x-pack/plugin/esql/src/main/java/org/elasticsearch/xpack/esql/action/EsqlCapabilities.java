@@ -229,7 +229,17 @@ public class EsqlCapabilities {
         /**
          * Support sending HTTP headers about the status of an async query.
          */
-        ASYNC_QUERY_STATUS_HEADERS;
+        ASYNC_QUERY_STATUS_HEADERS,
+
+        /**
+         * Consider the upper bound when computing the interval in BUCKET auto mode.
+         */
+        BUCKET_INCLUSIVE_UPPER_BOUND,
+
+        /**
+         * Changed error messages for fields with conflicting types in different indices.
+         */
+        SHORT_ERROR_MESSAGES_FOR_UNSUPPORTED_FIELDS;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

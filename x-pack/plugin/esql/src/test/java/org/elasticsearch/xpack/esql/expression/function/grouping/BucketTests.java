@@ -92,6 +92,20 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                         dateResultsMatcher(args)
                     );
                 }));
+                // same as above, but a low bucket count and datetime bounds that match it (at hour span)
+                suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, DataType.INTEGER, fromType, toType), () -> {
+                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                    args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATETIME, "field"));
+                    args.add(new TestCaseSupplier.TypedData(4, DataType.INTEGER, "buckets").forceLiteral());
+                    args.add(dateBound("from", fromType, "2023-02-17T09:00:00Z"));
+                    args.add(dateBound("to", toType, "2023-02-17T12:00:00Z"));
+                    return new TestCaseSupplier.TestCase(
+                        args,
+                        "DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
+                        DataType.DATETIME,
+                        equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
+                    );
+                }));
             }
         }
     }

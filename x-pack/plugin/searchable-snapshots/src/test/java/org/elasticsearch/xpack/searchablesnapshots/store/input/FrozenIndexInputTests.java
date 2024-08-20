@@ -111,7 +111,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
+                SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
                 BlobCacheMetrics.NOOP
             );
             CacheService cacheService = randomCacheService();

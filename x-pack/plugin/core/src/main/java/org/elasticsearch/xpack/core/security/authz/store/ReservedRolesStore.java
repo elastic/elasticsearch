@@ -871,7 +871,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Observability
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".slo*")
-                    .privileges("read", "view_index_metadata")
+                    .privileges("read", "read_cross_cluster", "view_index_metadata")
                     .build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -922,7 +922,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".slo*")
-                    .privileges("all")
+                    .privileges("read", "read_cross_cluster", "view_index_metadata", "write", "manage", "auto_configure")
                     .build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()

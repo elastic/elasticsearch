@@ -218,8 +218,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Specific flattening method, different from the default EsRelation that:
      * 1. takes care of data type widening (for certain types)
      * 2. drops the object and keyword hierarchy
+     * <p>
+     *     Public for testing.
+     * </p>
      */
-    private static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping) {
+    public static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping) {
         var list = new ArrayList<Attribute>();
         mappingAsAttributes(list, source, null, mapping);
         list.sort(Comparator.comparing(Attribute::name));
@@ -862,6 +865,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         Collection<Attribute> attrList,
         java.util.function.Function<List<String>, String> messageProducer
     ) {
+        if (ua.customMessage()) {
+            return List.of();
+        }
         // none found - add error message
         if (matches.isEmpty()) {
             Set<String> names = new HashSet<>(attrList.size());

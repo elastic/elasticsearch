@@ -75,7 +75,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readString(),
-            new UnsupportedEsField(in),
+            UnsupportedEsField.readFrom(in),
             in.readOptionalString(),
             NameId.readFrom((PlanStreamInput) in)
         );

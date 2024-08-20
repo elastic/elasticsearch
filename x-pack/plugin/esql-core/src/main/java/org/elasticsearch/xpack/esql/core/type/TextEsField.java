@@ -11,6 +11,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -23,7 +25,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
  * Information about a field in an es index with the {@code text} type.
  */
 public class TextEsField extends EsField {
-    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(EsField.class, "TextEsField", TextEsField::new);
+    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(EsField.class, "TextEsField", TextEsField::readFrom);
 
     public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
         this(name, properties, hasDocValues, false);
@@ -39,10 +41,16 @@ public class TextEsField extends EsField {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getName());
-        out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
-        out.writeBoolean(isAggregatable());
-        out.writeBoolean(isAlias());
+        if (((PlanStreamOutput) out).writeEsFieldCacheHeader(this)) {
+            out.writeString(getName());
+            out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
+            out.writeBoolean(isAggregatable());
+            out.writeBoolean(isAlias());
+        }
+    }
+
+    public static TextEsField readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readEsFieldWithCache(TextEsField::new);
     }
 
     @Override

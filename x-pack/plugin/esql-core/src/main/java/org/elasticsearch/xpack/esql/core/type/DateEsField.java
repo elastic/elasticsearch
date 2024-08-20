@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.core.type;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -17,7 +19,7 @@ import java.util.Map;
  * Information about a field in an ES index with the {@code date} type
  */
 public class DateEsField extends EsField {
-    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(EsField.class, "DateEsField", DateEsField::new);
+    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(EsField.class, "DateEsField", DateEsField::readFrom);
 
     public static DateEsField dateEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
         return new DateEsField(name, DataType.DATETIME, properties, hasDocValues);
@@ -33,9 +35,15 @@ public class DateEsField extends EsField {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getName());
-        out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
-        out.writeBoolean(isAggregatable());
+        if (((PlanStreamOutput) out).writeEsFieldCacheHeader(this)) {
+            out.writeString(getName());
+            out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
+            out.writeBoolean(isAggregatable());
+        }
+    }
+
+    public static DateEsField readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readEsFieldWithCache(DateEsField::new);
     }
 
     @Override

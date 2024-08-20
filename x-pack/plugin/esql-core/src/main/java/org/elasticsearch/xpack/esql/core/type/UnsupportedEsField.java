@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.core.type;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -23,7 +25,7 @@ public class UnsupportedEsField extends EsField {
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         EsField.class,
         "UnsupportedEsField",
-        UnsupportedEsField::new
+        UnsupportedEsField::readFrom
     );
 
     private final String originalType;
@@ -39,16 +41,22 @@ public class UnsupportedEsField extends EsField {
         this.inherited = inherited;
     }
 
-    public UnsupportedEsField(StreamInput in) throws IOException {
+    private UnsupportedEsField(StreamInput in) throws IOException {
         this(in.readString(), in.readString(), in.readOptionalString(), in.readMap(i -> i.readNamedWriteable(EsField.class)));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getName());
-        out.writeString(getOriginalType());
-        out.writeOptionalString(getInherited());
-        out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
+        if (((PlanStreamOutput) out).writeEsFieldCacheHeader(this)) {
+            out.writeString(getName());
+            out.writeString(getOriginalType());
+            out.writeOptionalString(getInherited());
+            out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
+        }
+    }
+
+    public static UnsupportedEsField readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readEsFieldWithCache(UnsupportedEsField::new);
     }
 
     @Override

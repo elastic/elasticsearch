@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -34,7 +36,7 @@ public class MultiTypeEsField extends EsField {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         EsField.class,
         "MultiTypeEsField",
-        MultiTypeEsField::new
+        MultiTypeEsField::readFrom
     );
 
     private final Map<String, Expression> indexToConversionExpressions;
@@ -44,16 +46,22 @@ public class MultiTypeEsField extends EsField {
         this.indexToConversionExpressions = indexToConversionExpressions;
     }
 
-    public MultiTypeEsField(StreamInput in) throws IOException {
+    private MultiTypeEsField(StreamInput in) throws IOException {
         this(in.readString(), DataType.readFrom(in), in.readBoolean(), in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getName());
-        out.writeString(getDataType().typeName());
-        out.writeBoolean(isAggregatable());
-        out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
+        if (((PlanStreamOutput) out).writeEsFieldCacheHeader(this)) {
+            out.writeString(getName());
+            out.writeString(getDataType().typeName());
+            out.writeBoolean(isAggregatable());
+            out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
+        }
+    }
+
+    public static MultiTypeEsField readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readEsFieldWithCache(MultiTypeEsField::new);
     }
 
     @Override

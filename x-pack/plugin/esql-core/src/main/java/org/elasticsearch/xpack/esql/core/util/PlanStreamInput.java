@@ -12,6 +12,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.IOException;
 
@@ -44,4 +45,12 @@ public interface PlanStreamInput {
      * @throws IOException
      */
     <A extends Attribute> A readAttributeWithCache(CheckedFunction<StreamInput, A, IOException> constructor) throws IOException;
+
+    /**
+     * Reads an EsField using the cache.
+     * @param constructor the constructor needed to build the actual EsField when read from the wire
+     * @return An EsField; this will generally be the same type as the provided constructor
+     * @throws IOException
+     */
+    <A extends EsField> A readEsFieldWithCache(CheckedFunction<StreamInput, A, IOException> constructor) throws IOException;
 }

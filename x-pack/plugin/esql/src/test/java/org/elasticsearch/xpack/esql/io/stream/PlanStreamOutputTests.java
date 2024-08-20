@@ -259,6 +259,42 @@ public class PlanStreamOutputTests extends ESTestCase {
         }
     }
 
+    public void testWriteMultipleEsFields() throws IOException {
+        Configuration configuration = randomConfiguration();
+        try (
+            BytesStreamOutput out = new BytesStreamOutput();
+            PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
+        ) {
+            List<EsField> fields = new ArrayList<>();
+            int occurrences = randomIntBetween(2, 300);
+            for (int i = 0; i < occurrences; i++) {
+                fields.add(PlanNamedTypesTests.randomEsField());
+            }
+
+            // send all the EsFields, three times
+            for (int i = 0; i < 3; i++) {
+                for (EsField attr : fields) {
+                    planStream.writeNamedWriteable(attr);
+                }
+            }
+
+            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)) {
+                List<EsField> readFields = new ArrayList<>();
+                for (int i = 0; i < occurrences; i++) {
+                    readFields.add(in.readNamedWriteable(EsField.class));
+                    assertThat(readFields.get(i), equalTo(fields.get(i)));
+                }
+                // two more times
+                for (int i = 0; i < 2; i++) {
+                    for (int j = 0; j < occurrences; j++) {
+                        EsField attr = in.readNamedWriteable(EsField.class);
+                        assertThat(attr, sameInstance(readFields.get(j)));
+                    }
+                }
+            }
+        }
+    }
+
     private static Attribute randomAttribute() {
         return switch (randomInt(3)) {
             case 0 -> PlanNamedTypesTests.randomFieldAttribute();

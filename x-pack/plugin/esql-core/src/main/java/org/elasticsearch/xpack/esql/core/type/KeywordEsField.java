@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.core.type;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -24,7 +26,7 @@ public class KeywordEsField extends EsField {
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         EsField.class,
         "KeywordEsField",
-        KeywordEsField::new
+        KeywordEsField::readFrom
     );
 
     private final int precision;
@@ -77,12 +79,18 @@ public class KeywordEsField extends EsField {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getName());
-        out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
-        out.writeBoolean(isAggregatable());
-        out.writeInt(precision);
-        out.writeBoolean(normalized);
-        out.writeBoolean(isAlias());
+        if (((PlanStreamOutput) out).writeEsFieldCacheHeader(this)) {
+            out.writeString(getName());
+            out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
+            out.writeBoolean(isAggregatable());
+            out.writeInt(precision);
+            out.writeBoolean(normalized);
+            out.writeBoolean(isAlias());
+        }
+    }
+
+    public static KeywordEsField readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readEsFieldWithCache(KeywordEsField::new);
     }
 
     @Override

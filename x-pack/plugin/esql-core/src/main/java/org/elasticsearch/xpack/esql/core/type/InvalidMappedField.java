@@ -11,6 +11,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,7 +32,7 @@ public class InvalidMappedField extends EsField {
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         EsField.class,
         "InvalidMappedField",
-        InvalidMappedField::new
+        InvalidMappedField::readFrom
     );
 
     private final String errorMessage;
@@ -42,10 +44,6 @@ public class InvalidMappedField extends EsField {
 
     public InvalidMappedField(String name, String errorMessage) {
         this(name, errorMessage, new TreeMap<>());
-    }
-
-    public InvalidMappedField(String name) {
-        this(name, StringUtils.EMPTY, new TreeMap<>());
     }
 
     /**
@@ -71,9 +69,15 @@ public class InvalidMappedField extends EsField {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getName());
-        out.writeString(errorMessage);
-        out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
+        if (((PlanStreamOutput) out).writeEsFieldCacheHeader(this)) {
+            out.writeString(getName());
+            out.writeString(errorMessage);
+            out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
+        }
+    }
+
+    public static InvalidMappedField readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readEsFieldWithCache(InvalidMappedField::new);
     }
 
     @Override

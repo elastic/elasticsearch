@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,7 +35,7 @@ public class EsField implements NamedWriteable {
         );
     }
 
-    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(EsField.class, "EsField", EsField::new);
+    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(EsField.class, "EsField", EsField::readFrom);
 
     private final DataType esDataType;
     private final boolean aggregatable;
@@ -53,7 +55,7 @@ public class EsField implements NamedWriteable {
         this.isAlias = isAlias;
     }
 
-    public EsField(StreamInput in) throws IOException {
+    private EsField(StreamInput in) throws IOException {
         this.name = in.readString();
         this.esDataType = readDataType(in);
         this.properties = in.readImmutableMap(i -> i.readNamedWriteable(EsField.class));
@@ -79,11 +81,17 @@ public class EsField implements NamedWriteable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        esDataType.writeTo(out);
-        out.writeMap(properties, StreamOutput::writeNamedWriteable);
-        out.writeBoolean(aggregatable);
-        out.writeBoolean(isAlias);
+        if (((PlanStreamOutput) out).writeEsFieldCacheHeader(this)) {
+            out.writeString(name);
+            esDataType.writeTo(out);
+            out.writeMap(properties, StreamOutput::writeNamedWriteable);
+            out.writeBoolean(aggregatable);
+            out.writeBoolean(isAlias);
+        }
+    }
+
+    public static EsField readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readEsFieldWithCache(EsField::new);
     }
 
     @Override

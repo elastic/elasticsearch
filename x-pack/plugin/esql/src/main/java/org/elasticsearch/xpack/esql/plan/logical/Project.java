@@ -58,7 +58,7 @@ public class Project extends UnaryPlan {
 
     @Override
     public AttributeSet childrenReferences() {
-        return references();
+        return Expressions.references(expressions());
     }
 
     @Override

@@ -152,6 +152,6 @@ public class QueryPlanTests extends ESTestCase {
         var field = fieldAttribute("field", INTEGER);
 
         var filter = new Filter(EMPTY, relation(), equalsOf(field, add));
-        assertThat(Expressions.names(filter.references()), contains("field", "one", "two"));
+        assertThat(Expressions.names(filter.childrenReferences()), contains("field", "one", "two"));
     }
 }

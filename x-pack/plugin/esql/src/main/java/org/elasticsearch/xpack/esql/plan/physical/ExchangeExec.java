@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -38,7 +39,7 @@ public class ExchangeExec extends UnaryExec {
 
     @Override
     public AttributeSet childrenReferences() {
-        return references();
+        return Expressions.references(expressions());
     }
 
     public boolean isInBetweenAggs() {

@@ -66,7 +66,7 @@ public final class DuplicateLimitAfterMvExpand extends OptimizerRules.OptimizerR
                 return mve;
             } else if (plan instanceof Filter filter) {
                 // gather all the filters' references to be checked later when a mv_expand is found
-                filterReferences.addAll(filter.references());
+                filterReferences.addAll(filter.childrenReferences());
             } else if (plan instanceof OrderBy) {
                 // ordering after mv_expand COULD break the order of the results, so the limit shouldn't be copied past mv_expand
                 // something like from test | sort emp_no | mv_expand job_positions | sort first_name | limit 5

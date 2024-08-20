@@ -27,7 +27,7 @@ public class ProjectExec extends UnaryExec {  // TODO implement EstimatesRowSize
 
     @Override
     public AttributeSet childrenReferences() {
-        return references();
+        return Expressions.references(expressions());
     }
 
     @Override

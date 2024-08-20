@@ -35,16 +35,6 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     public abstract List<Attribute> output();
 
-    /**
-     * The attributes required to be in the {@link QueryPlan#inputSet()} for this plan to be valid.
-     * Subset of {@link QueryPlan#references()} excluding self/generated references.
-     * <p>
-     * E.g. for {@code EVAL x = 2*some_field, y = 2*x} this includes {@code some_field} but neither {@code x} nor {@code y}.
-     * For {@code ENRICH some_policy ON field WITH some_enrich_field} this includes {@code field} but excludes the generated reference
-     * {@code some_enrich_field}.
-     */
-    public abstract AttributeSet childrenReferences();
-
     public AttributeSet outputSet() {
         if (lazyOutputSet == null) {
             lazyOutputSet = new AttributeSet(output());
@@ -75,8 +65,15 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         return lazyExpressions;
     }
 
+    public abstract AttributeSet childrenReferences();
+
     /**
-     * Returns the expressions referenced on this query plan node.
+     * The attributes required to be in the {@link QueryPlan#inputSet()} for this plan to be valid.
+     * Excludes generated references.
+     * <p>
+     * E.g. for {@code EVAL x = 2*some_field, y = 2*x} this includes {@code some_field} but neither {@code x} nor {@code y}.
+     * For {@code ENRICH some_policy ON field WITH some_enrich_field} this includes {@code field} but excludes the generated reference
+     * {@code some_enrich_field}.
      */
     public AttributeSet references() {
         if (lazyReferences == null) {

@@ -44,26 +44,31 @@ public class ReindexBasicTests extends ReindexTestCase {
         TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin();
         // Copy all the docs
         testTelemetryPlugin.resetMeter();
-        testTelemetryPlugin.collect();
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
         assertThat(copy.get(), matcher().created(4));
         assertHitCount(prepareSearch("dest").setSize(0), 4);
+        testTelemetryPlugin.collect();
         List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_TIME_HISTOGRAM);
         assertThat(measurements.size(), equalTo(1));
 
         // Now none of them
         testTelemetryPlugin.resetMeter();
-        testTelemetryPlugin.collect();
         createIndex("none");
         copy = reindex().source("source").destination("none").filter(termQuery("foo", "no_match")).refresh(true);
         assertThat(copy.get(), matcher().created(0));
         assertHitCount(prepareSearch("none").setSize(0), 0);
+        testTelemetryPlugin.collect();
+        measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_TIME_HISTOGRAM);
         assertThat(measurements.size(), equalTo(1));
 
         // Now half of them
+        testTelemetryPlugin.resetMeter();
         copy = reindex().source("source").destination("dest_half").filter(termQuery("foo", "a")).refresh(true);
         assertThat(copy.get(), matcher().created(2));
         assertHitCount(prepareSearch("dest_half").setSize(0), 2);
+        testTelemetryPlugin.collect();
+        measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_TIME_HISTOGRAM);
+        assertThat(measurements.size(), equalTo(1));
 
         // Limit with maxDocs
         copy = reindex().source("source").destination("dest_size_one").maxDocs(1).refresh(true);

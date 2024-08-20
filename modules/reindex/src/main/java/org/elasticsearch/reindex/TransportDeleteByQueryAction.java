@@ -25,6 +25,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.TimeUnit;
+
 public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteByQueryRequest, BulkByScrollResponse> {
 
     private final ThreadPool threadPool;
@@ -51,6 +53,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     @Override
     public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+        long startTime = System.nanoTime();
         BulkByScrollParallelizationHelper.startSlicedAction(
             request,
             bulkByScrollTask,
@@ -64,8 +67,17 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                     clusterService.localNode(),
                     bulkByScrollTask
                 );
-                new AsyncDeleteByQueryAction(bulkByScrollTask, logger, assigningClient, threadPool, request, scriptService, listener)
-                    .start();
+                new AsyncDeleteByQueryAction(
+                    bulkByScrollTask,
+                    logger,
+                    assigningClient,
+                    threadPool,
+                    request,
+                    scriptService,
+                    ActionListener.runAfter(listener, () -> {
+                        long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
+                    })
+                ).start();
             }
         );
     }

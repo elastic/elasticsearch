@@ -131,7 +131,9 @@ public class Reindexer {
                     request,
                     ActionListener.runAfter(listener, () -> {
                         long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
-                        if (reindexMetrics != null) reindexMetrics.recordTookTime(elapsedTime);
+                        if (reindexMetrics != null) {
+                            reindexMetrics.recordTookTime(elapsedTime);
+                        }
                     })
                 );
                 searchAction.start();

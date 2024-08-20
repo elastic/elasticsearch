@@ -78,7 +78,7 @@ about the pending cluster state sync tasks that are running.
 
 [source,console]
 ----
-GET /_cluster/pending_tasks?detailed
+GET /_cluster/pending_tasks
 ----
 
 Check the `timeInQueue` to identify tasks that are taking an excessive amount 

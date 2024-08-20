@@ -338,6 +338,7 @@ setup:
       index:
         index: index-with-sparse-vector2
         id: "has-dots"
+        refresh: true
         body:
           ml:
             tokens:
@@ -349,9 +350,6 @@ setup:
               5.0k: 2.489943
 
   - match: { result: "created" }
-
-  - do:
-      indices.refresh: { }
 
   - do:
       headers:

@@ -9,7 +9,7 @@ Numeric or date expression from which to derive buckets.
 Target number of buckets.
 
 `from`::
-Start of the range. Can be a number or a date expressed as a string.
+Start of the range. Can be a number, a date or a date expressed as a string.
 
 `to`::
-End of the range. Can be a number or a date expressed as a string.
+End of the range. Can be a number, a date or a date expressed as a string.

@@ -10,44 +10,33 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
-import java.util.Objects;
+import java.util.Set;
 
 /**
  * An unsafe future. You should not need to use this for new code, rather you should be able to convert that code to be async
  * or use a clear hierarchy of thread pool executors around the future.
- *
+ * <p>
  * This future is unsafe, since it allows notifying the future on the same thread pool executor that it is being waited on. This
  * is a common deadlock scenario, since all threads may be waiting and thus no thread may be able to complete the future.
+ * <p>
+ * Note that the deadlock protection in {@link PlainActionFuture} is very weak. In general there's a risk of deadlock if there's any cycle
+ * of threads which block/complete on each other's futures, or dispatch work to each other, but this is much harder to detect.
  */
 @Deprecated(forRemoval = true)
 public class UnsafePlainActionFuture<T> extends PlainActionFuture<T> {
-
-    private final String unsafeExecutor;
-    private final String unsafeExecutor2;
+    private final Set<String> unsafeExecutors;
 
     /**
-     * Allow the single executor passed to be used unsafely. This allows waiting for the future and completing the future on threads in
-     * the same executor, but only for the specific executor.
+     * Create a future which permits any of the given named executors to be used unsafely (i.e. used for both waiting for the future's
+     * completion and completing the future).
      */
-    public UnsafePlainActionFuture(String unsafeExecutor) {
-        this(unsafeExecutor, "__none__");
-    }
-
-    /**
-     * Allow both executors passed to be used unsafely. This allows waiting for the future and completing the future on threads in
-     * the same executor, but only for the two specific executors.
-     */
-    public UnsafePlainActionFuture(String unsafeExecutor, String unsafeExecutor2) {
-        Objects.requireNonNull(unsafeExecutor);
-        Objects.requireNonNull(unsafeExecutor2);
-        this.unsafeExecutor = unsafeExecutor;
-        this.unsafeExecutor2 = unsafeExecutor2;
+    public UnsafePlainActionFuture(String... unsafeExecutors) {
+        assert unsafeExecutors.length > 0 : "use PlainActionFuture if there are no executors to use unsafely";
+        this.unsafeExecutors = Set.of(unsafeExecutors);
     }
 
     @Override
     boolean allowedExecutors(Thread blockedThread, Thread completingThread) {
-        return super.allowedExecutors(blockedThread, completingThread)
-            || unsafeExecutor.equals(EsExecutors.executorName(blockedThread))
-            || unsafeExecutor2.equals(EsExecutors.executorName(blockedThread));
+        return super.allowedExecutors(blockedThread, completingThread) || unsafeExecutors.contains(EsExecutors.executorName(blockedThread));
     }
 }

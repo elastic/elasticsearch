@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionProvider;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -45,7 +45,8 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
 
     private final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
     private final SystemIndices systemIndices = new SystemIndices(List.of());
-    private final DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider = new DataStreamGlobalRetentionProvider(
+    private final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
+        ClusterSettings.createBuiltInClusterSettings(),
         DataStreamFactoryRetention.emptyFactoryRetention()
     );
 
@@ -165,7 +166,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionProvider
+            dataStreamGlobalRetentionSettings
         );
         assertThat(
             response.getDataStreams(),
@@ -195,7 +196,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionProvider
+            dataStreamGlobalRetentionSettings
         );
         assertThat(
             response.getDataStreams(),
@@ -245,7 +246,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionProvider
+            dataStreamGlobalRetentionSettings
         );
         assertThat(
             response.getDataStreams(),
@@ -288,7 +289,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionProvider
+            dataStreamGlobalRetentionSettings
         );
 
         var name1 = DataStream.getDefaultBackingIndexName("ds-1", 1, instant.toEpochMilli());
@@ -333,30 +334,24 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionProvider
+            dataStreamGlobalRetentionSettings
         );
         assertThat(response.getGlobalRetention(), nullValue());
         DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
             TimeValue.timeValueDays(randomIntBetween(1, 5)),
             TimeValue.timeValueDays(randomIntBetween(5, 10))
         );
-        DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProviderWithSettings = new DataStreamGlobalRetentionProvider(
-            new DataStreamFactoryRetention() {
-                @Override
-                public TimeValue getMaxRetention() {
-                    return globalRetention.maxRetention();
-                }
-
-                @Override
-                public TimeValue getDefaultRetention() {
-                    return globalRetention.defaultRetention();
-                }
-
-                @Override
-                public void init(ClusterSettings clusterSettings) {
-
-                }
-            }
+        DataStreamGlobalRetentionSettings withGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
+            ClusterSettings.createBuiltInClusterSettings(
+                Settings.builder()
+                    .put(
+                        DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(),
+                        globalRetention.defaultRetention()
+                    )
+                    .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalRetention.maxRetention())
+                    .build()
+            ),
+            DataStreamFactoryRetention.emptyFactoryRetention()
         );
         response = GetDataStreamsTransportAction.innerOperation(
             state,
@@ -364,7 +359,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionProviderWithSettings
+            withGlobalRetentionSettings
         );
         assertThat(response.getGlobalRetention(), equalTo(globalRetention));
     }

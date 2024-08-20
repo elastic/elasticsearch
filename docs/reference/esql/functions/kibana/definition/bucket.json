@@ -40,13 +40,253 @@
           "name" : "from",
           "type" : "datetime",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
           "type" : "datetime",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "datetime",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "datetime",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "text",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "datetime",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "text",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "text",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "datetime",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "text",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "text",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "text",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -101,18 +341,6 @@
           "type" : "integer",
           "optional" : false,
           "description" : "Target number of buckets."
-        },
-        {
-          "name" : "from",
-          "type" : "double",
-          "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "double",
-          "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -136,13 +364,13 @@
           "name" : "from",
           "type" : "double",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
-          "type" : "integer",
+          "type" : "double",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -166,13 +394,43 @@
           "name" : "from",
           "type" : "double",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "double",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
           "type" : "long",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -196,43 +454,13 @@
           "name" : "from",
           "type" : "integer",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
           "type" : "double",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "double",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets."
-        },
-        {
-          "name" : "from",
-          "type" : "integer",
-          "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "integer",
-          "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -256,13 +484,43 @@
           "name" : "from",
           "type" : "integer",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
           "type" : "long",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -286,43 +544,13 @@
           "name" : "from",
           "type" : "long",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
           "type" : "double",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "double",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets."
-        },
-        {
-          "name" : "from",
-          "type" : "long",
-          "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "integer",
-          "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -346,13 +574,61 @@
           "name" : "from",
           "type" : "long",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
           "type" : "long",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Target number of buckets."
         }
       ],
       "variadic" : false,
@@ -389,18 +665,6 @@
           "type" : "integer",
           "optional" : false,
           "description" : "Target number of buckets."
-        },
-        {
-          "name" : "from",
-          "type" : "double",
-          "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "double",
-          "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -424,13 +688,13 @@
           "name" : "from",
           "type" : "double",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
-          "type" : "integer",
+          "type" : "double",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -454,73 +718,13 @@
           "name" : "from",
           "type" : "double",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "long",
-          "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets."
-        },
-        {
-          "name" : "from",
-          "type" : "integer",
-          "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "double",
-          "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets."
-        },
-        {
-          "name" : "from",
-          "type" : "integer",
-          "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
           "type" : "integer",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -531,144 +735,6 @@
         {
           "name" : "field",
           "type" : "integer",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets."
-        },
-        {
-          "name" : "from",
-          "type" : "integer",
-          "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "long",
-          "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets."
-        },
-        {
-          "name" : "from",
-          "type" : "long",
-          "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "double",
-          "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets."
-        },
-        {
-          "name" : "from",
-          "type" : "long",
-          "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "integer",
-          "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets."
-        },
-        {
-          "name" : "from",
-          "type" : "long",
-          "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "long",
-          "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "long",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "double",
-          "optional" : false,
-          "description" : "Target number of buckets."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "long",
           "optional" : false,
           "description" : "Numeric or date expression from which to derive buckets."
         },
@@ -682,13 +748,247 @@
           "name" : "from",
           "type" : "double",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "long",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
           "type" : "double",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "long",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "double",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "long",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
         }
       ],
       "variadic" : false,
@@ -712,13 +1012,13 @@
           "name" : "from",
           "type" : "double",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
-          "type" : "integer",
+          "type" : "double",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -742,13 +1042,43 @@
           "name" : "from",
           "type" : "double",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets."
+        },
+        {
+          "name" : "from",
+          "type" : "double",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
           "type" : "long",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -772,13 +1102,13 @@
           "name" : "from",
           "type" : "integer",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
           "type" : "double",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -802,13 +1132,13 @@
           "name" : "from",
           "type" : "integer",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
           "type" : "integer",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -832,13 +1162,13 @@
           "name" : "from",
           "type" : "integer",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
           "type" : "long",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -862,13 +1192,13 @@
           "name" : "from",
           "type" : "long",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
           "type" : "double",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -892,13 +1222,13 @@
           "name" : "from",
           "type" : "long",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
           "type" : "integer",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
         }
       ],
       "variadic" : false,
@@ -922,13 +1252,31 @@
           "name" : "from",
           "type" : "long",
           "optional" : true,
-          "description" : "Start of the range. Can be a number or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
         },
         {
           "name" : "to",
           "type" : "long",
           "optional" : true,
-          "description" : "End of the range. Can be a number or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Target number of buckets."
         }
       ],
       "variadic" : false,

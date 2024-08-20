@@ -842,6 +842,142 @@ This is not shown for the `shards` level, since mappings may be shared across th
 
 =======
 
+`shards`::
+(object) When the `shards` level is requested, contains the aforementioned `indices` statistics for every shard (per
+index, and then per shard ID), as well as the following shard-specific statistics (which are not shown when the
+requested level is higher than `shards`):
++
+.Additional shard-specific statistics for the `shards` level
+[%collapsible%open]
+=======
+
+`routing`::
+(object) Contains routing information about the shard.
++
+.Properties of `routing`
+[%collapsible%open]
+========
+
+`state`::
+(string) State of the shard. Returned values are:
++
+* `INITIALIZING`: The shard is initializing/recovering.
+* `RELOCATING`: The shard is relocating.
+* `STARTED`: The shard has started.
+* `UNASSIGNED`: The shard is not assigned to any node.
+
+`primary`::
+(Boolean) Whether the shard is a primary shard or not.
+
+`node`::
+(string) ID of the node the shard is allocated to.
+
+`relocating_node`::
+(string) ID of the node the shard is either relocating to or relocating from, or null if shard is not relocating.
+
+========
+
+`commit`::
+(object) Contains information regarding the last commit point of the shard.
++
+.Properties of `commit`
+[%collapsible%open]
+========
+
+`id`::
+(string) Base64 version of the commit ID.
+
+`generation`::
+(integer) Lucene generation of the commit.
+
+`user_data`::
+(object) Contains additional technical information about the commit.
+
+`num_docs`::
+(integer) The number of docs in the commit.
+
+========
+
+`seq_no`::
+(object) Contains information about <<optimistic-concurrency-control,sequence numbers>> and checkpoints for the shard.
++
+.Properties of `seq_no`
+[%collapsible%open]
+========
+
+`max_seq_no`::
+(integer) The maximum sequence number issued so far.
+
+`local_checkpoint`::
+(integer) The current local checkpoint of the shard.
+
+`global_checkpoint`::
+(integer) The current global checkpoint of the shard.
+
+========
+
+`retention_leases`::
+(object) Contains information about <<index-modules-history-retention,history retention leases>>.
++
+.Properties of `retention_leases`
+[%collapsible%open]
+========
+
+`primary_term`::
+(integer) The primary term of this retention lease collection.
+
+`version`::
+(integer) The current version of the retention lease collection.
+
+`leases`::
+(array of objects) List of current leases for this shard.
++
+.Properties of `leases`
+[%collapsible%open]
+=========
+
+`id`::
+(string) The ID of the lease.
+
+`retaining_seq_no`::
+(integer) The minimum sequence number to be retained by the lease.
+
+`timestamp`::
+(integer) The timestamp of when the lease was created or renewed.
+Recorded in milliseconds since the {wikipedia}/Unix_time[Unix Epoch].
+
+`source`::
+(string) The source of the lease.
+
+=========
+========
+
+`shard_path`::
+(object)
++
+.Properties of `shard_path`
+[%collapsible%open]
+========
+
+`state_path`::
+(string) The state-path root, without the index name and the shard ID.
+
+`data_path`::
+(string) The data-path root, without the index name and the shard ID.
+
+`is_custom_data_path`::
+(boolean) Whether the data path is a custom data location and therefore outside of the nodes configured data paths.
+
+========
+
+`search_idle`::
+(boolean) Whether the shard is <<dynamic-index-search-idle-after,search idle>> or not.
+
+`search_idle_time`::
+(integer) Time since previous searcher access.
+Recorded in milliseconds.
+
+=======
 ======
 
 [[cluster-nodes-stats-api-response-body-os]]

@@ -338,6 +338,10 @@ class S3Repository extends MeteredBlobStoreRepository {
         super.finalizeSnapshot(wrappedFinalizeContext);
     }
 
+    /**
+     * Wraps given listener such that it is executed with a delay of {@link #coolDown} on the snapshot thread-pool after being invoked.
+     * See {@link #COOLDOWN_PERIOD} for details.
+     */
     @Override
     protected ActionListener<RepositoryData> wrapWithWeakConsistencyProtection(ActionListener<RepositoryData> listener) {
         final ActionListener<RepositoryData> wrappedListener = ActionListener.runBefore(listener, () -> {

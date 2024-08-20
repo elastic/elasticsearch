@@ -40,10 +40,10 @@ double e()
 "double log(?base:integer|unsigned_long|long|double, number:integer|unsigned_long|long|double)"
 "double log10(number:double|integer|long|unsigned_long)"
 "keyword|text ltrim(string:keyword|text)"
-"boolean|double|integer|long|date|ip max(field:boolean|double|integer|long|date|ip)"
+"boolean|double|integer|long|date|ip|keyword|text|long|version max(field:boolean|double|integer|long|date|ip|keyword|text|long|version)"
 "double median(number:double|integer|long)"
 "double median_absolute_deviation(number:double|integer|long)"
-"boolean|double|integer|long|date|ip min(field:boolean|double|integer|long|date|ip)"
+"boolean|double|integer|long|date|ip|keyword|text|long|version min(field:boolean|double|integer|long|date|ip|keyword|text|long|version)"
 "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_append(field1:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, field2:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version)"
 "double mv_avg(number:double|integer|long|unsigned_long)"
 "keyword mv_concat(string:text|keyword, delim:text|keyword)"
@@ -163,10 +163,10 @@ locate        |[string, substring, start]          |["keyword|text", "keyword|te
 log           |[base, number]                      |["integer|unsigned_long|long|double", "integer|unsigned_long|long|double"]                                                        |["Base of logarithm. If `null`\, the function returns `null`. If not provided\, this function returns the natural logarithm (base e) of a value.", "Numeric expression. If `null`\, the function returns `null`."]
 log10         |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 ltrim         |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
-max           |field                               |"boolean|double|integer|long|date|ip"                                                                                             |[""]
+max           |field                               |"boolean|double|integer|long|date|ip|keyword|text|long|version"                                                                   |[""]
 median        |number                              |"double|integer|long"                                                                                                             |[""]
 median_absolut|number                              |"double|integer|long"                                                                                                             |[""]
-min           |field                               |"boolean|double|integer|long|date|ip"                                                                                             |[""]
+min           |field                               |"boolean|double|integer|long|date|ip|keyword|text|long|version"                                                                   |[""]
 mv_append     |[field1, field2]                    |["boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version", "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"]                 | ["", ""]
 mv_avg        |number                              |"double|integer|long|unsigned_long"                                                                                               |Multivalue expression.
 mv_concat     |[string, delim]                     |["text|keyword", "text|keyword"]                                                                                                  |[Multivalue expression., Delimiter.]
@@ -411,10 +411,10 @@ locate        |integer                                                          
 log           |double                                                                                                                      |[true, false]               |false           |false
 log10         |double                                                                                                                      |false                       |false           |false
 ltrim         |"keyword|text"                                                                                                              |false                       |false           |false
-max           |"boolean|double|integer|long|date|ip"                                                                                       |false                       |false           |true
+max           |"boolean|double|integer|long|date|ip|keyword|text|long|version"                                                             |false                       |false           |true
 median        |double                                                                                                                      |false                       |false           |true
 median_absolut|double                                                                                                                      |false                       |false           |true
-min           |"boolean|double|integer|long|date|ip"                                                                                       |false                       |false           |true
+min           |"boolean|double|integer|long|date|ip|keyword|text|long|version"                                                             |false                       |false           |true
 mv_append     |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"              |[false, false]              |false 		     |false
 mv_avg        |double                                                                                                                      |false                       |false           |false
 mv_concat     |keyword                                                                                                                     |[false, false]              |false           |false

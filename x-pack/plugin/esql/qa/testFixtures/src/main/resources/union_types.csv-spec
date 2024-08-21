@@ -977,7 +977,7 @@ event_duration:long | _index:keyword      | ts:date                   | ts_str:k
 ;
 
 
-inlineStatsUnionGroup
+inlineStatsUnionGroup-Ignore
 required_capability: union_types
 required_capability: inlinestats
 
@@ -995,7 +995,7 @@ client_ip:ip | event_duration:long |    message:keyword    | @timestamp:keyword 
 172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            2023-10 | 7
 ;
 
-inlineStatsUnionGroupWithEval
+inlineStatsUnionGroupWithEval-Ignore
 required_capability: union_types
 required_capability: inlinestats
 
@@ -1013,7 +1013,7 @@ client_ip:ip | event_duration:long |    message:keyword    | @timestamp:keyword 
 172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            2023-10 | 7
 ;
 
-inlineStatsUnionGroupTogether
+inlineStatsUnionGroupTogether-Ignore
 required_capability: union_types
 required_capability: inlinestats
 

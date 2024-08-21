@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,6 +32,13 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public abstract class AbstractAttributeTestCase<T extends Attribute> extends AbstractWireSerializingTestCase<
     AbstractAttributeTestCase.ExtraAttribute> {
+
+    /**
+     * We use a single random config for all serialization because it's pretty
+     * heavy to build, especially in {@link #testConcurrentSerialization()}.
+     */
+    private Configuration config;
+
     protected abstract T create();
 
     protected abstract T mutate(T instance);
@@ -56,7 +64,11 @@ public abstract class AbstractAttributeTestCase<T extends Attribute> extends Abs
 
     @Override
     protected final Writeable.Reader<ExtraAttribute> instanceReader() {
-        return ExtraAttribute::new;
+        return in -> {
+            PlanStreamInput pin = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), config);
+            pin.setTransportVersion(in.getTransportVersion());
+            return new ExtraAttribute(pin);
+        };
     }
 
     /**
@@ -70,10 +82,8 @@ public abstract class AbstractAttributeTestCase<T extends Attribute> extends Abs
             assertThat(a.source(), sameInstance(Source.EMPTY));
         }
 
-        ExtraAttribute(StreamInput in) throws IOException {
-            PlanStreamInput ps = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), randomConfiguration());
-            ps.setTransportVersion(in.getTransportVersion());
-            a = ps.readNamedWriteable(Attribute.class);
+        ExtraAttribute(PlanStreamInput in) throws IOException {
+            a = in.readNamedWriteable(Attribute.class);
         }
 
         @Override

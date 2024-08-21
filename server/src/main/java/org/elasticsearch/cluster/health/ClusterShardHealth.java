@@ -236,7 +236,15 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(shardId, status, activeShards, relocatingShards, initializingShards, unassignedPrimaryShards, unassignedShards,
-                            primaryActive);
+        return Objects.hash(
+            shardId,
+            status,
+            activeShards,
+            relocatingShards,
+            initializingShards,
+            unassignedPrimaryShards,
+            unassignedShards,
+            primaryActive
+        );
     }
 }

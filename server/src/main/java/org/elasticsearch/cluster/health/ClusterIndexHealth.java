@@ -221,7 +221,7 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
         builder.field(ACTIVE_SHARDS, getActiveShards());
         builder.field(RELOCATING_SHARDS, getRelocatingShards());
         builder.field(INITIALIZING_SHARDS, getInitializingShards());
-        builder.field(UNASSIGNED_PRIMARY_SHARDS, getActivePrimaryShards());
+        builder.field(UNASSIGNED_PRIMARY_SHARDS, getUnassignedPrimaryShards());
         builder.field(UNASSIGNED_SHARDS, getUnassignedShards());
 
         ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.INDICES);

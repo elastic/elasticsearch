@@ -133,7 +133,6 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
             }
 
             this.lazyOutput = mergeOutputAttributes(addedFields, child().output());
-            LogManager.getLogger(InlineStats.class).error("ADF DADF {}", lazyOutput, new Exception());
         }
         return lazyOutput;
     }

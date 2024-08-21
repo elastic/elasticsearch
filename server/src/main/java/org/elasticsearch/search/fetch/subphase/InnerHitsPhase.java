@@ -91,17 +91,18 @@ public final class InnerHitsPhase implements FetchSubPhase {
 
             final DocValueFormat[] sortValueFormats = innerHitsContext.sort() == null ? null : innerHitsContext.sort().formats;
             List<RescoreContext> rescore = innerHitsContext.rescore();
-            if (rescore != null) {
+            if (rescore.isEmpty() == false) {
                 assert sortValueFormats == null;
 
                 TopDocs justTopDocs = topDoc.topDocs;
-                for (RescoreContext ctx : rescore) {
-                    justTopDocs = ctx.rescorer().rescore(justTopDocs, innerHitsContext.searcher(), ctx);
-                    // TODO: Assert that top docs are sorted by score
-                }
+                if (justTopDocs.scoreDocs.length > 0) {
+                    for (RescoreContext ctx : rescore) {
+                        justTopDocs = ctx.rescorer().rescore(justTopDocs, innerHitsContext.searcher(), ctx);
+                        // TODO: Assert that top docs are sorted by score
+                    }
 
-                // TODO: Can there ever be no docs to rescore?
-                topDoc = new TopDocsAndMaxScore(justTopDocs, justTopDocs.scoreDocs[0].score);
+                    topDoc = new TopDocsAndMaxScore(justTopDocs, justTopDocs.scoreDocs[0].score);
+                }
             }
 
             innerHitsContext.queryResult().topDocs(topDoc, sortValueFormats);

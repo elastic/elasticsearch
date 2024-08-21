@@ -146,6 +146,7 @@ public final class InnerHitsContext {
             this.rootSource = rootSource;
         }
 
+        @Override
         public List<RescoreContext> rescore() {
             if (rescore == null) {
                 return List.of();
@@ -153,6 +154,7 @@ public final class InnerHitsContext {
             return rescore;
         }
 
+        @Override
         public void addRescore(RescoreContext rescore) {
             if (this.rescore == null) {
                 this.rescore = new ArrayList<>();

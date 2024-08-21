@@ -30,14 +30,14 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
       new IntermediateStateDesc("max", ElementType.BYTES_REF),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
-  private final IpArrayState state;
+  private final MaxIpAggregator.GroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
-  public MaxIpGroupingAggregatorFunction(List<Integer> channels, IpArrayState state,
-      DriverContext driverContext) {
+  public MaxIpGroupingAggregatorFunction(List<Integer> channels,
+      MaxIpAggregator.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -94,7 +94,7 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
   private void addRawInput(int positionOffset, IntVector groups, BytesRefBlock values) {
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
@@ -109,7 +109,7 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
   private void addRawInput(int positionOffset, IntVector groups, BytesRefVector values) {
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       MaxIpAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }
@@ -123,7 +123,7 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         if (values.isNull(groupPosition + positionOffset)) {
           continue;
         }
@@ -145,7 +145,7 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         MaxIpAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
       }
     }
@@ -168,7 +168,7 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
     assert max.getPositionCount() == seen.getPositionCount();
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       MaxIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(groupPosition + positionOffset, scratch), seen.getBoolean(groupPosition + positionOffset));
     }
   }
@@ -178,7 +178,7 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    IpArrayState inState = ((MaxIpGroupingAggregatorFunction) input).state;
+    MaxIpAggregator.GroupingState inState = ((MaxIpGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     MaxIpAggregator.combineStates(state, groupId, inState, position);
   }

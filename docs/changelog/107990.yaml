@@ -1,5 +1,0 @@
-pr: 107990
-summary: Optimise `time_series` aggregation for single value fields
-area: TSDB
-type: enhancement
-issues: []

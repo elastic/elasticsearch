@@ -8,15 +8,14 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.StoredScriptSource;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,15 +45,17 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String id = request.param("id");
-        String context = request.param("context");
-        BytesReference content = request.requiredContent();
-        XContentType xContentType = request.getXContentType();
-        StoredScriptSource source = StoredScriptSource.parse(content, xContentType);
-
-        PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, context, content, request.getXContentType(), source);
-        putRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-        putRequest.ackTimeout(getAckTimeout(request));
-        return channel -> client.admin().cluster().putStoredScript(putRequest, new RestToXContentListener<>(channel));
+        final var content = request.requiredContent();
+        final var xContentType = request.getXContentType();
+        final var putRequest = new PutStoredScriptRequest(
+            getMasterNodeTimeout(request),
+            getAckTimeout(request),
+            request.param("id"),
+            request.param("context"),
+            content,
+            request.getXContentType(),
+            StoredScriptSource.parse(content, xContentType)
+        );
+        return channel -> client.execute(TransportPutStoredScriptAction.TYPE, putRequest, new RestToXContentListener<>(channel));
     }
 }

@@ -1,0 +1,5 @@
+pr: 111285
+summary: "[Bugfix] Add `accessDeclaredMembers` permission to allow search application templates to parse floats"
+area: Relevance
+type: bug
+issues: []

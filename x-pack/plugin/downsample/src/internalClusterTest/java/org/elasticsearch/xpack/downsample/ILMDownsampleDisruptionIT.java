@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
@@ -324,12 +326,11 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
         public void run() {
             listener.disruptionStart();
             try {
-                final String candidateNode = cluster.client(clientNode)
-                    .admin()
-                    .cluster()
-                    .prepareSearchShards(sourceIndex)
-                    .get()
-                    .getNodes()[0].getName();
+                final String candidateNode = safeExecute(
+                    cluster.client(clientNode),
+                    TransportClusterSearchShardsAction.TYPE,
+                    new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, sourceIndex)
+                ).getNodes()[0].getName();
                 logger.info("Candidate node [" + candidateNode + "]");
                 disruption.accept(candidateNode);
                 ensureGreen(sourceIndex);

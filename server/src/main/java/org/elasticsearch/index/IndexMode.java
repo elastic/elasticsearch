@@ -15,6 +15,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentDimensions;
@@ -289,13 +290,18 @@ public enum IndexMode {
         @Override
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
             if (sourceFieldMapper.isSynthetic() == false) {
-                throw new IllegalArgumentException("Indices with with index mode [logs] only support synthetic source");
+                throw new IllegalArgumentException("Indices with with index mode [" + IndexMode.LOGSDB + "] only support synthetic source");
             }
         }
 
         @Override
         public boolean isSyntheticSourceEnabled() {
             return true;
+        }
+
+        @Override
+        public String getDefaultCodec() {
+            return CodecService.BEST_COMPRESSION_CODEC;
         }
     };
 
@@ -465,6 +471,10 @@ public enum IndexMode {
      * @return whether synthetic source is the only allowed source mode.
      */
     public abstract boolean isSyntheticSourceEnabled();
+
+    public String getDefaultCodec() {
+        return CodecService.DEFAULT_CODEC;
+    }
 
     /**
      * Parse a string into an {@link IndexMode}.

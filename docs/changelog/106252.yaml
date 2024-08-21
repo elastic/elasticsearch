@@ -1,6 +1,0 @@
-pr: 106252
-summary: Add min/max range of the `event.ingested` field to cluster state for searchable
-  snapshots
-area: Search
-type: enhancement
-issues: []

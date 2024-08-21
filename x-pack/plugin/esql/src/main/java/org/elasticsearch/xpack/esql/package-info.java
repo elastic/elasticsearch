@@ -99,31 +99,63 @@
  * </ul>
  *
  * <h2>Major Components</h2>
- * <ul>
- * <li>{@link org.elasticsearch.compute} - The compute engine drives query execution
+ *
+ * <h3>Compute Engine</h3>
+ *{@link org.elasticsearch.compute} - The compute engine drives query execution
  * <ul>
  *     <li>{@link org.elasticsearch.compute.data.Block} - fundamental unit of data.  Operations vectorize over blocks.</li>
  *     <li>{@link org.elasticsearch.compute.data.Page} - Data is broken up into pages (which are collections of blocks) to
  *     manage size in memory</li>
  * </ul>
- * </li>
- * <li>{@link org.elasticsearch.xpack.esql.core} - Core Utility Classes
+ *
+ * <h3>Core Classes</h3>
+ * {@link org.elasticsearch.xpack.esql.core} - Core Classes
  * <ul>
+ *     <li>{@link org.elasticsearch.xpack.esql.session.EsqlSession} - Connects all major components and contains the high-level code for
+ *     query execution</li>
  *     <li>{@link org.elasticsearch.xpack.esql.core.type.DataType} - ES|QL is a typed language, and all the supported data types
  *     are listed in this collection.</li>
  *     <li>{@link org.elasticsearch.xpack.esql.core.expression.Expression} - Expression is the basis for all functions in ES|QL,
  *     but see also {@link org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper}</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry} - Resolves function names to
+ *         function implementations.</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.action.RestEsqlQueryAction Sync} and
+ *         {@link org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction async} HTTP API entry points</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.plan.logical.Phased} - Marks a {@link org.elasticsearch.xpack.esql.plan.logical.LogicalPlan}
+ *         node as requiring multiple ESQL executions to run. </li>
  * </ul>
- * </li>
- * <li>{@link org.elasticsearch.xpack.esql.session.EsqlSession} - Manages state across a query</li>
- * <li>{@link org.elasticsearch.xpack.esql.analysis.Analyzer} - The first step in query processing</li>
- * <li>{@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry} - Resolves function names to
- *     function implementations.</li>
- * <li>{@link org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer} - Coordinator level logical optimizations</li>
- * <li>{@link org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer} - Data node level logical optimizations</li>
- * <li>{@link org.elasticsearch.xpack.esql.action.RestEsqlQueryAction Sync} and
- *     {@link org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction async} HTTP API entry points</li>
+ *
+ * <h3>Query Planner</h3>
+ * <p>The query planner encompasses the logic of how to serve a query. Essentially, this covers everything from the output of the Antlr
+ * parser through to the actual computations and lucene operations.</p>
+ * <p>Two key concepts in the planner layer:</p>
+ * <ul>
+ *     <li>Logical vs Physical optimization - Logical optimizations refer to things that can be done strictly based on the structure
+ *     of the query, while Physical optimizations take into account information about the index or indices the query will execute
+ *     against</li>
+ *     <li>Local vs non-local operations - "local" refers to operations happening on the data nodes, while non-local operations generally
+ *     happen on the coordinating node and can apply to all participating nodes in the query</li>
  * </ul>
+ * <h4>Query Planner Steps</h4>
+ * <ul>
+ *     <li>{@link org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder LogicalPlanBuilder} translates from Antlr data structures to our
+ *     data structures</li>
+ *      <li>{@link org.elasticsearch.xpack.esql.analysis.PreAnalyzer PreAnalyzer} finds involved indices</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.analysis.Analyzer Analyzer} resolves references</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.analysis.Verifier Verifier} does type checking</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer LogicalPlanOptimizer} applies many optimizations</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.planner.Mapper Mapper} translates logical plans to phyisical plans</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer PhysicalPlanOptimizer} - decides what plan fragments to
+ *     send to which data nodes</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer LocalLogicalPlanOptimizer} applies index-specific
+ *     optimizations, and reapplies top level logical optimizations</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer LocalPhysicalPlanOptimizer} Lucene push down and
+ *     similar</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner LocalExecutionPlanner} Creates the compute engine objects
+ *     to carry out the query</li>
+ * </ul>
+ *
+ *
  * <h2>Guides</h2>
  * <ul>
  * <li>{@link org.elasticsearch.xpack.esql.expression.function.scalar Writing scalar functions}</li>

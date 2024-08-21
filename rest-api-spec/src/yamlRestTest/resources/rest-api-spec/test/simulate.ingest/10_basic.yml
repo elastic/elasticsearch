@@ -363,6 +363,115 @@ setup:
   - not_exists: docs.1.doc.error
 
 ---
+"Test mapping validation for data streams from templates":
+
+  - skip:
+      features:
+       - headers
+       - allowed_warnings
+
+  - requires:
+      cluster_features: ["simulate.mapping.validation"]
+      reason: "ingest simulate index mapping validation added in 8.16"
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            settings:
+              index.number_of_replicas: 1
+            mappings:
+              dynamic: strict
+              properties:
+                foo:
+                  type: text
+          data_stream: {}
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "simple-data-stream1",
+                "_id": "id",
+                "_source": {
+                  "@timestamp": "2020-12-12",
+                  "foob": "bar"
+                }
+              },
+              {
+                "_index": "simple-data-stream1",
+                "_id": "id",
+                "_source": {
+                  "@timestamp": "2020-12-12",
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._source.foob: "bar" }
+  - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
+  - match: { docs.0.doc.error.reason: "[1:35] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - not_exists: docs.1.doc.error
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "simple-data-stream1",
+                "_id": "id",
+                "_source": {
+                  "@timestamp": "2020-12-12",
+                  "foob": "bar"
+                }
+              },
+              {
+                "_index": "simple-data-stream1",
+                "_id": "id",
+                "_source": {
+                  "@timestamp": "2020-12-12",
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._source.foob: "bar" }
+  - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
+  - match: { docs.0.doc.error.reason: "[1:35] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - not_exists: docs.1.doc.error
+---
 "Test index templates with pipelines":
 
   - skip:

@@ -52,8 +52,6 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
-import org.elasticsearch.xpack.esql.core.CsvSpecReader;
-import org.elasticsearch.xpack.esql.core.SpecReader;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -102,6 +100,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
@@ -111,7 +110,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.cap;
-import static org.elasticsearch.xpack.esql.core.CsvSpecReader.specParser;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -127,7 +125,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * The results used in these files were manually added by running the same query on a real (debug mode) ES node. CsvTestsDataLoader loads
  * the test data helping to get the said results.
  * <p>
- * CsvTestsDataLoader creates an index using the mapping in mapping-default.json. The same mapping file is also used to create the
+ * {@link CsvTestsDataLoader} creates an index using the mapping in mapping-default.json. The same mapping file is also used to create the
  * IndexResolver that helps validate the correctness of the query and the supported field data types.
  * The created index and this class uses the data from employees.csv file as data. This class is creating one Page with Blocks in it using
  * this file and the type of blocks matches the type of the schema specified on the first line of the csv file. These being said, the

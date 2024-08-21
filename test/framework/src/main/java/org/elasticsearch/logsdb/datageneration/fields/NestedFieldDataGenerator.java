@@ -10,17 +10,27 @@ package org.elasticsearch.logsdb.datageneration.fields;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class NestedFieldDataGenerator implements FieldDataGenerator {
     private final Context context;
+    private final Map<String, Object> mappingParameters;
     private final List<GenericSubObjectFieldDataGenerator.ChildField> childFields;
 
     NestedFieldDataGenerator(Context context) {
         this.context = context;
+
+        this.mappingParameters = context.specification()
+            .dataSource()
+            .get(new DataSourceRequest.ObjectMappingParametersGenerator(true))
+            .mappingGenerator()
+            .get();
+
         var genericGenerator = new GenericSubObjectFieldDataGenerator(context);
         this.childFields = genericGenerator.generateChildFields();
     }
@@ -31,6 +41,10 @@ public class NestedFieldDataGenerator implements FieldDataGenerator {
             b.startObject();
 
             b.field("type", "nested");
+
+            for (var entry : mappingParameters.entrySet()) {
+                b.field(entry.getKey(), entry.getValue());
+            }
 
             b.startObject("properties");
             GenericSubObjectFieldDataGenerator.writeChildFieldsMapping(b, childFields);

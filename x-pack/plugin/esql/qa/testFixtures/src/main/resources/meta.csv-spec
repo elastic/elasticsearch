@@ -1,4 +1,5 @@
 metaFunctionsSynopsis#[skip:-8.15.99]
+required_capability: date_nanos_type
 meta functions | keep synopsis;
 
 synopsis:keyword
@@ -8,8 +9,8 @@ synopsis:keyword
 "double atan(number:double|integer|long|unsigned_long)"
 "double atan2(y_coordinate:double|integer|long|unsigned_long, x_coordinate:double|integer|long|unsigned_long)"
 "double avg(number:double|integer|long)"
-"double|date bin(field:integer|long|double|date, buckets:integer|double|date_period|time_duration, ?from:integer|long|double|date, ?to:integer|long|double|date)"
-"double|date bucket(field:integer|long|double|date, buckets:integer|double|date_period|time_duration, ?from:integer|long|double|date, ?to:integer|long|double|date)"
+"double|date bin(field:integer|long|double|date, buckets:integer|long|double|date_period|time_duration, ?from:integer|long|double|date|keyword|text, ?to:integer|long|double|date|keyword|text)"
+"double|date bucket(field:integer|long|double|date, buckets:integer|long|double|date_period|time_duration, ?from:integer|long|double|date|keyword|text, ?to:integer|long|double|date|keyword|text)"
 "boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version case(condition:boolean, trueValue...:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version)"
 "double cbrt(number:double|integer|long|unsigned_long)"
 "double|integer|long|unsigned_long ceil(number:double|integer|long|unsigned_long)"
@@ -39,20 +40,21 @@ double e()
 "double log(?base:integer|unsigned_long|long|double, number:integer|unsigned_long|long|double)"
 "double log10(number:double|integer|long|unsigned_long)"
 "keyword|text ltrim(string:keyword|text)"
-"boolean|double|integer|long|date|ip max(field:boolean|double|integer|long|date|ip)"
+"boolean|double|integer|long|date|ip|keyword|text|long|version max(field:boolean|double|integer|long|date|ip|keyword|text|long|version)"
 "double median(number:double|integer|long)"
 "double median_absolute_deviation(number:double|integer|long)"
-"boolean|double|integer|long|date|ip min(field:boolean|double|integer|long|date|ip)"
+"boolean|double|integer|long|date|ip|keyword|text|long|version min(field:boolean|double|integer|long|date|ip|keyword|text|long|version)"
 "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_append(field1:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, field2:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version)"
 "double mv_avg(number:double|integer|long|unsigned_long)"
 "keyword mv_concat(string:text|keyword, delim:text|keyword)"
-"integer mv_count(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
+"integer mv_count(field:boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
 "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_dedupe(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version)"
-"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version mv_first(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
-"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version mv_last(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
-"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version mv_max(field:boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version)"
+"boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version mv_first(field:boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
+"boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version mv_last(field:boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
+"boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version mv_max(field:boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version)"
 "double|integer|long|unsigned_long mv_median(number:double|integer|long|unsigned_long)"
-"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version mv_min(field:boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version)"
+"boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version mv_min(field:boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version)"
+"double|integer|long mv_percentile(number:double|integer|long, percentile:double|integer|long)"
 "double mv_pseries_weighted_sum(number:double, p:double)"
 "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_slice(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, start:integer, ?end:integer)"
 "boolean|date|double|integer|ip|keyword|long|text|version mv_sort(field:boolean|date|double|integer|ip|keyword|long|text|version, ?order:keyword)"
@@ -91,21 +93,21 @@ double tau()
 "boolean to_boolean(field:boolean|keyword|text|double|long|unsigned_long|integer)"
 "cartesian_point to_cartesianpoint(field:cartesian_point|keyword|text)"
 "cartesian_shape to_cartesianshape(field:cartesian_point|cartesian_shape|keyword|text)"
-"date to_datetime(field:date|keyword|text|double|long|unsigned_long|integer)"
+"date to_datetime(field:date|date_nanos|keyword|text|double|long|unsigned_long|integer)"
 "double to_dbl(field:boolean|date|keyword|text|double|long|unsigned_long|integer|counter_double|counter_integer|counter_long)"
 "double to_degrees(number:double|integer|long|unsigned_long)"
 "double to_double(field:boolean|date|keyword|text|double|long|unsigned_long|integer|counter_double|counter_integer|counter_long)"
-"date to_dt(field:date|keyword|text|double|long|unsigned_long|integer)"
+"date to_dt(field:date|date_nanos|keyword|text|double|long|unsigned_long|integer)"
 "geo_point to_geopoint(field:geo_point|keyword|text)"
 "geo_shape to_geoshape(field:geo_point|geo_shape|keyword|text)"
 "integer to_int(field:boolean|date|keyword|text|double|long|unsigned_long|integer|counter_integer)"
 "integer to_integer(field:boolean|date|keyword|text|double|long|unsigned_long|integer|counter_integer)"
 "ip to_ip(field:ip|keyword|text)"
-"long to_long(field:boolean|date|keyword|text|double|long|unsigned_long|integer|counter_integer|counter_long)"
+"long to_long(field:boolean|date|date_nanos|keyword|text|double|long|unsigned_long|integer|counter_integer|counter_long)"
 "keyword|text to_lower(str:keyword|text)"
 "double to_radians(number:double|integer|long|unsigned_long)"
-"keyword to_str(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
-"keyword to_string(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
+"keyword to_str(field:boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
+"keyword to_string(field:boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
 "unsigned_long to_ul(field:boolean|date|keyword|text|double|long|unsigned_long|integer)"
 "unsigned_long to_ulong(field:boolean|date|keyword|text|double|long|unsigned_long|integer)"
 "unsigned_long to_unsigned_long(field:boolean|date|keyword|text|double|long|unsigned_long|integer)"
@@ -119,6 +121,7 @@ double tau()
 ;
 
 metaFunctionsArgs#[skip:-8.15.99]
+required_capability: date_nanos_type
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, argNames, argTypes, argDescriptions;
@@ -130,8 +133,8 @@ asin          |number                              |"double|integer|long|unsigne
 atan          |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 atan2         |[y_coordinate, x_coordinate]        |["double|integer|long|unsigned_long", "double|integer|long|unsigned_long"]                                                        |[y coordinate. If `null`\, the function returns `null`., x coordinate. If `null`\, the function returns `null`.]
 avg           |number                              |"double|integer|long"                                                                                                             |[""]
-bin           |[field, buckets, from, to]          |["integer|long|double|date", "integer|double|date_period|time_duration", "integer|long|double|date", "integer|long|double|date"]  |[Numeric or date expression from which to derive buckets., Target number of buckets., Start of the range. Can be a number or a date expressed as a string., End of the range. Can be a number or a date expressed as a string.]
-bucket        |[field, buckets, from, to]          |["integer|long|double|date", "integer|double|date_period|time_duration", "integer|long|double|date", "integer|long|double|date"]  |[Numeric or date expression from which to derive buckets., Target number of buckets., Start of the range. Can be a number or a date expressed as a string., End of the range. Can be a number or a date expressed as a string.]
+bin           |[field, buckets, from, to]          |["integer|long|double|date", "integer|long|double|date_period|time_duration", "integer|long|double|date|keyword|text", "integer|long|double|date|keyword|text"]  |[Numeric or date expression from which to derive buckets., Target number of buckets\, or desired bucket size if `from` and `to` parameters are omitted., Start of the range. Can be a number\, a date or a date expressed as a string., End of the range. Can be a number\, a date or a date expressed as a string.]
+bucket        |[field, buckets, from, to]          |["integer|long|double|date", "integer|long|double|date_period|time_duration", "integer|long|double|date|keyword|text", "integer|long|double|date|keyword|text"]  |[Numeric or date expression from which to derive buckets., Target number of buckets\, or desired bucket size if `from` and `to` parameters are omitted., Start of the range. Can be a number\, a date or a date expressed as a string., End of the range. Can be a number\, a date or a date expressed as a string.]
 case          |[condition, trueValue]              |[boolean, "boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version"]                     |[A condition., The value that's returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches.]
 cbrt          |number                              |"double|integer|long|unsigned_long"                                                                                               |"Numeric expression. If `null`, the function returns `null`."
 ceil          |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
@@ -161,20 +164,21 @@ locate        |[string, substring, start]          |["keyword|text", "keyword|te
 log           |[base, number]                      |["integer|unsigned_long|long|double", "integer|unsigned_long|long|double"]                                                        |["Base of logarithm. If `null`\, the function returns `null`. If not provided\, this function returns the natural logarithm (base e) of a value.", "Numeric expression. If `null`\, the function returns `null`."]
 log10         |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 ltrim         |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
-max           |field                               |"boolean|double|integer|long|date|ip"                                                                                             |[""]
+max           |field                               |"boolean|double|integer|long|date|ip|keyword|text|long|version"                                                                   |[""]
 median        |number                              |"double|integer|long"                                                                                                             |[""]
 median_absolut|number                              |"double|integer|long"                                                                                                             |[""]
-min           |field                               |"boolean|double|integer|long|date|ip"                                                                                             |[""]
+min           |field                               |"boolean|double|integer|long|date|ip|keyword|text|long|version"                                                                   |[""]
 mv_append     |[field1, field2]                    |["boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version", "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"]                 | ["", ""]
 mv_avg        |number                              |"double|integer|long|unsigned_long"                                                                                               |Multivalue expression.
 mv_concat     |[string, delim]                     |["text|keyword", "text|keyword"]                                                                                                  |[Multivalue expression., Delimiter.]
-mv_count      |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Multivalue expression.
+mv_count      |field                               |"boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Multivalue expression.
 mv_dedupe     |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"                    |Multivalue expression.
-mv_first      |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Multivalue expression.
-mv_last       |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Multivalue expression.
-mv_max        |field                               |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"                                                          |Multivalue expression.
+mv_first      |field                               |"boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Multivalue expression.
+mv_last       |field                               |"boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Multivalue expression.
+mv_max        |field                               |"boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version"                                               |Multivalue expression.
 mv_median     |number                              |"double|integer|long|unsigned_long"                                                                                               |Multivalue expression.
-mv_min        |field                               |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"                                                          |Multivalue expression.
+mv_min        |field                               |"boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version"                                               |Multivalue expression.
+mv_percentile |[number, percentile]                |["double|integer|long", "double|integer|long"]                                                                                    |[Multivalue expression., The percentile to calculate. Must be a number between 0 and 100. Numbers out of range will return a null instead.]
 mv_pseries_wei|[number, p]                         |[double, double]                                                                                                                  |[Multivalue expression., It is a constant number that represents the 'p' parameter in the P-Series. It impacts every element's contribution to the weighted sum.]
 mv_slice      |[field, start, end]                 |["boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version", integer, integer]|[Multivalue expression. If `null`\, the function returns `null`., Start position. If `null`\, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list., End position(included). Optional; if omitted\, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list.]
 mv_sort       |[field, order]                      |["boolean|date|double|integer|ip|keyword|long|text|version", keyword]                                                             |[Multivalue expression. If `null`\, the function returns `null`., Sort order. The valid options are ASC and DESC\, the default is ASC.]
@@ -213,21 +217,21 @@ to_bool       |field                               |"boolean|keyword|text|double
 to_boolean    |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
 to_cartesianpo|field                               |"cartesian_point|keyword|text"                                                                                                    |Input value. The input can be a single- or multi-valued column or an expression.
 to_cartesiansh|field                               |"cartesian_point|cartesian_shape|keyword|text"                                                                                    |Input value. The input can be a single- or multi-valued column or an expression.
-to_datetime   |field                               |"date|keyword|text|double|long|unsigned_long|integer"                                                                             |Input value. The input can be a single- or multi-valued column or an expression.
+to_datetime   |field                               |"date|date_nanos|keyword|text|double|long|unsigned_long|integer"                                                                             |Input value. The input can be a single- or multi-valued column or an expression.
 to_dbl        |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer|counter_double|counter_integer|counter_long"                         |Input value. The input can be a single- or multi-valued column or an expression.
 to_degrees    |number                              |"double|integer|long|unsigned_long"                                                                                               |Input value. The input can be a single- or multi-valued column or an expression.
 to_double     |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer|counter_double|counter_integer|counter_long"                         |Input value. The input can be a single- or multi-valued column or an expression.
-to_dt         |field                               |"date|keyword|text|double|long|unsigned_long|integer"                                                                             |Input value. The input can be a single- or multi-valued column or an expression.
+to_dt         |field                               |"date|date_nanos|keyword|text|double|long|unsigned_long|integer"                                                                             |Input value. The input can be a single- or multi-valued column or an expression.
 to_geopoint   |field                               |"geo_point|keyword|text"                                                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
 to_geoshape   |field                               |"geo_point|geo_shape|keyword|text"                                                                                                |Input value. The input can be a single- or multi-valued column or an expression.
 to_int        |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer|counter_integer"                                                     |Input value. The input can be a single- or multi-valued column or an expression.
 to_integer    |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer|counter_integer"                                                     |Input value. The input can be a single- or multi-valued column or an expression.
 to_ip         |field                               |"ip|keyword|text"                                                                                                                 |Input value. The input can be a single- or multi-valued column or an expression.
-to_long       |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer|counter_integer|counter_long"                                        |Input value. The input can be a single- or multi-valued column or an expression.
+to_long       |field                               |"boolean|date|date_nanos|keyword|text|double|long|unsigned_long|integer|counter_integer|counter_long"                                        |Input value. The input can be a single- or multi-valued column or an expression.
 to_lower      |str                                 |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 to_radians    |number                              |"double|integer|long|unsigned_long"                                                                                               |Input value. The input can be a single- or multi-valued column or an expression.
-to_str        |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Input value. The input can be a single- or multi-valued column or an expression.
-to_string     |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Input value. The input can be a single- or multi-valued column or an expression.
+to_str        |field                               |"boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Input value. The input can be a single- or multi-valued column or an expression.
+to_string     |field                               |"boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Input value. The input can be a single- or multi-valued column or an expression.
 to_ul         |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
 to_ulong      |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
 to_unsigned_lo|field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
@@ -298,6 +302,7 @@ mv_last       |Converts a multivalue expression into a single valued column cont
 mv_max        |Converts a multivalued expression into a single valued column containing the maximum value.
 mv_median     |Converts a multivalued field into a single valued field containing the median value.
 mv_min        |Converts a multivalued expression into a single valued column containing the minimum value.
+mv_percentile |Converts a multivalued field into a single valued field containing the value at which a certain percentage of observed values occur.
 mv_pseries_wei|Converts a multivalued expression into a single-valued column by multiplying every element on the input list by its corresponding term in P-Series and computing the sum.
 mv_slice      |Returns a subset of the multivalued field using the start and end index values.
 mv_sort       |Sorts a multivalued field in lexicographical order.
@@ -364,6 +369,7 @@ weighted_avg  |The weighted average of a numeric expression.
 ;
 
 metaFunctionsRemaining#[skip:-8.15.99]
+required_capability: date_nanos_type
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, *
@@ -408,20 +414,21 @@ locate        |integer                                                          
 log           |double                                                                                                                      |[true, false]               |false           |false
 log10         |double                                                                                                                      |false                       |false           |false
 ltrim         |"keyword|text"                                                                                                              |false                       |false           |false
-max           |"boolean|double|integer|long|date|ip"                                                                                       |false                       |false           |true
+max           |"boolean|double|integer|long|date|ip|keyword|text|long|version"                                                             |false                       |false           |true
 median        |double                                                                                                                      |false                       |false           |true
 median_absolut|double                                                                                                                      |false                       |false           |true
-min           |"boolean|double|integer|long|date|ip"                                                                                       |false                       |false           |true
+min           |"boolean|double|integer|long|date|ip|keyword|text|long|version"                                                             |false                       |false           |true
 mv_append     |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"              |[false, false]              |false 		     |false
 mv_avg        |double                                                                                                                      |false                       |false           |false
 mv_concat     |keyword                                                                                                                     |[false, false]              |false           |false
 mv_count      |integer                                                                                                                     |false                       |false           |false
 mv_dedupe     |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"              |false                       |false           |false
-mv_first      |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"|false                       |false           |false
-mv_last       |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"|false                       |false           |false
-mv_max        |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"                                                    |false                       |false           |false
+mv_first      |"boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"|false                       |false           |false
+mv_last       |"boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"|false                       |false           |false
+mv_max        |"boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version"                                         |false                       |false           |false
 mv_median     |"double|integer|long|unsigned_long"                                                                                         |false                       |false           |false
-mv_min        |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"                                                    |false                       |false           |false
+mv_min        |"boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version"                                         |false                       |false           |false
+mv_percentile |"double|integer|long"                                                                                                       |[false, false]              |false           |false
 mv_pseries_wei|"double"                                                                                                                    |[false, false]              |false           |false 
 mv_slice      |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"              |[false, false, true]        |false           |false
 mv_sort       |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |[false, true]               |false           |false
@@ -501,5 +508,5 @@ countFunctions#[skip:-8.15.99]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-114    | 114    | 114
+115    | 115    | 115
 ;

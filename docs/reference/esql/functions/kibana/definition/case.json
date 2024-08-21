@@ -50,13 +50,13 @@
         },
         {
           "name" : "trueValue",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "The value that's returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [

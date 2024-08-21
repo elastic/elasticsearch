@@ -54,6 +54,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
@@ -80,6 +82,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -825,7 +828,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         assertThat(searchingThread.isAlive(), is(false));
     }
 
-    public void testPreferredNodeIdsAreUsedDuringRelocation() {
+    public void testPreferredNodeIdsAreUsedDuringRelocation() throws Exception {
         startMasterOnlyNode();
 
         int maxNonUploadedCommits = randomIntBetween(1, 4);
@@ -892,6 +895,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         logger.info("--> add more docs so that the refresh produces a new commit");
         indexDocs(indexName, scaledRandomIntBetween(100, 1_000));
 
+        final Queue<CheckedRunnable<Exception>> delayedActions = ConcurrentCollections.newQueue();
         // check that the source indexing shard sent a new commit notification with the correct generation and node id
         final var sourceNotificationReceived = new CountDownLatch(1);
         MockTransportService.getInstance(searchNode)
@@ -901,9 +905,16 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
 
                 if (notification.getGeneration() == beforeGeneration) {
                     assertThat(notification.getNodeId(), equalTo(getNodeId(indexNodeSource)));
-                    sourceNotificationReceived.countDown();
+                    // Delayed the uploaded notification to ensure fetching from the indexing node
+                    if (notification.isUploaded()) {
+                        delayedActions.add(() -> handler.messageReceived(request, channel, task));
+                    } else {
+                        sourceNotificationReceived.countDown();
+                        handler.messageReceived(request, channel, task);
+                    }
+                } else {
+                    handler.messageReceived(request, channel, task);
                 }
-                handler.messageReceived(request, channel, task);
             });
 
         // check that the source indexing shard receives at least one GetVirtualBatchedCompoundCommitChunkRequest
@@ -940,9 +951,16 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
                         notification.getNodeId(),
                         equalTo(getNodeId(indexNodeTarget))
                     );
-                    targetNotificationReceived.countDown();
+                    // Delayed the uploaded notification to ensure fetching from the indexing node
+                    if (notification.isUploaded()) {
+                        delayedActions.add(() -> handler.messageReceived(request, channel, task));
+                    } else {
+                        targetNotificationReceived.countDown();
+                        handler.messageReceived(request, channel, task);
+                    }
+                } else {
+                    handler.messageReceived(request, channel, task);
                 }
-                handler.messageReceived(request, channel, task);
             });
 
         // check that the target indexing shard receives at least one GetVirtualBatchedCompoundCommitChunkRequest
@@ -973,6 +991,9 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         safeAwait(targetGetChunkRequestReceived);
         assertThat(refreshFuture.actionGet().getFailedShards(), equalTo(0));
 
+        for (CheckedRunnable<Exception> delayedAction : delayedActions) {
+            delayedAction.run();
+        }
         // also waits for no relocating shards.
         ensureGreen(indexName);
     }

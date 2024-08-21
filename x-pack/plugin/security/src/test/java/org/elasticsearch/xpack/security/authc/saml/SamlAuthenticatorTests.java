@@ -647,28 +647,16 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     public void testSigningWhenIdpHasMultipleKeys() throws Exception {
-//        final int numberOfKeys = scaledRandomIntBetween(2, 6);
-        final int numberOfKeys = 2;
+        final int numberOfKeys = scaledRandomIntBetween(2, 6);
         final List<Tuple<X509Certificate, PrivateKey>> keys = new ArrayList<>(numberOfKeys);
         final List<Credential> credentials = new ArrayList<>(numberOfKeys);
-//        for (int i = 0; i < numberOfKeys; i++) {
-//            final Tuple<X509Certificate, PrivateKey> key = readRandomKeyPair("EC");
-//            keys.add(key);
-//            credentials.addAll(buildOpenSamlCredential(key));
-//        }
-        {
-            Tuple<X509Certificate, PrivateKey> key = readRandomKeyPair("EC");
-            keys.add(key);
-            credentials.addAll(buildOpenSamlCredential(key));
-        }
-        {
-            Tuple<X509Certificate, PrivateKey> key = readRandomKeyPair("RSA");
+        for (int i = 0; i < numberOfKeys; i++) {
+            final Tuple<X509Certificate, PrivateKey> key = readRandomKeyPair("EC");
             keys.add(key);
             credentials.addAll(buildOpenSamlCredential(key));
         }
         this.authenticator = buildAuthenticator(() -> credentials, emptyList());
-//        final CryptoTransform signer = randomBoolean() ? this::signResponse : this::signAssertions;
-        final CryptoTransform signer = this::signResponse;
+        final CryptoTransform signer = randomBoolean() ? this::signResponse : this::signAssertions;
         final String xml = getSimpleResponseAsString(Instant.now());
 
         // check that the content is valid when signed by the each of the key-pairs

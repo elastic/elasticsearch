@@ -1043,8 +1043,8 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 assertThat(innerHits.getTotalHits().value, equalTo(2L));
                 assertThat(innerHits.getHits().length, equalTo(2));
                 assertThat(innerHits.getMaxScore(), equalTo(innerHits.getAt(0).getScore()));
-                assertThat(innerHits.getAt(0).docId(), equalTo(1));
-                assertThat(innerHits.getAt(1).docId(), equalTo(0));
+                assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(1));
+                assertThat(innerHits.getAt(1).getNestedIdentity().getOffset(), equalTo(0));
             }
         );
     }

@@ -1735,46 +1735,43 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void close(String reason, boolean flushEngine, Executor closeExecutor, ActionListener<Void> closeListener) throws IOException {
         engineMutex.lock();
         try {
-            try {
-                synchronized (mutex) {
-                    changeState(IndexShardState.CLOSED, reason);
-                }
-                checkAndCallWaitForEngineOrClosedShardListeners();
-            } finally {
-                final Engine engine = this.currentEngineReference.getAndSet(null);
-                closeExecutor.execute(new AbstractRunnable() {
-
-                    protected void doRun() throws Exception {
-                        var cleanUpAndClose = ActionListener.runBefore(closeListener, () -> {
-                            // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                            // Also closing refreshListeners to prevent us from accumulating any more listeners
-                            IOUtils.close(() -> {
-                                engineMutex.lock();
-                                Engine.close(
-                                    engine,
-                                    ActionListener.wrap(unused -> engineMutex.unlock(), e -> logger.warn("Unable to close engine", e))
-                                );
-                            }, globalCheckpointListeners, refreshListeners, pendingReplicationActions, indexShardOperationPermits);
-                        });
-                        if (engine != null && flushEngine) {
-                            engine.flushAndClose(cleanUpAndClose);
-                        } else {
-                            cleanUpAndClose.onResponse(null);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        closeListener.onFailure(e);
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "IndexShard#close[" + shardId + "]";
-                    }
-                });
+            synchronized (mutex) {
+                changeState(IndexShardState.CLOSED, reason);
             }
+            checkAndCallWaitForEngineOrClosedShardListeners();
         } finally {
+            final Engine engine = this.currentEngineReference.getAndSet(null);
+            closeExecutor.execute(new AbstractRunnable() {
+
+                protected void doRun() throws Exception {
+                    var cleanUpAndClose = ActionListener.runBefore(closeListener, () -> {
+                        // playing safe here and close the engine even if the above succeeds - close can be called multiple times
+                        // Also closing refreshListeners to prevent us from accumulating any more listeners
+                        IOUtils.close(
+                            () -> Engine.close(engine, ActionListener.wrap(unused -> {}, e -> logger.warn("Unable to close engine", e))),
+                            globalCheckpointListeners,
+                            refreshListeners,
+                            pendingReplicationActions,
+                            indexShardOperationPermits
+                        );
+                    });
+                    if (engine != null && flushEngine) {
+                        engine.flushAndClose(cleanUpAndClose);
+                    } else {
+                        cleanUpAndClose.onResponse(null);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    closeListener.onFailure(e);
+                }
+
+                @Override
+                public String toString() {
+                    return "IndexShard#close[" + shardId + "]";
+                }
+            });
             engineMutex.unlock();
         }
     }

@@ -2,7 +2,7 @@
 "Metrics object indexing":
   - requires:
       test_runner_features: allowed_warnings_regex
-      cluster_features: ["gte_v8.3.0", "mapper.subobjects_auto"]
+      cluster_features: ["mapper.subobjects_auto"]
       reason: requires supporting subobjects auto setting
 
   - do:
@@ -66,7 +66,7 @@
 "Root with metrics":
   - requires:
       test_runner_features: allowed_warnings_regex
-      cluster_features: ["gte_v8.3.0", "mapper.subobjects_auto"]
+      cluster_features: ["mapper.subobjects_auto"]
       reason: requires supporting subobjects auto setting
 
   - do:
@@ -125,7 +125,7 @@
 "Metrics object indexing with synthetic source":
   - requires:
       test_runner_features: allowed_warnings_regex
-      cluster_features: ["gte_v8.4.0", "mapper.subobjects_auto"]
+      cluster_features: ["mapper.subobjects_auto"]
       reason: added in 8.4.0
 
   - do:
@@ -192,7 +192,7 @@
 "Root without subobjects with synthetic source":
   - requires:
       test_runner_features: allowed_warnings_regex
-      cluster_features: ["gte_v8.4.0", "mapper.subobjects_auto"]
+      cluster_features: ["mapper.subobjects_auto"]
       reason: added in 8.4.0
 
   - do:

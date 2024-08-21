@@ -70,6 +70,8 @@ public class RestHealthAction extends AbstractCatAction {
         t.addCell("pri", "alias:p,shards.primary,shardsPrimary;text-align:right;desc:number of primary shards");
         t.addCell("relo", "alias:r,shards.relocating,shardsRelocating;text-align:right;desc:number of relocating nodes");
         t.addCell("init", "alias:i,shards.initializing,shardsInitializing;text-align:right;desc:number of initializing nodes");
+        t.addCell("unassign.primary",
+                  "alias:up,shards.unassigned.primary,shardsUnassignedPrimary;text-align:right;desc:number of unassigned primary shards");
         t.addCell("unassign", "alias:u,shards.unassigned,shardsUnassigned;text-align:right;desc:number of unassigned shards");
         t.addCell("pending_tasks", "alias:pt,pendingTasks;text-align:right;desc:number of pending tasks");
         t.addCell("max_task_wait_time", "alias:mtwt,maxTaskWaitTime;text-align:right;desc:wait time of longest task pending");
@@ -90,6 +92,7 @@ public class RestHealthAction extends AbstractCatAction {
         t.addCell(health.getActivePrimaryShards());
         t.addCell(health.getRelocatingShards());
         t.addCell(health.getInitializingShards());
+        t.addCell(health.getUnassignedPrimaryShards());
         t.addCell(health.getUnassignedShards());
         t.addCell(health.getNumberOfPendingTasks());
         t.addCell(health.getTaskMaxWaitingTime().millis() == 0 ? "-" : health.getTaskMaxWaitingTime());

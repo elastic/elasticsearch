@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction.Request;
-import org.elasticsearch.xpack.ml.packageloader.MachineLearningPackageLoader;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -103,8 +102,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
 
             var downloadCompleteListener = request.isWaitForCompletion() ? listener : ActionListener.<AcknowledgedResponse>noop();
 
-            threadPool.executor(MachineLearningPackageLoader.MODEL_DOWNLOAD_THREADPOOL_NAME)
-                .execute(() -> importModel(client, taskManager, request, modelImporter, downloadCompleteListener, downloadTask));
+            importModel(client, taskManager, request, modelImporter, downloadCompleteListener, downloadTask);
         } catch (Exception e) {
             taskManager.unregister(downloadTask);
             listener.onFailure(e);

@@ -89,13 +89,14 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
         return List.of(modelDownloadExecutor(settings));
     }
 
-    public static ExecutorBuilder<?> modelDownloadExecutor(Settings settings) {
-        // Threadpool with a fixed size of 1 thread
+    public static FixedExecutorBuilder modelDownloadExecutor(Settings settings) {
+        // Threadpool with a fixed size of 1 thread for
+        // downloading the model definition files
         return new FixedExecutorBuilder(
             settings,
             MODEL_DOWNLOAD_THREADPOOL_NAME,
-            1,
-            10,
+            1,  // 1 thread
+            10, // max items in queue
             "xpack.ml.model_download_thread_pool",
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );

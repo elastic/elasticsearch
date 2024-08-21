@@ -70,7 +70,7 @@ final class ModelLoaderUtils {
         private final int chunkSize;
         private final int totalParts;
         private final AtomicLong totalBytesRead = new AtomicLong();
-        private final AtomicInteger currentPart = new AtomicInteger(-1);
+        private final AtomicInteger currentPart = new AtomicInteger();
 
         InputStreamChunker(InputStream inputStream, int chunkSize, int totalParts) {
             this.inputStream = inputStream;
@@ -78,8 +78,11 @@ final class ModelLoaderUtils {
             this.totalParts = totalParts;
         }
 
+        public boolean hasNext() {
+            return false;
+        }
+
         public BytesArray next() throws IOException {
-            currentPart.incrementAndGet();
 
             int bytesRead = 0;
             byte[] buf = new byte[chunkSize];
@@ -92,14 +95,15 @@ final class ModelLoaderUtils {
                 }
                 bytesRead += read;
             }
-            digestSha256.update(buf, 0, bytesRead);
-            totalBytesRead.addAndGet(bytesRead);
 
-            return new BytesArray(buf, 0, bytesRead);
-        }
-
-        public boolean isFinalPart() {
-            return currentPart.get() == totalParts - 1;
+            if (bytesRead > 0) {
+                digestSha256.update(buf, 0, bytesRead);
+                totalBytesRead.addAndGet(bytesRead);
+                currentPart.incrementAndGet();
+                return new BytesArray(buf, 0, bytesRead);
+            } else {
+                return BytesArray.EMPTY;
+            }
         }
 
         public String getSha256() {
@@ -192,7 +196,7 @@ final class ModelLoaderUtils {
 
     @SuppressWarnings("'java.lang.SecurityManager' is deprecated and marked for removal ")
     @SuppressForbidden(reason = "we need socket connection to download")
-    private static InputStream getHttpOrHttpsInputStream(URI uri) throws IOException {
+    private static InputStream getHttpOrHttpsInputStream(URI uri) {
 
         assert uri.getUserInfo() == null : "URI's with credentials are not supported";
 

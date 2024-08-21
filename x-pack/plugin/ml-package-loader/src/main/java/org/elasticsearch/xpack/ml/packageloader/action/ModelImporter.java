@@ -28,11 +28,21 @@ import java.io.InputStream;
 import java.net.URI;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * A helper class for abstracting out the use of the ModelLoaderUtils to make dependency injection testing easier.
+ * For downloading the model vocabulary and definition file and
+ * indexing those files in Elasticsearch.
+ * Holding the large model definition file in memory will consume
+ * too much memory, instead it is streamed in chunks and each chunk
+ * written to the index in a non-blocking request. The number of
+ * index requests is limited to {@link #MAX_IN_FLIGHT_REQUESTS}
+ * also to prevent too much memory being used.
+ * Only 1 thread can read the model definition stream at a time,
+ * this is ensured by using a fixed size threadpool with a single
+ * thread.
  */
 class ModelImporter {
     private static final int DEFAULT_CHUNK_SIZE = 1024 * 1024; // 1MB
@@ -43,6 +53,7 @@ class ModelImporter {
     private final ModelPackageConfig config;
     private final ModelDownloadTask task;
     private final ExecutorService executorService;
+    private final AtomicBoolean listenerIsClosed = new AtomicBoolean(false);
 
     ModelImporter(Client client, String modelId, ModelPackageConfig packageConfig, ModelDownloadTask task, ThreadPool threadPool) {
         this.client = client;
@@ -52,7 +63,17 @@ class ModelImporter {
         this.executorService = threadPool.executor(MachineLearningPackageLoader.MODEL_DOWNLOAD_THREADPOOL_NAME);
     }
 
-    public void doImport(ActionListener<AcknowledgedResponse> finalListener) {
+    public void doImport(ActionListener<AcknowledgedResponse> listener) {
+        executorService.execute(() -> doImportInternal(listener));
+    }
+
+    private void doImportInternal(ActionListener<AcknowledgedResponse> finalListener) {
+        assert ThreadPool.assertCurrentThreadPool(MachineLearningPackageLoader.MODEL_DOWNLOAD_THREADPOOL_NAME)
+            : format(
+                "Model download must execute from [%s] but thread is [%s]",
+                MachineLearningPackageLoader.MODEL_DOWNLOAD_THREADPOOL_NAME,
+                Thread.currentThread().getName()
+            );
 
         long size = config.getSize();
         // simple round up
@@ -98,36 +119,33 @@ class ModelImporter {
         // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
         // download is complete
         if (vocabularyParts != null) {
-            uploadVocabulary(
-                vocabularyParts,
-                countingListener.acquire(
-                    r -> { logger.debug(() -> format("[%s] imported model vocabulary [%s]", modelId, config.getVocabularyFile())); }
-                )
-            );
+            uploadVocabulary(vocabularyParts, countingListener.acquire(r -> {
+                logger.debug(() -> format("[%s] imported model vocabulary [%s]", modelId, config.getVocabularyFile()));
+            }));
         }
 
         for (int part = 0; part < MAX_IN_FLIGHT_REQUESTS; ++part) {
             doNextPart(size, chunkIterator, countingListener);
         }
-
     }
 
-    public void doNextPart(long size, ModelLoaderUtils.InputStreamChunker chunkIterator, RefCountingListener countingListener) {
+    private void doNextPart(long size, ModelLoaderUtils.InputStreamChunker chunkIterator, RefCountingListener countingListener) {
         assert ThreadPool.assertCurrentThreadPool(MachineLearningPackageLoader.MODEL_DOWNLOAD_THREADPOOL_NAME)
             : format(
-            "Model download must execute from [%s] but thread is [%s]",
-            MachineLearningPackageLoader.MODEL_DOWNLOAD_THREADPOOL_NAME,
-            Thread.currentThread().getName()
-        );
+                "Model download must execute from [%s] but thread is [%s]",
+                MachineLearningPackageLoader.MODEL_DOWNLOAD_THREADPOOL_NAME,
+                Thread.currentThread().getName()
+            );
 
         if (countingListener.isFailing()) {
-            countingListener.close();
+            if (listenerIsClosed.compareAndSet(false, true)) {
+                countingListener.close();
+            }
             return;
         }
 
         task.setProgress(chunkIterator.getTotalParts(), chunkIterator.getCurrentPart().get());
         try {
-            logger.info("doing next part " + chunkIterator.getCurrentPart().get() + ", " + chunkIterator.getTotalParts());
             BytesArray definition = chunkIterator.next();
 
             if (task.isCancelled()) {
@@ -135,28 +153,26 @@ class ModelImporter {
             }
 
             if (definition.length() == 0) {
-                // done
+                // download complete
+                if (listenerIsClosed.compareAndSet(false, true)) {
+                    countingListener.close();
+                }
                 return;
             }
 
-            boolean lastPart = chunkIterator.isFinalPart();
-
-            uploadPart(
-                chunkIterator.getCurrentPart().get(),
-                chunkIterator.getTotalParts(),
-                size,
-                definition,
-                countingListener.acquire(r -> {
-                    if (lastPart) {
-                        countingListener.close();
-                    } else {
-                        executorService.execute(() -> doNextPart(size, chunkIterator, countingListener));
-                    }
-                })
-            );
+            // Index the downloaded chunk and schedule the next download once
+            // the chunk is written.
+            // The key thing here is that the threadpool only has a single
+            // thread preventing concurrent access to the model stream while
+            // allowing multiple index requests to be in flight.
+            indexPart(chunkIterator.getCurrentPart().get(), chunkIterator.getTotalParts(), size, definition, countingListener.acquire(r -> {
+                executorService.execute(() -> doNextPart(size, chunkIterator, countingListener));
+            }));
         } catch (Exception e) {
             countingListener.acquire().onFailure(e);
-            countingListener.close();
+            if (listenerIsClosed.compareAndSet(false, true)) {
+                countingListener.close();
+            }
         }
     }
 
@@ -172,13 +188,7 @@ class ModelImporter {
         client.execute(PutTrainedModelVocabularyAction.INSTANCE, request, listener);
     }
 
-    private void uploadPart(
-        int partIndex,
-        int totalParts,
-        long totalSize,
-        BytesArray bytes,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
+    private void indexPart(int partIndex, int totalParts, long totalSize, BytesArray bytes, ActionListener<AcknowledgedResponse> listener) {
         PutTrainedModelDefinitionPartAction.Request modelPartRequest = new PutTrainedModelDefinitionPartAction.Request(
             modelId,
             bytes,

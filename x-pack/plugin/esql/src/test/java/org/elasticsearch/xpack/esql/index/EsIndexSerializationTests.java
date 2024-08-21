@@ -160,7 +160,12 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflicts() throws IOException {
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(976591));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(991027));
+        /*
+         * History:
+         *  953.7kb - shorten error messages for UnsupportedAttributes #111973
+         *  967.7kb - cache EsFields #112008 (little overhead of the cache)
+         */
     }
 
     /**
@@ -168,11 +173,12 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflictsWithParent() throws IOException {
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1921374));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1374498));
         /*
          * History:
          * 16.9mb - start
          *  1.8mb - shorten error messages for UnsupportedAttributes #111973
+         *  1.3mb - cache EsFields #112008
          */
     }
 
@@ -194,8 +200,8 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      * </p>
      */
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            indexWithManyConflicts(withParent).writeTo(out);
+        try (BytesStreamOutput out = new BytesStreamOutput(); var pso = new PlanStreamOutput(out, new PlanNameRegistry(), null)) {
+            indexWithManyConflicts(withParent).writeTo(pso);
             assertThat(ByteSizeValue.ofBytes(out.bytes().length()), byteSizeEquals(expected));
         }
     }

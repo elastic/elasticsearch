@@ -45,7 +45,11 @@ import java.util.stream.IntStream;
 
 public class IngestMetricsService implements ClusterStateListener {
 
-    // Ingest load samples older than this value will be considered not exact ingest loads.
+    /**
+     * Ingest load samples older than this value will be considered not exact ingest loads.
+     * The default (35s) is based on {@link IngestLoadSampler#MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING} plus some
+     * delay for receiving the updates.
+     */
     public static final Setting<TimeValue> ACCURATE_LOAD_WINDOW = Setting.timeSetting(
         "serverless.autoscaling.ingest_metrics.accurate_load_window",
         TimeValue.timeValueSeconds(35),

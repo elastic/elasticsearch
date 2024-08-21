@@ -18,10 +18,6 @@ final class BooleanState implements AggregatorState {
     private boolean value;
     private boolean seen;
 
-    BooleanState() {
-        this(false);
-    }
-
     BooleanState(boolean init) {
         this.value = init;
     }

@@ -14,13 +14,13 @@
         },
         {
           "name" : "date",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Date expression"
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -32,13 +32,13 @@
         },
         {
           "name" : "date",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Date expression"
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     }
   ],
   "examples" : [

@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -262,10 +261,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
             int cacheId = Math.toIntExact(readZLong());
             if (cacheId < 0) {
                 String className = readString();
-                // TODO clean up when we move MultiTypeEsField in the same module as the other fields
-                EsField.WriteableInfo writeable = className.equals(MultiTypeEsField.ENTRY.name())
-                    ? MultiTypeEsField.ENTRY
-                    : EsField.getWriteableInfo(className);
+                EsField.WriteableInfo writeable = EsField.getWriteableInfo(className);
                 cacheId = -1 - cacheId;
                 EsField result = writeable.reader().read(this);
                 cacheEsField(cacheId, result);
@@ -275,8 +271,8 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
             }
         } else {
             String className = readString();
-            EsField.WriteableInfo writeable = EsField.getWriteableInfo(className);
-            return (A) writeable.reader().read(this);
+            EsField.WriteableInfo writeableInfo = EsField.getWriteableInfo(className);
+            return (A) writeableInfo.reader().read(this);
         }
     }
 

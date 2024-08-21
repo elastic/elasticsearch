@@ -38,6 +38,7 @@ public class EsField implements Writeable {
             DateEsField.ENTRY,
             InvalidMappedField.ENTRY,
             KeywordEsField.ENTRY,
+            MultiTypeEsField.ENTRY,
             TextEsField.ENTRY,
             UnsupportedEsField.ENTRY
         );

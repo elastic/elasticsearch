@@ -36,7 +36,7 @@ public class UnsupportedEsField extends EsField {
         this.inherited = inherited;
     }
 
-    public UnsupportedEsField(StreamInput in) throws IOException {
+    private UnsupportedEsField(StreamInput in) throws IOException {
         this(in.readString(), in.readString(), in.readOptionalString(), in.readImmutableMap(i -> ((PlanStreamInput) i).readEsField()));
     }
 

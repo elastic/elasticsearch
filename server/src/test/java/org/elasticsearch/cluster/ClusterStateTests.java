@@ -23,9 +23,12 @@ import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataTests;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -74,6 +77,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ClusterStateTests extends ESTestCase {
 
@@ -132,6 +136,108 @@ public class ClusterStateTests extends ESTestCase {
 
         assertThat(copy, not(sameInstance(state)));
         assertThat(copy.metadata().clusterUUID(), equalTo(newClusterUuid));
+    }
+
+    public void testToStringWithMultipleProjects() throws IOException {
+        final DiscoveryNode node1 = DiscoveryNodeUtils.create("node01");
+        final DiscoveryNode node2 = DiscoveryNodeUtils.create("node02");
+        final DiscoveryNode node3 = DiscoveryNodeUtils.create("node03");
+
+        final Metadata metadata = Metadata.builder()
+            .clusterUUID("N8nJxElHSP23swO0bPLOcQ")
+            .clusterUUIDCommitted(true)
+            .version(86L)
+            .coordinationMetadata(
+                CoordinationMetadata.builder()
+                    .term(22)
+                    .lastCommittedConfiguration(CoordinationMetadata.VotingConfiguration.of(node1, node2))
+                    .build()
+            )
+            .put(
+                ProjectMetadata.builder(new ProjectId("3LftaL7hgfXAsF60Gm6jcD"))
+                    .put(
+                        IndexMetadata.builder("common-index")
+                            .settings(
+                                indexSettings(IndexVersion.current(), 1, 2).put(IndexMetadata.SETTING_INDEX_UUID, "dyQMAHOKifstVZeq1fbe2g")
+                            )
+                    )
+                    .put(
+                        IndexMetadata.builder("another-index")
+                            .settings(
+                                indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, "3BgcDKea85VWlp4Tr514s6")
+                            )
+                    )
+            )
+            .put(
+                ProjectMetadata.builder(new ProjectId("tb5W0bx765nDVIwqJPw92G"))
+                    .put(
+                        IndexMetadata.builder("common-index")
+                            .settings(
+                                indexSettings(IndexVersion.current(), 3, 1).put(IndexMetadata.SETTING_INDEX_UUID, "tE62Ga40yvlmOSujUvruVw")
+                            )
+                    )
+            )
+            .put(ProjectMetadata.builder(new ProjectId("WHyuJ0uqBYOPgHX9kYUXlZ")))
+            .build();
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
+            .stateUUID("dIP3KIhRQPux2CgaDWgTMA")
+            .version(404)
+            .metadata(metadata)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3).build())
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .build();
+
+        final String toString = clusterState.toString();
+        assertThat(toString, startsWith("""
+            cluster uuid: N8nJxElHSP23swO0bPLOcQ [committed: true]
+            version: 404
+            state uuid: dIP3KIhRQPux2CgaDWgTMA
+            from_diff: false
+            meta data version: 86
+               coordination_metadata:
+                  term: 22
+                  last_committed_config: VotingConfiguration{node01,node02}
+                  last_accepted_config: VotingConfiguration{}
+                  voting tombstones: []
+            """));
+
+        // project indices
+        assertThat(toString, containsString("""
+               ProjectId[id=tb5W0bx765nDVIwqJPw92G]:
+                  [common-index/tE62Ga40yvlmOSujUvruVw]: v[2], mv[1], sv[1], av[1]
+                  0: p_term [0], isa_ids []
+                  1: p_term [0], isa_ids []
+                  2: p_term [0], isa_ids []
+            """));
+        assertThat(toString, containsString("\n   ProjectId[id=3LftaL7hgfXAsF60Gm6jcD]:\n"));
+        assertThat(toString, containsString("\n      [common-index/dyQMAHOKifstVZeq1fbe2g]: "));
+        assertThat(toString, containsString("\n      [another-index/3BgcDKea85VWlp4Tr514s6]: "));
+        assertThat(toString, containsString("\n   ProjectId[id=WHyuJ0uqBYOPgHX9kYUXlZ]: -\n"));
+
+        // project customs
+        assertThat(toString, containsString("\n   ProjectId[id=tb5W0bx765nDVIwqJPw92G]:\n      index-graveyard: IndexGraveyard[[]]\n"));
+        assertThat(toString, containsString("\n   ProjectId[id=3LftaL7hgfXAsF60Gm6jcD]:\n      index-graveyard: IndexGraveyard[[]]\n"));
+        assertThat(toString, containsString("\n   ProjectId[id=WHyuJ0uqBYOPgHX9kYUXlZ]:\n      index-graveyard: IndexGraveyard[[]]\n"));
+
+        // nodes
+        assertThat(toString, containsString("\ncluster features:\n   node0"));
+        assertThat(toString, containsString("\n   node01: []\n"));
+        assertThat(toString, containsString("\n   node02: []\n"));
+        assertThat(toString, containsString("\n   node03: []\n"));
+
+        assertThat(toString, containsString("\n   {node01}{" + node1.getEphemeralId() + "}{0.0.0.0}{"));
+        assertThat(toString, containsString("\n   {node02}{" + node2.getEphemeralId() + "}{0.0.0.0}{"));
+        assertThat(toString, containsString("\n   {node03}{" + node3.getEphemeralId() + "}{0.0.0.0}{"));
+
+        // routing table
+        assertThat(toString, containsString("global_routing_table{v0,[ProjectId[id="));
+        assertThat(toString, containsString("ProjectId[id=tb5W0bx765nDVIwqJPw92G]=>routing_table (version 0):\n"));
+        assertThat(toString, containsString("ProjectId[id=3LftaL7hgfXAsF60Gm6jcD]=>routing_table (version 0):\n"));
+        assertThat(toString, containsString("ProjectId[id=WHyuJ0uqBYOPgHX9kYUXlZ]=>routing_table (version 0):\n"));
+        assertThat(toString, containsString("-- index [[another-index/3BgcDKea85VWlp4Tr514s6]]\n----shard_id [another-index][0]\n"));
+        assertThat(toString, containsString("-- index [[common-index/tE62Ga40yvlmOSujUvruVw]]\n----shard_id [common-index][0]\n"));
+        assertThat(toString, containsString("\n----shard_id [common-index][1]\n"));
+        assertThat(toString, containsString("\n----shard_id [common-index][2]\n"));
     }
 
     public void testToXContent() throws IOException {

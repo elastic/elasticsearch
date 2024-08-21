@@ -2209,10 +2209,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *     \_AggregateExec[[],[SUM(emp_no{f}#4) AS $$SUM$avg(emp_no)$0, COUNT(emp_no{f}#4) AS $$COUNT$avg(emp_no)$1],FINAL,[sum{r}#16, seen{
      * r}#17, count{r}#18, seen{r}#19],24]
      *       \_ExchangeExec[[sum{r}#16, seen{r}#17, count{r}#18, seen{r}#19],true]
-     *         \_AggregateExec[[],[SUM(emp_no{f}#4) AS $$SUM$avg(emp_no)$0, COUNT(emp_no{f}#4) AS $$COUNT$avg(emp_no)$1],INITIAL,[sum{r}#37, see
-     * n{r}#38, count{r}#39, seen{r}#40],16]
+     *         \_AggregateExec[[],[SUM(emp_no{f}#4) AS $$SUM$avg(emp_no)$0, COUNT(emp_no{f}#4) AS $$COUNT$avg(emp_no)$1],INITIAL,[sum{r}#37,
+     *           seen{r}#38, count{r}#39, seen{r}#40],16]
      *           \_FieldExtractExec[emp_no{f}#4]
-     *             \_EsQueryExec[test], indexMode[standard], query[{"exists":{"field":"emp_no","boost":1.0}}][_doc{f}#41], limit[], sort[] estimatedRowSize[8]
+     *             \_EsQueryExec[test], indexMode[standard], query[{"exists":{"field":"emp_no","boost":1.0}}][_doc{f}#41], limit[], sort[]
+     *               estimatedRowSize[8]
      */
     public void testProjectAwayColumnsDoesNothingForPipelineBreakingAggs() {
         var plan = optimizedPlan(physicalPlan("""

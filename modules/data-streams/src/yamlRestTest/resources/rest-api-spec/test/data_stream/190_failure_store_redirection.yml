@@ -318,4 +318,433 @@ teardown:
         index: .fs-destination-*
   - length:   { hits.hits: 1  }
   - match: { hits.hits.0._index: "/\\.fs-destination-data-stream-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
-  - match: { hits.hits.0._source.document.index: 'destination-data-stream' }
+  - match: { hits.hits.0._source.document.index: 'logs-foobar' }
+
+---
+"Failure redirects to original failure store during index change if self referenced":
+  - requires:
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: "data stream failure stores REST structure changed in 8.15+"
+      test_runner_features: [ allowed_warnings, contains ]
+
+  - do:
+      ingest.put_pipeline:
+        id: "failing_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set": {
+                  "field": "_index",
+                  "value": "logs-elsewhere"
+                }
+              },
+              {
+                "script": {
+                  "source": "ctx.object.data = ctx.object"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream:
+            failure_store: true
+          template:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+              index:
+                default_pipeline: "failing_pipeline"
+
+  - do:
+      index:
+        index: logs-foobar
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          object:
+            data:
+              field: 'someValue'
+
+  - do:
+      indices.get_data_stream:
+        name: logs-foobar
+  - match: { data_streams.0.name: logs-foobar }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.failure_store.enabled: true }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+  - do:
+      search:
+        index: logs-foobar
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 0 }
+
+  - do:
+      search:
+        index: .fs-logs-foobar-*
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._index: "/\\.fs-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - exists: hits.hits.0._source.@timestamp
+  - not_exists: hits.hits.0._source.foo
+  - not_exists: hits.hits.0._source.document.id
+  - match: { hits.hits.0._source.document.index: 'logs-foobar' }
+  - match: { hits.hits.0._source.document.source.@timestamp: '2020-12-12' }
+  - match: { hits.hits.0._source.document.source.object.data.field: 'someValue' }
+  - match: { hits.hits.0._source.error.type: 'illegal_argument_exception' }
+  - contains: { hits.hits.0._source.error.message: 'Failed to generate the source document for ingest pipeline' }
+  - contains: { hits.hits.0._source.error.stack_trace: 'Failed to generate the source document for ingest pipeline' }
+  - match: { hits.hits.0._source.error.pipeline_trace.0: 'failing_pipeline' }
+  - match: { hits.hits.0._source.error.pipeline: 'failing_pipeline' }
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged
+
+  - do:
+      indices.delete:
+        index: .fs-logs-foobar-*
+  - is_true: acknowledged
+
+---
+"Failure redirects to original failure store during index change if final pipeline changes target":
+  - requires:
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: "data stream failure stores REST structure changed in 8.15+"
+      test_runner_features: [ allowed_warnings, contains ]
+
+  - do:
+      ingest.put_pipeline:
+        id: "change_index_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set": {
+                  "field": "_index",
+                  "value": "logs-elsewhere"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream:
+            failure_store: true
+          template:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+              index:
+                final_pipeline: "change_index_pipeline"
+
+  - do:
+      index:
+        index: logs-foobar
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+
+  - do:
+      indices.get_data_stream:
+        name: logs-foobar
+  - match: { data_streams.0.name: logs-foobar }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.failure_store.enabled: true }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+  - do:
+      search:
+        index: logs-foobar
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 0 }
+
+  - do:
+      search:
+        index: .fs-logs-foobar-*
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._index: "/\\.fs-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - exists: hits.hits.0._source.@timestamp
+  - not_exists: hits.hits.0._source.foo
+  - not_exists: hits.hits.0._source.document.id
+  - match: { hits.hits.0._source.document.index: 'logs-foobar' }
+  - match: { hits.hits.0._source.document.source.@timestamp: '2020-12-12' }
+  - match: { hits.hits.0._source.document.source.foo: 'bar' }
+  - match: { hits.hits.0._source.error.type: 'illegal_state_exception' }
+  - contains: { hits.hits.0._source.error.message: "final pipeline [change_index_pipeline] can't change the target index" }
+  - contains: { hits.hits.0._source.error.stack_trace: "final pipeline [change_index_pipeline] can't change the target index" }
+  - match: { hits.hits.0._source.error.pipeline_trace.0: 'change_index_pipeline' }
+  - match: { hits.hits.0._source.error.pipeline: 'change_index_pipeline' }
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged
+
+  - do:
+      indices.delete:
+        index: .fs-logs-foobar-*
+  - is_true: acknowledged
+
+---
+"Failure redirects to correct failure store when index loop is detected":
+  - requires:
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: "data stream failure stores REST structure changed in 8.15+"
+      test_runner_features: [ allowed_warnings, contains ]
+
+  - do:
+      ingest.put_pipeline:
+        id: "send_to_destination"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "reroute": {
+                  "tag": "reroute-tag-1",
+                  "destination": "destination-data-stream"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "send_back_to_original"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "reroute": {
+                  "tag": "reroute-tag-2",
+                  "destination": "logs-foobar"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream:
+            failure_store: true
+          template:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+              index:
+                default_pipeline: "send_to_destination"
+
+  - do:
+      allowed_warnings:
+        - "index template [destination_logs_template] has index patterns [destination-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [destination_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: destination_logs_template
+        body:
+          index_patterns: destination-*
+          data_stream:
+            failure_store: true
+          template:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+              index:
+                default_pipeline: "send_back_to_original"
+
+  - do:
+      index:
+        index: logs-foobar
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+
+
+  - do:
+      indices.get_data_stream:
+        name: destination-data-stream
+  - match: { data_streams.0.name: destination-data-stream }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-destination-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.failure_store.enabled: true }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-destination-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+  - do:
+      search:
+        index: destination-data-stream
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 0 }
+
+  - do:
+      search:
+        index: .fs-destination-data-stream-*
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._index: "/\\.fs-destination-data-stream-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - exists: hits.hits.0._source.@timestamp
+  - not_exists: hits.hits.0._source.foo
+  - not_exists: hits.hits.0._source.document.id
+  - match: { hits.hits.0._source.document.index: 'logs-foobar' }
+  - match: { hits.hits.0._source.document.source.@timestamp: '2020-12-12' }
+  - match: { hits.hits.0._source.document.source.foo: 'bar' }
+  - match: { hits.hits.0._source.error.type: 'illegal_state_exception' }
+  - contains: { hits.hits.0._source.error.message: 'index cycle detected' }
+  - contains: { hits.hits.0._source.error.stack_trace: 'index cycle detected' }
+  - match: { hits.hits.0._source.error.pipeline_trace.0: 'send_back_to_original' }
+  - match: { hits.hits.0._source.error.pipeline: 'send_back_to_original' }
+
+  - do:
+      indices.delete_data_stream:
+        name: destination-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.delete:
+        index: .fs-destination-data-stream-*
+  - is_true: acknowledged
+
+---
+"Failure redirects to correct failure store when pipeline loop is detected":
+  - requires:
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: "data stream failure stores REST structure changed in 8.15+"
+      test_runner_features: [ allowed_warnings, contains ]
+
+  - do:
+      ingest.put_pipeline:
+        id: "step_1"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "pipeline": {
+                  "tag": "step-1",
+                  "name": "step_2"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "step_2"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "pipeline": {
+                  "tag": "step-2",
+                  "name": "step_1"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream:
+            failure_store: true
+          template:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+              index:
+                default_pipeline: "step_1"
+
+  - do:
+      index:
+        index: logs-foobar
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+
+  - do:
+      indices.get_data_stream:
+        name: logs-foobar
+  - match: { data_streams.0.name: logs-foobar }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.failure_store.enabled: true }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+  - do:
+      search:
+        index: logs-foobar
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 0 }
+
+  - do:
+      search:
+        index: .fs-logs-foobar-*
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._index: "/\\.fs-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - exists: hits.hits.0._source.@timestamp
+  - not_exists: hits.hits.0._source.foo
+  - not_exists: hits.hits.0._source.document.id
+  - match: { hits.hits.0._source.document.index: 'logs-foobar' }
+  - match: { hits.hits.0._source.document.source.@timestamp: '2020-12-12' }
+  - match: { hits.hits.0._source.document.source.foo: 'bar' }
+  - match: { hits.hits.0._source.error.type: 'graph_structure_exception' }
+  - contains: { hits.hits.0._source.error.message: 'Cycle detected for pipeline: step_1' }
+  - contains: { hits.hits.0._source.error.stack_trace: 'Cycle detected for pipeline: step_1' }
+  - match: { hits.hits.0._source.error.pipeline_trace.0: 'step_1' }
+  - match: { hits.hits.0._source.error.pipeline_trace.1: 'step_2' }
+  - match: { hits.hits.0._source.error.pipeline: 'step_2' }
+  - match: { hits.hits.0._source.error.processor_tag: 'step-2' }
+  - match: { hits.hits.0._source.error.processor_type: 'pipeline' }
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged
+
+  - do:
+      indices.delete:
+        index: .fs-logs-foobar-*
+  - is_true: acknowledged

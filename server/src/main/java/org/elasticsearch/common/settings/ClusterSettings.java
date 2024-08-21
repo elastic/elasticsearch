@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -598,6 +599,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TDigestExecutionHint.SETTING,
         MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT_SETTING,
         MergePolicyConfig.DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT_SETTING,
-        TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE
+        TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE,
+        DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING,
+        DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING
     ).filter(Objects::nonNull).collect(Collectors.toSet());
 }

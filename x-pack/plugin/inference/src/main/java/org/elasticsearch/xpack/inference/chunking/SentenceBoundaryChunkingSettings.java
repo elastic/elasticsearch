@@ -31,7 +31,7 @@ public class SentenceBoundaryChunkingSettings extends ChunkingSettings {
     }
 
     public SentenceBoundaryChunkingSettings(StreamInput in) throws IOException {
-        super(in.readString());
+        super(STRATEGY);
         maxChunkSize = in.readInt();
     }
 
@@ -74,7 +74,6 @@ public class SentenceBoundaryChunkingSettings extends ChunkingSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getChunkingStrategy());
         out.writeInt(maxChunkSize);
     }
 }

@@ -13,13 +13,13 @@ import java.util.Map;
 
 public class ChunkerBuilderTests extends ESTestCase {
 
-    public void testNullChunkerStrategy() {
-        assert (ChunkerBuilder.buildChunker(null) instanceof WordBoundaryChunker);
+    public void testNullChunkingStrategy() {
+        assert (ChunkerBuilder.fromChunkingStrategy(null) instanceof WordBoundaryChunker);
     }
 
-    public void testValidChunkerStrategy() {
+    public void testValidChunkingStrategy() {
         chunkingStrategyToExpectedChunkerClassMap().forEach((chunkingStrategy, chunkerClass) -> {
-            assert (ChunkerBuilder.buildChunker(chunkingStrategy).getClass().equals(chunkerClass));
+            assert (ChunkerBuilder.fromChunkingStrategy(chunkingStrategy).getClass().equals(chunkerClass));
         });
     }
 

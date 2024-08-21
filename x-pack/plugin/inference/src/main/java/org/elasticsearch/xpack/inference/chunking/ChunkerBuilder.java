@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.chunking;
 
 public class ChunkerBuilder {
-    public static Chunker buildChunker(ChunkingStrategy chunkingStrategy) {
+    public static Chunker fromChunkingStrategy(ChunkingStrategy chunkingStrategy) {
         if (chunkingStrategy == null) {
             return new WordBoundaryChunker();
         }

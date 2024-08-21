@@ -33,7 +33,7 @@ public class WordBoundaryChunkingSettings extends ChunkingSettings {
     }
 
     public WordBoundaryChunkingSettings(StreamInput in) throws IOException {
-        super(in.readString());
+        super(STRATEGY);
         maxChunkSize = in.readInt();
         overlap = in.readInt();
     }
@@ -85,7 +85,6 @@ public class WordBoundaryChunkingSettings extends ChunkingSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getChunkingStrategy());
         out.writeInt(maxChunkSize);
         out.writeInt(overlap);
     }

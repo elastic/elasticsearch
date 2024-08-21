@@ -109,7 +109,7 @@ public class EmbeddingRequestChunker {
             var chunkingStrategy = chunkingSettings.getChunkingStrategy() != null
                 ? ChunkingStrategy.fromString(chunkingSettings.getChunkingStrategy())
                 : null;
-            var chunker = ChunkerBuilder.buildChunker(chunkingStrategy);
+            var chunker = ChunkerBuilder.fromChunkingStrategy(chunkingStrategy);
             chunkFunction = input -> chunker.chunk(input, chunkingSettings);
         } else {
             var chunker = new WordBoundaryChunker();

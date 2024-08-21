@@ -28,6 +28,14 @@ public class WordBoundaryChunkingSettingsTests extends ESTestCase {
         });
     }
 
+    public void testOverlapGreaterThanHalfMaxChunkSize() {
+        var maxChunkSize = randomNonNegativeInt();
+        var overlap = randomIntBetween((maxChunkSize / 2) + 1, maxChunkSize);
+        assertThrows(ValidationException.class, () -> {
+            WordBoundaryChunkingSettings.fromMap(buildChunkingSettingsMap(Optional.of(maxChunkSize), Optional.of(overlap)));
+        });
+    }
+
     public void testValidInputsProvided() {
         int maxChunkSize = randomNonNegativeInt();
         int overlap = randomIntBetween(1, maxChunkSize / 2);

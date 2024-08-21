@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.features.NodeFeature;
@@ -174,7 +173,6 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                 });
             } else {
                 // See MetadataCreateIndexService.applyCreateIndexRequest
-
                 String matchingTemplate = findV2Template(state.metadata(), request.index(), false);
                 if (matchingTemplate != null) {
                     final Template template = TransportSimulateIndexTemplateAction.resolveTemplate(

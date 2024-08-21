@@ -33,7 +33,7 @@ import java.util.Set;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
 /**
- * This is a snapshot of telemetry from an individual cross-cluster search for _search or _async_search (or
+ * This is a container for telemetry data from an individual cross-cluster search for _search or _async_search (or
  * other search endpoints that use the {@link TransportSearchAction} such as _msearch).
  */
 public class CCSUsage {
@@ -152,7 +152,7 @@ public class CCSUsage {
          * Is this failure exception because remote was unavailable?
          * See also: TransportResolveClusterAction#notConnectedError
          */
-        public static boolean isRemoteUnavailable(Exception e) {
+        static boolean isRemoteUnavailable(Exception e) {
             if (ExceptionsHelper.unwrap(
                 e,
                 ConnectTransportException.class,
@@ -172,7 +172,7 @@ public class CCSUsage {
         /**
          * Is this failure coming from a remote cluster?
          */
-        public static boolean isRemoteFailure(ShardOperationFailedException failure) {
+        static boolean isRemoteFailure(ShardOperationFailedException failure) {
             if (failure instanceof ShardSearchFailure shardFailure) {
                 SearchShardTarget shard = shardFailure.shard();
                 return shard != null && shard.getClusterAlias() != null && LOCAL_CLUSTER_GROUP_KEY.equals(shard.getClusterAlias()) == false;

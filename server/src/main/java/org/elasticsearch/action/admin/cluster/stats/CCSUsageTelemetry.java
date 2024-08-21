@@ -81,8 +81,6 @@ public class CCSUsageTelemetry {
         "connectors-cli"
     );
 
-    // TODO: do we need LongAdder here or long is enough? Since updateUsage is synchronized, worst that can happen is
-    // we may miss a count on read.
     private final LongAdder totalCount;
     private final LongAdder successCount;
     private final Map<Result, LongAdder> failureReasons;
@@ -174,10 +172,10 @@ public class CCSUsageTelemetry {
      */
     public static class PerClusterCCSTelemetry {
         private final String clusterAlias;
-        // Right now, this is the number of successful (not skipped) requests to this cluster.
-        // We need to make it clear in the docs that it does not count skipped requests.
+        // The number of successful (not skipped) requests to this cluster.
         private final LongAdder count;
         private final LongAdder skippedCount;
+        // This is only over the successful requetss, skipped ones do not count here.
         private final LongMetric took;
 
         PerClusterCCSTelemetry(String clusterAlias) {
@@ -223,15 +221,13 @@ public class CCSUsageTelemetry {
 
     }
 
-    // TODO: I wonder if it wouldn't be more correct if this lived on the Snapshot side,
-    // but SearchUsage does it this way so following the pattern here.
     public CCSTelemetrySnapshot getCCSTelemetrySnapshot() {
         Map<String, Long> reasonsMap = Maps.newMapWithExpectedSize(failureReasons.size());
         failureReasons.forEach((k, v) -> reasonsMap.put(k.getName(), v.longValue()));
 
         LongMetric.LongMetricValue remotes = remotesPerSearch.getValue();
 
-        // Maps returned here are unmodifyable, but the empty ctor produces modifyable maps
+        // Maps returned here are unmodifiable, but the empty ctor produces modifiable maps
         return new CCSTelemetrySnapshot(
             totalCount.longValue(),
             successCount.longValue(),

@@ -32,7 +32,7 @@ import java.util.Objects;
  * - Coordinating node creates an empty snapshot and merges all the node snapshots into it using add()
  * <br>
  * The snapshot contains {@link LongMetricValue}s for latencies, which currently contain full histograms (since you can't
- * produce p90 from a set of node p90s, you need the full histogram for that). To avoid excessive copying (histogram weights several KB),
+ * produce p90 from a set of node p90s, you need the full histogram for that). To avoid excessive copying (histogram weighs several KB),
  * the snapshot is designed to be mutable, so that you can add multiple snapshots to it without copying the histograms all the time.
  * It is not the intent to mutate the snapshot objects otherwise.
  * <br>
@@ -98,7 +98,7 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
      * Creates a new empty stats instance, that will get additional stats added through {@link #add(CCSTelemetrySnapshot)}
      */
     public CCSTelemetrySnapshot() {
-        // Note this produces modifyable maps, so other snapshots can be added to it
+        // Note this produces modifiable maps, so other snapshots can be merged into it
         failureReasons = new HashMap<>();
         featureCounts = new HashMap<>();
         clientCounts = new HashMap<>();

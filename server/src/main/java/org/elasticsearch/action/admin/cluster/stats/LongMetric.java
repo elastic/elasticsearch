@@ -20,7 +20,7 @@ import java.util.Objects;
 import java.util.zip.DataFormatException;
 
 /**
- * Metric class that accepts longs and provides count, average, max and maybe percentiles.
+ * Metric class that accepts longs and provides count, average, max and percentiles.
  * Abstracts out the details of how exactly the values are stored and calculated.
  * {@link LongMetricValue} is a snapshot of the current state of the metric.
  */

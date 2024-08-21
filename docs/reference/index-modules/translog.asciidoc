@@ -71,7 +71,9 @@ update, or bulk request. This setting accepts the following parameters:
   The translog stores all operations that are not yet safely persisted in Lucene
   (i.e., are not part of a Lucene commit point). Although these operations are
   available for reads, they will need to be replayed if the shard was stopped
-  and had to be recovered. This setting controls the maximum total size of these
-  operations, to prevent recoveries from taking too long. Once the maximum size
-  has been reached a flush will happen, generating a new Lucene commit point.
-  Defaults to `512mb`.
+  and had to be recovered.
+  This setting controls the maximum total size of these operations to prevent
+  recoveries from taking too long. Once the maximum size has been reached, a flush
+  will happen, generating a new Lucene commit point. *Defaults to* `10 GB`.
+  The translog size will never exceed `1%` and will never be smaller than `10 MB`,
+  regardless of the specified size.

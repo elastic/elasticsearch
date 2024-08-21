@@ -1,6 +1,6 @@
 pr: 112063
 summary: Spatial
-area: "ES|QL, Geo"
+area: "ES|QL"
 type: bug
 issues:
  - 110830

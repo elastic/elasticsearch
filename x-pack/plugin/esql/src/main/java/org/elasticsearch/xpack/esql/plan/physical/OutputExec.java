@@ -33,7 +33,7 @@ public class OutputExec extends UnaryExec {
     }
 
     @Override
-    public AttributeSet computeReferences() {
+    protected AttributeSet computeReferences() {
         return AttributeSet.EMPTY;
     }
 

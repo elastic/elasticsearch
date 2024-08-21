@@ -72,7 +72,7 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval> {
     }
 
     @Override
-    public AttributeSet computeReferences() {
+    protected AttributeSet computeReferences() {
         return requiredAttributesFromChild(fields);
     }
 

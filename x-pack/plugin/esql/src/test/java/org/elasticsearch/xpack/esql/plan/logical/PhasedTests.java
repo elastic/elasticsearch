@@ -143,7 +143,7 @@ public class PhasedTests extends ESTestCase {
         }
 
         @Override
-        public AttributeSet computeReferences() {
+        protected AttributeSet computeReferences() {
             return AttributeSet.EMPTY;
         }
 

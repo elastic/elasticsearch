@@ -19,7 +19,7 @@ public abstract class LeafPlan extends LogicalPlan {
     }
 
     @Override
-    public AttributeSet computeReferences() {
+    protected AttributeSet computeReferences() {
         return AttributeSet.EMPTY;
     }
 

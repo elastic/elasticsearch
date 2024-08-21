@@ -89,7 +89,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
     }
 
     @Override
-    public AttributeSet computeReferences() {
+    protected AttributeSet computeReferences() {
         return Expressions.references(expressions());
     }
 

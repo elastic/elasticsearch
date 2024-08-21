@@ -38,7 +38,7 @@ public class ExchangeExec extends UnaryExec {
     }
 
     @Override
-    public AttributeSet computeReferences() {
+    protected AttributeSet computeReferences() {
         return Expressions.references(expressions());
     }
 

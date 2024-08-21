@@ -1,0 +1,5 @@
+pr: 111966
+summary: No error when `store_array_source` is used without synthetic source
+area: Mapping
+type: bug
+issues: []

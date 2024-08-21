@@ -85,6 +85,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSP
 public class EsqlDataTypeConverter {
 
     public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
+    public static final DateFormatter DEFAULT_DATE_NANOS_FORMATTER = DateFormatter.forPattern("strict_date_optional_time_nanos");
 
     public static final DateFormatter HOUR_MINUTE_SECOND = DateFormatter.forPattern("strict_hour_minute_second_fraction");
 
@@ -338,7 +339,7 @@ public class EsqlDataTypeConverter {
     }
 
     public static String nanoTimeToString(long dateTime) {
-        return DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos(dateTime);
+        return DEFAULT_DATE_NANOS_FORMATTER.formatNanos(dateTime);
     }
 
     public static String dateTimeToString(long dateTime, DateFormatter formatter) {

@@ -70,3 +70,21 @@ FROM date_nanos | SORT millis asc | EVAL nanos = MV_LAST(nanos) | KEEP nanos | L
 nanos:date_nanos
 2023-03-23T12:15:03.360103847Z
 ;
+
+string to date nanos
+required_capability: date_nanos_type
+
+ROW d = TO_DATE_NANOS("2023-03-23T12:15:03.360103847") | KEEP d;
+
+d:date_nanos
+2023-03-23T12:15:03.360103847Z
+;
+
+long to date nanos
+required_capability: date_nanos_type
+
+ROW d = TO_DATE_NANOS(1724160894123456789) | KEEP d;
+
+d:date_nanos
+2024-08-20T13:34:54.123456789
+;

@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -339,6 +340,7 @@ public class EsqlFunctionRegistry {
                 def(ToCartesianPoint.class, ToCartesianPoint::new, "to_cartesianpoint"),
                 def(ToCartesianShape.class, ToCartesianShape::new, "to_cartesianshape"),
                 def(ToDatetime.class, ToDatetime::new, "to_datetime", "to_dt"),
+                def(ToDateNanos.class, ToDateNanos::new, "to_date_nanos", "to_datenanos"),
                 def(ToDegrees.class, ToDegrees::new, "to_degrees"),
                 def(ToDouble.class, ToDouble::new, "to_double", "to_dbl"),
                 def(ToGeoPoint.class, ToGeoPoint::new, "to_geopoint"),

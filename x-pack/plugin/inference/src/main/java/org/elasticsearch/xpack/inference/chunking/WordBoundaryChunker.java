@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.inference.chunking;
 
 import com.ibm.icu.text.BreakIterator;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.ChunkingSettings;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -24,8 +27,10 @@ import java.util.Locale;
  * complexity of tracking the start positions of multiple
  * chunks within the chunk.
  */
-public class WordBoundaryChunker {
+public class WordBoundaryChunker implements Chunker {
 
+    private static final int DEFAULT_MAX_CHUNK_SIZE = 250;
+    private static final int DEFAULT_OVERLAP = 100;
     private BreakIterator wordIterator;
 
     public WordBoundaryChunker() {
@@ -33,6 +38,24 @@ public class WordBoundaryChunker {
     }
 
     record ChunkPosition(int start, int end, int wordCount) {}
+
+    /**
+     * Break the input text into small chunks as dictated
+     * by the chunking parameters
+     * @param input Text to chunk
+     * @param chunkingSettings The chunking settings that configure chunkSize and overlap
+     * @return List of chunked text
+     */
+    @Override
+    public List<String> chunk(String input, ChunkingSettings chunkingSettings) {
+        if (chunkingSettings instanceof WordBoundaryChunkingSettings wordBoundaryChunkerSettings) {
+            return chunk(input, wordBoundaryChunkerSettings.maxChunkSize, wordBoundaryChunkerSettings.overlap);
+        } else if (chunkingSettings instanceof DefaultChunkingSettings) {
+            return chunk(input, DEFAULT_MAX_CHUNK_SIZE, DEFAULT_OVERLAP);
+        } else {
+            throw new IllegalArgumentException(Strings.format("WordBoundaryChunker can't use ChunkingSettings %s", chunkingSettings));
+        }
+    }
 
     /**
      * Break the input text into small chunks as dictated

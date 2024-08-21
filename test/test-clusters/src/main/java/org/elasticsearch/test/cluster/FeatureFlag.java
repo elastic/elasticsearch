@@ -21,7 +21,8 @@ public enum FeatureFlag {
         "es.inference_adaptive_allocations_feature_flag_enabled=true",
         Version.fromString("8.16.0"),
         null
-    );
+    ),
+    CHUNKING_SETTINGS_ENABLED("es.inference_chunking_settings_feature_flag_enabled=true", Version.fromString("8.16.0"), null);
 
     public final String systemProperty;
     public final Version from;

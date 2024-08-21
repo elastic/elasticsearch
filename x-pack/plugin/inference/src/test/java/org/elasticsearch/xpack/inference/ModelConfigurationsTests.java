@@ -26,7 +26,8 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
             taskType,
             randomAlphaOfLength(6),
             randomServiceSettings(),
-            randomTaskSettings(taskType)
+            randomTaskSettings(taskType),
+            null
         );
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.chunking;
 
 import com.ibm.icu.text.BreakIterator;
 
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -142,6 +143,29 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
             // "m", "s" - the & is not counted
             assertEquals(2, SentenceBoundaryChunker.countWords(0, text.length(), wordIterator));
         }
+    }
+
+    public void testChunkSplitLargeChunkSizesWithChunkingSettings() {
+        for (int maxWordsPerChunk : new int[] { 100, 200 }) {
+            var chunker = new SentenceBoundaryChunker();
+            SentenceBoundaryChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(maxWordsPerChunk);
+            var chunks = chunker.chunk(TEST_TEXT, chunkingSettings);
+
+            int numChunks = expectedNumberOfChunks(sentenceSizes(TEST_TEXT), maxWordsPerChunk);
+            assertThat("words per chunk " + maxWordsPerChunk, chunks, hasSize(numChunks));
+
+            for (var chunk : chunks) {
+                assertTrue(Character.isUpperCase(chunk.charAt(0)));
+                var trailingWhiteSpaceRemoved = chunk.strip();
+                var lastChar = trailingWhiteSpaceRemoved.charAt(trailingWhiteSpaceRemoved.length() - 1);
+                assertThat(lastChar, Matchers.is('.'));
+            }
+        }
+    }
+
+    public void testInvalidChunkingSettingsProvided() {
+        ChunkingSettings chunkingSettings = new WordBoundaryChunkingSettings(randomNonNegativeInt(), randomNonNegativeInt());
+        assertThrows(IllegalArgumentException.class, () -> { new SentenceBoundaryChunker().chunk(TEST_TEXT, chunkingSettings); });
     }
 
     private int[] sentenceSizes(String text) {

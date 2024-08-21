@@ -84,6 +84,11 @@ public class InferenceIndex {
                 .startObject("properties")
                 .endObject()
                 .endObject()
+                .startObject("chunking_settings")
+                .field("dynamic", "false")
+                .startObject("properties")
+                .endObject()
+                .endObject()
                 .endObject()
                 .endObject()
                 .endObject();

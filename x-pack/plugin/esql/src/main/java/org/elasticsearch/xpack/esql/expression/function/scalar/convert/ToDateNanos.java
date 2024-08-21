@@ -42,7 +42,7 @@ public class ToDateNanos extends AbstractConvertFunction {
     );
 
     @FunctionInfo(returnType = "date_nanos")
-    protected ToDateNanos(
+    public ToDateNanos(
         Source source,
         @Param(
             name = "field",

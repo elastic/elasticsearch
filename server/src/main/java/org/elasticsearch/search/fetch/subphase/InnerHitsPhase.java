@@ -89,19 +89,19 @@ public final class InnerHitsPhase implements FetchSubPhase {
                 hit.setInnerHits(results = new HashMap<>());
             }
 
-            // TODO: What inner hits context sort formats need to be enforced here?
-            DocValueFormat[] sortValueFormats = innerHitsContext.sort() == null ? null : innerHitsContext.sort().formats;
+            final DocValueFormat[] sortValueFormats = innerHitsContext.sort() == null ? null : innerHitsContext.sort().formats;
             List<RescoreContext> rescore = innerHitsContext.rescore();
             if (rescore != null) {
+                assert sortValueFormats == null;
+
                 TopDocs justTopDocs = topDoc.topDocs;
                 for (RescoreContext ctx : rescore) {
                     justTopDocs = ctx.rescorer().rescore(justTopDocs, innerHitsContext.searcher(), ctx);
-                    // TODO: Check that top docs are sorted by score
+                    // TODO: Assert that top docs are sorted by score
                 }
 
                 // TODO: Can there ever be no docs to rescore?
                 topDoc = new TopDocsAndMaxScore(justTopDocs, justTopDocs.scoreDocs[0].score);
-                sortValueFormats = null;
             }
 
             innerHitsContext.queryResult().topDocs(topDoc, sortValueFormats);

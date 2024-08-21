@@ -115,6 +115,16 @@ public abstract class InnerHitContextBuilder {
         if (innerHitBuilder.getSorts() != null) {
             Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(innerHitBuilder.getSorts(), searchExecutionContext);
             if (optionalSort.isPresent()) {
+                if (innerHitBuilder.getRescoreBuilders() != null) {
+                    throw new IllegalArgumentException(
+                        "Invalid inner hits: cannot use ["
+                            + SearchSourceBuilder.SORT_FIELD
+                            + "] option in conjunction with ["
+                            + SearchSourceBuilder.RESCORE_FIELD
+                            + "]"
+                    );
+                }
+
                 innerHitsContext.sort(optionalSort.get());
             }
         }

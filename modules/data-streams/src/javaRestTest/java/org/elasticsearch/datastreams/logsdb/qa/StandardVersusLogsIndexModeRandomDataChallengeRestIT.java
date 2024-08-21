@@ -43,7 +43,7 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
         this.subobjects = randomFrom(ObjectMapper.Subobjects.values());
 
         var specificationBuilder = DataGeneratorSpecification.builder();
-        if (subobjects == ObjectMapper.Subobjects.DISABLED) {
+        if (subobjects != ObjectMapper.Subobjects.ENABLED) {
             specificationBuilder = specificationBuilder.withNestedFieldsLimit(0);
         }
         this.dataGenerator = new DataGenerator(specificationBuilder.withDataSourceHandlers(List.of(new DataSourceHandler() {

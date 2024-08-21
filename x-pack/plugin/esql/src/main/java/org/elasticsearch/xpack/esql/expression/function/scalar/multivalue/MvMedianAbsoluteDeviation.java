@@ -143,8 +143,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
             doubles.values[i] = value > median ? value - median : median - value;
             assert Double.isFinite(doubles.values[i]) : "Overflow on median differences";
         }
-        double mad = doubleMedianOf(doubles.values, count);
-        return mad;
+        return doubleMedianOf(doubles.values, count);
     }
 
     static double single(double value) {
@@ -195,8 +194,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
             long value = values.getLong(firstValue + i);
             longs.values[i] = value > median ? Math.subtractExact(value, median) : Math.subtractExact(median, value);
         }
-        long mad = longMedianOf(longs.values, count);
-        return mad;
+        return longMedianOf(longs.values, count);
     }
 
     static long single(long value) {
@@ -258,8 +256,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
             long value = values.getLong(firstValue + i);
             longs.values[i] = value > median ? unsignedLongSubtractExact(value, median) : unsignedLongSubtractExact(median, value);
         }
-        long mad = unsignedLongMedianOf(longs.values, count);
-        return mad;
+        return unsignedLongMedianOf(longs.values, count);
     }
 
     static long singleUnsignedLong(long value) {
@@ -315,8 +312,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
             int value = values.getInt(firstValue + i);
             ints.values[i] = value > median ? Math.subtractExact(value, median) : Math.subtractExact(median, value);
         }
-        int mad = intMedianOf(ints.values, count);
-        return mad;
+        return intMedianOf(ints.values, count);
     }
 
     static int single(int value) {

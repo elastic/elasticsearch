@@ -500,21 +500,30 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             .append(coordinationMetadata().getLastAcceptedConfiguration())
             .append("\n");
         sb.append(TAB).append(TAB).append("voting tombstones: ").append(coordinationMetadata().getVotingConfigExclusions()).append("\n");
-        for (IndexMetadata indexMetadata : metadata.getProject()) {
-            sb.append(TAB).append(indexMetadata.getIndex());
-            sb.append(": v[")
-                .append(indexMetadata.getVersion())
-                .append("], mv[")
-                .append(indexMetadata.getMappingVersion())
-                .append("], sv[")
-                .append(indexMetadata.getSettingsVersion())
-                .append("], av[")
-                .append(indexMetadata.getAliasesVersion())
-                .append("]\n");
-            for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
-                sb.append(TAB).append(TAB).append(shard).append(": ");
-                sb.append("p_term [").append(indexMetadata.primaryTerm(shard)).append("], ");
-                sb.append("isa_ids ").append(indexMetadata.inSyncAllocationIds(shard)).append("\n");
+
+        for (var proj : metadata.projects().entrySet()) {
+            sb.append(TAB).append(proj.getKey()).append(":");
+            if (proj.getValue().size() == 0) {
+                sb.append(" -\n");
+            } else {
+                sb.append("\n");
+                for (IndexMetadata indexMetadata : proj.getValue()) {
+                    sb.append(TAB).append(TAB).append(indexMetadata.getIndex());
+                    sb.append(": v[")
+                        .append(indexMetadata.getVersion())
+                        .append("], mv[")
+                        .append(indexMetadata.getMappingVersion())
+                        .append("], sv[")
+                        .append(indexMetadata.getSettingsVersion())
+                        .append("], av[")
+                        .append(indexMetadata.getAliasesVersion())
+                        .append("]\n");
+                    for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
+                        sb.append(TAB).append(TAB).append(shard).append(": ");
+                        sb.append("p_term [").append(indexMetadata.primaryTerm(shard)).append("], ");
+                        sb.append("isa_ids ").append(indexMetadata.inSyncAllocationIds(shard)).append("\n");
+                    }
+                }
             }
         }
         if (metadata.customs().isEmpty() == false) {
@@ -522,18 +531,19 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             for (final Map.Entry<String, Metadata.ClusterCustom> cursor : metadata.customs().entrySet()) {
                 final String type = cursor.getKey();
                 final Metadata.ClusterCustom custom = cursor.getValue();
-                sb.append(TAB).append(type).append(": ").append(custom);
+                sb.append(TAB).append(type).append(": ").append(custom).append('\n');
             }
-            sb.append("\n");
         }
-        if (metadata.getProject().customs().isEmpty() == false) {
+        if (metadata.projects().values().stream().anyMatch(p -> p.customs().isEmpty() == false)) {
             sb.append("metadata customs (project):\n");
-            for (final Map.Entry<String, Metadata.ProjectCustom> cursor : metadata.getProject().customs().entrySet()) {
-                final String type = cursor.getKey();
-                final Metadata.ProjectCustom custom = cursor.getValue();
-                sb.append(TAB).append(type).append(": ").append(custom);
+            for (var proj : metadata.projects().entrySet()) {
+                sb.append(TAB).append(proj.getKey()).append(":\n");
+                for (final Map.Entry<String, Metadata.ProjectCustom> cursor : proj.getValue().customs().entrySet()) {
+                    final String type = cursor.getKey();
+                    final Metadata.ProjectCustom custom = cursor.getValue();
+                    sb.append(TAB).append(TAB).append(type).append(": ").append(custom).append('\n');
+                }
             }
-            sb.append("\n");
         }
         sb.append(blocks());
         sb.append(nodes());
@@ -547,7 +557,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         for (var nf : getNodeFeatures(clusterFeatures).entrySet()) {
             sb.append(TAB).append(nf.getKey()).append(": ").append(new TreeSet<>(nf.getValue())).append("\n");
         }
-        sb.append(routingTable());
+        sb.append(routingTable);
         sb.append(getRoutingNodes());
         if (customs.isEmpty() == false) {
             sb.append("customs:\n");

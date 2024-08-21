@@ -1420,7 +1420,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testSharedSourceInputStreamFactory() throws Exception {
+    public void testUsageSharedSourceInputStreamFactoryInCachePopulation() throws Exception {
         final long regionSizeInBytes = size(100);
         final Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -1517,16 +1517,22 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             };
 
             final var range = ByteRange.of(0, regionSizeInBytes);
-            final PlainActionFuture<Integer> future = new PlainActionFuture<>();
-            region.populateAndRead(
-                range,
-                range,
-                (channel, channelPos, relativePos, length) -> length,
-                rangeMissingHandler,
-                threadPool.generic(),
-                future
-            );
-            safeGet(future);
+            if (randomBoolean()) {
+                final PlainActionFuture<Integer> future = new PlainActionFuture<>();
+                region.populateAndRead(
+                    range,
+                    range,
+                    (channel, channelPos, relativePos, length) -> length,
+                    rangeMissingHandler,
+                    threadPool.generic(),
+                    future
+                );
+                assertThat(safeGet(future).longValue(), equalTo(regionSizeInBytes));
+            } else {
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                region.populate(range, rangeMissingHandler, threadPool.generic(), future);
+                assertThat(safeGet(future), equalTo(true));
+            }
             assertThat(invocationCounter.get(), equalTo(numberGaps));
             assertThat(region.tracker.checkAvailable(regionSizeInBytes), is(true));
             assertBusy(() -> assertThat(factoryClosed.get(), is(true)));

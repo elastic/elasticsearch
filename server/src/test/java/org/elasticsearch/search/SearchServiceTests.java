@@ -2747,7 +2747,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
      */
     public void testSlicingBehaviourForParallelCollection() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY);
-        ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH_WORKER);
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH);
         final int configuredMaxPoolSize = 10;
         executor.setMaximumPoolSize(configuredMaxPoolSize); // We set this explicitly to be independent of CPU cores.
         int numDocs = randomIntBetween(50, 100);
@@ -2837,7 +2837,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             {
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.FETCH, true)) {
                     ContextIndexSearcher searcher = searchContext.searcher();
-                    assertNotNull(searcher.getExecutor());
+                    assertNull(searcher.getExecutor());
                     final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                     searcher.search(termQuery, new TotalHitCountCollectorManager());
                     assertBusy(
@@ -2853,7 +2853,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             {
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.NONE, true)) {
                     ContextIndexSearcher searcher = searchContext.searcher();
-                    assertNotNull(searcher.getExecutor());
+                    assertNull(searcher.getExecutor());
                     final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                     searcher.search(termQuery, new TotalHitCountCollectorManager());
                     assertBusy(
@@ -2876,7 +2876,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 {
                     try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.QUERY, true)) {
                         ContextIndexSearcher searcher = searchContext.searcher();
-                        assertNotNull(searcher.getExecutor());
+                        assertNull(searcher.getExecutor());
                         final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                         searcher.search(termQuery, new TotalHitCountCollectorManager());
                         assertBusy(

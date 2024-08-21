@@ -112,14 +112,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     private static final String DATA_TIER_ALLOCATION_DECIDER_NAME = "data_tier";
 
     /**
-     * Allows the shard_availability health indicator to return YELLOW if a primary
-     * is STARTED, but a replica is still INITIALIZING and the replica has been unassigned
-     * for less than the value of this setting. The default value of 0 seconds will cause
-     * shard_availability health to be RED in this situation.
+     * Changes the behavior of isNewlyCreatedAndInitializingReplica so that the
+     * shard_availability health indicator returns YELLOW if a primary
+     * is STARTED, but a replica is still INITIALIZING and the replica has been
+     * unassigned for less than the value of this setting. This function is
+     * only used in serverless, so this setting has no effect in stateless.
      */
     public static final Setting<TimeValue> REPLICA_UNASSIGNED_BUFFER_TIME = Setting.timeSetting(
         "health.shard_availability.replica_unassigned_buffer_time",
-        TimeValue.timeValueSeconds(0),
+        TimeValue.timeValueSeconds(3),
         TimeValue.timeValueSeconds(0),
         TimeValue.timeValueSeconds(20),
         Setting.Property.NodeScope,

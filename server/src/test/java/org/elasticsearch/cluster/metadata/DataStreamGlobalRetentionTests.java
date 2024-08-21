@@ -8,55 +8,26 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
-import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.util.List;
-
-public class DataStreamGlobalRetentionTests extends SimpleDiffableWireSerializationTestCase<ClusterState.Custom> {
+public class DataStreamGlobalRetentionTests extends AbstractWireSerializingTestCase<DataStreamGlobalRetention> {
 
     @Override
-    protected ClusterState.Custom makeTestChanges(ClusterState.Custom testInstance) {
-        if (randomBoolean()) {
-            return testInstance;
-        }
-        return mutateInstance(testInstance);
-    }
-
-    @Override
-    protected Writeable.Reader<Diff<ClusterState.Custom>> diffReader() {
-        return DataStreamGlobalRetention::readDiffFrom;
-    }
-
-    @Override
-    protected Writeable.Reader<ClusterState.Custom> instanceReader() {
+    protected Writeable.Reader<DataStreamGlobalRetention> instanceReader() {
         return DataStreamGlobalRetention::read;
     }
 
     @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(
-            List.of(
-                new NamedWriteableRegistry.Entry(ClusterState.Custom.class, DataStreamGlobalRetention.TYPE, DataStreamGlobalRetention::read)
-            )
-        );
-    }
-
-    @Override
-    protected ClusterState.Custom createTestInstance() {
+    protected DataStreamGlobalRetention createTestInstance() {
         return randomGlobalRetention();
     }
 
     @Override
-    protected ClusterState.Custom mutateInstance(ClusterState.Custom instance) {
-        DataStreamGlobalRetention metadata = (DataStreamGlobalRetention) instance;
-        var defaultRetention = metadata.getDefaultRetention();
-        var maxRetention = metadata.getMaxRetention();
+    protected DataStreamGlobalRetention mutateInstance(DataStreamGlobalRetention instance) {
+        var defaultRetention = instance.defaultRetention();
+        var maxRetention = instance.maxRetention();
         switch (randomInt(1)) {
             case 0 -> {
                 defaultRetention = randomValueOtherThan(
@@ -81,10 +52,6 @@ public class DataStreamGlobalRetentionTests extends SimpleDiffableWireSerializat
             withDefault == false ? null : TimeValue.timeValueDays(randomIntBetween(1, 1000)),
             withMax == false ? null : TimeValue.timeValueDays(randomIntBetween(1000, 2000))
         );
-    }
-
-    public void testChunking() {
-        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), ignored -> 1);
     }
 
     public void testValidation() {

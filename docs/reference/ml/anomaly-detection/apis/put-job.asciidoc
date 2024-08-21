@@ -105,6 +105,20 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules]
 (array)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-actions]
 
+//Begin analysis_config.detectors.custom_rules.params
+`params`:::
+(object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-params]
++
+.Properties of `params`
+[%collapsible%open]
+=======
+`force_time_shift`::::
+(object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-params-force-time-shift]
+=======
+//End analysis_config.detectors.custom_rules.params
+
 //Begin analysis_config.detectors.custom_rules.conditions
 `conditions`:::
 (array)

@@ -160,7 +160,7 @@ final class AggregateMapper {
         if (NumericAggregate.class.isAssignableFrom(clazz)) {
             types = NUMERIC;
         } else if (Max.class.isAssignableFrom(clazz) || Min.class.isAssignableFrom(clazz)) {
-            types = List.of("Boolean", "Int", "Long", "Double", "Ip");
+            types = List.of("Boolean", "Int", "Long", "Double", "Ip", "BytesRef");
         } else if (clazz == Count.class) {
             types = List.of(""); // no extra type distinction
         } else if (SpatialAggregateFunction.class.isAssignableFrom(clazz)) {

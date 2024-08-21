@@ -32,7 +32,7 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "The field to collect the top values for."
         },
@@ -50,7 +50,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [

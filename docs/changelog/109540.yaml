@@ -1,6 +1,0 @@
-pr: 109540
-summary: Add metrics@custom component template to metrics-*-* index template
-area: Data streams
-type: enhancement
-issues:
- - 109475

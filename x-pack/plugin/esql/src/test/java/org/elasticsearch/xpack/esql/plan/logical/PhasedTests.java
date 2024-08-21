@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
@@ -14,11 +15,12 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -93,6 +95,16 @@ public class PhasedTests extends ESTestCase {
     public class Dummy extends UnaryPlan implements Phased {
         Dummy(Source source, LogicalPlan child) {
             super(source, child);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException("not serialized");
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException("not serialized");
         }
 
         @Override

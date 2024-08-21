@@ -104,9 +104,7 @@ public class AdaptiveAllocationsSettings implements ToXContentObject, Writeable 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (enabled != null) {
-            builder.field(ENABLED.getPreferredName(), enabled);
-        }
+        builder.field(ENABLED.getPreferredName(), enabled != null ? enabled : false);
         if (minNumberOfAllocations != null) {
             builder.field(MIN_NUMBER_OF_ALLOCATIONS.getPreferredName(), minNumberOfAllocations);
         }

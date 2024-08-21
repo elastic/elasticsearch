@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShard
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -42,7 +43,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -64,6 +64,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -851,9 +852,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         );
                     } else {
                         // does not do a can-match
-                        ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices).indicesOptions(
-                            indicesOptions
-                        ).local(true).preference(preference).routing(routing);
+                        ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(
+                            MasterNodeRequest.infiniteMasterNodeTimeout(connection.getTransportVersion()),
+                            indices
+                        ).indicesOptions(indicesOptions).local(true).preference(preference).routing(routing);
                         transportService.sendRequest(
                             connection,
                             TransportClusterSearchShardsAction.TYPE.name(),

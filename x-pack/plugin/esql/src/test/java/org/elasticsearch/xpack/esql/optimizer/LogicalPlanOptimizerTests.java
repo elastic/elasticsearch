@@ -42,8 +42,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -109,6 +107,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters;
@@ -1771,7 +1771,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             contains(
                 new Order(
                     EMPTY,
-                    new ReferenceAttribute(EMPTY, "e", INTEGER, null, Nullability.TRUE, null, false),
+                    new ReferenceAttribute(EMPTY, "e", INTEGER, Nullability.TRUE, null, false),
                     Order.OrderDirection.ASC,
                     Order.NullsPosition.LAST
                 ),
@@ -1814,7 +1814,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             contains(
                 new Order(
                     EMPTY,
-                    new ReferenceAttribute(EMPTY, "e", INTEGER, null, Nullability.TRUE, null, false),
+                    new ReferenceAttribute(EMPTY, "e", INTEGER, Nullability.TRUE, null, false),
                     Order.OrderDirection.ASC,
                     Order.NullsPosition.LAST
                 ),
@@ -3514,6 +3514,49 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(agg.groupings().get(0), is(ref));
     }
 
+    public void testBucketWithNonFoldingArgs() {
+        assertThat(
+            typesError("from types | stats max(integer) by bucket(date, integer, \"2000-01-01\", \"2000-01-02\")"),
+            containsString(
+                "second argument of [bucket(date, integer, \"2000-01-01\", \"2000-01-02\")] must be a constant, " + "received [integer]"
+            )
+        );
+
+        assertThat(
+            typesError("from types | stats max(integer) by bucket(date, 2, date, \"2000-01-02\")"),
+            containsString("third argument of [bucket(date, 2, date, \"2000-01-02\")] must be a constant, " + "received [date]")
+        );
+
+        assertThat(
+            typesError("from types | stats max(integer) by bucket(date, 2, \"2000-01-02\", date)"),
+            containsString("fourth argument of [bucket(date, 2, \"2000-01-02\", date)] must be a constant, " + "received [date]")
+        );
+
+        assertThat(
+            typesError("from types | stats max(integer) by bucket(integer, long, 4, 5)"),
+            containsString("second argument of [bucket(integer, long, 4, 5)] must be a constant, " + "received [long]")
+        );
+
+        assertThat(
+            typesError("from types | stats max(integer) by bucket(integer, 3, long, 5)"),
+            containsString("third argument of [bucket(integer, 3, long, 5)] must be a constant, " + "received [long]")
+        );
+
+        assertThat(
+            typesError("from types | stats max(integer) by bucket(integer, 3, 4, long)"),
+            containsString("fourth argument of [bucket(integer, 3, 4, long)] must be a constant, " + "received [long]")
+        );
+    }
+
+    private String typesError(String query) {
+        VerificationException e = expectThrows(VerificationException.class, () -> planTypes(query));
+        String message = e.getMessage();
+        assertTrue(message.startsWith("Found "));
+        String pattern = "\nline ";
+        int index = message.indexOf(pattern);
+        return message.substring(index + pattern.length());
+    }
+
     /**
      * Expects
      * Project[[x{r}#5]]
@@ -4122,14 +4165,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var invalidPlan = new OrderBy(
             limit.source(),
             limit,
-            asList(
-                new Order(
-                    limit.source(),
-                    salary,
-                    org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC,
-                    org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.FIRST
-                )
-            )
+            asList(new Order(limit.source(), salary, Order.OrderDirection.ASC, Order.NullsPosition.FIRST))
         );
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(invalidPlan));
@@ -4205,20 +4241,20 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             assertThat(topN.order().size(), is(3));
 
             var firstOrder = as(topN.order().get(0), Order.class);
-            assertThat(firstOrder.direction(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC));
-            assertThat(firstOrder.nullsPosition(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.FIRST));
+            assertThat(firstOrder.direction(), equalTo(Order.OrderDirection.ASC));
+            assertThat(firstOrder.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
             var renamed_emp_no = as(firstOrder.child(), ReferenceAttribute.class);
             assertThat(renamed_emp_no.toString(), startsWith("$$emp_no$temp_name"));
 
             var secondOrder = as(topN.order().get(1), Order.class);
-            assertThat(secondOrder.direction(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.DESC));
-            assertThat(secondOrder.nullsPosition(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.LAST));
+            assertThat(secondOrder.direction(), equalTo(Order.OrderDirection.DESC));
+            assertThat(secondOrder.nullsPosition(), equalTo(Order.NullsPosition.LAST));
             var renamed_salary = as(secondOrder.child(), ReferenceAttribute.class);
             assertThat(renamed_salary.toString(), startsWith("$$salary$temp_name"));
 
             var thirdOrder = as(topN.order().get(2), Order.class);
-            assertThat(thirdOrder.direction(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC));
-            assertThat(thirdOrder.nullsPosition(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.LAST));
+            assertThat(thirdOrder.direction(), equalTo(Order.OrderDirection.ASC));
+            assertThat(thirdOrder.nullsPosition(), equalTo(Order.NullsPosition.LAST));
             var renamed_emp_no2 = as(thirdOrder.child(), ReferenceAttribute.class);
             assertThat(renamed_emp_no2.toString(), startsWith("$$emp_no$temp_name"));
 
@@ -4490,8 +4526,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(topN.order().size(), is(1));
 
         var order = as(topN.order().get(0), Order.class);
-        assertThat(order.direction(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC));
-        assertThat(order.nullsPosition(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.LAST));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
         var expression = as(order.child(), ReferenceAttribute.class);
         assertThat(expression.toString(), startsWith("$$order_by$0$"));
 
@@ -4529,14 +4565,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(topN.order().size(), is(2));
 
         var order = as(topN.order().get(0), Order.class);
-        assertThat(order.direction(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC));
-        assertThat(order.nullsPosition(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.LAST));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
         ReferenceAttribute expression = as(order.child(), ReferenceAttribute.class);
         assertThat(expression.toString(), startsWith("$$order_by$0$"));
 
         order = as(topN.order().get(1), Order.class);
-        assertThat(order.direction(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.DESC));
-        assertThat(order.nullsPosition(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.FIRST));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
         FieldAttribute empNo = as(order.child(), FieldAttribute.class);
         assertThat(empNo.name(), equalTo("emp_no"));
 
@@ -4606,14 +4642,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             assertThat(topN.order().size(), is(2));
 
             var firstOrderExpr = as(topN.order().get(0), Order.class);
-            assertThat(firstOrderExpr.direction(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC));
-            assertThat(firstOrderExpr.nullsPosition(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.LAST));
+            assertThat(firstOrderExpr.direction(), equalTo(Order.OrderDirection.ASC));
+            assertThat(firstOrderExpr.nullsPosition(), equalTo(Order.NullsPosition.LAST));
             var renamedEmpNoSalaryExpression = as(firstOrderExpr.child(), ReferenceAttribute.class);
             assertThat(renamedEmpNoSalaryExpression.toString(), startsWith("$$order_by$0$"));
 
             var secondOrderExpr = as(topN.order().get(1), Order.class);
-            assertThat(secondOrderExpr.direction(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.DESC));
-            assertThat(secondOrderExpr.nullsPosition(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.FIRST));
+            assertThat(secondOrderExpr.direction(), equalTo(Order.OrderDirection.DESC));
+            assertThat(secondOrderExpr.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
             var renamedNegatedSalaryExpression = as(secondOrderExpr.child(), ReferenceAttribute.class);
             assertThat(renamedNegatedSalaryExpression.toString(), startsWith("$$order_by$1$"));
 
@@ -4824,7 +4860,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         doTestSimplifyComparisonArithmetics("12 * (-integer - 5) == -120 AND integer < 6 ", "integer", EQ, 5);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108525")
     public void testSimplifyComparisonArithmeticWithDisjunction() {
         doTestSimplifyComparisonArithmetics("12 * (-integer - 5) >= -120 OR integer < 5", "integer", LTE, 5);
     }

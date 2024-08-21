@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -63,6 +64,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIn
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -2094,6 +2097,138 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    public void testProjectAwayColumns() {
+        var rule = new PhysicalPlanOptimizer.ProjectAwayColumns();
+
+        // FROM test | limit 10000
+        //
+        // as physical plan:
+        //
+        // LimitExec[10000[INTEGER]]
+        // \_ExchangeExec[[],false]
+        // \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+        // EsRelation[test][some_field1{f}#2, some_field2{f}#3]<>]]
+
+        EsRelation relation = new EsRelation(
+            Source.EMPTY,
+            new EsIndex(
+                "test",
+                Map.of(
+                    "some_field1",
+                    new EsField("some_field1", DataType.KEYWORD, Map.of(), true),
+                    "some_field2",
+                    new EsField("some_field2", DataType.KEYWORD, Map.of(), true)
+                )
+            ),
+            IndexMode.STANDARD,
+            false
+        );
+        Attribute some_field1 = relation.output().get(0);
+        Attribute some_field2 = relation.output().get(1);
+        FragmentExec fragment = new FragmentExec(relation);
+        ExchangeExec exchange = new ExchangeExec(Source.EMPTY, fragment);
+        LimitExec limitThenFragment = new LimitExec(Source.EMPTY, exchange, new Literal(Source.EMPTY, 10000, DataType.INTEGER));
+
+        // All the relation's fields are required.
+        PhysicalPlan plan = rule.apply(limitThenFragment);
+        Project project = as(
+            as(as(as(plan, LimitExec.class).child(), ExchangeExec.class).child(), FragmentExec.class).fragment(),
+            Project.class
+        );
+        assertThat(project.projections(), containsInAnyOrder(some_field1, some_field2));
+
+        // FROM test | limit 10000 | keep some_field1
+        ProjectExec projectLimitThenFragment = new ProjectExec(Source.EMPTY, limitThenFragment, List.of(some_field1));
+        plan = rule.apply(projectLimitThenFragment);
+        project = as(
+            as(as(as(as(plan, ProjectExec.class).child(), LimitExec.class).child(), ExchangeExec.class).child(), FragmentExec.class)
+                .fragment(),
+            Project.class
+        );
+        assertThat(project.projections(), contains(some_field1));
+
+        // FROM test | limit 10000 | eval x = to_lower(some_field1)
+        Alias x = new Alias(Source.EMPTY, "x", new ToLower(Source.EMPTY, some_field1, config));
+        EvalExec evalLimitThenFragment = new EvalExec(Source.EMPTY, limitThenFragment, List.of(x));
+        plan = rule.apply(evalLimitThenFragment);
+        project = as(
+            as(as(as(as(plan, EvalExec.class).child(), LimitExec.class).child(), ExchangeExec.class).child(), FragmentExec.class)
+                .fragment(),
+            Project.class
+        );
+        assertThat(project.projections(), containsInAnyOrder(some_field1, some_field2));
+
+        // FROM test | limit 10000 | eval x = to_lower(some_field1) | keep x
+        ProjectExec projectEvalLimitThenFragment = new ProjectExec(Source.EMPTY, evalLimitThenFragment, List.of(x.toAttribute()));
+        plan = rule.apply(projectEvalLimitThenFragment);
+        project = as(
+            as(
+                as(as(as(as(plan, ProjectExec.class).child(), EvalExec.class).child(), LimitExec.class).child(), ExchangeExec.class)
+                    .child(),
+                FragmentExec.class
+            ).fragment(),
+            Project.class
+        );
+        assertThat(project.projections(), contains(some_field1));
+
+        // FROM test | limit 10000 | rename some_field1 as some_field2
+        ProjectExec renameLimitThenFragment = new ProjectExec(
+            Source.EMPTY,
+            limitThenFragment,
+            List.of(new Alias(Source.EMPTY, some_field2.name(), some_field1))
+        );
+        plan = rule.apply(renameLimitThenFragment);
+        project = as(
+            as(as(as(as(plan, ProjectExec.class).child(), LimitExec.class).child(), ExchangeExec.class).child(), FragmentExec.class)
+                .fragment(),
+            Project.class
+        );
+        assertThat(project.projections(), contains(some_field1));
+
+        // FROM test | limit 10000 | eval x = to_lower(some_field1), y = to_upper(x) | keep y
+        Alias y = new Alias(Source.EMPTY, "y", new ToUpper(Source.EMPTY, x.toAttribute(), config));
+        EvalExec evalTwiceLimitThenFragment = new EvalExec(Source.EMPTY, limitThenFragment, List.of(x, y));
+        ProjectExec projectEvalTwiceLimitThenFragment = new ProjectExec(Source.EMPTY, evalTwiceLimitThenFragment, List.of(y.toAttribute()));
+        plan = rule.apply(projectEvalTwiceLimitThenFragment);
+        project = as(
+            as(
+                as(as(as(as(plan, ProjectExec.class).child(), EvalExec.class).child(), LimitExec.class).child(), ExchangeExec.class)
+                    .child(),
+                FragmentExec.class
+            ).fragment(),
+            Project.class
+        );
+        assertThat(project.projections(), contains(some_field1));
+    }
+
+    /**
+     * Expects
+     * ProjectExec[[avg(emp_no){r}#3]]
+     * \_EvalExec[[$$SUM$avg(emp_no)$0{r:s}#14 / $$COUNT$avg(emp_no)$1{r:s}#15 AS avg(emp_no)]]
+     *   \_LimitExec[1000[INTEGER]]
+     *     \_AggregateExec[[],[SUM(emp_no{f}#4) AS $$SUM$avg(emp_no)$0, COUNT(emp_no{f}#4) AS $$COUNT$avg(emp_no)$1],FINAL,[sum{r}#16, seen{
+     * r}#17, count{r}#18, seen{r}#19],24]
+     *       \_ExchangeExec[[sum{r}#16, seen{r}#17, count{r}#18, seen{r}#19],true]
+     *         \_AggregateExec[[],[SUM(emp_no{f}#4) AS $$SUM$avg(emp_no)$0, COUNT(emp_no{f}#4) AS $$COUNT$avg(emp_no)$1],INITIAL,[sum{r}#37, see
+     * n{r}#38, count{r}#39, seen{r}#40],16]
+     *           \_FieldExtractExec[emp_no{f}#4]
+     *             \_EsQueryExec[test], indexMode[standard], query[{"exists":{"field":"emp_no","boost":1.0}}][_doc{f}#41], limit[], sort[] estimatedRowSize[8]
+     */
+    public void testProjectAwayColumnsDoesNothingForPipelineBreakingAggs() {
+        var plan = optimizedPlan(physicalPlan("""
+            from test
+            | stats avg(emp_no)
+            """));
+
+        ProjectExec project = as(plan, ProjectExec.class);
+        EvalExec eval = as(project.child(), EvalExec.class);
+        LimitExec limit = as(eval.child(), LimitExec.class);
+        AggregateExec finalAgg = as(limit.child(), AggregateExec.class);
+        ExchangeExec exchange = as(finalAgg.child(), ExchangeExec.class);
+        // No projection inserted here.
+        AggregateExec initialAgg = as(exchange.child(), AggregateExec.class);
+    }
+
     /**
      * Expects
      * ProjectExec[[x{r}#3]]
@@ -2105,7 +2240,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *           \_EsQueryExec[test], query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10,"boost":1.0}}}}}]
      *            [_doc{f}#13], limit[10000], sort[] estimatedRowSize[8]
      */
-    public void testProjectAllFieldsWhenOnlyTheCountMatters() {
+    public void testProjectAwayAllColumnsWhenOnlyTheCountMatters() {
         var plan = optimizedPlan(physicalPlan("""
             from test
             | where emp_no > 10
@@ -2123,6 +2258,42 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         eval = as(project.child(), EvalExec.class);
         assertThat(Expressions.names(eval.fields()), contains(nullField));
         var source = source(eval.child());
+        assertThat(Expressions.names(source.attrs()), contains("_doc"));
+    }
+
+    /**
+     * Expects
+     *
+     * LimitExec[10000[INTEGER]]
+     * \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count(*)],FINAL,[count{r}#13, seen{r}#14],8]
+     *   \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count(*)],INITIAL,[count{r}#13, seen{r}#14],8]
+     *     \_LimitExec[10[INTEGER]]
+     *       \_ExchangeExec[[&lt;all-fields-projected&gt;{r:s}#28],false]
+     *         \_ProjectExec[[&lt;all-fields-projected&gt;{r:s}#28]]
+     *           \_EvalExec[[null[NULL] AS &lt;all-fields-projected&gt;]]
+     *             \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#29], limit[10], sort[] estimatedRowSize[4]
+     */
+    public void testProjectAwayAllColumnsWhenOnlyTheCountMattersInStats() {
+        var plan = optimizedPlan(physicalPlan("""
+            from test
+            | limit 10
+            | stats count(*)
+            """));
+
+        var limit = as(plan, LimitExec.class);
+        var aggFinal = as(limit.child(), AggregateExec.class);
+        var aggInitial = as(aggFinal.child(), AggregateExec.class);
+        var limit10 = as(aggInitial.child(), LimitExec.class);
+
+        var exchange = as(limit10.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var eval = as(project.child(), EvalExec.class);
+        EsQueryExec esQuery = as(eval.child(), EsQueryExec.class);
+
+        var nullField = "<all-fields-projected>";
+        assertThat(Expressions.names(project.projections()), contains(nullField));
+        assertThat(Expressions.names(eval.fields()), contains(nullField));
+        assertThat(Expressions.names(esQuery.attrs()), contains("_doc"));
     }
 
     /**

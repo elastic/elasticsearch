@@ -1,5 +1,6 @@
 pr: 112062
 summary: Add ability to rescore inner hits
-area: "Relevance, Search"
+area: Ranking
 type: enhancement
-issues: []
+issues:
+  - 108163

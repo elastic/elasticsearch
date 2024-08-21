@@ -1055,4 +1055,46 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         assertEquals("""
             {"path":[{"to":{"foo":"A","bar":"B"}},{"to":{"foo":"C","bar":"D"}}]}""", syntheticSource);
     }
+
+    public void testDisabledSubObjectWithNameOverlappingParentName() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            b.startObject("properties");
+            {
+                b.startObject("at").field("type", "object").field("enabled", "false").endObject();
+            }
+            b.endObject();
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("path");
+            {
+                b.startObject("at").field("foo", "A").endObject();
+            }
+            b.endObject();
+        });
+        assertEquals("""
+            {"path":{"at":{"foo":"A"}}}""", syntheticSource);
+    }
+
+    public void testStoredNestedSubObjectWithNameOverlappingParentName() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            b.startObject("properties");
+            {
+                b.startObject("at").field("type", "nested").field("store_array_source", "true").endObject();
+            }
+            b.endObject();
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("path");
+            {
+                b.startObject("at").field("foo", "A").endObject();
+            }
+            b.endObject();
+        });
+        assertEquals("""
+            {"path":{"at":{"foo":"A"}}}""", syntheticSource);
+    }
 }

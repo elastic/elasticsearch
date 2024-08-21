@@ -101,6 +101,7 @@ import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabi
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.DIAGNOSIS_WAIT_FOR_INITIALIZATION;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.NAME;
+import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.AVAILABLE;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.CREATING;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.INITIALIZING;
@@ -324,6 +325,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testAllReplicasUnassigned() {
+        // Test with replica_unassigned_buffer_time set to 0s.
+        // Use of this setting requires testing many cases and is handled in testIsNewlyCreatedAndInitializingReplica.
+        var nodeSettings = Settings.builder().put(REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), "0s").build();
+
         {
             ClusterState clusterState = createClusterStateWith(
                 List.of(
@@ -380,7 +385,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 ),
                 List.of()
             );
-            var service = createShardsAvailabilityIndicatorService(clusterState);
+            var service = createAllocationHealthIndicatorService(nodeSettings, clusterState, Map.of(), new SystemIndices(List.of()));
             ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
@@ -403,7 +408,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 ),
                 List.of()
             );
-            var service = createShardsAvailabilityIndicatorService(clusterState);
+
+            var service = createAllocationHealthIndicatorService(nodeSettings, clusterState, Map.of(), new SystemIndices(List.of()));
             ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,

@@ -11,3 +11,4 @@ To convert dates in other formats, use <<esql-date_parse>>.
 ROW string = ["1953-09-02T00:00:00.000Z", "1964-06-02T00:00:00.000Z", "1964-06-02 00:00:00"]
 | EVAL datetime = TO_DATETIME(string)
 ```
+Note: Note that when converting from nanosecond resolution to millisecond resolution with this function, the nanosecond date is truncated, not rounded.

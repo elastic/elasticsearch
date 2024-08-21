@@ -38,6 +38,11 @@ public class EsqlCapabilities {
         FN_MV_APPEND,
 
         /**
+         * Support for {@code MV_PERCENTILE} function.
+         */
+        FN_MV_PERCENTILE,
+
+        /**
          * Support for function {@code IP_PREFIX}.
          */
         FN_IP_PREFIX,
@@ -66,6 +71,11 @@ public class EsqlCapabilities {
          * Support for ips in aggregations {@code MAX} and {@code MIN}.
          */
         AGG_MAX_MIN_IP_SUPPORT,
+
+        /**
+         * Support for strings in aggregations {@code MAX} and {@code MIN}.
+         */
+        AGG_MAX_MIN_STRING_SUPPORT,
 
         /**
          * Support for booleans in {@code TOP} aggregation.
@@ -229,7 +239,17 @@ public class EsqlCapabilities {
         /**
          * Consider the upper bound when computing the interval in BUCKET auto mode.
          */
-        BUCKET_INCLUSIVE_UPPER_BOUND;
+        BUCKET_INCLUSIVE_UPPER_BOUND,
+
+        /**
+         * Changed error messages for fields with conflicting types in different indices.
+         */
+        SHORT_ERROR_MESSAGES_FOR_UNSUPPORTED_FIELDS,
+
+        /**
+         * Support for the whole number spans in BUCKET function.
+         */
+        BUCKET_WHOLE_NUMBER_AS_SPAN;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

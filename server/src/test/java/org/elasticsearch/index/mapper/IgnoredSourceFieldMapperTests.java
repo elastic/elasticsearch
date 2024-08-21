@@ -1184,8 +1184,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         assertEquals("""
             {"path":[{"to":{"foo":"A","bar":"B"}},{"to":{"foo":"C","bar":"D"}}]}""", syntheticSource);
     }
-                     
-        public void testDisabledSubObjectWithNameOverlappingParentName() throws IOException {
+
+    public void testDisabledSubObjectWithNameOverlappingParentName() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("path");
             b.startObject("properties");

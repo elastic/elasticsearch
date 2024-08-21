@@ -89,7 +89,7 @@ public final class ValuesDoubleGroupingAggregatorFunction implements GroupingAgg
 
   private void addRawInput(int positionOffset, IntVector groups, DoubleBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
@@ -103,7 +103,7 @@ public final class ValuesDoubleGroupingAggregatorFunction implements GroupingAgg
 
   private void addRawInput(int positionOffset, IntVector groups, DoubleVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       ValuesDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
     }
   }
@@ -116,7 +116,7 @@ public final class ValuesDoubleGroupingAggregatorFunction implements GroupingAgg
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         if (values.isNull(groupPosition + positionOffset)) {
           continue;
         }
@@ -137,7 +137,7 @@ public final class ValuesDoubleGroupingAggregatorFunction implements GroupingAgg
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         ValuesDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
       }
     }
@@ -153,7 +153,7 @@ public final class ValuesDoubleGroupingAggregatorFunction implements GroupingAgg
     }
     DoubleBlock values = (DoubleBlock) valuesUncast;
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       ValuesDoubleAggregator.combineIntermediate(state, groupId, values, groupPosition + positionOffset);
     }
   }

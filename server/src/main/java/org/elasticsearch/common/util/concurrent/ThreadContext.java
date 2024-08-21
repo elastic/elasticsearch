@@ -579,7 +579,7 @@ public final class ThreadContext implements Writeable, TraceContext {
     }
 
     /**
-     * Add the {@code value} for the specified {@code key} Any duplicate {@code value} is ignored.
+     * Add the {@code value} for the specified {@code key}. Any duplicate {@code value} is ignored.
      *
      * @param key         the header name
      * @param value       the header value

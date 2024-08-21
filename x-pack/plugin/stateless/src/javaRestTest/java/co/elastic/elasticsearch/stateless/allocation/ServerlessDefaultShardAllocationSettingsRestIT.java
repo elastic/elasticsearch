@@ -240,7 +240,7 @@ public class ServerlessDefaultShardAllocationSettingsRestIT extends ESRestTestCa
         );
         for (String systemIndexName : systemIndices) {
             final Request putSystemIndex = new Request("PUT", systemIndexName);
-            assertOK(client().performRequest(putSystemIndex));
+            assertOK(adminClient().performRequest(putSystemIndex));
             assertNumberOfShards(
                 systemIndexName,
                 defaultNumberOfShardsForSystemIndices,

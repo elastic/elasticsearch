@@ -254,6 +254,7 @@ public class PivotTests extends ESTestCase {
                 TransformProgress progress
             ) {
                 try {
+
                     return super.processSearchResponse(
                         searchResponse,
                         destinationIndex,

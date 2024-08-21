@@ -18,6 +18,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
@@ -105,6 +107,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     protected final TransformAuditor auditor;
     protected final TransformContext context;
+    protected final Client client;
+    protected final ScriptService scriptService;
 
     protected volatile TransformConfig transformConfig;
     private volatile TransformProgress progress;
@@ -149,7 +153,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformProgress transformProgress,
         TransformCheckpoint lastCheckpoint,
         TransformCheckpoint nextCheckpoint,
-        TransformContext context
+        TransformContext context,
+        Client client
     ) {
         // important: note that we pass the context object as lock object
         super(threadPool, initialState, initialPosition, jobStats, context);
@@ -164,6 +169,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         this.context = ExceptionsHelper.requireNonNull(context, "context");
         // give runState a default
         this.runState = RunState.APPLY_RESULTS;
+        this.client = client;
+
+        this.scriptService = transformServices.scriptService();
 
         this.failureHandler = new TransformFailureHandler(auditor, context, transformConfig.getId());
         if (transformConfig.getSettings() != null && transformConfig.getSettings().getDocsPerSecond() != null) {
@@ -1027,7 +1035,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             getConfig().getDestination().getPipeline(),
             getFieldMappings(),
             getStats(),
-            progress
+            progress,
+            this.client,
+            this.scriptService
         );
 
         if (indexRequestStreamAndCursor == null || indexRequestStreamAndCursor.v1() == null) {

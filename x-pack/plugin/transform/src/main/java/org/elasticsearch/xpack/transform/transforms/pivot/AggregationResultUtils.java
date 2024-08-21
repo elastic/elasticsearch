@@ -138,6 +138,7 @@ public final class AggregationResultUtils {
                 }
             });
 
+            // It is working, but we can't group by timestamp, otherwise it will generate different ids each time it runs
             document.put(TransformField.DOCUMENT_ID_FIELD, idGen.getID());
 
             return document;

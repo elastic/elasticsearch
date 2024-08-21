@@ -19,9 +19,16 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -36,8 +43,10 @@ import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -75,6 +84,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
         int numberOfBuckets,
         ActionListener<List<Map<String, Object>>> listener
     ) {
+
         ClientHelper.assertNoAuthorizationHeader(headers);
         ClientHelper.executeWithHeadersAsync(
             headers,
@@ -153,13 +163,16 @@ public abstract class AbstractCompositeAggFunction implements Function {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Tuple<Stream<IndexRequest>, Map<String, Object>> processSearchResponse(
         SearchResponse searchResponse,
         String destinationIndex,
         String destinationPipeline,
         Map<String, String> fieldTypeMap,
         TransformIndexerStats stats,
-        TransformProgress progress
+        TransformProgress progress,
+        Client client,
+        ScriptService scriptService
     ) {
         InternalAggregations aggregations = searchResponse.getAggregations();
 
@@ -174,11 +187,74 @@ public abstract class AbstractCompositeAggFunction implements Function {
             return null;
         }
 
-        Stream<IndexRequest> indexRequestStream = extractResults(compositeAgg, fieldTypeMap, stats, progress).map(doc -> {
+        Stream<Map<String, Object>> results = extractResults(compositeAgg, fieldTypeMap, stats, progress);
+
+        Stream<IndexRequest> indexRequestStream = results.map(doc -> {
             String docId = (String) doc.remove(TransformField.DOCUMENT_ID_FIELD);
+            logger.info("---------------------------HERE---------------------------------- ");
+            System.out.println("docID " + docId);
+            System.out.println("doc " + doc);
+
+            SearchRequest request = new SearchRequest().indices(destinationIndex)
+                .source(new SearchSourceBuilder().query(QueryBuilders.termQuery("_id", docId)));
+            SearchResponse response = null;
+            try {
+                response = client.search(request).get();
+            } catch (InterruptedException | ExecutionException e) {
+                throw new RuntimeException(e);
+            }
+
+            System.out.println(request.toString());
+            System.out.println(response.toString());
+
+            SearchHit[] hits = response.getHits().getHits();
+
+            Map<String, Object> oldDoc = hits.length > 0 ? hits[0].getSourceAsMap() : Collections.<String, Object>emptyMap();
+
+            Script script = new Script(
+                ScriptType.INLINE,
+                Script.DEFAULT_SCRIPT_LANG,
+                Strings.format(
+                    "Map results = params.newDoc;"
+                        + "if (params.oldDoc.firstSeenTimestamp != null) {"
+                        + "    results['firstSeenTimestamp'] = params.oldDoc.firstSeenTimestamp;"
+                        + "}"
+
+                        + "List mergedIPs = new ArrayList();"
+                        + "if (params.oldDoc.host != null && params.oldDoc.host.ips != null) {"
+                        + "    mergedIPs.addAll(params.oldDoc.host.ips);"
+                        + "}"
+
+                        + "for (ip in results.host.ip.keySet()) {"
+                        + "    if (!mergedIPs.contains(ip)) {"
+                        + "         mergedIPs.add(ip);"
+                        + "    }"
+                        + "}"
+
+                        + "results['host'].remove('ip');"
+                        + "results['host']['ips'] = mergedIPs;"
+                        + "return results;"
+                ),
+                Collections.emptyMap()
+            );
+
+            ScriptedMetricAggContexts.ReduceScript.Factory factory = scriptService.compile(
+                script,
+                ScriptedMetricAggContexts.ReduceScript.CONTEXT
+            );
+
+            Map<String, Object> params = new HashMap<>();
+            params.put("oldDoc", oldDoc);
+            params.put("newDoc", doc);
+
+            ScriptedMetricAggContexts.ReduceScript executableScript = factory.newInstance(params, List.of(doc));
+
+            Object painlessResult = executableScript.execute();
+            System.out.println("painless result " + painlessResult);
+
             return DocumentConversionUtils.convertDocumentToIndexRequest(
                 docId,
-                documentTransformationFunction(doc),
+                documentTransformationFunction((Map<String, Object>) painlessResult),
                 destinationIndex,
                 destinationPipeline
             );

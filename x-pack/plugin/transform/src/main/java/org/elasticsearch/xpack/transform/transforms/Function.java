@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -239,6 +240,7 @@ public interface Function {
      * @param fieldMappings field mappings for the destination
      * @param stats a stats object to record/collect stats
      * @param progress a progress object to record/collect progress information
+     * @param client ES client
      * @return a tuple with the stream of index requests and the cursor
      */
     Tuple<Stream<IndexRequest>, Map<String, Object>> processSearchResponse(
@@ -247,6 +249,8 @@ public interface Function {
         String destinationPipeline,
         Map<String, String> fieldMappings,
         TransformIndexerStats stats,
-        TransformProgress progress
+        TransformProgress progress,
+        Client client,
+        ScriptService scriptService
     );
 }

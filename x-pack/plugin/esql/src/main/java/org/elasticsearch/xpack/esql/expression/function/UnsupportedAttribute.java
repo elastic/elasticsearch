@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -75,7 +76,9 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readString(),
-            ((PlanStreamInput) in).readEsField(),
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
+                ? ((PlanStreamInput) in).readEsField()
+                : new UnsupportedEsField(in),
             in.readOptionalString(),
             NameId.readFrom((PlanStreamInput) in)
         );
@@ -86,7 +89,11 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
             out.writeString(name());
-            ((PlanStreamOutput) out).writeEsField(field());
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)) {
+                ((PlanStreamOutput) out).writeEsField(field());
+            } else {
+                field().writeTo(out);
+            }
             out.writeOptionalString(hasCustomMessage ? message : null);
             id().writeTo(out);
         }

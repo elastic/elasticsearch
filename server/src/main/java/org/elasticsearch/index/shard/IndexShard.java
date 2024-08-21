@@ -176,7 +176,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -239,7 +238,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // ensure happens-before relation between addRefreshListener() and postRecovery()
     private volatile SubscribableListener<Void> postRecoveryComplete;
     private volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
-    private final ReentrantLock engineMutex = new ReentrantLock(); // lock ordering: engineMutex -> mutex
+
+    class FakeLock {
+        void lock() {};
+
+        void unlock() {};
+
+        boolean isHeldByCurrentThread() {
+            return true;
+        };
+    }
+
+    private final FakeLock engineMutex = new FakeLock(); // lock ordering: engineMutex -> mutex
     private final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
     final EngineFactory engineFactory;
 

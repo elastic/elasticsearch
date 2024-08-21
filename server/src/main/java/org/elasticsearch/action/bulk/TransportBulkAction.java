@@ -107,7 +107,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
-            System::nanoTime,
+            threadPool::relativeTimeInNanos,
             failureStoreMetrics
         );
     }
@@ -202,7 +202,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         BulkRequest bulkRequest,
         Executor executor,
         ActionListener<BulkResponse> listener,
-        long relativeStartTime
+        long relativeStartTimeNanos
     ) {
         trackIndexRequests(bulkRequest);
 
@@ -219,7 +219,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             indicesToAutoCreate,
             dataStreamsToBeRolledOver,
             failureStoresToBeRolledOver,
-            relativeStartTime
+            relativeStartTimeNanos
         );
     }
 
@@ -337,19 +337,19 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Map<String, CreateIndexRequest> indicesToAutoCreate,
         Set<String> dataStreamsToBeRolledOver,
         Set<String> failureStoresToBeRolledOver,
-        long startTime
+        long startTimeNanos
     ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         // Optimizing when there are no prerequisite actions
         if (indicesToAutoCreate.isEmpty() && dataStreamsToBeRolledOver.isEmpty() && failureStoresToBeRolledOver.isEmpty()) {
-            executeBulk(task, bulkRequest, startTime, listener, executor, responses, Map.of());
+            executeBulk(task, bulkRequest, startTimeNanos, listener, executor, responses, Map.of());
             return;
         }
         final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
         Runnable executeBulkRunnable = () -> executor.execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
-                executeBulk(task, bulkRequest, startTime, listener, executor, responses, indicesThatCannotBeCreated);
+                executeBulk(task, bulkRequest, startTimeNanos, listener, executor, responses, indicesThatCannotBeCreated);
             }
         });
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
@@ -561,7 +561,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             responses,
             indicesThatCannotBeCreated,
             indexNameExpressionResolver,
-            relativeTimeProvider,
+            relativeTimeNanosProvider,
             startTimeNanos,
             listener,
             failureStoreMetrics

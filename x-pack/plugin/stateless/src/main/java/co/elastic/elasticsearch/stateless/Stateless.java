@@ -294,6 +294,7 @@ public class Stateless extends Plugin
     private final SetOnce<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler = new SetOnce<>();
     private final SetOnce<RecoveryMetricsCollector> recoveryMetricsCollector = new SetOnce<>();
     private final SetOnce<DocumentParsingProvider> documentParsingProvider = new SetOnce<>();
+    private final SetOnce<BlobCacheMetrics> blobCacheMetrics = new SetOnce<>();
     private final boolean sharedCachedSettingExplicitlySet;
 
     private final boolean sharedCacheMmapExplicitlySet;
@@ -433,6 +434,10 @@ public class Stateless extends Plugin
         Environment environment = services.environment();
         NodeEnvironment nodeEnvironment = services.nodeEnvironment();
         IndicesService indicesService = services.indicesService();
+        final var blobCacheMetrics = setAndGet(
+            this.blobCacheMetrics,
+            new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
+        );
 
         final Collection<Object> components = new ArrayList<>();
         // use the settings that include additional settings.
@@ -441,7 +446,7 @@ public class Stateless extends Plugin
             this.objectStoreService,
             createObjectStoreService(settings, services.repositoriesService(), threadPool, clusterService)
         );
-        var cacheService = createSharedBlobCacheService(services, nodeEnvironment, settings, threadPool);
+        var cacheService = createSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics);
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
         var cacheBlobReaderService = setAndGet(
@@ -634,18 +639,12 @@ public class Stateless extends Plugin
     }
 
     protected StatelessSharedBlobCacheService createSharedBlobCacheService(
-        PluginServices services,
         NodeEnvironment nodeEnvironment,
         Settings settings,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        BlobCacheMetrics blobCacheMetrics
     ) {
-        return new StatelessSharedBlobCacheService(
-            nodeEnvironment,
-            settings,
-            threadPool,
-            SHARD_READ_THREAD_POOL,
-            new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
-        );
+        return new StatelessSharedBlobCacheService(nodeEnvironment, settings, threadPool, SHARD_READ_THREAD_POOL, blobCacheMetrics);
     }
 
     public SharedBlobCacheWarmingService getSharedBlobCacheWarmingService() {

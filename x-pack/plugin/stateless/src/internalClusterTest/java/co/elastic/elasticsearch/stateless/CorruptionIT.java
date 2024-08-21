@@ -387,18 +387,12 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
 
         @Override
         protected StatelessSharedBlobCacheService createSharedBlobCacheService(
-            PluginServices services,
             NodeEnvironment nodeEnvironment,
             Settings settings,
-            ThreadPool threadPool
+            ThreadPool threadPool,
+            BlobCacheMetrics blobCacheMetrics
         ) {
-            return new TestSharedBlobCacheService(
-                nodeEnvironment,
-                settings,
-                threadPool,
-                SHARD_READ_THREAD_POOL,
-                new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
-            );
+            return new TestSharedBlobCacheService(nodeEnvironment, settings, threadPool, SHARD_READ_THREAD_POOL, blobCacheMetrics);
         }
     }
 

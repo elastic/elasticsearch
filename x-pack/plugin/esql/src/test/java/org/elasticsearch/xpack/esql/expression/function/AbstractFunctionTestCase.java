@@ -88,7 +88,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -708,13 +707,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (int i = 0; i < args.size(); i++) {
             typesFromSignature.add(new HashSet<>());
         }
-        Function<DataType, String> typeName = dt -> dt.esType() != null ? dt.esType() : dt.typeName();
         for (Map.Entry<List<DataType>, DataType> entry : signatures().entrySet()) {
             List<DataType> types = entry.getKey();
             for (int i = 0; i < args.size() && i < types.size(); i++) {
-                typesFromSignature.get(i).add(typeName.apply(types.get(i)));
+                typesFromSignature.get(i).add(types.get(i).esNameIfPossible());
             }
-            returnFromSignature.add(typeName.apply(entry.getValue()));
+            returnFromSignature.add(entry.getValue().esNameIfPossible());
         }
 
         for (int i = 0; i < args.size(); i++) {
@@ -871,15 +869,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             StringBuilder b = new StringBuilder();
             for (DataType arg : sig.getKey()) {
-                b.append(arg.typeName()).append(" | ");
+                b.append(arg.esNameIfPossible()).append(" | ");
             }
             b.append("| ".repeat(argNames.size() - sig.getKey().size()));
-            b.append(sig.getValue().typeName());
+            b.append(sig.getValue().esNameIfPossible());
             table.add(b.toString());
         }
         Collections.sort(table);
         if (table.isEmpty()) {
-            table.add(signatures.values().iterator().next().typeName());
+            table.add(signatures.values().iterator().next().esNameIfPossible());
         }
 
         String rendered = DOCS_WARNING + """
@@ -1085,7 +1083,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.startArray("params");
             builder.endArray();
             // There should only be one return type so just use that as the example
-            builder.field("returnType", signatures().values().iterator().next().typeName());
+            builder.field("returnType", signatures().values().iterator().next().esNameIfPossible());
             builder.endObject();
         } else {
             int minArgCount = (int) args.stream().filter(a -> false == a.optional()).count();
@@ -1106,14 +1104,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     EsqlFunctionRegistry.ArgSignature arg = args.get(i);
                     builder.startObject();
                     builder.field("name", arg.name());
-                    builder.field("type", sig.getKey().get(i).typeName());
+                    builder.field("type", sig.getKey().get(i).esNameIfPossible());
                     builder.field("optional", arg.optional());
                     builder.field("description", arg.description());
                     builder.endObject();
                 }
                 builder.endArray();
                 builder.field("variadic", variadic);
-                builder.field("returnType", sig.getValue().typeName());
+                builder.field("returnType", sig.getValue().esNameIfPossible());
                 builder.endObject();
             }
         }
@@ -1149,12 +1147,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     if (rhs.getKey().size() <= i) {
                         return 1;
                     }
-                    int c = lhs.getKey().get(i).typeName().compareTo(rhs.getKey().get(i).typeName());
+                    int c = lhs.getKey().get(i).esNameIfPossible().compareTo(rhs.getKey().get(i).esNameIfPossible());
                     if (c != 0) {
                         return c;
                     }
                 }
-                return lhs.getValue().typeName().compareTo(rhs.getValue().typeName());
+                return lhs.getValue().esNameIfPossible().compareTo(rhs.getValue().esNameIfPossible());
             }
         });
         return sortedSignatures;

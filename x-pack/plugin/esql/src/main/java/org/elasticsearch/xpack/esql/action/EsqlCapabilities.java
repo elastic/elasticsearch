@@ -237,6 +237,11 @@ public class EsqlCapabilities {
         COMBINE_DISJUNCTIVE_CIDRMATCHES,
 
         /**
+         * Support sending HTTP headers about the status of an async query.
+         */
+        ASYNC_QUERY_STATUS_HEADERS,
+
+        /**
          * Consider the upper bound when computing the interval in BUCKET auto mode.
          */
         BUCKET_INCLUSIVE_UPPER_BOUND,

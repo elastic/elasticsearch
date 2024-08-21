@@ -274,7 +274,7 @@ public final class DocumentParser {
                 context.addIgnoredField(
                     new IgnoredSourceFieldMapper.NameValue(
                         context.parent().fullPath(),
-                        context.parent().fullPath().indexOf(currentFieldName),
+                        context.parent().fullPath().lastIndexOf(currentFieldName),
                         XContentDataHelper.encodeToken(parser),
                         context.doc()
                     )
@@ -301,7 +301,7 @@ public final class DocumentParser {
                 context.addIgnoredField(
                     new IgnoredSourceFieldMapper.NameValue(
                         context.parent().fullPath(),
-                        context.parent().fullPath().indexOf(context.parent().leafName()),
+                        context.parent().fullPath().lastIndexOf(context.parent().leafName()),
                         XContentDataHelper.encodeXContentBuilder(tuple.v2()),
                         context.doc()
                     )

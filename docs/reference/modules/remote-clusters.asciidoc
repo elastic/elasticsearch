@@ -72,7 +72,8 @@ the local {es} cluster then opens several TCP connections to the publish
 addresses of the gateway nodes. This mode therefore requires that the gateway
 nodes' publish addresses are accessible to nodes in the local cluster.
 +
-Sniff mode is the default connection mode.
+Sniff mode is the default connection mode. See <<remote-cluster-sniff-settings>>
+for more information about configuring sniff mode.
 +
 [[gateway-nodes-selection]]
 The _gateway nodes_ selection depends on the following criteria:
@@ -98,7 +99,9 @@ cluster nodes which means that the publish addresses of the remote cluster
 nodes need not be accessible to the local cluster.
 +
 Proxy mode is not the default connection mode, so you must set
-`cluster.remote.<cluster_alias>.mode: proxy` to use it.
+`cluster.remote.<cluster_alias>.mode: proxy` to use it. See
+<<remote-cluster-proxy-settings>> for more information about configuring proxy
+mode.
 +
 Proxy mode has the same <<gateway-nodes-selection, version compatibility
 requirements>> as sniff mode.

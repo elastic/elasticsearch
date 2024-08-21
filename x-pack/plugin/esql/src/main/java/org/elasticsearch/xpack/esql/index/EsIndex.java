@@ -10,6 +10,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -38,7 +40,7 @@ public class EsIndex implements Writeable {
     public EsIndex(StreamInput in) throws IOException {
         this(
             in.readString(),
-            in.readImmutableMap(StreamInput::readString, i -> i.readNamedWriteable(EsField.class)),
+            in.readImmutableMap(StreamInput::readString, i -> ((PlanStreamInput) i).readEsField()),
             (Set<String>) in.readGenericValue()
         );
     }
@@ -46,7 +48,7 @@ public class EsIndex implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name());
-        out.writeMap(mapping(), StreamOutput::writeNamedWriteable);
+        ((PlanStreamOutput) out).writeMap(mapping(), (o, x) -> PlanStreamOutput.writeEsField((PlanStreamOutput) out, x));
         out.writeGenericValue(concreteIndices());
     }
 

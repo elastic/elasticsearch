@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -29,11 +28,7 @@ import java.util.stream.Collectors;
  * It is used specifically for the 'union types' feature in ES|QL.
  */
 public class InvalidMappedField extends EsField {
-    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        EsField.class,
-        "InvalidMappedField",
-        InvalidMappedField::readFrom
-    );
+    static final WriteableInfo ENTRY = new WriteableInfo("InvalidMappedField", InvalidMappedField::new);
 
     private final String errorMessage;
     private final Map<String, Set<String>> typesToIndices;
@@ -59,8 +54,8 @@ public class InvalidMappedField extends EsField {
         this.typesToIndices = typesToIndices;
     }
 
-    private InvalidMappedField(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), in.readImmutableMap(StreamInput::readString, i -> i.readNamedWriteable(EsField.class)));
+    public InvalidMappedField(StreamInput in) throws IOException {
+        this(in.readString(), in.readString(), in.readImmutableMap(StreamInput::readString, i -> ((PlanStreamInput) i).readEsField()));
     }
 
     public Set<DataType> types() {
@@ -69,20 +64,14 @@ public class InvalidMappedField extends EsField {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (((PlanStreamOutput) out).writeEsFieldCacheHeader(this)) {
-            out.writeString(getName());
-            out.writeString(errorMessage);
-            out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
-        }
-    }
-
-    public static InvalidMappedField readFrom(StreamInput in) throws IOException {
-        return ((PlanStreamInput) in).readEsFieldWithCache(InvalidMappedField::new);
+        out.writeString(getName());
+        out.writeString(errorMessage);
+        ((PlanStreamOutput) out).writeMap(getProperties(), (o, x) -> PlanStreamOutput.writeEsField((PlanStreamOutput) out, x));
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return ENTRY.name();
     }
 
     public String errorMessage() {

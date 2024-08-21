@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.type.EsFieldTests;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -95,6 +96,6 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(EsField.getNamedWriteables());
+        return new NamedWriteableRegistry(List.of());
     }
 }

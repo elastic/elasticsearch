@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -50,7 +49,6 @@ public abstract class AbstractAttributeTestCase<T extends Attribute> extends Abs
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(Attribute.getNamedWriteables());
         entries.add(UnsupportedAttribute.ENTRY);
-        entries.addAll(EsField.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }
 

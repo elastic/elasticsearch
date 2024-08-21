@@ -7,15 +7,12 @@
 
 package org.elasticsearch.xpack.esql.type;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -33,11 +30,7 @@ import java.util.Set;
  * type conversion is done at the data node level.
  */
 public class MultiTypeEsField extends EsField {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        EsField.class,
-        "MultiTypeEsField",
-        MultiTypeEsField::readFrom
-    );
+    public static final WriteableInfo ENTRY = new WriteableInfo("MultiTypeEsField", MultiTypeEsField::new);
 
     private final Map<String, Expression> indexToConversionExpressions;
 
@@ -52,21 +45,15 @@ public class MultiTypeEsField extends EsField {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (((PlanStreamOutput) out).writeEsFieldCacheHeader(this)) {
-            out.writeString(getName());
-            out.writeString(getDataType().typeName());
-            out.writeBoolean(isAggregatable());
-            out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
-        }
-    }
-
-    public static MultiTypeEsField readFrom(StreamInput in) throws IOException {
-        return ((PlanStreamInput) in).readEsFieldWithCache(MultiTypeEsField::new);
+        out.writeString(getName());
+        out.writeString(getDataType().typeName());
+        out.writeBoolean(isAggregatable());
+        out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return ENTRY.name();
     }
 
     public Map<String, Expression> getIndexToConversionExpressions() {

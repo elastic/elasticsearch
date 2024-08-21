@@ -274,20 +274,20 @@ public class PlanStreamOutputTests extends ESTestCase {
             // send all the EsFields, three times
             for (int i = 0; i < 3; i++) {
                 for (EsField attr : fields) {
-                    planStream.writeNamedWriteable(attr);
+                    planStream.writeEsField(attr);
                 }
             }
 
             try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)) {
                 List<EsField> readFields = new ArrayList<>();
                 for (int i = 0; i < occurrences; i++) {
-                    readFields.add(in.readNamedWriteable(EsField.class));
+                    readFields.add(in.readEsField());
                     assertThat(readFields.get(i), equalTo(fields.get(i)));
                 }
                 // two more times
                 for (int i = 0; i < 2; i++) {
                     for (int j = 0; j < occurrences; j++) {
-                        EsField attr = in.readNamedWriteable(EsField.class);
+                        EsField attr = in.readEsField();
                         assertThat(attr, sameInstance(readFields.get(j)));
                     }
                 }
@@ -329,7 +329,6 @@ public class PlanStreamOutputTests extends ESTestCase {
         writeables.addAll(Block.getNamedWriteables());
         writeables.addAll(Attribute.getNamedWriteables());
         writeables.add(UnsupportedAttribute.ENTRY);
-        writeables.addAll(EsField.getNamedWriteables());
         REGISTRY = new NamedWriteableRegistry(new ArrayList<>(new HashSet<>(writeables)));
     }
 }

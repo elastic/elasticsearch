@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
@@ -25,7 +24,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
  * Information about a field in an es index with the {@code text} type.
  */
 public class TextEsField extends EsField {
-    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(EsField.class, "TextEsField", TextEsField::readFrom);
+    static final WriteableInfo ENTRY = new WriteableInfo("TextEsField", TextEsField::new);
 
     public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
         this(name, properties, hasDocValues, false);
@@ -35,27 +34,21 @@ public class TextEsField extends EsField {
         super(name, TEXT, properties, hasDocValues, isAlias);
     }
 
-    private TextEsField(StreamInput in) throws IOException {
-        this(in.readString(), in.readMap(i -> i.readNamedWriteable(EsField.class)), in.readBoolean(), in.readBoolean());
+    public TextEsField(StreamInput in) throws IOException {
+        this(in.readString(), in.readImmutableMap(i -> ((PlanStreamInput) i).readEsField()), in.readBoolean(), in.readBoolean());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (((PlanStreamOutput) out).writeEsFieldCacheHeader(this)) {
-            out.writeString(getName());
-            out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
-            out.writeBoolean(isAggregatable());
-            out.writeBoolean(isAlias());
-        }
-    }
-
-    public static TextEsField readFrom(StreamInput in) throws IOException {
-        return ((PlanStreamInput) in).readEsFieldWithCache(TextEsField::new);
+        out.writeString(getName());
+        ((PlanStreamOutput) out).writeMap(getProperties(), (o, x) -> PlanStreamOutput.writeEsField((PlanStreamOutput) out, x));
+        out.writeBoolean(isAggregatable());
+        out.writeBoolean(isAlias());
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return ENTRY.name();
     }
 
     @Override

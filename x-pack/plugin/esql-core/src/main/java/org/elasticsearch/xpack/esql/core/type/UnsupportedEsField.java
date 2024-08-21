@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
@@ -22,11 +21,7 @@ import java.util.TreeMap;
  * All the subfields (properties) of an unsupported type are also be unsupported.
  */
 public class UnsupportedEsField extends EsField {
-    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        EsField.class,
-        "UnsupportedEsField",
-        UnsupportedEsField::readFrom
-    );
+    static final WriteableInfo ENTRY = new WriteableInfo("UnsupportedEsField", UnsupportedEsField::new);
 
     private final String originalType;
     private final String inherited; // for fields belonging to parents (or grandparents) that have an unsupported type
@@ -41,27 +36,21 @@ public class UnsupportedEsField extends EsField {
         this.inherited = inherited;
     }
 
-    private UnsupportedEsField(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), in.readOptionalString(), in.readMap(i -> i.readNamedWriteable(EsField.class)));
+    public UnsupportedEsField(StreamInput in) throws IOException {
+        this(in.readString(), in.readString(), in.readOptionalString(), in.readImmutableMap(i -> ((PlanStreamInput) i).readEsField()));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (((PlanStreamOutput) out).writeEsFieldCacheHeader(this)) {
-            out.writeString(getName());
-            out.writeString(getOriginalType());
-            out.writeOptionalString(getInherited());
-            out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
-        }
-    }
-
-    public static UnsupportedEsField readFrom(StreamInput in) throws IOException {
-        return ((PlanStreamInput) in).readEsFieldWithCache(UnsupportedEsField::new);
+        out.writeString(getName());
+        out.writeString(getOriginalType());
+        out.writeOptionalString(getInherited());
+        ((PlanStreamOutput) out).writeMap(getProperties(), (o, x) -> PlanStreamOutput.writeEsField((PlanStreamOutput) out, x));
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return ENTRY.name();
     }
 
     public String getOriginalType() {

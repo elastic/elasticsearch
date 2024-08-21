@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -254,26 +255,28 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         attributesCache[id] = attr;
     }
 
-    /**
-     * @param constructor the constructor needed to build the actual attribute when read from the wire
-     * @throws IOException
-     */
-    @Override
     @SuppressWarnings("unchecked")
-    public <A extends EsField> A readEsFieldWithCache(CheckedFunction<StreamInput, A, IOException> constructor) throws IOException {
+    public <A extends EsField> A readEsField() throws IOException {
         if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)) {
             // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
             int cacheId = Math.toIntExact(readZLong());
             if (cacheId < 0) {
+                String className = readString();
+                // TODO clean up when we move MultiTypeEsField in the same module as the other fields
+                EsField.WriteableInfo writeable = className.equals(MultiTypeEsField.ENTRY.name())
+                    ? MultiTypeEsField.ENTRY
+                    : EsField.getWriteableInfo(className);
                 cacheId = -1 - cacheId;
-                EsField result = constructor.apply(this);
+                EsField result = writeable.reader().read(this);
                 cacheEsField(cacheId, result);
                 return (A) result;
             } else {
                 return (A) esFieldFromCache(cacheId);
             }
         } else {
-            return constructor.apply(this);
+            String className = readString();
+            EsField.WriteableInfo writeable = EsField.getWriteableInfo(className);
+            return (A) writeable.reader().read(this);
         }
     }
 

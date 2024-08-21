@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.test.AbstractNamedWriteableTestCase;
+import org.elasticsearch.test.AbstractWireTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -57,7 +57,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
  * These differences can be minimized once Expression is fully supported in the new serialization approach, and the esql and esql.core
  * modules are merged, or at least the relevant classes are moved.
  */
-public class MultiTypeEsFieldTests extends AbstractNamedWriteableTestCase<MultiTypeEsField> {
+public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField> {
 
     private Configuration config;
 
@@ -94,15 +94,8 @@ public class MultiTypeEsFieldTests extends AbstractNamedWriteableTestCase<MultiT
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(UnaryScalarFunction.getNamedWriteables());
         entries.addAll(Attribute.getNamedWriteables());
-        entries.addAll(EsField.getNamedWriteables());
-        entries.add(MultiTypeEsField.ENTRY);
         entries.addAll(Expression.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
-    }
-
-    @Override
-    protected final Class<MultiTypeEsField> categoryClass() {
-        return MultiTypeEsField.class;
     }
 
     @Override
@@ -110,10 +103,10 @@ public class MultiTypeEsFieldTests extends AbstractNamedWriteableTestCase<MultiT
         return copyInstance(
             instance,
             getNamedWriteableRegistry(),
-            (out, v) -> new PlanStreamOutput(out, new PlanNameRegistry(), config).writeNamedWriteable(v),
+            (out, v) -> new PlanStreamOutput(out, new PlanNameRegistry(), config).writeEsField(v),
             in -> {
                 PlanStreamInput pin = new PlanStreamInput(in, new PlanNameRegistry(), in.namedWriteableRegistry(), config);
-                return (MultiTypeEsField) pin.readNamedWriteable(EsField.class);
+                return pin.readEsField();
             },
             version
         );

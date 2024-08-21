@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.AbstractNamedWriteableTestCase;
+import org.elasticsearch.test.AbstractWireTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
@@ -20,10 +20,11 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-public abstract class AbstractEsFieldTypeTests<T extends EsField> extends AbstractNamedWriteableTestCase<EsField> {
+public abstract class AbstractEsFieldTypeTests<T extends EsField> extends AbstractWireTestCase<EsField> {
     public static EsField randomAnyEsField(int maxDepth) {
         return switch (between(0, 5)) {
             case 0 -> EsFieldTests.randomEsField(maxDepth);
@@ -49,13 +50,13 @@ public abstract class AbstractEsFieldTypeTests<T extends EsField> extends Abstra
             var pso = new PlanStreamOutput(output, new PlanNameRegistry(), EsqlTestUtils.TEST_CFG)
         ) {
             pso.setTransportVersion(version);
-            pso.writeNamedWriteable(instance);
+            pso.writeEsField(instance);
             try (
                 StreamInput in1 = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry);
                 var psi = new PlanStreamInput(in1, new PlanNameRegistry(), in1.namedWriteableRegistry(), EsqlTestUtils.TEST_CFG)
             ) {
                 psi.setTransportVersion(version);
-                return psi.readNamedWriteable(categoryClass());
+                return psi.readEsField();
             }
         }
     }
@@ -87,11 +88,6 @@ public abstract class AbstractEsFieldTypeTests<T extends EsField> extends Abstra
 
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(EsField.getNamedWriteables());
-    }
-
-    @Override
-    protected final Class<EsField> categoryClass() {
-        return EsField.class;
+        return new NamedWriteableRegistry(List.of());
     }
 }

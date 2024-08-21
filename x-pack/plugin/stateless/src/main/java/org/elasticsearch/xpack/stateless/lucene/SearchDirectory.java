@@ -35,6 +35,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
@@ -298,7 +299,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             blobLocation,
             objectStoreUploadTracker,
             totalBytesReadFromObjectStore::add,
-            totalBytesReadFromIndexing::add
+            totalBytesReadFromIndexing::add,
+            BlobCacheMetrics.CachePopulationReason.CacheMiss
         );
     }
 
@@ -310,7 +312,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             blobLocation,
             objectStoreUploadTracker,
             totalBytesWarmedFromObjectStore::add,
-            totalBytesWarmedFromIndexing::add
+            totalBytesWarmedFromIndexing::add,
+            BlobCacheMetrics.CachePopulationReason.Warming
         );
     }
 

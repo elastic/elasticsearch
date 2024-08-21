@@ -11,22 +11,24 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * Aggregator state for a single float.
+ * Aggregator state for a single int.
+ * It stores a third boolean to store if the aggregation failed.
  * This class is generated. Do not edit it.
  */
-final class FloatState implements AggregatorState {
-    private float value;
+final class IntFallibleState implements AggregatorState {
+    private int value;
     private boolean seen;
+    private boolean failed;
 
-    FloatState(float init) {
+    IntFallibleState(int init) {
         this.value = init;
     }
 
-    float floatValue() {
+    int intValue() {
         return value;
     }
 
-    void floatValue(float value) {
+    void intValue(int value) {
         this.value = value;
     }
 
@@ -38,12 +40,21 @@ final class FloatState implements AggregatorState {
         this.seen = seen;
     }
 
+    boolean failed() {
+        return failed;
+    }
+
+    void failed(boolean failed) {
+        this.failed = failed;
+    }
+
     /** Extracts an intermediate view of the contents of this state.  */
     @Override
     public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-        assert blocks.length >= offset + 2;
-        blocks[offset + 0] = driverContext.blockFactory().newConstantFloatBlockWith(value, 1);
+        assert blocks.length >= offset + 3;
+        blocks[offset + 0] = driverContext.blockFactory().newConstantIntBlockWith(value, 1);
         blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(seen, 1);
+        blocks[offset + 2] = driverContext.blockFactory().newConstantBooleanBlockWith(failed, 1);
     }
 
     @Override

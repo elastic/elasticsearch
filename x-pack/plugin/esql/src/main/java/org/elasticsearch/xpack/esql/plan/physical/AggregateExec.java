@@ -69,7 +69,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
 
     private AggregateExec(StreamInput in) throws IOException {
         // This is only deserialized as part of node level reduction, which is turned off until at least 8.16.
-        // So, we do not have to consider previous transport versions here.
+        // So, we do not have to consider previous transport versions here, because old nodes will not send AggregateExecs to new nodes.
         this(
             Source.readFrom((PlanStreamInput) in),
             ((PlanStreamInput) in).readPhysicalPlanNode(),

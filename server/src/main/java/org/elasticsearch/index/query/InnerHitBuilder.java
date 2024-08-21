@@ -133,7 +133,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         PARSER.declareField((p, i, c) -> {
             // TODO: Use real usage tracker?
             if (p.currentToken() == XContentParser.Token.START_ARRAY) {
-                while(p.nextToken() != XContentParser.Token.END_ARRAY) {
+                while (p.nextToken() != XContentParser.Token.END_ARRAY) {
                     i.addRescoreBuilder(RescorerBuilder.parseFromXContent(p, s -> {}));
                 }
             } else {

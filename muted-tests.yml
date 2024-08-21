@@ -187,6 +187,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testForceSleepsProfile {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/112039
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testForceSleepsProfile {ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/112049
 
 # Examples:
 #

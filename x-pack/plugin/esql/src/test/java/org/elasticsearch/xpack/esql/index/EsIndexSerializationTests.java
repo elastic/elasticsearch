@@ -7,17 +7,26 @@
 
 package org.elasticsearch.xpack.esql.index;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.EsFieldTests;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
+import static org.elasticsearch.test.ByteSizeEqualsMatcher.byteSizeEquals;
 
 public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<EsIndex> {
     public static EsIndex randomEsIndex() {
@@ -72,5 +81,98 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(EsField.getNamedWriteables());
+    }
+
+    /**
+     * Build an {@link EsIndex} with many conflicting fields across many indices.
+     */
+    public static EsIndex indexWithManyConflicts(boolean withParent) {
+        /*
+         * The number of fields with a mapping conflict.
+         */
+        int conflictingCount = 250;
+        /*
+         * The number of indices that map conflicting fields are "keyword".
+         * One other index will map the field as "text"
+         */
+        int keywordIndicesCount = 600;
+        /*
+         * The number of fields that don't have a mapping conflict.
+         */
+        int nonConflictingCount = 7000;
+
+        Set<String> keywordIndices = new TreeSet<>();
+        for (int i = 0; i < keywordIndicesCount; i++) {
+            keywordIndices.add(String.format(Locale.ROOT, ".ds-logs-apache.access-external-2024.08.09-%08d", i));
+        }
+
+        Set<String> textIndices = Set.of("logs-endpoint.events.imported");
+
+        Map<String, EsField> fields = new TreeMap<>();
+        for (int i = 0; i < conflictingCount; i++) {
+            String name = String.format(Locale.ROOT, "blah.blah.blah.blah.blah.blah.conflict.name%04d", i);
+            Map<String, Set<String>> conflicts = Map.of("text", textIndices, "keyword", keywordIndices);
+            fields.put(name, new InvalidMappedField(name, conflicts));
+        }
+        for (int i = 0; i < nonConflictingCount; i++) {
+            String name = String.format(Locale.ROOT, "blah.blah.blah.blah.blah.blah.nonconflict.name%04d", i);
+            fields.put(name, new EsField(name, DataType.KEYWORD, Map.of(), true));
+        }
+
+        if (withParent) {
+            EsField parent = new EsField("parent", DataType.OBJECT, Map.copyOf(fields), false);
+            fields.put("parent", parent);
+        }
+
+        TreeSet<String> concrete = new TreeSet<>();
+        concrete.addAll(keywordIndices);
+        concrete.addAll(textIndices);
+
+        return new EsIndex("name", fields, concrete);
+    }
+
+    /**
+     * Test the size of serializing an index with many conflicts at the root level.
+     * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
+     */
+    public void testManyTypeConflicts() throws IOException {
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(976591));
+    }
+
+    /**
+     * Test the size of serializing an index with many conflicts inside a "parent" object.
+     * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
+     */
+    public void testManyTypeConflictsWithParent() throws IOException {
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1921374));
+        /*
+         * History:
+         * 16.9mb - start
+         *  1.8mb - shorten error messages for UnsupportedAttributes #111973
+         */
+    }
+
+    /**
+     * Test the size of serializing an index with many conflicts. Callers of
+     * this method intentionally use a very precise size for the serialized
+     * data so a programmer making changes has to think when this size changes.
+     * <p>
+     *     In general, shrinking the over the wire size is great and the precise
+     *     size should just ratchet downwards. Small upwards movement is fine so
+     *     long as you understand why the change is happening and you think it's
+     *     worth it for the data node request for a big index to grow.
+     * </p>
+     * <p>
+     *     Large upwards movement in the size is not fine! Folks frequently make
+     *     requests across large clusters with many fields and these requests can
+     *     really clog up the network interface. Super large results here can make
+     *     ESQL impossible to use at all for big mappings with many conflicts.
+     * </p>
+     */
+    private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            indexWithManyConflicts(withParent).writeTo(out);
+            assertThat(ByteSizeValue.ofBytes(out.bytes().length()), byteSizeEquals(expected));
+        }
     }
 }

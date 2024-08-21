@@ -9,11 +9,12 @@
 package org.elasticsearch.index.codec;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LegacyCodecTests extends ESSingleNodeTestCase {
+public class CodecIntegrationTests extends ESSingleNodeTestCase {
 
     public void testCanConfigureLegacySettings() {
         assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
@@ -25,5 +26,29 @@ public class LegacyCodecTests extends ESSingleNodeTestCase {
         createIndex("index2", Settings.builder().put("index.codec", "legacy_best_compression").build());
         codec = client().admin().indices().prepareGetSettings("index2").execute().actionGet().getSetting("index2", "index.codec");
         assertThat(codec, equalTo("legacy_best_compression"));
+    }
+
+    public void testDefaultCodecLogsdb() {
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
+
+        var indexService = createIndex("index1", Settings.builder().put("index.mode", "logsdb").build());
+        var storedFieldsFormat = (Zstd814StoredFieldsFormat) indexService.getShard(0)
+            .getEngineOrNull()
+            .config()
+            .getCodec()
+            .storedFieldsFormat();
+        assertThat(storedFieldsFormat.getMode(), equalTo(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION));
+    }
+
+    public void testDefaultCodec() {
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
+
+        var indexService = createIndex("index1");
+        var storedFieldsFormat = (Zstd814StoredFieldsFormat) indexService.getShard(0)
+            .getEngineOrNull()
+            .config()
+            .getCodec()
+            .storedFieldsFormat();
+        assertThat(storedFieldsFormat.getMode(), equalTo(Zstd814StoredFieldsFormat.Mode.BEST_SPEED));
     }
 }

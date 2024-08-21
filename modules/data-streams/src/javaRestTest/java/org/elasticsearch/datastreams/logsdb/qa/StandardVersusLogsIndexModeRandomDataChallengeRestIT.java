@@ -43,10 +43,9 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
         this.subobjects = randomFrom(ObjectMapper.Subobjects.values());
 
         var specificationBuilder = DataGeneratorSpecification.builder();
-        // TODO enable nested fields when subobjects are enabled
-        // It currently hits a bug with empty nested objects
-        // Nested fields don't work with subobjects: false.
-        specificationBuilder = specificationBuilder.withNestedFieldsLimit(0);
+        if (subobjectsDisabled) {
+            specificationBuilder = specificationBuilder.withNestedFieldsLimit(0);
+        }
         this.dataGenerator = new DataGenerator(specificationBuilder.withDataSourceHandlers(List.of(new DataSourceHandler() {
             @Override
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {

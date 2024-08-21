@@ -60,8 +60,9 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             InferenceServiceResults results = r.getResults();
             assert results instanceof RankedDocsResults;
 
-            // Ensure we get exactly as many scores as the number of docs we passed, otherwise we may return incorrect results
             List<RankedDocsResults.RankedDoc> rankedDocs = ((RankedDocsResults) results).getRankedDocs();
+
+            // Ensure we get exactly as many scores as the number of docs we passed, otherwise we may return incorrect results
             if (rankedDocs.size() != featureDocs.length) {
                 l.onFailure(
                     new IllegalStateException(
@@ -77,6 +78,12 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 l.onResponse(scores);
             }
         });
+
+        // Short circuit on empty results after request validation
+        if (featureDocs.length == 0) {
+            inferenceListener.onResponse(new InferenceAction.Response(new RankedDocsResults(List.of())));
+            return;
+        }
 
         // top N listener
         ActionListener<GetInferenceModelAction.Response> topNListener = scoreListener.delegateFailureAndWrap((l, r) -> {

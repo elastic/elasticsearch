@@ -131,8 +131,13 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
         }, COLLAPSE_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((p, i, c) -> {
-            for (XContentParser.Token token = p.nextToken(); token != END_OBJECT; token = p.nextToken()) {
-                i.addRescoreBuilder(RescorerBuilder.parseFromXContent(p, s -> {}));  // TODO: Use real usage tracker?
+            // TODO: Use real usage tracker?
+            if (p.currentToken() == XContentParser.Token.START_ARRAY) {
+                while(p.nextToken() != XContentParser.Token.END_ARRAY) {
+                    i.addRescoreBuilder(RescorerBuilder.parseFromXContent(p, s -> {}));
+                }
+            } else {
+                i.addRescoreBuilder(RescorerBuilder.parseFromXContent(p, s -> {}));
             }
         }, SearchSourceBuilder.RESCORE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
     }

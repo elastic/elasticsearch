@@ -112,7 +112,8 @@ public class SearchDirectoryTests extends ESTestCase {
                         BlobLocation location,
                         MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer bytesReadFromObjectStore,
-                        LongConsumer bytesReadFromIndexing
+                        LongConsumer bytesReadFromIndexing,
+                        BlobCacheMetrics.CachePopulationReason cachePopulationReason
                     ) {
                         var originalCacheBlobReader = cacheBlobReaderService.getCacheBlobReader(
                             shardId,
@@ -121,7 +122,8 @@ public class SearchDirectoryTests extends ESTestCase {
                             // The test expects to go through the blob store always
                             MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                             bytesReadFromObjectStore,
-                            bytesReadFromIndexing
+                            bytesReadFromIndexing,
+                            cachePopulationReason
                         );
                         return new CacheBlobReader() {
                             @Override

@@ -26,10 +26,13 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Map;
+import java.util.concurrent.atomic.LongAdder;
 
 public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
 
@@ -55,7 +58,7 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
     private MeteringCacheBlobReader doGetCacheBlobReader(BlobContainer blobContainer, String blobName) {
         return new MeteringCacheBlobReader(
             new ObjectStoreCacheBlobReader(blobContainer, blobName, getCacheService().getRangeSize()),
-            totalBytesReadFromObjectStore::add
+            createReadCompleteCallback(totalBytesReadFromObjectStore, BlobCacheMetrics.CachePopulationReason.CacheMiss)
         );
     }
 
@@ -67,8 +70,26 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
     private MeteringCacheBlobReader doGetCacheBlobReaderForWarming(BlobContainer blobContainer, String blobName) {
         return new MeteringCacheBlobReader(
             new ObjectStoreCacheBlobReader(blobContainer, blobName, getCacheService().getRangeSize()),
-            totalBytesWarmedFromObjectStore::add
+            createReadCompleteCallback(totalBytesWarmedFromObjectStore, BlobCacheMetrics.CachePopulationReason.Warming)
         );
+    }
+
+    private MeteringCacheBlobReader.ReadCompleteCallback createReadCompleteCallback(
+        LongAdder bytesReadAdder,
+        BlobCacheMetrics.CachePopulationReason cachePopulationReason
+    ) {
+        return (bytesRead, readTimeNanos) -> {
+            bytesReadAdder.add(bytesRead);
+            cacheService.getBlobCacheMetrics()
+                .recordCachePopulationMetrics(
+                    bytesRead,
+                    readTimeNanos,
+                    shardId.getIndexName(),
+                    shardId.getId(),
+                    cachePopulationReason,
+                    CachePopulationSource.BlobStore
+                );
+        };
     }
 
     public BlobStoreCacheDirectory createBlobStoreCacheDirectoryForWarming(StatelessCompoundCommit preWarmCommit) {

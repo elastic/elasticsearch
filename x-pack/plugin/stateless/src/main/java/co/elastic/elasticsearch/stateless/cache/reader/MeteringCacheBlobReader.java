@@ -17,25 +17,28 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.function.LongConsumer;
 
 /**
  * Wrapper around {@link CacheBlobReader} which counts how many bytes were read through delegated {@link CacheBlobReader}
  */
 public class MeteringCacheBlobReader implements CacheBlobReader {
 
-    private final CacheBlobReader delegate;
-    private final LongConsumer totalBytesReadConsumer;
+    private static final Logger logger = LogManager.getLogger(MeteringCacheBlobReader.class);
 
-    public MeteringCacheBlobReader(final CacheBlobReader delegate, final LongConsumer totalBytesReadConsumer) {
+    private final CacheBlobReader delegate;
+    private final ReadCompleteCallback readCompleteCallback;
+
+    public MeteringCacheBlobReader(final CacheBlobReader delegate, final ReadCompleteCallback readCompleteCallback) {
         this.delegate = delegate;
-        this.totalBytesReadConsumer = totalBytesReadConsumer;
+        this.readCompleteCallback = readCompleteCallback;
     }
 
     @Override
@@ -48,13 +51,29 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
         delegate.getRangeInputStream(position, length, listener.map(MeteringInputStream::new));
     }
 
+    /**
+     * Notified when a {@link MeteringInputStream} is closed, providing information
+     * about its consumption.
+     */
+    public interface ReadCompleteCallback {
+        /**
+         * Notify that a stream was consumed
+         *
+         * @param bytesRead The number of bytes read
+         * @param timeToReadNanos The time between the first byte being read and the stream being closed (in nanoseconds)
+         */
+        void onReadCompleted(int bytesRead, long timeToReadNanos);
+    }
+
     private class MeteringInputStream extends FilterInputStream {
 
-        private long totalBytesRead;
+        private final long streamCreatedTimeNs;
+        private int totalBytesRead;
         private boolean closed;
 
         private MeteringInputStream(InputStream delegateInputStream) {
             super(delegateInputStream);
+            streamCreatedTimeNs = System.nanoTime();
         }
 
         @Override
@@ -78,8 +97,16 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
         @Override
         public void close() throws IOException {
             if (closed == false) {
-                totalBytesReadConsumer.accept(totalBytesRead);
-                closed = true;
+                try {
+                    if (totalBytesRead > 0) {
+                        long readTimeNanos = System.nanoTime() - streamCreatedTimeNs;
+                        readCompleteCallback.onReadCompleted(totalBytesRead, readTimeNanos);
+                    }
+                } catch (Exception e) {
+                    logger.debug("Error calling call-back", e);
+                } finally {
+                    closed = true;
+                }
             }
             super.close();
         }

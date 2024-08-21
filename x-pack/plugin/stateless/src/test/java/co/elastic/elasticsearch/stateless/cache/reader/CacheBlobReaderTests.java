@@ -40,6 +40,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -237,7 +238,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                     BlobLocation location,
                     MutableObjectStoreUploadTracker objectStoreUploadTracker,
                     LongConsumer totalBytesReadFromObjectStore,
-                    LongConsumer totalBytesReadFromIndexing
+                    LongConsumer totalBytesReadFromIndexing,
+                    BlobCacheMetrics.CachePopulationReason cachePopulationReason
                 ) {
                     var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                         shardId,
@@ -245,7 +247,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                         location,
                         objectStoreUploadTracker,
                         totalBytesReadFromObjectStore,
-                        totalBytesReadFromIndexing
+                        totalBytesReadFromIndexing,
+                        cachePopulationReason
                     );
                     var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
                         shardId,
@@ -333,7 +336,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                             }
                         },
                         bytesReadFromObjectStore -> {},
-                        bytesReadFromIndexing -> {}
+                        bytesReadFromIndexing -> {},
+                        BlobCacheMetrics.CachePopulationReason.CacheMiss
                     ),
                     null,
                     1,
@@ -706,7 +710,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                         BlobLocation location,
                         MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer totalBytesReadFromObjectStore,
-                        LongConsumer totalBytesReadFromIndexing
+                        LongConsumer totalBytesReadFromIndexing,
+                        BlobCacheMetrics.CachePopulationReason cachePopulationReason
                     ) {
                         var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                             shardId,
@@ -714,7 +719,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                             location,
                             objectStoreUploadTracker,
                             totalBytesReadFromObjectStore,
-                            totalBytesReadFromIndexing
+                            totalBytesReadFromIndexing,
+                            cachePopulationReason
                         );
                         return new CacheBlobReader() {
                             @Override
@@ -773,7 +779,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                             BlobLocation location,
                             MutableObjectStoreUploadTracker objectStoreUploadTracker,
                             LongConsumer totalBytesReadFromObjectStore,
-                            LongConsumer totalBytesReadFromIndexing
+                            LongConsumer totalBytesReadFromIndexing,
+                            BlobCacheMetrics.CachePopulationReason cachePopulationReason
                         ) {
                             var writerFromObjectStore = new ObjectStoreCacheBlobReader(
                                 blobContainer.apply(location.primaryTerm()),

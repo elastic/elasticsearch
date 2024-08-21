@@ -176,9 +176,12 @@ nodes that have a shared cache.
 ====
 Manually mounting snapshots captured by an Index Lifecycle Management ({ilm-init}) policy can
 interfere with {ilm-init}'s automatic management. This may lead to issues such as data loss
-or complications with snapshot handling. For optimal results, allow {ilm-init} to manage
-snapshots automatically. If manual mounting is necessary, be aware of its potential
-impact on {ilm-init} processes. For more information, learn about <<index-lifecycle-management,{ilm-init} snapshot management>>.
+or complications with snapshot handling. 
+
+For optimal results, allow {ilm-init} to manage
+snapshots automatically. 
+
+<<ilm-searchable-snapshot,Learn more about {ilm-init} snapshot management>>.
 ====
 
 [[searchable-snapshots-shared-cache]]

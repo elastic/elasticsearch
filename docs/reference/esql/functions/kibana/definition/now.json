@@ -6,7 +6,7 @@
   "signatures" : [
     {
       "params" : [ ],
-      "returnType" : "datetime"
+      "returnType" : "date"
     }
   ],
   "examples" : [

@@ -1,0 +1,22 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+---
+"Default data_stream.type must be logs":
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "attributes": { "foo": "bar"}, "body_text":"Error: Unable to connect to the database.","severity_text":"ERROR","severity_number":3,"trace_id":"abc123xyz456def789ghi012jkl345"}'
+  - is_false: errors
+  - do:
+      search:
+        index: logs-generic.otel-default
+        body:
+          fields: ["data_stream.type"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.data_stream\.type: ["logs"] }

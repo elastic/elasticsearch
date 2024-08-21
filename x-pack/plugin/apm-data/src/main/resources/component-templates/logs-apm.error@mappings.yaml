@@ -28,9 +28,14 @@ template:
             return;
           }
           def exception = params['_source'].error?.exception;
-          def exceptionMessage = exception != null && exception.length > 0 ? exception[0]?.message : null;
-          if (exceptionMessage != null && exceptionMessage != "") {
-            emit(exception[0].message);
+          if (exception != null && exception.isEmpty() == false) {
+            def exceptionMessage = exception instanceof Map ? exception?.message : exception[0]?.message;
+            if (exceptionMessage instanceof List) {
+              exceptionMessage = exceptionMessage[0]
+            }
+            if (exceptionMessage != null && exceptionMessage != "") {
+              emit(exceptionMessage);
+            }
           }
 
       # http.*

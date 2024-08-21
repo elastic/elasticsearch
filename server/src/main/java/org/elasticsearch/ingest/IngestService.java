@@ -944,14 +944,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
                     // In that case, we catch and wrap the exception, so we can include more details
                     exceptionHandler.accept(
-                        new IllegalArgumentException(
-                            format(
-                                "Failed to generate the source document for ingest pipeline [%s] for document [%s/%s]",
-                                pipelineId,
-                                indexRequest.index(),
-                                indexRequest.id()
-                            ),
-                            ex
+                        new IngestPipelineException(
+                            pipelineId,
+                            new IllegalArgumentException(
+                                format(
+                                    "Failed to generate the source document for ingest pipeline [%s] for document [%s/%s]",
+                                    pipelineId,
+                                    indexRequest.index(),
+                                    indexRequest.id()
+                                ),
+                                ex
+                            )
                         )
                     );
                     return; // document failed!
@@ -963,14 +966,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (Objects.equals(originalIndex, newIndex) == false) {
                     // final pipelines cannot change the target index (either directly or by way of a reroute)
                     if (isFinalPipeline) {
+                        logger.info("Service stack: [{}]", ingestDocument.getPipelineStack());
                         exceptionHandler.accept(
-                            new IllegalStateException(
-                                format(
-                                    "final pipeline [%s] can't change the target index (from [%s] to [%s]) for document [%s]",
-                                    pipelineId,
-                                    originalIndex,
-                                    newIndex,
-                                    indexRequest.id()
+                            new IngestPipelineException(
+                                pipelineId,
+                                new IllegalStateException(
+                                    format(
+                                        "final pipeline [%s] can't change the target index (from [%s] to [%s]) for document [%s]",
+                                        pipelineId,
+                                        originalIndex,
+                                        newIndex,
+                                        indexRequest.id()
+                                    )
                                 )
                             )
                         );
@@ -983,12 +990,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         List<String> indexCycle = new ArrayList<>(ingestDocument.getIndexHistory());
                         indexCycle.add(newIndex);
                         exceptionHandler.accept(
-                            new IllegalStateException(
-                                format(
-                                    "index cycle detected while processing pipeline [%s] for document [%s]: %s",
-                                    pipelineId,
-                                    indexRequest.id(),
-                                    indexCycle
+                            new IngestPipelineException(
+                                pipelineId,
+                                new IllegalStateException(
+                                    format(
+                                        "index cycle detected while processing pipeline [%s] for document [%s]: %s",
+                                        pipelineId,
+                                        indexRequest.id(),
+                                        indexCycle
+                                    )
                                 )
                             )
                         );

@@ -115,7 +115,6 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
             )
         );
         // Datetime
-        // TODO: I'm surprised this passes. Shouldn't there be a cast from DateTime to Long?
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 "NotEqualsLongsEvaluator",
@@ -125,6 +124,20 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+        // Datetime
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsLongsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateNanosCases(),
                 List.of(),
                 false
             )
@@ -198,7 +211,7 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
     }
 
     private static String typeErrorString =
-        "boolean, cartesian_point, cartesian_shape, datetime, double, geo_point, geo_shape, integer, ip, keyword, long, text, "
+        "boolean, cartesian_point, cartesian_shape, datetime, date_nanos, double, geo_point, geo_shape, integer, ip, keyword, long, text, "
             + "unsigned_long or version";
 
     @Override

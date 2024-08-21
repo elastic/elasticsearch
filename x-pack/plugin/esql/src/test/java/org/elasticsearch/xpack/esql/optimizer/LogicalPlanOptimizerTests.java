@@ -3514,6 +3514,49 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(agg.groupings().get(0), is(ref));
     }
 
+    public void testBucketWithNonFoldingArgs() {
+        assertThat(
+            typesError("from types | stats max(integer) by bucket(date, integer, \"2000-01-01\", \"2000-01-02\")"),
+            containsString(
+                "second argument of [bucket(date, integer, \"2000-01-01\", \"2000-01-02\")] must be a constant, " + "received [integer]"
+            )
+        );
+
+        assertThat(
+            typesError("from types | stats max(integer) by bucket(date, 2, date, \"2000-01-02\")"),
+            containsString("third argument of [bucket(date, 2, date, \"2000-01-02\")] must be a constant, " + "received [date]")
+        );
+
+        assertThat(
+            typesError("from types | stats max(integer) by bucket(date, 2, \"2000-01-02\", date)"),
+            containsString("fourth argument of [bucket(date, 2, \"2000-01-02\", date)] must be a constant, " + "received [date]")
+        );
+
+        assertThat(
+            typesError("from types | stats max(integer) by bucket(integer, long, 4, 5)"),
+            containsString("second argument of [bucket(integer, long, 4, 5)] must be a constant, " + "received [long]")
+        );
+
+        assertThat(
+            typesError("from types | stats max(integer) by bucket(integer, 3, long, 5)"),
+            containsString("third argument of [bucket(integer, 3, long, 5)] must be a constant, " + "received [long]")
+        );
+
+        assertThat(
+            typesError("from types | stats max(integer) by bucket(integer, 3, 4, long)"),
+            containsString("fourth argument of [bucket(integer, 3, 4, long)] must be a constant, " + "received [long]")
+        );
+    }
+
+    private String typesError(String query) {
+        VerificationException e = expectThrows(VerificationException.class, () -> planTypes(query));
+        String message = e.getMessage();
+        assertTrue(message.startsWith("Found "));
+        String pattern = "\nline ";
+        int index = message.indexOf(pattern);
+        return message.substring(index + pattern.length());
+    }
+
     /**
      * Expects
      * Project[[x{r}#5]]

@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
@@ -29,7 +30,13 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.util.Maps.transformValues;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -160,7 +167,10 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
     }
 
     public void testHasSameIndexRouting() {
-        final GlobalRoutingTable original = this.testRoutingTable(randomIntBetween(1, 5));
+        final GlobalRoutingTable original = randomValueOtherThanMany(
+            grt -> grt.totalIndexCount() == 0, // The mutation below assume that there is at least 1 index
+            () -> this.testRoutingTable(randomIntBetween(1, 5))
+        );
 
         // Exactly the same projects => same routing
         GlobalRoutingTable updated = new GlobalRoutingTable(randomLong(), original.routingTables());
@@ -210,6 +220,67 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
         for (var p : addition) {
             assertThat(table2.routingTable(p), sameInstance(RoutingTable.EMPTY_ROUTING_TABLE));
         }
+    }
+
+    public void testBuilderFromEmpty() {
+        final long version = randomLong();
+        final int numberOfProjects = randomIntBetween(1, 10);
+        final ProjectId[] projectIds = randomArray(numberOfProjects, numberOfProjects, ProjectId[]::new, () -> new ProjectId(randomUUID()));
+        final Long[] projectVersions = randomArray(numberOfProjects, numberOfProjects, Long[]::new, ESTestCase::randomLong);
+        final Integer[] projectIndexCount = randomArray(numberOfProjects, numberOfProjects, Integer[]::new, () -> randomIntBetween(0, 12));
+
+        final GlobalRoutingTable.Builder builder = GlobalRoutingTable.builder();
+        builder.version(version);
+        for (int i = 0; i < numberOfProjects; i++) {
+            builder.put(projectIds[i], addIndices(projectIndexCount[i], RoutingTable.builder().version(projectVersions[i])));
+        }
+        final GlobalRoutingTable builtRoutingTable = builder.build();
+
+        assertThat(builtRoutingTable.version(), equalTo(version));
+        assertThat(builtRoutingTable.size(), equalTo(numberOfProjects));
+        assertThat(builtRoutingTable.routingTables().keySet(), containsInAnyOrder(projectIds));
+        for (int i = 0; i < numberOfProjects; i++) {
+            final ProjectId projectId = projectIds[i];
+            assertThat(builtRoutingTable.routingTables(), hasKey(projectId));
+            final RoutingTable projectRoutingTable = builtRoutingTable.routingTable(projectId);
+            assertThat(projectRoutingTable.version(), equalTo(projectVersions[i]));
+            assertThat(projectRoutingTable.indicesRouting().size(), equalTo(projectIndexCount[i]));
+        }
+
+        final int expectedIndexCount = Arrays.stream(projectIndexCount).mapToInt(Integer::intValue).sum();
+        assertThat(builtRoutingTable.totalIndexCount(), equalTo(expectedIndexCount));
+    }
+
+    public void testBuilderFromExisting() {
+        final GlobalRoutingTable initial = createTestInstance();
+
+        {
+            final var instance = GlobalRoutingTable.builder(initial).build();
+            assertTrue("Expected " + initial + " to equal " + instance, GlobalRoutingTableWithEquals.equals(initial, instance));
+        }
+
+        {
+            final var instance = GlobalRoutingTable.builder(initial).incrementVersion().build();
+            assertThat(instance.version(), equalTo(initial.version() + 1));
+            assertThat(instance.routingTables(), equalTo(initial.routingTables()));
+        }
+
+        {
+            final var instance = GlobalRoutingTable.builder(initial).clear().build();
+            assertThat(instance.version(), equalTo(initial.version()));
+            assertThat(instance.routingTables(), anEmptyMap());
+        }
+
+        {
+            final ProjectId projectId = randomProjectId();
+            final RoutingTable projectRouting = randomRoutingTable();
+            final var instance = GlobalRoutingTable.builder(initial).put(projectId, projectRouting).build();
+            assertThat(instance.version(), equalTo(initial.version()));
+            assertThat(instance.routingTables(), aMapWithSize(initial.size() + 1));
+            assertThat(instance.routingTables(), hasEntry(projectId, projectRouting));
+            initial.routingTables().forEach((id, rt) -> assertThat(instance.routingTables(), hasEntry(id, rt)));
+        }
+
     }
 
     @Override

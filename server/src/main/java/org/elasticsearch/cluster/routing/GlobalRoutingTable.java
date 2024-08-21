@@ -267,6 +267,56 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
         }
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static Builder builder(GlobalRoutingTable routingTable) {
+        return new Builder(routingTable);
+    }
+
+    public static class Builder {
+        private long version;
+        private final ImmutableOpenMap.Builder<ProjectId, RoutingTable> projectRouting;
+
+        public Builder(GlobalRoutingTable init) {
+            this.version = init.version;
+            this.projectRouting = ImmutableOpenMap.builder(init.routingTables);
+        }
+
+        public Builder() {
+            this.version = 0L;
+            this.projectRouting = ImmutableOpenMap.builder();
+        }
+
+        public Builder version(long version) {
+            this.version = version;
+            return this;
+        }
+
+        public Builder incrementVersion() {
+            return version(version + 1);
+        }
+
+        public Builder put(ProjectId id, RoutingTable routing) {
+            this.projectRouting.put(id, routing);
+            return this;
+        }
+
+        public Builder put(ProjectId id, RoutingTable.Builder routing) {
+            return put(id, routing.build());
+        }
+
+        public Builder clear() {
+            this.projectRouting.clear();
+            return this;
+        }
+
+        public GlobalRoutingTable build() {
+            return new GlobalRoutingTable(version, projectRouting.build());
+        }
+    }
+
     @Override
     public String toString() {
         return "global_routing_table{v" + version + "," + routingTables + "}";

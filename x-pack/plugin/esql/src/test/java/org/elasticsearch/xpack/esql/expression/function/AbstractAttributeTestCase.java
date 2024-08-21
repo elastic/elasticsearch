@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -27,7 +26,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.hamcrest.Matchers.sameInstance;
 
 public abstract class AbstractAttributeTestCase<T extends Attribute> extends AbstractWireSerializingTestCase<

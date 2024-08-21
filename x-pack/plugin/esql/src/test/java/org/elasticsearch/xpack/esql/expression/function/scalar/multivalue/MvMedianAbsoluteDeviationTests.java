@@ -82,6 +82,18 @@ public class MvMedianAbsoluteDeviationTests extends AbstractMultivalueFunctionTe
                         DataType.INTEGER,
                         equalTo(0)
                     )
+                ),
+
+                // Custom double overflow, as "MAX_DOUBLE + 1000 == MAX_DOUBLE"
+                new TestCaseSupplier(
+                    "mv_median_absolute_deviation(<min_double, big_number, same_big_number>)",
+                    List.of(DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(new TestCaseSupplier.TypedData(List.of(-Double.MAX_VALUE, Double.MAX_VALUE/4, Double.MAX_VALUE/4), DataType.DOUBLE, "field")),
+                        "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
+                        DataType.DOUBLE,
+                        equalTo(0.)
+                    )
                 )
             )
         );
@@ -133,6 +145,9 @@ public class MvMedianAbsoluteDeviationTests extends AbstractMultivalueFunctionTe
     ) {
         var zeroExpected = DataTypeConverter.convert(0, type);
         var zeroValue = type == DataType.UNSIGNED_LONG ? NumericUtils.ZERO_AS_UNSIGNED_LONG : zeroExpected;
+        var oneThousandValue = type == DataType.UNSIGNED_LONG
+            ? NumericUtils.asLongUnsigned(BigInteger.valueOf(1000))
+            : DataTypeConverter.convert(1000, type);
 
         var typeName = type.name().toLowerCase();
 
@@ -182,6 +197,16 @@ public class MvMedianAbsoluteDeviationTests extends AbstractMultivalueFunctionTe
                 List.of(type),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(List.of(min, min), type, "field")),
+                    "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
+                    type,
+                    equalTo(zeroExpected)
+                )
+            ),
+            new TestCaseSupplier(
+                "mv_median_absolute_deviation(<min_" + typeName + ", 1000, 1000>)",
+                List.of(type),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(List.of(min, oneThousandValue, oneThousandValue), type, "field")),
                     "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
                     type,
                     equalTo(zeroExpected)

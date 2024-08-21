@@ -125,6 +125,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         for (int i = 0; i < doubles.count; i++) {
             double value = doubles.values[i];
             doubles.values[i] = value > median ? value - median : median - value;
+            assert Double.isFinite(doubles.values[i]) : "Overflow on median differences";
         }
         double mad = doubleMedianOf(doubles.values, doubles.count);
         doubles.count = 0;
@@ -140,6 +141,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         for (int i = 0; i < count; i++) {
             double value = values.getDouble(firstValue + i);
             doubles.values[i] = value > median ? value - median : median - value;
+            assert Double.isFinite(doubles.values[i]) : "Overflow on median differences";
         }
         double mad = doubleMedianOf(doubles.values, count);
         return mad;
@@ -173,7 +175,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         long median = longMedianOf(longs.values, longs.count);
         for (int i = 0; i < longs.count; i++) {
             long value = longs.values[i];
-            longs.values[i] = value > median ? value - median : median - value;
+            longs.values[i] = value > median ? Math.subtractExact(value, median) : Math.subtractExact(median, value);
         }
         long mad = longMedianOf(longs.values, longs.count);
         longs.count = 0;
@@ -191,7 +193,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         long median = count % 2 == 1 ? values.getLong(middle) : avgWithoutOverflow(values.getLong(middle - 1), values.getLong(middle));
         for (int i = 0; i < count; i++) {
             long value = values.getLong(firstValue + i);
-            longs.values[i] = value > median ? value - median : median - value;
+            longs.values[i] = value > median ? Math.subtractExact(value, median) : Math.subtractExact(median, value);
         }
         long mad = longMedianOf(longs.values, count);
         return mad;
@@ -293,7 +295,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         int median = intMedianOf(ints.values, ints.count);
         for (int i = 0; i < ints.count; i++) {
             int value = ints.values[i];
-            ints.values[i] = value > median ? value - median : median - value;
+            ints.values[i] = value > median ? Math.subtractExact(value, median) : Math.subtractExact(median, value);
         }
         int mad = intMedianOf(ints.values, ints.count);
         ints.count = 0;
@@ -311,7 +313,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         int median = count % 2 == 1 ? values.getInt(middle) : avgWithoutOverflow(values.getInt(middle - 1), values.getInt(middle));
         for (int i = 0; i < count; i++) {
             int value = values.getInt(firstValue + i);
-            ints.values[i] = value > median ? value - median : median - value;
+            ints.values[i] = value > median ? Math.subtractExact(value, median) : Math.subtractExact(median, value);
         }
         int mad = intMedianOf(ints.values, count);
         return mad;

@@ -651,7 +651,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final List<Tuple<X509Certificate, PrivateKey>> keys = new ArrayList<>(numberOfKeys);
         final List<Credential> credentials = new ArrayList<>(numberOfKeys);
         for (int i = 0; i < numberOfKeys; i++) {
-            final Tuple<X509Certificate, PrivateKey> key = readRandomKeyPair("EC");
+            final Tuple<X509Certificate, PrivateKey> key = readRandomKeyPair(randomSigningAlgorithm());
             keys.add(key);
             credentials.addAll(buildOpenSamlCredential(key));
         }

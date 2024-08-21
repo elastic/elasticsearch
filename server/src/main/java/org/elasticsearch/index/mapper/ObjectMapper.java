@@ -851,7 +851,7 @@ public class ObjectMapper extends Mapper {
                     if (existing == null) {
                         orderedFields.put(value.name(), new FieldWriter.IgnoredSource(value));
                     } else if (existing instanceof FieldWriter.IgnoredSource isw) {
-                        orderedFields.put(value.name(), isw.mergeWith(value));
+                        isw.mergeWith(value);
                     }
                 }
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
@@ -922,7 +922,7 @@ public class ObjectMapper extends Mapper {
                 }
 
                 public FieldWriter mergeWith(IgnoredSourceFieldMapper.NameValue nameValue) {
-                    assert Objects.equals(nameValue.name(), fieldName) : "CompositeIgnoredSource is merged with wrong field data";
+                    assert Objects.equals(nameValue.name(), fieldName) : "IgnoredSource is merged with wrong field data";
 
                     values.add(nameValue.value());
                     return this;

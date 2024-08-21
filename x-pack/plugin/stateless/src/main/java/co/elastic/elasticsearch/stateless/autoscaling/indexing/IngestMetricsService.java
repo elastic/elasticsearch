@@ -252,7 +252,7 @@ public class IngestMetricsService implements ClusterStateListener {
                     + "(number of indexing nodes: %d, number of indexing nodes with a shutdown marker: %d, %s: %.2f, %s: %.2f",
                 ingestLoads,
                 adjustedIngestLoads,
-                clusterState.nodes().size(),
+                clusterState.nodes().stream().filter(IngestMetricsService::isIndexNode).count(),
                 shuttingDownIndexingNodes.size(),
                 HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(),
                 highIngestionLoadWeightDuringScaling,

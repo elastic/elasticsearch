@@ -170,12 +170,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   method: testScaledFloat
   issue: https://github.com/elastic/elasticsearch/issues/112003
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {mv_percentile.FromIndex SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/112036
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {mv_percentile.FromIndex ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/112037
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testForceSleepsProfile {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/112039

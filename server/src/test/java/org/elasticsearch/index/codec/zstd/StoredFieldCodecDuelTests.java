@@ -26,12 +26,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class StoredFieldCodecDuelTests extends ESTestCase {
 
-    private static final String FIELD_1 = "string_field_1";
-    private static final String FIELD_2 = "binary_field_2";
-    private static final String FIELD_3 = "int_field_3";
-    private static final String FIELD_4 = "long_field_4";
-    private static final String FIELD_5 = "float_field_5";
-    private static final String FIELD_6 = "double_field_5";
+    private static final String STRING_FIELD = "string_field_1";
+    private static final String BINARY_FIELD = "binary_field_2";
+    private static final String INT_FIELD = "int_field_3";
+    private static final String LONG_FIELD = "long_field_4";
+    private static final String FLOAT_FIELD = "float_field_5";
+    private static final String DOUBLE_FIELD = "double_field_5";
 
     public void testDuelBestSpeed() throws IOException {
         var baseline = new LegacyPerFieldMapperCodec(Lucene99Codec.Mode.BEST_SPEED, null, BigArrays.NON_RECYCLING_INSTANCE);
@@ -63,12 +63,12 @@ public class StoredFieldCodecDuelTests extends ESTestCase {
             ) {
                 for (int i = 0; i < numDocs; i++) {
                     Document doc = new Document();
-                    doc.add(new StoredField(FIELD_1, randomAlphaOfLength(randomIntBetween(1, 4096))));
-                    doc.add(new StoredField(FIELD_2, randomByteArrayOfLength(randomIntBetween(1, 4096))));
-                    doc.add(new StoredField(FIELD_3, randomInt()));
-                    doc.add(new StoredField(FIELD_4, randomLong()));
-                    doc.add(new StoredField(FIELD_5, randomFloat()));
-                    doc.add(new StoredField(FIELD_6, randomDouble()));
+                    doc.add(new StoredField(STRING_FIELD, randomAlphaOfLength(randomIntBetween(1, 4096))));
+                    doc.add(new StoredField(BINARY_FIELD, randomByteArrayOfLength(randomIntBetween(1, 4096))));
+                    doc.add(new StoredField(INT_FIELD, randomInt()));
+                    doc.add(new StoredField(LONG_FIELD, randomLong()));
+                    doc.add(new StoredField(FLOAT_FIELD, randomFloat()));
+                    doc.add(new StoredField(DOUBLE_FIELD, randomDouble()));
                     baselineIw.addDocument(doc);
                     contenderIw.addDocument(doc);
                 }
@@ -92,9 +92,9 @@ public class StoredFieldCodecDuelTests extends ESTestCase {
                         var contenderField = contenderDoc.getFields().get(i);
                         assertThat(contenderField.name(), equalTo(baselineField.name()));
                         switch (baselineField.name()) {
-                            case FIELD_1 -> assertThat(contenderField.stringValue(), equalTo(baselineField.stringValue()));
-                            case FIELD_2 -> assertThat(contenderField.binaryValue(), equalTo(baselineField.binaryValue()));
-                            case FIELD_3, FIELD_4, FIELD_5, FIELD_6 -> assertThat(
+                            case STRING_FIELD -> assertThat(contenderField.stringValue(), equalTo(baselineField.stringValue()));
+                            case BINARY_FIELD -> assertThat(contenderField.binaryValue(), equalTo(baselineField.binaryValue()));
+                            case INT_FIELD, LONG_FIELD, FLOAT_FIELD, DOUBLE_FIELD -> assertThat(
                                 contenderField.numericValue(),
                                 equalTo(baselineField.numericValue())
                             );

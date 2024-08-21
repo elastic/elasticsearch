@@ -62,15 +62,18 @@ public final class SpatialWithinGeoSourceAndConstantEvaluator implements EvalOpe
           result.appendNull();
           continue position;
         }
-        if (leftValueBlock.getValueCount(p) != 1) {
-          if (leftValueBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        int leftValueBlockCount = leftValueBlock.getValueCount(p);
+        if (leftValueBlockCount < 1) {
           result.appendNull();
           continue position;
         }
+        int leftValueBlockFirst = leftValueBlock.getFirstValueIndex(p);
         try {
-          result.appendBoolean(SpatialWithin.processGeoSourceAndConstant(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), this.rightValue));
+          boolean mvResult = true;
+          for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
+            mvResult &= SpatialWithin.processGeoSourceAndConstant(leftValueBlock.getBytesRef(leftValueBlockIndex, leftValueScratch), this.rightValue);
+          }
+          result.appendBoolean(mvResult);
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();

@@ -42,4 +42,27 @@ public @interface Evaluator {
      * into a warning and turn into a null value.
      */
     Class<? extends Exception>[] warnExceptions() default {};
+
+    /**
+     * Whether or not this method can be used for multi-valued fields.
+     */
+    MultiValueCombinerMode multiValued() default MultiValueCombinerMode.UNSUPPORTED;
+
+    /**
+     * When processing multi-valued fields, how to combine the values.
+     */
+    enum MultiValueCombinerMode {
+        /**
+         * Multi-values are unsupported, return null
+         */
+        UNSUPPORTED,
+        /**
+         * True if any value in the multi-value is true
+         */
+        ANY,
+        /**
+         * True if all values in the multi-value are true
+         */
+        ALL
+    }
 }

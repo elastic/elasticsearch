@@ -62,15 +62,18 @@ public final class SpatialContainsCartesianSourceAndConstantEvaluator implements
           result.appendNull();
           continue position;
         }
-        if (leftValueBlock.getValueCount(p) != 1) {
-          if (leftValueBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        int leftValueBlockCount = leftValueBlock.getValueCount(p);
+        if (leftValueBlockCount < 1) {
           result.appendNull();
           continue position;
         }
+        int leftValueBlockFirst = leftValueBlock.getFirstValueIndex(p);
         try {
-          result.appendBoolean(SpatialContains.processCartesianSourceAndConstant(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), this.rightValue));
+          boolean mvResult = false;
+          for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
+            mvResult |= SpatialContains.processCartesianSourceAndConstant(leftValueBlock.getBytesRef(leftValueBlockIndex, leftValueScratch), this.rightValue);
+          }
+          result.appendBoolean(mvResult);
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();

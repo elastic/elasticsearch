@@ -13,7 +13,6 @@ import org.elasticsearch.compute.ann.MvEvaluator;
 
 import java.util.List;
 import java.util.Set;
-
 import javax.annotation.processing.Completion;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.Processor;
@@ -82,7 +81,8 @@ public class EvaluatorProcessor implements Processor {
                                 env.getTypeUtils(),
                                 (ExecutableElement) evaluatorMethod,
                                 evaluatorAnn.extraName(),
-                                warnExceptionsTypes
+                                warnExceptionsTypes,
+                                evaluatorAnn.multiValued()
                             ).sourceFile(),
                             env
                         );

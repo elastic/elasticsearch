@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
-import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -70,25 +69,29 @@ public final class SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator im
           result.appendNull();
           continue position;
         }
-        if (leftValueBlock.getValueCount(p) != 1) {
-          if (leftValueBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        int leftValueBlockCount = leftValueBlock.getValueCount(p);
+        if (leftValueBlockCount < 1) {
           result.appendNull();
           continue position;
         }
+        int leftValueBlockFirst = leftValueBlock.getFirstValueIndex(p);
         if (rightValueBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (rightValueBlock.getValueCount(p) != 1) {
-          if (rightValueBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        int rightValueBlockCount = rightValueBlock.getValueCount(p);
+        if (rightValueBlockCount < 1) {
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(SpatialIntersects.processCartesianPointDocValuesAndSource(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlock.getFirstValueIndex(p), rightValueScratch)));
+        int rightValueBlockFirst = rightValueBlock.getFirstValueIndex(p);
+        boolean mvResult = false;
+        for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
+          for (int rightValueBlockIndex = rightValueBlockFirst; rightValueBlockIndex < rightValueBlockFirst + rightValueBlockCount; rightValueBlockIndex++) {
+            mvResult |= SpatialIntersects.processCartesianPointDocValuesAndSource(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlockIndex, rightValueScratch));
+          }
+        }
+        result.appendBoolean(mvResult);
       }
       return result.build();
     }

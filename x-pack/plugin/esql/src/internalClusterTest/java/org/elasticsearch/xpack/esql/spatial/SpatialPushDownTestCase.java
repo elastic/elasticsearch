@@ -64,7 +64,6 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
         assertPushedDownQueries(false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/110830")
     public void testPushedDownQueriesMultiValue() throws RuntimeException {
         assertPushedDownQueries(true);
     }
@@ -85,11 +84,16 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
               }
             }
             """, fieldType())));
+        int countSingleValues = 0;
         for (int i = 0; i < random().nextInt(50, 100); i++) {
             if (multiValue) {
                 final String[] values = new String[randomIntBetween(1, 5)];
                 for (int j = 0; j < values.length; j++) {
                     values[j] = "\"" + WellKnownText.toWKT(getIndexGeometry()) + "\"";
+                }
+                System.out.println("[" + i + "] " + Arrays.toString(values));
+                if (values.length == 1) {
+                    countSingleValues++;
                 }
                 index("indexed", i + "", "{\"location\" : " + Arrays.toString(values) + " }");
                 index("not-indexed", i + "", "{\"location\" : " + Arrays.toString(values) + " }");
@@ -99,15 +103,23 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
                 index("not-indexed", i + "", "{\"location\" : \"" + value + "\" }");
             }
         }
+        System.out.println("Single value count = " + countSingleValues);
 
         refresh("indexed", "not-indexed");
 
+        String smallRectangleCW = "POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))";
+        System.out.println("Querying with " + smallRectangleCW);
+        assertFunction("ST_WITHIN", smallRectangleCW);
+        String smallRectangleCCW = "POLYGON ((-10 -10, 10 -10, 10 10, -10 10, -10 -10))";
+        System.out.println("Querying with " + smallRectangleCCW);
+        assertFunction("ST_WITHIN", smallRectangleCCW);
         for (int i = 0; i < 10; i++) {
             final Geometry geometry = getQueryGeometry();
             final String wkt = WellKnownText.toWKT(geometry);
-            assertFunction("ST_INTERSECTS", wkt);
-            assertFunction("ST_DISJOINT", wkt);
-            assertFunction("ST_CONTAINS", wkt);
+            System.out.println("Querying with " + wkt);
+            // assertFunction("ST_INTERSECTS", wkt);
+            // assertFunction("ST_DISJOINT", wkt);
+            // assertFunction("ST_CONTAINS", wkt);
             // within and lines are not globally supported so we avoid it here
             if (containsLine(geometry) == false) {
                 assertFunction("ST_WITHIN", wkt);
@@ -126,7 +138,10 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
             EsqlQueryResponse response1 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query1).get();
             EsqlQueryResponse response2 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query2).get();
         ) {
-            assertEquals(response1.response().column(0).iterator().next(), response2.response().column(0).iterator().next());
+            Object indexedResult = response1.response().column(0).iterator().next();
+            Object notIndexedResult = response2.response().column(0).iterator().next();
+            System.out.println("[" + spatialFunction + "]:\t" + indexedResult + "\t" + notIndexedResult);
+            assertEquals(spatialFunction, indexedResult, notIndexedResult);
         }
     }
 

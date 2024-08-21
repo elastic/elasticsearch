@@ -69,26 +69,30 @@ public final class SpatialDisjointGeoSourceAndSourceEvaluator implements EvalOpe
           result.appendNull();
           continue position;
         }
-        if (leftValueBlock.getValueCount(p) != 1) {
-          if (leftValueBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        int leftValueBlockCount = leftValueBlock.getValueCount(p);
+        if (leftValueBlockCount < 1) {
           result.appendNull();
           continue position;
         }
+        int leftValueBlockFirst = leftValueBlock.getFirstValueIndex(p);
         if (rightValueBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (rightValueBlock.getValueCount(p) != 1) {
-          if (rightValueBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        int rightValueBlockCount = rightValueBlock.getValueCount(p);
+        if (rightValueBlockCount < 1) {
           result.appendNull();
           continue position;
         }
+        int rightValueBlockFirst = rightValueBlock.getFirstValueIndex(p);
         try {
-          result.appendBoolean(SpatialDisjoint.processGeoSourceAndSource(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValueBlock.getBytesRef(rightValueBlock.getFirstValueIndex(p), rightValueScratch)));
+          boolean mvResult = true;
+          for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
+            for (int rightValueBlockIndex = rightValueBlockFirst; rightValueBlockIndex < rightValueBlockFirst + rightValueBlockCount; rightValueBlockIndex++) {
+              mvResult &= SpatialDisjoint.processGeoSourceAndSource(leftValueBlock.getBytesRef(leftValueBlockIndex, leftValueScratch), rightValueBlock.getBytesRef(rightValueBlockIndex, rightValueScratch));
+            }
+          }
+          result.appendBoolean(mvResult);
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();

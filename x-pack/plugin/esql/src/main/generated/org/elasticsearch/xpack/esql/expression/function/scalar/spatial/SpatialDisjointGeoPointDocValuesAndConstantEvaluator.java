@@ -59,15 +59,18 @@ public final class SpatialDisjointGeoPointDocValuesAndConstantEvaluator implemen
           result.appendNull();
           continue position;
         }
-        if (leftValueBlock.getValueCount(p) != 1) {
-          if (leftValueBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        int leftValueBlockCount = leftValueBlock.getValueCount(p);
+        if (leftValueBlockCount < 1) {
           result.appendNull();
           continue position;
         }
+        int leftValueBlockFirst = leftValueBlock.getFirstValueIndex(p);
         try {
-          result.appendBoolean(SpatialDisjoint.processGeoPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), this.rightValue));
+          boolean mvResult = true;
+          for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
+            mvResult &= SpatialDisjoint.processGeoPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), this.rightValue);
+          }
+          result.appendBoolean(mvResult);
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();

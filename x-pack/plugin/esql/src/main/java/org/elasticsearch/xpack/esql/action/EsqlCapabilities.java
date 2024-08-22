@@ -38,6 +38,11 @@ public class EsqlCapabilities {
         FN_MV_APPEND,
 
         /**
+         * Support for {@code MV_PERCENTILE} function.
+         */
+        FN_MV_PERCENTILE,
+
+        /**
          * Support for function {@code IP_PREFIX}.
          */
         FN_IP_PREFIX,
@@ -53,6 +58,11 @@ public class EsqlCapabilities {
         INLINESTATS(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
+         * Support for the expressions in grouping in {@code INLINESTATS} syntax.
+         */
+        INLINESTATS_V2(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+
+        /**
          * Support for aggregation function {@code TOP}.
          */
         AGG_TOP,
@@ -66,6 +76,11 @@ public class EsqlCapabilities {
          * Support for ips in aggregations {@code MAX} and {@code MIN}.
          */
         AGG_MAX_MIN_IP_SUPPORT,
+
+        /**
+         * Support for strings in aggregations {@code MAX} and {@code MIN}.
+         */
+        AGG_MAX_MIN_STRING_SUPPORT,
 
         /**
          * Support for booleans in {@code TOP} aggregation.
@@ -119,6 +134,11 @@ public class EsqlCapabilities {
          * Support for function {@code ST_DISTANCE}. Done in #108764.
          */
         ST_DISTANCE,
+
+        /**
+         * Fix determination of CRS types in spatial functions when folding.
+         */
+        SPATIAL_FUNCTIONS_FIX_CRSTYPE_FOLDING,
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -225,6 +245,11 @@ public class EsqlCapabilities {
          * Support CIDRMatch in CombineDisjunctions rule.
          */
         COMBINE_DISJUNCTIVE_CIDRMATCHES,
+
+        /**
+         * Support sending HTTP headers about the status of an async query.
+         */
+        ASYNC_QUERY_STATUS_HEADERS,
 
         /**
          * Consider the upper bound when computing the interval in BUCKET auto mode.

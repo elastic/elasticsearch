@@ -19,7 +19,7 @@ public class Annotations {
     private Annotations() {}
 
     /**
-     * Returns the TypeMirror values of the requested attribute, from all the matching annotations on the given element.
+     * Returns the values of the requested attribute, from all the matching annotations on the given element.
      *
      * @param element the element to inspect
      * @param annotations the annotations to look for

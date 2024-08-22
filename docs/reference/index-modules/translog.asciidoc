@@ -74,6 +74,6 @@ update, or bulk request. This setting accepts the following parameters:
   and had to be recovered.
   This setting controls the maximum total size of these operations to prevent
   recoveries from taking too long. Once the maximum size has been reached, a flush
-  will happen, generating a new Lucene commit point. *Defaults to* `10 GB`.
+  will happen, generating a new Lucene commit point. Defaults to `10 GB`.
   The translog size will never exceed `1%` and will never be smaller than `10 MB`,
   regardless of the specified size.

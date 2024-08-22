@@ -101,7 +101,6 @@ import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabi
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.DIAGNOSIS_WAIT_FOR_INITIALIZATION;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.NAME;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.AVAILABLE;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.CREATING;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.INITIALIZING;
@@ -325,10 +324,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testAllReplicasUnassigned() {
-        // Test with replica_unassigned_buffer_time set to 0s.
-        // Use of this setting requires testing many cases and is handled in testIsNewlyCreatedAndInitializingReplica.
-        var nodeSettings = Settings.builder().put(REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), "0s").build();
-
         {
             ClusterState clusterState = createClusterStateWith(
                 List.of(
@@ -347,7 +342,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 status,
                 clusterState,
                 NodesShutdownMetadata.EMPTY,
-                randomBoolean()
+                randomBoolean(),
+                timeValueSeconds(0)
             );
             assertFalse(status.replicas.doAnyIndicesHaveAllUnavailable());
         }
@@ -369,7 +365,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 status,
                 clusterState,
                 NodesShutdownMetadata.EMPTY,
-                randomBoolean()
+                randomBoolean(),
+                timeValueSeconds(0)
             );
             assertFalse(status.replicas.doAnyIndicesHaveAllUnavailable());
         }
@@ -385,13 +382,14 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 ),
                 List.of()
             );
-            var service = createAllocationHealthIndicatorService(nodeSettings, clusterState, Map.of(), new SystemIndices(List.of()));
+            var service = createShardsAvailabilityIndicatorService(clusterState);
             ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
                 clusterState,
                 NodesShutdownMetadata.EMPTY,
-                randomBoolean()
+                randomBoolean(),
+                timeValueSeconds(0)
             );
             assertTrue(status.replicas.doAnyIndicesHaveAllUnavailable());
         }
@@ -409,13 +407,14 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 List.of()
             );
 
-            var service = createAllocationHealthIndicatorService(nodeSettings, clusterState, Map.of(), new SystemIndices(List.of()));
+            var service = createShardsAvailabilityIndicatorService(clusterState);
             ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
                 clusterState,
                 NodesShutdownMetadata.EMPTY,
-                randomBoolean()
+                randomBoolean(),
+                timeValueSeconds(0)
             );
             assertTrue(status.replicas.doAnyIndicesHaveAllUnavailable());
         }
@@ -451,7 +450,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 status,
                 clusterState,
                 NodesShutdownMetadata.EMPTY,
-                randomBoolean()
+                randomBoolean(),
+                timeValueSeconds(0)
             );
             // Here because the replica is unassigned due to the primary being created, it's treated as though the replica can be ignored.
             assertFalse(
@@ -480,7 +480,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 status,
                 clusterState,
                 NodesShutdownMetadata.EMPTY,
-                randomBoolean()
+                randomBoolean(),
+                timeValueSeconds(0)
             );
             var shardRouting = routingTable.shardsWithState(ShardRoutingState.UNASSIGNED).get(0);
             assertTrue(service.areAllShardsOfThisTypeUnavailable(shardRouting, clusterState));
@@ -503,7 +504,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 status,
                 clusterState,
                 NodesShutdownMetadata.EMPTY,
-                randomBoolean()
+                randomBoolean(),
+                timeValueSeconds(0)
             );
             var shardRouting = clusterState.routingTable().index("myindex").shardsWithState(ShardRoutingState.UNASSIGNED).get(0);
             assertFalse(service.areAllShardsOfThisTypeUnavailable(shardRouting, clusterState));
@@ -1981,8 +1983,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             DIAGNOSIS_WAIT_FOR_INITIALIZATION.getUniqueId(),
             equalTo("elasticsearch:health:shards_availability:diagnosis:initializing_shards")
         );
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
         var service = new ShardsAvailabilityHealthIndicatorService(
-            mock(ClusterService.class),
+            clusterService,
             mock(AllocationService.class),
             mock(SystemIndices.class)
         );
@@ -2045,8 +2049,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
                     shard,
                     state,
-                    replicaUnassignedThreshold,
-                    Clock.systemUTC()
+                    Instant.now().toEpochMilli() - replicaUnassignedThreshold.millis()
                 )
             );
         }
@@ -2059,17 +2062,15 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
                     primary,
                     state,
-                    replicaUnassignedThreshold,
-                    Clock.systemUTC()
+                    Instant.now().toEpochMilli() - replicaUnassignedThreshold.millis()
                 )
             );
         }
 
         // --------- Test conditions that depend on threshold, but with threshold of 0 ---------
-
         replicaUnassignedThreshold = timeValueSeconds(0);
-        Clock fixedClock = clock(Instant.now().toEpochMilli());
-        TimeValue afterCutoffTime = TimeValue.timeValueMillis(fixedClock.millis());
+        long now = Instant.now().toEpochMilli();
+        TimeValue afterCutoffTime = TimeValue.timeValueMillis(now);
         {
             var unassignedInfo = randomFrom(decidersNo(afterCutoffTime), unassignedInfoNoFailures(afterCutoffTime));
             var replicaAllocation = new ShardAllocation("node", UNAVAILABLE, unassignedInfo);
@@ -2086,8 +2087,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
                     unallocatedReplica,
                     state,
-                    replicaUnassignedThreshold,
-                    fixedClock
+                    now - replicaUnassignedThreshold.millis()
                 )
             );
         }
@@ -2108,8 +2108,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
                     unallocatedReplica,
                     state,
-                    replicaUnassignedThreshold,
-                    fixedClock
+                    now - replicaUnassignedThreshold.millis()
                 )
             );
         }
@@ -2117,8 +2116,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         // --------- Test conditions that do depend on threshold, but with non-zero threshold ---------
 
         replicaUnassignedThreshold = timeValueSeconds(3);
-        afterCutoffTime = TimeValue.timeValueMillis(fixedClock.millis() - 3000);
-        TimeValue beforeCutoffTime = TimeValue.timeValueMillis(fixedClock.millis() - 2999);
+        afterCutoffTime = TimeValue.timeValueMillis(now - 3000);
+        TimeValue beforeCutoffTime = TimeValue.timeValueMillis(now - 2999);
         {
             List<Tuple<ShardState, UnassignedInfo>> configs = new ArrayList<>();
 
@@ -2149,8 +2148,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
                         unallocatedReplica,
                         state,
-                        replicaUnassignedThreshold,
-                        fixedClock
+                        now - replicaUnassignedThreshold.millis()
                     )
                 );
             }
@@ -2180,8 +2178,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
                         unallocatedReplica,
                         state,
-                        replicaUnassignedThreshold,
-                        fixedClock
+                        now - replicaUnassignedThreshold.millis()
                     )
                 );
             }

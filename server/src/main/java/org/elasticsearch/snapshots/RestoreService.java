@@ -258,10 +258,10 @@ public final class RestoreService implements ClusterStateApplier {
 
         SubscribableListener
 
-            .<Void>newForked(repositoryListener -> {
+            .<Void>newForked(repositorySetListener -> {
                 // do this within newForked for exception handling
                 repositoryRef.set(repositoriesService.repository(request.repository()));
-                repositoryListener.onResponse(null);
+                repositorySetListener.onResponse(null);
             })
 
             .<RepositoryData>andThen(

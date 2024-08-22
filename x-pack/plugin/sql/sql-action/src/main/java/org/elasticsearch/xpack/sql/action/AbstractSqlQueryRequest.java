@@ -286,7 +286,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                         validationException
                     );
                 }
-            } else if (SqlVersion.isClientCompatible(VersionsUtils.CURRENT, requestInfo().version()) == false) {
+            } else if (SqlVersion.isClientCompatible(SqlVersionUtils.CURRENT, requestInfo().version()) == false) {
                 validationException = addValidationError(
                     "The ["
                         + requestInfo().version()
@@ -294,7 +294,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                         + mode.toString()
                         + "] "
                         + "client is not compatible with Elasticsearch version ["
-                        + VersionsUtils.CURRENT
+                        + SqlVersionUtils.CURRENT
                         + "]",
                     validationException
                 );

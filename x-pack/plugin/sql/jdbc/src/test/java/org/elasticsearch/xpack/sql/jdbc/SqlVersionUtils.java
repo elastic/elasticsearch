@@ -11,7 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
-public final class VersionsUtils {
+public final class SqlVersionUtils {
 
     public static final SqlVersion CURRENT = SqlVersion.fromString(Build.current().version());
 

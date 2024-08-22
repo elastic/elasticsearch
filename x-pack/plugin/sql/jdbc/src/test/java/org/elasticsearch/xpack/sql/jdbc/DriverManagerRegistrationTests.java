@@ -26,8 +26,8 @@ public class DriverManagerRegistrationTests extends ESTestCase {
             /* This test will only work properly in gradle because in gradle we run the tests
              * using the jar. */
 
-            assertNotEquals(String.valueOf(VersionsUtils.CURRENT.major), d.getMajorVersion());
-            assertNotEquals(String.valueOf(VersionsUtils.CURRENT.minor), d.getMinorVersion());
+            assertNotEquals(String.valueOf(SqlVersionUtils.CURRENT.major), d.getMajorVersion());
+            assertNotEquals(String.valueOf(SqlVersionUtils.CURRENT.minor), d.getMinorVersion());
         });
     }
 

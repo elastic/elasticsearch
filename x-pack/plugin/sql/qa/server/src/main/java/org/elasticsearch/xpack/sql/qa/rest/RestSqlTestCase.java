@@ -1164,7 +1164,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             null,
             TransportVersionUtils.getPreviousVersion(INTRODUCING_UNSIGNED_LONG)
         );
-        String query = query("SELECT unsigned_long::STRING FROM " + indexPattern("test")).version(version.toReleaseVersion()).toString();
+        String query = query("SELECT unsigned_long::STRING FROM " + indexPattern("test")).version(from(version).toString()).toString();
         expectBadRequest(
             () -> runSql(new StringEntity(query, ContentType.APPLICATION_JSON), "", randomMode()),
             containsString("Cannot use field [unsigned_long] with unsupported type [UNSIGNED_LONG]")

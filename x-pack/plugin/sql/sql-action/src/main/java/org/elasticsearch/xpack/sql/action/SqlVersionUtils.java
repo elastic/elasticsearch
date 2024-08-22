@@ -11,8 +11,10 @@ import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
-public final class VersionsUtils {
+public final class SqlVersionUtils {
 
+    // clients, released part of the stack, will use stack's release version, embedded into manifests or build scripts; and this will
+    // always be higher or equal TransportVersion.current(), so we'll need to use Build.current() also in action package.
     public static final SqlVersion CURRENT = SqlVersion.fromString(Build.current().version());
 
     // Translating a TransportVersion to a SqlVersion/Version must go through the former's string representation, which involves a

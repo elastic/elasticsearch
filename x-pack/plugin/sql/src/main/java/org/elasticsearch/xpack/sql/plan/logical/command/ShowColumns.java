@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
+import org.elasticsearch.xpack.sql.action.SqlVersionUtils;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
@@ -91,7 +92,7 @@ public class ShowColumns extends Command {
                     List<List<?>> rows = emptyList();
                     if (indexResult.isValid()) {
                         rows = new ArrayList<>();
-                        TransportVersion version = TransportVersion.fromId(session.configuration().version().id);
+                        TransportVersion version = SqlVersionUtils.from(session.configuration().version());
                         fillInRows(IndexCompatibility.compatible(indexResult, version).get().mapping(), null, rows);
                     }
                     l.onResponse(of(session, rows));

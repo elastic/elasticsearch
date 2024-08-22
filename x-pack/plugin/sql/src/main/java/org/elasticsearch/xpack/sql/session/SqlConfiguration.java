@@ -11,7 +11,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.sql.action.SqlQueryTask;
-import org.elasticsearch.xpack.sql.action.VersionsUtils;
+import org.elasticsearch.xpack.sql.action.SqlVersionUtils;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
@@ -73,7 +73,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.runtimeMappings = runtimeMappings;
         this.mode = mode == null ? Mode.PLAIN : mode;
         this.clientId = clientId;
-        this.version = version != null ? version : VersionsUtils.CURRENT;
+        this.version = version != null ? version : SqlVersionUtils.CURRENT;
         this.multiValueFieldLeniency = multiValueFieldLeniency;
         this.includeFrozenIndices = includeFrozen;
         this.taskId = taskId;

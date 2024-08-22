@@ -16,7 +16,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class VersionsUtilsTests extends ESTestCase {
+public class SqlVersionUtilsTests extends ESTestCase {
 
     public void testFromTransportString() {
         assertEquals(SqlVersion.fromString("7.0.0"), SqlVersion.fromTransportString(TransportVersions.V_7_0_0.toReleaseVersion()));

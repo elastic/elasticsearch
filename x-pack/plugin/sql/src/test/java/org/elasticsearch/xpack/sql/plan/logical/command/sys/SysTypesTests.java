@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.action.Protocol;
-import org.elasticsearch.xpack.sql.action.VersionsUtils;
+import org.elasticsearch.xpack.sql.action.SqlVersionUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
@@ -39,8 +39,8 @@ import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isType
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
-import static org.elasticsearch.xpack.sql.util.VersionsUtils.UNSIGNED_LONG_TEST_VERSIONS;
-import static org.elasticsearch.xpack.sql.util.VersionsUtils.VERSION_FIELD_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.UNSIGNED_LONG_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.VERSION_FIELD_TEST_VERSIONS;
 import static org.mockito.Mockito.mock;
 
 public class SysTypesTests extends ESTestCase {
@@ -58,7 +58,7 @@ public class SysTypesTests extends ESTestCase {
             null,
             mode,
             null,
-            version != null ? VersionsUtils.from(version) : null,
+            version != null ? SqlVersionUtils.from(version) : null,
             null,
             null,
             false,

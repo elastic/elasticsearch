@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.StringUtils;
+import org.elasticsearch.xpack.sql.action.SqlVersionUtils;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
@@ -156,7 +157,7 @@ public class SysColumns extends Command {
             tableCat = cluster;
         }
 
-        TransportVersion version = TransportVersion.fromId(session.configuration().version().id);
+        TransportVersion version = SqlVersionUtils.from(session.configuration().version());
         // special case for '%' (translated to *)
         if ("*".equals(idx)) {
             session.indexResolver()

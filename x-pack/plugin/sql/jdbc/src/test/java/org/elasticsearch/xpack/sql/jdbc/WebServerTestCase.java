@@ -52,7 +52,7 @@ public abstract class WebServerTestCase extends ESTestCase {
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         IndexVersion indexVersion = IndexVersion.current();
-        Build build = BuildUtils.newBuild(Build.current(), Map.of("version", VersionsUtils.from(version).toString()));
+        Build build = BuildUtils.newBuild(Build.current(), Map.of("version", SqlVersionUtils.from(version).toString()));
         return new MainResponse(nodeName, indexVersion.luceneVersion().toString(), clusterName, clusterUuid, build);
     }
 

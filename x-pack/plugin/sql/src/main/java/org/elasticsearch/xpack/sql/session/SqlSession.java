@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.ql.index.MappingException;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.sql.action.SqlVersionUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerContext;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
@@ -119,7 +119,7 @@ public class SqlSession implements Session {
             AnalyzerContext context = new AnalyzerContext(
                 configuration,
                 functionRegistry,
-                IndexCompatibility.compatible(r, TransportVersion.fromId(configuration.version().id))
+                IndexCompatibility.compatible(r, SqlVersionUtils.from(configuration.version()))
             );
             Analyzer analyzer = new Analyzer(context, verifier);
             return analyzer.analyze(parsed, verify);

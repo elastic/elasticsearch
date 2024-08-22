@@ -34,8 +34,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
-import static org.elasticsearch.xpack.sql.util.VersionsUtils.UNSIGNED_LONG_TEST_VERSIONS;
-import static org.elasticsearch.xpack.sql.util.VersionsUtils.VERSION_FIELD_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.UNSIGNED_LONG_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.VERSION_FIELD_TEST_VERSIONS;
 
 public class ShowColumnsTests extends ESTestCase {
 

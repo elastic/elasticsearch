@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public abstract class JdbcWarningsTestCase extends JdbcIntegrationTestCase {
 
-    private static final SqlVersion WARNING_HANDLING_ADDED_VERSION = SqlVersion.fromString(TransportVersions.V_8_2_0.toReleaseVersion());
+    private static final SqlVersion WARNING_HANDLING_ADDED_VERSION = JdbcTestUtils.from(TransportVersions.V_8_2_0);
 
     @Before
     public void setupData() throws IOException {

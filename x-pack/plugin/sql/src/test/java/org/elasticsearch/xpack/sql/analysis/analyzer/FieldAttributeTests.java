@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.Types;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
-import org.elasticsearch.xpack.sql.action.VersionsUtils;
+import org.elasticsearch.xpack.sql.action.SqlVersionUtils;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
@@ -50,10 +50,10 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
-import static org.elasticsearch.xpack.sql.util.VersionsUtils.POST_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.sql.util.VersionsUtils.POST_VERSION_FIELD;
-import static org.elasticsearch.xpack.sql.util.VersionsUtils.PRE_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.sql.util.VersionsUtils.PRE_VERSION_FIELD;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.POST_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.POST_VERSION_FIELD;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.PRE_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.PRE_VERSION_FIELD;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -322,7 +322,7 @@ public class FieldAttributeTests extends ESTestCase {
         String queryWithArithmetic = "SELECT unsigned_long + 1 AS unsigned_long FROM test";
         String queryWithCast = "SELECT long + 1::unsigned_long AS unsigned_long FROM test";
 
-        SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(VersionsUtils.from(PRE_UNSIGNED_LONG));
+        SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(SqlVersionUtils.from(PRE_UNSIGNED_LONG));
 
         for (String sql : List.of(query, queryWithLiteral, queryWithCastLiteral, queryWithAlias, queryWithArithmetic, queryWithCast)) {
             analyzer = analyzer(
@@ -336,7 +336,7 @@ public class FieldAttributeTests extends ESTestCase {
 
             for (TransportVersion v : List.of(INTRODUCING_UNSIGNED_LONG, POST_UNSIGNED_LONG)) {
                 analyzer = analyzer(
-                    SqlTestUtils.randomConfiguration(VersionsUtils.from(v)),
+                    SqlTestUtils.randomConfiguration(SqlVersionUtils.from(v)),
                     functionRegistry,
                     loadCompatibleIndexResolution("mapping-numeric.json", v),
                     verifier
@@ -359,7 +359,7 @@ public class FieldAttributeTests extends ESTestCase {
         String queryWithAlias = "SELECT version_number AS version_number FROM test";
         String queryWithCast = "SELECT CONCAT(version_number::string, '-SNAPSHOT')::version AS version_number FROM test";
 
-        SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(VersionsUtils.from(PRE_VERSION_FIELD));
+        SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(SqlVersionUtils.from(PRE_VERSION_FIELD));
 
         for (String sql : List.of(query, queryWithCastLiteral, queryWithAlias, queryWithCast)) {
             analyzer = analyzer(
@@ -373,7 +373,7 @@ public class FieldAttributeTests extends ESTestCase {
 
             for (TransportVersion v : List.of(INTRODUCING_VERSION_FIELD_TYPE, POST_VERSION_FIELD)) {
                 analyzer = analyzer(
-                    SqlTestUtils.randomConfiguration(VersionsUtils.from(v)),
+                    SqlTestUtils.randomConfiguration(SqlVersionUtils.from(v)),
                     functionRegistry,
                     loadCompatibleIndexResolution("mapping-version.json", v),
                     verifier
@@ -392,7 +392,7 @@ public class FieldAttributeTests extends ESTestCase {
 
     public void testNonProjectedUnsignedLongVersionCompatibility() {
         analyzer = analyzer(
-            SqlTestUtils.randomConfiguration(VersionsUtils.from(PRE_UNSIGNED_LONG)),
+            SqlTestUtils.randomConfiguration(SqlVersionUtils.from(PRE_UNSIGNED_LONG)),
             functionRegistry,
             loadCompatibleIndexResolution("mapping-numeric.json", PRE_UNSIGNED_LONG),
             new Verifier(new Metrics())
@@ -425,7 +425,7 @@ public class FieldAttributeTests extends ESTestCase {
         String sql = "SELECT container.ul as unsigned_long FROM test";
 
         analyzer = analyzer(
-            SqlTestUtils.randomConfiguration(VersionsUtils.from(PRE_UNSIGNED_LONG)),
+            SqlTestUtils.randomConfiguration(SqlVersionUtils.from(PRE_UNSIGNED_LONG)),
             functionRegistry,
             compatibleIndexResolution(props, PRE_UNSIGNED_LONG),
             new Verifier(new Metrics())
@@ -435,7 +435,7 @@ public class FieldAttributeTests extends ESTestCase {
 
         for (TransportVersion v : List.of(INTRODUCING_UNSIGNED_LONG, POST_UNSIGNED_LONG)) {
             analyzer = analyzer(
-                SqlTestUtils.randomConfiguration(VersionsUtils.from(v)),
+                SqlTestUtils.randomConfiguration(SqlVersionUtils.from(v)),
                 functionRegistry,
                 compatibleIndexResolution(props, v),
                 verifier
@@ -455,7 +455,7 @@ public class FieldAttributeTests extends ESTestCase {
         String query = "SELECT * FROM test";
 
         for (TransportVersion version : List.of(PRE_UNSIGNED_LONG, INTRODUCING_UNSIGNED_LONG, POST_UNSIGNED_LONG)) {
-            SqlConfiguration config = SqlTestUtils.randomConfiguration(VersionsUtils.from(version));
+            SqlConfiguration config = SqlTestUtils.randomConfiguration(SqlVersionUtils.from(version));
             // the mapping is mutated when making it "compatible", so it needs to be reloaded inside the loop.
             analyzer = analyzer(
                 config,

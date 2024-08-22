@@ -17,12 +17,12 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.action.Protocol;
+import org.elasticsearch.xpack.sql.action.SqlVersionUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
@@ -48,8 +48,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
-import static org.elasticsearch.xpack.sql.util.VersionsUtils.UNSIGNED_LONG_TEST_VERSIONS;
-import static org.elasticsearch.xpack.sql.util.VersionsUtils.VERSION_FIELD_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.UNSIGNED_LONG_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.VERSION_FIELD_TEST_VERSIONS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
@@ -64,8 +64,6 @@ public class SysColumnsTests extends ESTestCase {
     private static final Map<String, EsField> MAPPING2 = loadMapping("mapping-multi-field-variation.json", true);
     private static final int FIELD_COUNT1 = 20;
     private static final int FIELD_COUNT2 = 19;
-
-    private static final SqlVersion CURRENT = SqlVersion.fromTransportString(TransportVersion.current().toReleaseVersion());
 
     private final SqlParser parser = new SqlParser();
 
@@ -282,7 +280,7 @@ public class SysColumnsTests extends ESTestCase {
             null,
             Mode.ODBC,
             null,
-            CURRENT,
+            SqlVersionUtils.CURRENT,
             null,
             null,
             false,
@@ -329,7 +327,7 @@ public class SysColumnsTests extends ESTestCase {
             null,
             mode,
             null,
-            CURRENT,
+            SqlVersionUtils.CURRENT,
             null,
             null,
             false,

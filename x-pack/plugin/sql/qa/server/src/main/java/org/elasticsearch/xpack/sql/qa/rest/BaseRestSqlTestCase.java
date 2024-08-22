@@ -20,6 +20,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
@@ -83,7 +84,7 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
             if (isQuery) {
                 Mode mode = (m instanceof Mode) ? (Mode) m : Mode.fromString(modeString);
                 if (Mode.isDedicatedClient(mode)) {
-                    version(TransportVersion.current().toReleaseVersion());
+                    version(from(TransportVersion.current()).toString());
                 }
             }
             return this;
@@ -300,5 +301,11 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
             Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
             response.getHeader("Cursor")
         );
+    }
+
+    // Translating a TransportVersion to a SqlVersion/Version must go through the former's string representation, which involves a
+    // mapping; the .id() can't be used directly.
+    public static SqlVersion from(TransportVersion transportVersion) {
+        return SqlVersion.fromTransportString(transportVersion.toReleaseVersion());
     }
 }

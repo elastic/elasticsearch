@@ -15,7 +15,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_VERSION_FIELD_TYPE;
 
-public final class VersionsUtils {
+public final class SqlVersionUtils {
 
     public static final TransportVersion PRE_UNSIGNED_LONG = TransportVersionUtils.getPreviousVersion(INTRODUCING_UNSIGNED_LONG);
     public static final TransportVersion POST_UNSIGNED_LONG = TransportVersionUtils.getNextVersion(INTRODUCING_UNSIGNED_LONG);

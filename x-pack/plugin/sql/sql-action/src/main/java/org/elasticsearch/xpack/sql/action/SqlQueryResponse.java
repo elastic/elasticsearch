@@ -106,7 +106,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     ) {
         this.cursor = cursor;
         this.mode = mode;
-        this.sqlVersion = sqlVersion != null ? sqlVersion : VersionsUtils.CURRENT;
+        this.sqlVersion = sqlVersion != null ? sqlVersion : SqlVersionUtils.CURRENT;
         this.columnar = columnar;
         this.columns = columns;
         this.rows = rows;
@@ -274,7 +274,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     public static XContentBuilder value(XContentBuilder builder, Mode mode, SqlVersion sqlVersion, Object value) throws IOException {
         if (value instanceof ZonedDateTime zdt) {
             // use the ISO format
-            if (mode == JDBC && isClientCompatible(VersionsUtils.CURRENT, sqlVersion)) {
+            if (mode == JDBC && isClientCompatible(SqlVersionUtils.CURRENT, sqlVersion)) {
                 builder.value(StringUtils.toString(zdt, sqlVersion));
             } else {
                 builder.value(StringUtils.toString(zdt));

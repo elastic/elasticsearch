@@ -68,7 +68,7 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
                 assert request.isNested() == false;
 
                 // "enabled: false" is not compatible with subobjects: false
-                // "runtime: false/strict/runtime" is not compatible with subobjects: false
+                // "dynamic: false/strict/runtime" is not compatible with subobjects: false
                 return new DataSourceResponse.ObjectMappingParametersGenerator(() -> {
                     var parameters = new HashMap<String, Object>();
                     if (ESTestCase.randomBoolean()) {

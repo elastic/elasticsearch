@@ -38,6 +38,11 @@ public class EsqlCapabilities {
         FN_MV_APPEND,
 
         /**
+         * Support for {@code MV_PERCENTILE} function.
+         */
+        FN_MV_PERCENTILE,
+
+        /**
          * Support for function {@code IP_PREFIX}.
          */
         FN_IP_PREFIX,
@@ -66,6 +71,11 @@ public class EsqlCapabilities {
          * Support for ips in aggregations {@code MAX} and {@code MIN}.
          */
         AGG_MAX_MIN_IP_SUPPORT,
+
+        /**
+         * Support for strings in aggregations {@code MAX} and {@code MIN}.
+         */
+        AGG_MAX_MIN_STRING_SUPPORT,
 
         /**
          * Support for booleans in {@code TOP} aggregation.
@@ -225,6 +235,11 @@ public class EsqlCapabilities {
          * Support CIDRMatch in CombineDisjunctions rule.
          */
         COMBINE_DISJUNCTIVE_CIDRMATCHES,
+
+        /**
+         * Support sending HTTP headers about the status of an async query.
+         */
+        ASYNC_QUERY_STATUS_HEADERS,
 
         /**
          * Consider the upper bound when computing the interval in BUCKET auto mode.

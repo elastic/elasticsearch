@@ -23,6 +23,11 @@ For more information, see <<security-privileges>>.
 [[searchable-snapshots-api-mount-desc]]
 ==== {api-description-title}
 
+This API mounts a snapshot as a searchable snapshot index. 
+
+Don't use this API for snapshots managed by {ilm-init}. Manually mounting
+{ilm-init}-managed snapshots can <<manually-mounting-snapshots,interfere>> with
+<<index-lifecycle-management,{ilm-init} processes>>.
 
 [[searchable-snapshots-api-mount-path-params]]
 ==== {api-path-parms-title}

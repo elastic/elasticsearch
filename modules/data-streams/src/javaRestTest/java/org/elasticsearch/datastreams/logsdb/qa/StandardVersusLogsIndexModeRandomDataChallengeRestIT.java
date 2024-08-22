@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams.logsdb.qa;
 
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.DataGenerator;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.FieldType;
@@ -32,20 +33,19 @@ import java.util.List;
  */
 public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends StandardVersusLogsIndexModeChallengeRestIT {
     private final boolean fullyDynamicMapping;
-    private final boolean subobjectsDisabled;
+    private final ObjectMapper.Subobjects subobjects;
 
     private final DataGenerator dataGenerator;
 
     public StandardVersusLogsIndexModeRandomDataChallengeRestIT() {
         super();
         this.fullyDynamicMapping = randomBoolean();
-        this.subobjectsDisabled = randomBoolean();
+        this.subobjects = randomFrom(ObjectMapper.Subobjects.values());
 
         var specificationBuilder = DataGeneratorSpecification.builder();
-        // TODO enable nested fields when subobjects are enabled
-        // It currently hits a bug with empty nested objects
-        // Nested fields don't work with subobjects: false.
-        specificationBuilder = specificationBuilder.withNestedFieldsLimit(0);
+        if (subobjects != ObjectMapper.Subobjects.ENABLED) {
+            specificationBuilder = specificationBuilder.withNestedFieldsLimit(0);
+        }
         this.dataGenerator = new DataGenerator(specificationBuilder.withDataSourceHandlers(List.of(new DataSourceHandler() {
             @Override
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
@@ -61,7 +61,7 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
             }
 
             public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
-                if (subobjectsDisabled == false) {
+                if (subobjects == ObjectMapper.Subobjects.ENABLED) {
                     // Use default behavior
                     return null;
                 }
@@ -69,16 +69,16 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
                 assert request.isNested() == false;
 
                 // "enabled: false" is not compatible with subobjects: false
-                // "runtime: false/strict/runtime" is not compatible with subobjects: false
+                // "dynamic: false/strict/runtime" is not compatible with subobjects: false
                 return new DataSourceResponse.ObjectMappingParametersGenerator(() -> {
                     var parameters = new HashMap<String, Object>();
+                    parameters.put("subobjects", subobjects.toString());
                     if (ESTestCase.randomBoolean()) {
                         parameters.put("dynamic", "true");
                     }
                     if (ESTestCase.randomBoolean()) {
                         parameters.put("enabled", "true");
                     }
-
                     return parameters;
                 });
             }
@@ -107,15 +107,15 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
         if (fullyDynamicMapping == false) {
-            if (subobjectsDisabled) {
-                dataGenerator.writeMapping(builder, b -> builder.field("subobjects", false));
+            if (subobjects != ObjectMapper.Subobjects.ENABLED) {
+                dataGenerator.writeMapping(builder, b -> builder.field("subobjects", subobjects.toString()));
             } else {
                 dataGenerator.writeMapping(builder);
             }
         } else {
             builder.startObject();
-            if (subobjectsDisabled) {
-                builder.field("subobjects", false);
+            if (subobjects != ObjectMapper.Subobjects.ENABLED) {
+                builder.field("subobjects", subobjects.toString());
             }
             builder.endObject();
         }

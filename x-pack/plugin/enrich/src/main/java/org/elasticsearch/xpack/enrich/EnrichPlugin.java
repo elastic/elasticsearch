@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -306,7 +307,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         }
 
         public static FlatNumberOrByteSizeValue parse(String value, String settingName, FlatNumberOrByteSizeValue defaultValue) {
-            if (value == null || value.isEmpty()) {
+            if (Strings.hasText(value) == false) {
                 return defaultValue;
             }
             if (Character.isDigit(value.charAt(value.length() - 1)) == false) {

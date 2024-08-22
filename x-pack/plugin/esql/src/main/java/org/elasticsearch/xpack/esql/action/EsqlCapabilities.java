@@ -58,6 +58,11 @@ public class EsqlCapabilities {
         INLINESTATS(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
+         * Support for the expressions in grouping in {@code INLINESTATS} syntax.
+         */
+        INLINESTATS_V2(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+
+        /**
          * Support for aggregation function {@code TOP}.
          */
         AGG_TOP,
@@ -129,6 +134,11 @@ public class EsqlCapabilities {
          * Support for function {@code ST_DISTANCE}. Done in #108764.
          */
         ST_DISTANCE,
+
+        /**
+         * Fix determination of CRS types in spatial functions when folding.
+         */
+        SPATIAL_FUNCTIONS_FIX_CRSTYPE_FOLDING,
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input

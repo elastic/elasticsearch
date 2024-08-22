@@ -63,13 +63,15 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
         String inferenceId = randomIdentifier();
         String searchInferenceId = randomIdentifier();
         String[] inputFields = generateRandomStringArray(5, 10, false, false);
-        return new InferenceFieldMetadata(name, inferenceId, searchInferenceId, inputFields);
+        String queryName = randomIdentifier();
+        return new InferenceFieldMetadata(name, inferenceId, searchInferenceId, inputFields, queryName);
     }
 
     public void testNullCtorArgsThrowException() {
-        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata(null, "inferenceId", "searchInferenceId", new String[0]));
-        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", null, "searchInferenceId", new String[0]));
-        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", "inferenceId", null, new String[0]));
-        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", "inferenceId", "searchInferenceId", null));
+        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata(null, "inferenceId", "searchInferenceId", new String[0], "queryName"));
+        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", null, "searchInferenceId", new String[0], "queryName"));
+        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", "inferenceId", null, new String[0], "queryName"));
+        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", "inferenceId", "searchInferenceId", null, "queryName"));
+        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", "inferenceId", "searchInferenceId", new String[0], null));
     }
 }

@@ -13,12 +13,12 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 public class ReindexMetrics {
 
-    public static final String TOOK_TIME_HISTOGRAM = "es.reindex.took_time.histogram";
+    public static final String REINDEX_TIME_HISTOGRAM = "es.reindex.duration.histogram";
 
     private final LongHistogram reindexTimeSecsHistogram;
 
     public ReindexMetrics(MeterRegistry meterRegistry) {
-        this(meterRegistry.registerLongHistogram(TOOK_TIME_HISTOGRAM, "Time to reindex by search", "seconds"));
+        this(meterRegistry.registerLongHistogram(REINDEX_TIME_HISTOGRAM, "Time to reindex by search", "millis"));
     }
 
     private ReindexMetrics(LongHistogram reindexTimeSecsHistogram) {

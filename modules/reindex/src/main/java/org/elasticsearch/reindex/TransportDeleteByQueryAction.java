@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -33,6 +34,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final DeleteByQueryMetrics deleteByQueryMetrics;
 
     @Inject
     public TransportDeleteByQueryAction(
@@ -41,13 +43,15 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         Client client,
         TransportService transportService,
         ScriptService scriptService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        @Nullable DeleteByQueryMetrics deleteByQueryMetrics
     ) {
         super(DeleteByQueryAction.NAME, transportService, actionFilters, DeleteByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
+        this.deleteByQueryMetrics = deleteByQueryMetrics;
     }
 
     @Override
@@ -76,6 +80,9 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                     scriptService,
                     ActionListener.runAfter(listener, () -> {
                         long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
+                        if (deleteByQueryMetrics != null) {
+                            deleteByQueryMetrics.recordTookTime(elapsedTime);
+                        }
                     })
                 ).start();
             }

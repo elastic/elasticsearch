@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.reindex.ReindexMetrics.TOOK_TIME_HISTOGRAM;
+import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_TIME_HISTOGRAM;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -48,7 +48,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertThat(copy.get(), matcher().created(4));
         testTelemetryPlugin.collect();
         assertHitCount(prepareSearch("dest").setSize(0), 4);
-        List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(TOOK_TIME_HISTOGRAM);
+        List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
         assertThat(measurements.size(), equalTo(1));
 
         // Now none of them
@@ -57,7 +57,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertThat(copy.get(), matcher().created(0));
         assertHitCount(prepareSearch("none").setSize(0), 0);
         testTelemetryPlugin.collect();
-        measurements = testTelemetryPlugin.getLongHistogramMeasurement(TOOK_TIME_HISTOGRAM);
+        measurements = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
         assertThat(measurements.size(), equalTo(2));
 
         // Now half of them
@@ -65,7 +65,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertThat(copy.get(), matcher().created(2));
         assertHitCount(prepareSearch("dest_half").setSize(0), 2);
         testTelemetryPlugin.collect();
-        measurements = testTelemetryPlugin.getLongHistogramMeasurement(TOOK_TIME_HISTOGRAM);
+        measurements = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
         assertThat(measurements.size(), equalTo(3));
 
         // Limit with maxDocs

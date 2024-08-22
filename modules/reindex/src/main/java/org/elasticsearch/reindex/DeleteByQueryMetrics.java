@@ -11,23 +11,23 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-public class UpdateByQueryMetrics {
-    public static final String UPDATE_BY_QUERY_TIME_HISTOGRAM = "es.update_by_query.duration.histogram";
+public class DeleteByQueryMetrics {
+    public static final String DELETE_BY_QUERY_TIME_HISTOGRAM = "es.delete_by_query.duration.histogram";
 
-    private final LongHistogram updateByQueryTimeSecsHistogram;
+    private final LongHistogram deleteByQueryTimeSecsHistogram;
 
-    public UpdateByQueryMetrics(MeterRegistry meterRegistry) {
+    public DeleteByQueryMetrics(MeterRegistry meterRegistry) {
         this(
-            meterRegistry.registerLongHistogram(UPDATE_BY_QUERY_TIME_HISTOGRAM, "Time taken to execute Update by Query request", "seconds")
+            meterRegistry.registerLongHistogram(DELETE_BY_QUERY_TIME_HISTOGRAM, "Time taken to execute Delete by Query request", "seconds")
         );
     }
 
-    private UpdateByQueryMetrics(LongHistogram updateByQueryTimeSecsHistogram) {
-        this.updateByQueryTimeSecsHistogram = updateByQueryTimeSecsHistogram;
+    private DeleteByQueryMetrics(LongHistogram deleteByQueryTimeSecsHistogram) {
+        this.deleteByQueryTimeSecsHistogram = deleteByQueryTimeSecsHistogram;
     }
 
     public long recordTookTime(long tookTime) {
-        updateByQueryTimeSecsHistogram.record(tookTime);
+        deleteByQueryTimeSecsHistogram.record(tookTime);
         return tookTime;
     }
 }

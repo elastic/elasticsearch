@@ -222,9 +222,10 @@ public class ObjectMapper extends Mapper {
                     // mix of object notation and dot notation.
                     mapper = existing.merge(mapper, MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE));
                 }
-                if (subobjects.isPresent() && subobjects.get() == Subobjects.DISABLED && mapper instanceof ObjectMapper objectMapper) {
-                    // We're parsing a mapping that has set `subobjects: false` but has defined sub-objects
-                    objectMapper.asFlattenedFieldMappers(mapperBuilderContext).forEach(m -> mappers.put(m.leafName(), m));
+                if (mapper instanceof ObjectMapper objectMapper && isFlattenable(subobjects, objectMapper, mapperBuilderContext)) {
+                    // We're parsing a mapping that has defined sub-objects, may need to flatten them.
+                    objectMapper.asFlattenedFieldMappers(mapperBuilderContext, throwOnFlattenableError(subobjects))
+                        .forEach(m -> mappers.put(m.leafName(), m));
                 } else {
                     mappers.put(mapper.leafName(), mapper);
                 }
@@ -623,12 +624,11 @@ public class ObjectMapper extends Mapper {
             Optional<Subobjects> subobjects
         ) {
             Map<String, Mapper> mergedMappers = new HashMap<>();
+            var context = objectMergeContext.getMapperBuilderContext();
             for (Mapper childOfExistingMapper : existing.mappers.values()) {
-                if (subobjects.isPresent()
-                    && subobjects.get() == Subobjects.DISABLED
-                    && childOfExistingMapper instanceof ObjectMapper objectMapper) {
+                if (childOfExistingMapper instanceof ObjectMapper objectMapper && isFlattenable(subobjects, objectMapper, context)) {
                     // An existing mapping with sub-objects is merged with a mapping that has set `subobjects: false`
-                    objectMapper.asFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext())
+                    objectMapper.asFlattenedFieldMappers(context, throwOnFlattenableError(subobjects))
                         .forEach(m -> mergedMappers.put(m.leafName(), m));
                 } else {
                     putMergedMapper(mergedMappers, childOfExistingMapper);
@@ -637,11 +637,9 @@ public class ObjectMapper extends Mapper {
             for (Mapper mergeWithMapper : mergeWithObject) {
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.leafName());
                 if (mergeIntoMapper == null) {
-                    if (subobjects.isPresent()
-                        && subobjects.get() == Subobjects.DISABLED
-                        && mergeWithMapper instanceof ObjectMapper objectMapper) {
+                    if (mergeWithMapper instanceof ObjectMapper objectMapper && isFlattenable(subobjects, objectMapper, context)) {
                         // An existing mapping that has set `subobjects: false` is merged with a mapping with sub-objects
-                        objectMapper.asFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext())
+                        objectMapper.asFlattenedFieldMappers(context, throwOnFlattenableError(subobjects))
                             .stream()
                             .filter(m -> objectMergeContext.decrementFieldBudgetIfPossible(m.getTotalFieldsCount()))
                             .forEach(m -> putMergedMapper(mergedMappers, m));
@@ -698,32 +696,61 @@ public class ObjectMapper extends Mapper {
      *
      * @throws IllegalArgumentException if the mapper cannot be flattened
      */
-    List<FieldMapper> asFlattenedFieldMappers(MapperBuilderContext context) {
+    List<FieldMapper> asFlattenedFieldMappers(MapperBuilderContext context, boolean throwOnFlattenableError) {
         List<FieldMapper> flattenedMappers = new ArrayList<>();
         ContentPath path = new ContentPath();
-        asFlattenedFieldMappers(context, flattenedMappers, path);
+        asFlattenedFieldMappers(context, flattenedMappers, path, throwOnFlattenableError);
         return flattenedMappers;
     }
 
-    private void asFlattenedFieldMappers(MapperBuilderContext context, List<FieldMapper> flattenedMappers, ContentPath path) {
-        ensureFlattenable(context, path);
+    private static boolean isFlattenable(Optional<Subobjects> subobjects, ObjectMapper mapper, MapperBuilderContext context) {
+        return subobjects.isPresent()
+            && mapper instanceof NestedObjectMapper == false
+            && (subobjects.get() == Subobjects.DISABLED
+                || (subobjects.get() == Subobjects.AUTO && mapper.checkFlattenable(context).isEmpty()));
+    }
+
+    private static boolean throwOnFlattenableError(Optional<Subobjects> subobjects) {
+        return subobjects.isPresent() && subobjects.get() == Subobjects.DISABLED;
+    }
+
+    private void asFlattenedFieldMappers(
+        MapperBuilderContext context,
+        List<FieldMapper> flattenedMappers,
+        ContentPath path,
+        boolean throwOnFlattenableError
+    ) {
+        var error = checkFlattenable(context);
+        if (error.isPresent()) {
+            if (throwOnFlattenableError) {
+                throw new IllegalArgumentException(
+                    "Object mapper ["
+                        + path.pathAsText(leafName())
+                        + "] was found in a context where subobjects is set to false. "
+                        + "Auto-flattening ["
+                        + path.pathAsText(leafName())
+                        + "] failed because "
+                        + error.get()
+                );
+            }
+            return;
+        }
         path.add(leafName());
         for (Mapper mapper : mappers.values()) {
             if (mapper instanceof FieldMapper fieldMapper) {
                 FieldMapper.Builder fieldBuilder = fieldMapper.getMergeBuilder();
                 fieldBuilder.setLeafName(path.pathAsText(mapper.leafName()));
                 flattenedMappers.add(fieldBuilder.build(context));
-            } else if (mapper instanceof ObjectMapper objectMapper) {
-                objectMapper.asFlattenedFieldMappers(context, flattenedMappers, path);
+            } else if (mapper instanceof ObjectMapper objectMapper && mapper instanceof NestedObjectMapper == false) {
+                objectMapper.asFlattenedFieldMappers(context, flattenedMappers, path, throwOnFlattenableError);
             }
         }
         path.remove();
     }
 
-    private void ensureFlattenable(MapperBuilderContext context, ContentPath path) {
+    private Optional<String> checkFlattenable(MapperBuilderContext context) {
         if (dynamic != null && context.getDynamic() != dynamic) {
-            throwAutoFlatteningException(
-                path,
+            return Optional.of(
                 "the value of [dynamic] ("
                     + dynamic
                     + ") is not compatible with the value from its parent context ("
@@ -731,24 +758,16 @@ public class ObjectMapper extends Mapper {
                     + ")"
             );
         }
+        if (storeArraySource()) {
+            return Optional.of("the value of [store_array_source] is [true]");
+        }
         if (isEnabled() == false) {
-            throwAutoFlatteningException(path, "the value of [enabled] is [false]");
+            return Optional.of("the value of [enabled] is [false]");
         }
         if (subobjects.isPresent() && subobjects.get() == Subobjects.ENABLED) {
-            throwAutoFlatteningException(path, "the value of [subobjects] is [true]");
+            return Optional.of("the value of [subobjects] is [true]");
         }
-    }
-
-    private void throwAutoFlatteningException(ContentPath path, String reason) {
-        throw new IllegalArgumentException(
-            "Object mapper ["
-                + path.pathAsText(leafName())
-                + "] was found in a context where subobjects is set to false. "
-                + "Auto-flattening ["
-                + path.pathAsText(leafName())
-                + "] failed because "
-                + reason
-        );
+        return Optional.empty();
     }
 
     @Override

@@ -452,7 +452,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 groupings = newGroupings;
                 if (changed.get()) {
-                    stats = stats.with(newGroupings, stats.aggregates());
+                    stats = stats.with(stats.child(), newGroupings, stats.aggregates());
                     changed.set(false);
                 }
             }
@@ -481,7 +481,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     newAggregates.add(agg);
                 }
 
-                stats = changed.get() ? stats.with(groupings, newAggregates) : stats;
+                stats = changed.get() ? stats.with(stats.child(), groupings, newAggregates) : stats;
             }
 
             return (LogicalPlan) stats;

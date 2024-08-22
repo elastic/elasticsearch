@@ -109,8 +109,8 @@ public class Aggregate extends UnaryPlan implements Stats {
     }
 
     @Override
-    public Aggregate with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new Aggregate(source(), child(), aggregateType(), newGroupings, newAggregates);
+    public Aggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
+        return new Aggregate(source(), child, aggregateType(), newGroupings, newAggregates);
     }
 
     public AggregateType aggregateType() {

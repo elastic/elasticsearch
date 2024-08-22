@@ -65,9 +65,11 @@ public class FieldAttribute extends TypedAttribute {
         this(source, parent, name, field.getDataType(), field, nullability, id, synthetic);
     }
 
-    // TODO: Should this become private? An explicitly set type will be discarded the moment this is `clone`d, so using this constructor is
-    // deceptive.
-    public FieldAttribute(
+    /**
+     * Used only for testing. Do not use this otherwise, as an explicitly set type will be ignored the next time this FieldAttribute is
+     * {@link FieldAttribute#clone}d.
+     */
+    FieldAttribute(
         Source source,
         FieldAttribute parent,
         String name,
@@ -195,6 +197,11 @@ public class FieldAttribute extends TypedAttribute {
     protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
         // Ignore `type`, this must be the same as the field's type.
         return new FieldAttribute(source, parent, name, field, nullability, id, synthetic);
+    }
+
+    @Override
+    public Attribute withDataType(DataType type) {
+        throw new UnsupportedOperationException("FieldAttribute obtains its type from the contained EsField.");
     }
 
     @Override

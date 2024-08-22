@@ -91,10 +91,12 @@ The result will look like this:
 {
   "data_streams": [
     {
-      "name": "my-data-stream",<1>
+      "name": "my-data-stream",                                     <1>
       "lifecycle": {
-        "enabled": true,       <2>
-        "data_retention": "7d" <3>
+        "enabled": true,                                            <2>
+        "data_retention": "7d",                                     <3>
+        "effective_retention": "7d",                                <4>
+        "retention_determined_by": "data_stream_configuration"
       }
     }
   ]
@@ -102,8 +104,9 @@ The result will look like this:
 --------------------------------------------------
 <1> The name of your data stream.
 <2> Shows if the data stream lifecycle is enabled for this data stream.
-<3> The retention period of the data indexed in this data stream, this means that the data in this data stream will
-be kept at least for 7 days. After that {es} can delete it at its own discretion.
+<3> The retention period of the data indexed in this data stream, as configured by the user.
+<4> The retention period that will be applied by the data stream lifecycle. This means that the data in this data stream will
+    be kept at least for 7 days. After that {es} can delete it at its own discretion.
 
 If you want to see more information about how the data stream lifecycle is applied on individual backing indices use the
 <<data-streams-explain-lifecycle,explain data stream lifecycle API>>:

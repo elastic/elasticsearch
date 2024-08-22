@@ -250,7 +250,7 @@ GET /restaurants/_search
           }
         }
       ],
-      "rank_constant": 0.3, <5>
+      "rank_constant": 1, <5>
       "rank_window_size": 50  <6>
     }
   }

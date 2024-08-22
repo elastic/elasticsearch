@@ -304,7 +304,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         });
 
         try {
-            var schedule = randomBoolean() ? "0 0/15 * * * ?" : "30m";
+            var schedule = randomBoolean() ? "0 0/15 * * * ?" : "15m";
             createSnapshotPolicy(
                 policyName,
                 "snap",

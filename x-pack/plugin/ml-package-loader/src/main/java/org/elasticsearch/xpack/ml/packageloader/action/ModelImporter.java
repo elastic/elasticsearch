@@ -46,7 +46,7 @@ import static org.elasticsearch.core.Strings.format;
  */
 class ModelImporter {
     private static final int DEFAULT_CHUNK_SIZE = 1024 * 1024; // 1MB
-    private static final int MAX_IN_FLIGHT_REQUESTS = 3;
+    private static final int MAX_IN_FLIGHT_REQUESTS = 5;
     private static final Logger logger = LogManager.getLogger(ModelImporter.class);
     private final Client client;
     private final String modelId;

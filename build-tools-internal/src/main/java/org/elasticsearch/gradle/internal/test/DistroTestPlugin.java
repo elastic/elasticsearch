@@ -340,10 +340,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 t.setDescription("Runs " + destructiveTaskName.split("\\.", 2)[1] + " tests within vagrant");
                 t.setTaskName(destructiveTaskName);
                 t.extraArg("-D'" + IN_VM_SYSPROP + "'");
-                var destructiveDepsTask = depsTasks.get(destructiveTaskName);
-                if (destructiveDepsTask != null) {
-                    t.dependsOn(destructiveDepsTask);
-                }
+                t.dependsOn(depsTasks.get(destructiveTaskName));
                 t.dependsOn(additionalDeps);
                 t.setLogLevel(project.getGradle().getStartParameter().getLogLevel().toString());
                 t.setExtension(project.getExtensions().findByType(VagrantExtension.class));

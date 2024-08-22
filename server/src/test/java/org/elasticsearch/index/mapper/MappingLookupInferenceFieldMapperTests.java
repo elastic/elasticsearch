@@ -46,10 +46,12 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
         InferenceFieldMetadata inferenceFieldMetadata = inferenceFieldMetadataMap.get("inference_field");
         assertThat(inferenceFieldMetadata.getInferenceId(), equalTo(TestInferenceFieldMapper.INFERENCE_ID));
         assertThat(inferenceFieldMetadata.getSourceFields(), arrayContaining("inference_field"));
+        assertThat(inferenceFieldMetadata.getQueryName(), equalTo(TestInferenceFieldMapper.QUERY_NAME));
 
         inferenceFieldMetadata = inferenceFieldMetadataMap.get("another_inference_field");
         assertThat(inferenceFieldMetadata.getInferenceId(), equalTo(TestInferenceFieldMapper.INFERENCE_ID));
         assertThat(inferenceFieldMetadata.getSourceFields(), arrayContaining("another_inference_field"));
+        assertThat(inferenceFieldMetadata.getQueryName(), equalTo(TestInferenceFieldMapper.QUERY_NAME));
     }
 
     public void testInferenceFieldMapperWithCopyTo() throws Exception {
@@ -79,6 +81,7 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
             inferenceFieldMetadata.getSourceFields(),
             arrayContainingInAnyOrder("another_non_inference_field", "inference_field", "non_inference_field")
         );
+        assertThat(inferenceFieldMetadata.getQueryName(), equalTo(TestInferenceFieldMapper.QUERY_NAME));
     }
 
     private static class TestInferenceFieldMapperPlugin extends Plugin implements MapperPlugin {
@@ -94,6 +97,7 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
         public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
         public static final String INFERENCE_ID = "test_inference_id";
         public static final String CONTENT_TYPE = "test_inference_field";
+        public static final String QUERY_NAME = "test_query_name";
 
         TestInferenceFieldMapper(String simpleName) {
             super(simpleName, new TestInferenceFieldMapperFieldType(simpleName), MultiFields.empty(), CopyTo.empty());
@@ -101,7 +105,7 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
 
         @Override
         public InferenceFieldMetadata getMetadata(Set<String> sourcePaths) {
-            return new InferenceFieldMetadata(fullPath(), INFERENCE_ID, sourcePaths.toArray(new String[0]));
+            return new InferenceFieldMetadata(fullPath(), INFERENCE_ID, sourcePaths.toArray(new String[0]), QUERY_NAME);
         }
 
         @Override

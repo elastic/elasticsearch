@@ -312,10 +312,8 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     protected Settings.Builder settingsForRoles(DiscoveryNodeRole... roles) {
-        var builder = nodeSettings().putList(
-            NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-            Arrays.stream(roles).map(DiscoveryNodeRole::roleName).toList()
-        );
+        var builder = Settings.builder()
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), Arrays.stream(roles).map(DiscoveryNodeRole::roleName).toList());
 
         // when changing those values, keep in mind that multiple nodes with their own caches can be created by integration tests which can
         // also be executed concurrently.
@@ -345,7 +343,9 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             // no cache (a single region does not even fit in the cache)
             builder.put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(1L));
         }
-        return builder;
+
+        // Add settings from nodeSettings last, allowing them to take precedence over the randomly generated values
+        return builder.put(nodeSettings().build());
     }
 
     protected String startMasterOnlyNode() {

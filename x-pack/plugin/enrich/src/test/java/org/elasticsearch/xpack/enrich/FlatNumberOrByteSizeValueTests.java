@@ -19,15 +19,33 @@ public class FlatNumberOrByteSizeValueTests extends ESTestCase {
     private static final String SETTING_NAME = "test.setting";
 
     public void testParse() {
-        assertEquals(new FlatNumberOrByteSizeValue(7L), FlatNumberOrByteSizeValue.parse("7", SETTING_NAME, null));
-        assertEquals(new FlatNumberOrByteSizeValue(ByteSizeValue.ofGb(2)), FlatNumberOrByteSizeValue.parse("2GB", SETTING_NAME, null));
+        int number = randomIntBetween(1, Integer.MAX_VALUE);
         assertEquals(
-            new FlatNumberOrByteSizeValue(ByteSizeValue.ofBytes((long) (0.05 * JvmInfo.jvmInfo().getConfiguredMaxHeapSize()))),
-            FlatNumberOrByteSizeValue.parse("5%", SETTING_NAME, null)
+            new FlatNumberOrByteSizeValue((long) number),
+            FlatNumberOrByteSizeValue.parse(Integer.toString(number), SETTING_NAME, null)
         );
         assertEquals(
-            new FlatNumberOrByteSizeValue(3L),
-            FlatNumberOrByteSizeValue.parse(null, SETTING_NAME, new FlatNumberOrByteSizeValue(3L))
+            new FlatNumberOrByteSizeValue(ByteSizeValue.ofGb(number)),
+            FlatNumberOrByteSizeValue.parse(number + "GB", SETTING_NAME, null)
+        );
+        assertEquals(
+            new FlatNumberOrByteSizeValue(ByteSizeValue.ofGb(number)),
+            FlatNumberOrByteSizeValue.parse(number + "g", SETTING_NAME, null)
+        );
+        int percentage = randomIntBetween(0, 100);
+        assertEquals(
+            new FlatNumberOrByteSizeValue(
+                ByteSizeValue.ofBytes((long) ((double) percentage / 100 * JvmInfo.jvmInfo().getConfiguredMaxHeapSize()))
+            ),
+            FlatNumberOrByteSizeValue.parse(percentage + "%", SETTING_NAME, null)
+        );
+        assertEquals(new FlatNumberOrByteSizeValue(0L), FlatNumberOrByteSizeValue.parse("0", SETTING_NAME, null));
+        assertEquals(new FlatNumberOrByteSizeValue(ByteSizeValue.ZERO), FlatNumberOrByteSizeValue.parse("0GB", SETTING_NAME, null));
+        assertEquals(new FlatNumberOrByteSizeValue(ByteSizeValue.ZERO), FlatNumberOrByteSizeValue.parse("0%", SETTING_NAME, null));
+        // Assert default value.
+        assertEquals(
+            new FlatNumberOrByteSizeValue((long) number),
+            FlatNumberOrByteSizeValue.parse(null, SETTING_NAME, new FlatNumberOrByteSizeValue((long) number))
         );
         assertThrows(ElasticsearchParseException.class, () -> FlatNumberOrByteSizeValue.parse("5GB%", SETTING_NAME, null));
         assertThrows(ElasticsearchParseException.class, () -> FlatNumberOrByteSizeValue.parse("5%GB", SETTING_NAME, null));

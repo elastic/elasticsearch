@@ -3,4 +3,20 @@ summary: Spatial search functions support multi-valued fields in compute engine
 area: "ES|QL"
 type: bug
 issues:
- - 110830
+  - 110830
+highlight:
+  title: "ESQL: Multi-value fields supported in Geospatial predicates"
+  body: |-
+    Supporting multi-value fields in `WHERE` predicates is a challenge due to not knowing whether `ALL` or `ANY`
+    of the values in the field should pass the predicate.
+    For example, should the field `age:[10,30]` pass the predicate `WHERE age>20` or not?
+    This ambiguity does not exist with the spatial predicates
+    `ST_INTERSECTS`, `ST_CONTAINS`, `ST_WITHIN` and `ST_DISJOINT`, because the choice between `ANY` or `ALL`
+    is implied by the predicate itself.
+    Consider a predicate checking a field named `location` against a test geometry named `polygon`:
+
+    * `ST_INTERSECTS(field, polygon)` - true if `ANY` value can intersect the polygon
+    * `ST_CONTAINS(field, polygon)` - true `ANY` value contains the polygon
+    * `ST_WITHIN(field, polygon)` - true only if `ALL` values are within the polygon
+    * `ST_DISJOINT(field, polygon)` - true only if `ALL` values are disjoint from the polygon
+  notable: false

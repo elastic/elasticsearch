@@ -27,6 +27,8 @@ public class Types {
     private static final String OPERATOR_PACKAGE = PACKAGE + ".operator";
     private static final String DATA_PACKAGE = PACKAGE + ".data";
 
+    static final TypeName STRING = ClassName.get("java.lang", "String");
+
     static final TypeName LIST_INTEGER = ParameterizedTypeName.get(ClassName.get(List.class), TypeName.INT.box());
 
     static final ClassName PAGE = ClassName.get(DATA_PACKAGE, "Page");
@@ -128,6 +130,11 @@ public class Types {
     );
 
     static final ClassName WARNINGS = ClassName.get("org.elasticsearch.xpack.esql.expression.function", "Warnings");
+    /**
+     * Warnings class used in compute module.
+     * It uses no external dependencies (Like Warnings and Source).
+     */
+    static final ClassName COMPUTE_WARNINGS = ClassName.get("org.elasticsearch.compute.aggregation", "Warnings");
 
     static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.esql.core.tree", "Source");
 

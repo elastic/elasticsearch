@@ -35,7 +35,6 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -59,7 +58,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, ReindexCancellationPlugin.class, TestTelemetryPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, ReindexCancellationPlugin.class);
     }
 
     @Before

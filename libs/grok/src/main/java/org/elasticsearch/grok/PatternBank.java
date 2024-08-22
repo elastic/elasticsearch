@@ -78,14 +78,23 @@ public class PatternBank {
                 // If we have seen this node before in a path, and it only appeared once in that path, there is no need to check it again
                 continue;
             }
-            Set<String> visited = new LinkedHashSet<>();
+            Set<String> visitedFromThisStartNode = new LinkedHashSet<>();
             Deque<String> toBeVisited = new ArrayDeque<>();
             toBeVisited.push(traversalStartNode);
+            Deque<NodeAndNeighborCount> currentPath = new ArrayDeque<>();
             while (toBeVisited.isEmpty() == false) {
                 String node = toBeVisited.pop();
-                if (visited.isEmpty() == false && traversalStartNode.equals(node)) {
-                    throw new IllegalArgumentException("circular reference detected: " + String.join("->", visited) + "->" + node);
-                } else if (visited.contains(node)) {
+                if (visitedFromThisStartNode.isEmpty() == false && traversalStartNode.equals(node)) {
+                    /*
+                     * Since currentPath is a Deque, its iterator gives us the elements in the reverse order that we'd like to print them.
+                     * So here we just reverse it
+                     */
+                    Deque<String> reversedPath = new ArrayDeque<>();
+                    for (NodeAndNeighborCount nodeAndNeighborCount : currentPath) {
+                        reversedPath.push(nodeAndNeighborCount.nodeName);
+                    }
+                    throw new IllegalArgumentException("circular reference detected: " + String.join("->", reversedPath) + "->" + node);
+                } else if (visitedFromThisStartNode.contains(node)) {
                     /*
                      * We are only looking for a cycle starting and ending at traversalStartNode right now. But this node has been
                      * visited more than once in the path rooted at traversalStartNode. This could be because it is a cycle, or could be
@@ -95,14 +104,34 @@ public class PatternBank {
                     nodesVisitedMoreThanOnceInAPath.add(node);
                     continue;
                 }
-                visited.add(node);
-                for (String neighbor : getPatternNamesForPattern(bank, node)) {
-                    toBeVisited.push(neighbor);
+                visitedFromThisStartNode.add(node);
+                List<String> neighbors = getPatternNamesForPattern(bank, node);
+                if (neighbors.isEmpty()) {
+                    /*
+                     * We have just completed processing a leaf on this path, so now we need to work our way back up the path until we find
+                     * a node that still has more than one neighbor to process:
+                     */
+                    while (currentPath.peek() != null && currentPath.peek().unprocessedNeighborCount == 1) {
+                        currentPath.pop();
+                    }
+                    if (currentPath.isEmpty() == false) {
+                        NodeAndNeighborCount nodeAndNeighborCount = currentPath.pop();
+                        currentPath.push(
+                            new NodeAndNeighborCount(nodeAndNeighborCount.nodeName, nodeAndNeighborCount.unprocessedNeighborCount - 1)
+                        );
+                    }
+                } else {
+                    currentPath.push(new NodeAndNeighborCount(node, neighbors.size()));
+                    for (String neighbor : neighbors) {
+                        toBeVisited.push(neighbor);
+                    }
                 }
             }
-            allVisitedNodes.addAll(visited);
+            allVisitedNodes.addAll(visitedFromThisStartNode);
         }
     }
+
+    private record NodeAndNeighborCount(String nodeName, Integer unprocessedNeighborCount) {}
 
     /**
      * This method returns the list of pattern names (if any) found in the bank for the pattern named patternName. If no pattern names

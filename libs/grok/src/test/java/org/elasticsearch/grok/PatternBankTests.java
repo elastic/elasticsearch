@@ -128,6 +128,28 @@ public class PatternBankTests extends ESTestCase {
             bank.put("NAME5", "!!!%{NAME1}!!!");
             PatternBank.forbidCircularReferences(bank);
         }
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new LinkedHashMap<>();
+            bank.put("NAME1", "!!!%{NAME2} %{NAME3}!!!");
+            bank.put("NAME2", "!!!%{NAME4} %{NAME5}!!!");
+            bank.put("NAME3", "!!!!!!");
+            bank.put("NAME4", "!!!!!!");
+            bank.put("NAME5", "!!!%{NAME1}!!!");
+            PatternBank.forbidCircularReferences(bank);
+        });
+        assertEquals("circular reference detected: NAME1->NAME2->NAME5->NAME1", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new LinkedHashMap<>();
+            bank.put("NAME1", "!!!%{NAME2} %{NAME3}!!!");
+            bank.put("NAME2", "!!!%{NAME4} %{NAME5}!!!");
+            bank.put("NAME3", "!!!%{NAME1}!!!");
+            bank.put("NAME4", "!!!!!!");
+            bank.put("NAME5", "!!!!!!");
+            PatternBank.forbidCircularReferences(bank);
+        });
+        assertEquals("circular reference detected: NAME1->NAME3->NAME1", e.getMessage());
     }
 
     public void testCircularSelfReference() {

@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.restore;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -73,17 +74,19 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
         final ClusterState state,
         final ActionListener<RestoreSnapshotResponse> listener
     ) {
-        restoreService.restoreSnapshot(request, listener.delegateFailure((delegatedListener, restoreCompletionResponse) -> {
-            if (restoreCompletionResponse.restoreInfo() == null && request.waitForCompletion()) {
-                RestoreClusterStateListener.createAndRegisterListener(
-                    clusterService,
-                    restoreCompletionResponse,
-                    delegatedListener,
-                    threadPool.getThreadContext()
-                );
-            } else {
-                delegatedListener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.restoreInfo()));
-            }
-        }));
+        SubscribableListener.<RestoreService.RestoreCompletionResponse>newForked(l -> restoreService.restoreSnapshot(request, l))
+            .<RestoreSnapshotResponse>andThen((delegate, restoreCompletionResponse) -> {
+                if (restoreCompletionResponse.restoreInfo() == null && request.waitForCompletion()) {
+                    RestoreClusterStateListener.createAndRegisterListener(
+                        clusterService,
+                        restoreCompletionResponse,
+                        delegate,
+                        threadPool.getThreadContext()
+                    );
+                } else {
+                    delegate.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.restoreInfo()));
+                }
+            })
+            .addListener(listener);
     }
 }

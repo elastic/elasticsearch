@@ -199,7 +199,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             recoveryExecutor,
             threadContext,
             listener.delegateResponse((l, e) -> {
-                logger.warn(() -> format("[{}]: primary relocation failed", request.shardId()), e);
+                logger.warn(format("%s: primary relocation failed", request.shardId()), e);
                 l.onFailure(e);
             }),
             new Consumer<>() {

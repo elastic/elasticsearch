@@ -934,8 +934,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         () -> Strings.format(
                             "fill gaps %s %s shared input stream factory",
                             gaps,
-                            (streamFactory == null ? "without" : "with"),
-                            (streamFactory == null ? "" : " " + streamFactory)
+                            streamFactory == null ? "without" : "with"
                         )
                     );
                     if (streamFactory == null) {
@@ -953,7 +952,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         }
                     } else {
                         try (
-                            var sequentialGapListener = new RefCountingListener(
+                            var sequentialGapsListener = new RefCountingListener(
                                 ActionListener.runBefore(listener.map(unused -> true), streamFactory::close)
                             )
                         ) {
@@ -963,7 +962,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                                         gap,
                                         writer,
                                         streamFactory,
-                                        ActionListener.releaseAfter(sequentialGapListener.acquire(), refs.acquire())
+                                        ActionListener.releaseAfter(sequentialGapsListener.acquire(), refs.acquire())
                                     )
                                 )
                                 .toList();
@@ -1018,8 +1017,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                             () -> Strings.format(
                                 "fill gaps %s %s shared input stream factory",
                                 gaps,
-                                (streamFactory == null ? "without" : "with"),
-                                (streamFactory == null ? "" : " " + streamFactory)
+                                streamFactory == null ? "without" : "with"
                             )
                         );
                         if (streamFactory == null) {

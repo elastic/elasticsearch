@@ -92,6 +92,9 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/106113
+- class: org.elasticsearch.index.mapper.IgnoredSourceFieldMapperTests
+  method: testStoredNestedSubObjectWithNameOverlappingParentName
+  issue: https://github.com/elastic/elasticsearch/issues/112083
 
 # Examples:
 #

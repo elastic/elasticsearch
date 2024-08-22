@@ -21,6 +21,6 @@ public class TestUtil {
         String platform = String.format(Locale.ROOT, "%s-%s", ElasticsearchDistribution.CURRENT_PLATFORM, arch);
         String existingLibraryPath = System.getProperty("java.library.path");
 
-        return String.format(Locale.ROOT, "\"%s/%s%c%s\"", nativeLibsDir, platform, File.pathSeparatorChar, existingLibraryPath);
+        return String.format(Locale.ROOT, "%s/%s%c%s", nativeLibsDir, platform, File.pathSeparatorChar, existingLibraryPath);
     }
 }

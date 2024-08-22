@@ -90,6 +90,7 @@ public class RoutingTableGenerator {
         public int relocating;
         public int initializing;
         public int unassigned;
+        public int unassignedPrimary;
         public int primaryActive;
         public int primaryInactive;
         private boolean inactivePrimaryCausesRed = false;
@@ -129,7 +130,11 @@ public class RoutingTableGenerator {
             if (shardRouting.initializing()) {
                 initializing++;
             } else {
-                unassigned++;
+                if (shardRouting.primary()) {
+                    unassignedPrimary++;
+                } else {
+                    unassigned++;
+                }
             }
         }
     }

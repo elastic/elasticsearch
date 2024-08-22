@@ -60,8 +60,8 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
             int relocatingShards = (int) parsedObjects[i++];
             int activePrimaryShards = (int) parsedObjects[i++];
             int initializingShards = (int) parsedObjects[i++];
-            int unassignedPrimaryShards = (int) parsedObjects[i++];
             int unassignedShards = (int) parsedObjects[i++];
+            int unassignedPrimaryShards = (int) parsedObjects[i++];
             double activeShardsPercent = (double) parsedObjects[i++];
             String statusStr = (String) parsedObjects[i++];
             ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
@@ -81,8 +81,8 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
                 activeShards,
                 relocatingShards,
                 initializingShards,
-                unassignedPrimaryShards,
                 unassignedShards,
+                unassignedPrimaryShards,
                 numberOfNodes,
                 numberOfDataNodes,
                 activeShardsPercent,
@@ -122,8 +122,8 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
         PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.RELOCATING_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.ACTIVE_PRIMARY_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.INITIALIZING_SHARDS));
-        PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.UNASSIGNED_PRIMARY_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.UNASSIGNED_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.UNASSIGNED_PRIMARY_SHARDS));
         PARSER.declareDouble(constructorArg(), new ParseField(ClusterHealthResponse.ACTIVE_SHARDS_PERCENT_AS_NUMBER));
         PARSER.declareString(constructorArg(), new ParseField(ClusterHealthResponse.STATUS));
         // Can be absent if LEVEL == 'cluster'

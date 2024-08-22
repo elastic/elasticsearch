@@ -44,8 +44,8 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
     static final String ACTIVE_SHARDS = "active_shards";
     static final String RELOCATING_SHARDS = "relocating_shards";
     static final String INITIALIZING_SHARDS = "initializing_shards";
-    static final String UNASSIGNED_PRIMARY_SHARDS = "unassigned_primary_shards";
     static final String UNASSIGNED_SHARDS = "unassigned_shards";
+    static final String UNASSIGNED_PRIMARY_SHARDS = "unassigned_primary_shards";
     static final String INDICES = "indices";
 
     private String clusterName;
@@ -141,12 +141,12 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
         return clusterStateHealth.getInitializingShards();
     }
 
-    public int getUnassignedPrimaryShards() {
-        return clusterStateHealth.getUnassignedPrimaryShards();
-    }
-
     public int getUnassignedShards() {
         return clusterStateHealth.getUnassignedShards();
+    }
+
+    public int getUnassignedPrimaryShards() {
+        return clusterStateHealth.getUnassignedPrimaryShards();
     }
 
     public int getNumberOfNodes() {
@@ -257,8 +257,8 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
         builder.field(ACTIVE_SHARDS, getActiveShards());
         builder.field(RELOCATING_SHARDS, getRelocatingShards());
         builder.field(INITIALIZING_SHARDS, getInitializingShards());
-        builder.field(UNASSIGNED_PRIMARY_SHARDS, getUnassignedPrimaryShards());
         builder.field(UNASSIGNED_SHARDS, getUnassignedShards());
+        builder.field(UNASSIGNED_PRIMARY_SHARDS, getUnassignedPrimaryShards());
         builder.field(DELAYED_UNASSIGNED_SHARDS, getDelayedUnassignedShards());
         builder.field(NUMBER_OF_PENDING_TASKS, getNumberOfPendingTasks());
         builder.field(NUMBER_OF_IN_FLIGHT_FETCH, getNumberOfInFlightFetch());

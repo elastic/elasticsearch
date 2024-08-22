@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -221,6 +222,31 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
     }
 
+    public void testIndexPatternErrorMessageComparison_ESQL_SearchDSL() throws Exception {
+        // _search match_all query on the index-user1,index-user2 index pattern
+        XContentBuilder json = JsonXContent.contentBuilder();
+        json.startObject();
+        json.field("query", QueryBuilders.matchAllQuery());
+        json.endObject();
+        Request searchRequest = new Request("GET", "/index-user1,index-user2/_search");
+        searchRequest.setJsonEntity(Strings.toString(json));
+        searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", "metadata1_read2"));
+
+        // ES|QL query on the same index pattern
+        var esqlResp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2"));
+        var srchResp = expectThrows(ResponseException.class, () -> client().performRequest(searchRequest));
+
+        for (ResponseException r : List.of(esqlResp, srchResp)) {
+            assertThat(
+                EntityUtils.toString(r.getResponse().getEntity()),
+                containsString(
+                    "unauthorized for user [test-admin] run as [metadata1_read2] with effective roles [metadata1_read2] on indices [index-user1]"
+                )
+            );
+        }
+        assertThat(esqlResp.getResponse().getStatusLine().getStatusCode(), equalTo(srchResp.getResponse().getStatusLine().getStatusCode()));
+    }
+
     public void testLimitedPrivilege() throws Exception {
         ResponseException resp = expectThrows(
             ResponseException.class,
@@ -228,6 +254,18 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 "metadata1_read2",
                 "FROM index-user1,index-user2 METADATA _index | STATS sum=sum(value), index=VALUES(_index)"
             )
+        );
+        assertThat(
+            EntityUtils.toString(resp.getResponse().getEntity()),
+            containsString(
+                "unauthorized for user [test-admin] run as [metadata1_read2] with effective roles [metadata1_read2] on indices [index-user1]"
+            )
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+
+        resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2 METADATA _index | STATS index=VALUES(_index)")
         );
         assertThat(
             EntityUtils.toString(resp.getResponse().getEntity()),
@@ -268,7 +306,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 "from second-alias,index-user2 METADATA _index | stats sum=sum(value), index=VALUES(_index)"
             )
         );
-        System.out.println(EntityUtils.toString(resp.getResponse().getEntity()));
         assertThat(
             EntityUtils.toString(resp.getResponse().getEntity()),
             containsString(

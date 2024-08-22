@@ -605,6 +605,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             )
         );
 
+        // query remote cluster only - but also include employees2 which the user does not have access to
         error = expectThrows(ResponseException.class, () -> { performRequestWithRemoteSearchUser(esqlRequest("""
             FROM my_remote_cluster:employees,my_remote_cluster:employees2
             | SORT emp_id ASC
@@ -620,6 +621,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             )
         );
 
+        // query remote and local cluster - but also include employees2 which the user does not have access to
         error = expectThrows(ResponseException.class, () -> { performRequestWithRemoteSearchUser(esqlRequest("""
             FROM my_remote_cluster:employees,my_remote_cluster:employees2,employees,employees2
             | SORT emp_id ASC

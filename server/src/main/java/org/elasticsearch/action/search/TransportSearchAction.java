@@ -1943,7 +1943,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
          */
         private void extractCCSTelemetry(SearchResponse searchResponse) {
             usageBuilder.took(searchResponse.getTookInMillis());
-            // TODO: what happens with the local cluster there? Are we tracking it too just like the others?
             for (String clusterAlias : searchResponse.getClusters().getClusterAliases()) {
                 SearchResponse.Cluster cluster = searchResponse.getClusters().getCluster(clusterAlias);
                 if (cluster.getStatus() == SearchResponse.Cluster.Status.SKIPPED) {

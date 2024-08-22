@@ -506,9 +506,9 @@ public final class ConfigurableClusterPrivileges {
             if (EXPECTED_INDEX_GROUP_FIELDS.contains(fieldName) == false) {
                 throw new XContentParseException(
                     parser.getTokenLocation(),
-                    "failed to parse privilege. expected one of ["
+                    "failed to parse privilege. expected one of "
                         + Arrays.toString(EXPECTED_INDEX_GROUP_FIELDS.toArray(String[]::new))
-                        + "] but found ["
+                        + " but found ["
                         + fieldName
                         + "] instead"
                 );
@@ -547,6 +547,15 @@ public final class ConfigurableClusterPrivileges {
                 );
             }
             expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
+
+            for (var indexPrivilege : indexPrivileges) {
+                if (indexPrivilege.indexPatterns == null || indexPrivilege.indexPatterns.length == 0) {
+                    throw new IllegalArgumentException("Indices privileges must refer to at least one index name or index name pattern");
+                }
+                if (indexPrivilege.privileges == null || indexPrivilege.privileges.length == 0) {
+                    throw new IllegalArgumentException("Indices privileges must define at least one privilege");
+                }
+            }
             return new ManageRolesPrivilege(indexPrivileges);
         }
 

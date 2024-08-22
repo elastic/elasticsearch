@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -66,6 +67,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
     private final IndexScopedSettings indexScopedSettings;
     private final Client client;
     private final Executor remoteClientResponseExecutor;
+    private final Executor restoreExecutor;
     private final RestoreService restoreService;
     private final CcrLicenseChecker ccrLicenseChecker;
 
@@ -95,6 +97,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         this.indexScopedSettings = indexScopedSettings;
         this.client = client;
         this.remoteClientResponseExecutor = threadPool.executor(CCR_THREAD_POOL_NAME);
+        this.restoreExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT_META);
         this.restoreService = restoreService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
@@ -206,15 +209,17 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         ActionListener<RestoreService.RestoreCompletionResponse> delegatelistener = listener.delegateFailure(
             (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)
         );
+
+        final BiConsumer<ClusterState, Metadata.Builder> updater;
         if (remoteDataStream == null) {
             // If the index we're following is not part of a data stream, start the
             // restoration of the index normally.
-            restoreService.restoreSnapshot(restoreRequest, delegatelistener);
+            updater = (clusterState, builder) -> {};
         } else {
             String followerIndexName = request.getFollowerIndex();
             // This method is used to update the metadata in the same cluster state
             // update as the snapshot is restored.
-            BiConsumer<ClusterState, Metadata.Builder> updater = (currentState, mdBuilder) -> {
+            updater = (currentState, mdBuilder) -> {
                 final String localDataStreamName;
 
                 // If we have been given a data stream name, use that name for the local
@@ -239,8 +244,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 );
                 mdBuilder.put(updatedDataStream);
             };
-            restoreService.restoreSnapshot(restoreRequest, delegatelistener, updater);
         }
+        restoreExecutor.execute(ActionRunnable.wrap(delegatelistener, l -> restoreService.restoreSnapshot(restoreRequest, l, updater)));
     }
 
     private void afterRestoreStarted(

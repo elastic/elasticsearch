@@ -57,7 +57,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -94,6 +93,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -187,6 +187,7 @@ public final class RestoreService implements ClusterStateApplier {
     private final FileSettingsService fileSettingsService;
 
     private final ThreadPool threadPool;
+    private final Executor snapshotMetaExecutor;
 
     private volatile boolean refreshRepositoryUuidOnRestore;
 
@@ -216,6 +217,7 @@ public final class RestoreService implements ClusterStateApplier {
         this.indicesService = indicesService;
         this.fileSettingsService = fileSettingsService;
         this.threadPool = threadPool;
+        this.snapshotMetaExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT_META);
         this.refreshRepositoryUuidOnRestore = REFRESH_REPO_UUID_ON_RESTORE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(REFRESH_REPO_UUID_ON_RESTORE_SETTING, this::setRefreshRepositoryUuidOnRestore);
@@ -244,9 +246,11 @@ public final class RestoreService implements ClusterStateApplier {
         final ActionListener<RestoreCompletionResponse> listener,
         final BiConsumer<ClusterState, Metadata.Builder> updater
     ) {
+        assert Repository.assertSnapshotMetaThread();
+
         // Try and fill in any missing repository UUIDs in case they're needed during the restore
         final var repositoryUuidRefreshStep = SubscribableListener.newForked(
-            l -> refreshRepositoryUuids(refreshRepositoryUuidOnRestore, repositoriesService, () -> l.onResponse(null))
+            l -> refreshRepositoryUuids(refreshRepositoryUuidOnRestore, repositoriesService, snapshotMetaExecutor, () -> l.onResponse(null))
         );
 
         final AtomicReference<Repository> repositoryRef = new AtomicReference<>();
@@ -261,16 +265,12 @@ public final class RestoreService implements ClusterStateApplier {
             })
 
             .<RepositoryData>andThen(
-                repositoryDataListener -> repositoryRef.get()
-                    .getRepositoryData(
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading here, do we need to fork, see #101445?
-                        repositoryDataListener
-                    )
+                repositoryDataListener -> repositoryRef.get().getRepositoryData(snapshotMetaExecutor, repositoryDataListener)
             )
             .andThenAccept(repositoryDataRef::set)
             .andThen(repositoryUuidRefreshStep::addListener)
 
-            .<RestoreCompletionResponse>andThen(responseListener -> {
+            .<SnapshotInfo>andThen(snapshotInfoListener -> {
                 final String snapshotName = request.snapshot();
                 final SnapshotId snapshotId = repositoryDataRef.get()
                     .getSnapshotIds()
@@ -287,22 +287,19 @@ public final class RestoreService implements ClusterStateApplier {
                     );
                 }
 
-                repositoryRef.get()
-                    .getSnapshotInfo(
-                        snapshotId,
-                        responseListener.delegateFailureAndWrap(
-                            // call startRestore inline, rather than using another andThen, so that it always runs on SNAPSHOT_META
-                            (l, snapshotInfo) -> startRestore(
-                                snapshotInfo,
-                                repositoryRef.get(),
-                                request,
-                                repositoryDataRef.get(),
-                                updater,
-                                l
-                            )
-                        )
-                    );
+                repositoryRef.get().getSnapshotInfo(snapshotId, snapshotInfoListener);
             })
+
+            .<RestoreCompletionResponse>andThen(
+                (responseListener, snapshotInfo) -> startRestore(
+                    snapshotInfo,
+                    repositoryRef.get(),
+                    request,
+                    repositoryDataRef.get(),
+                    updater,
+                    responseListener
+                )
+            )
 
             .addListener(listener.delegateResponse((delegate, e) -> {
                 logger.warn(() -> "[" + request.repository() + ":" + request.snapshot() + "] failed to restore snapshot", e);
@@ -527,7 +524,7 @@ public final class RestoreService implements ClusterStateApplier {
      * @param onCompletion Action that is executed when all repositories have been refreshed.
      */
     // Exposed for tests
-    static void refreshRepositoryUuids(boolean enabled, RepositoriesService repositoriesService, Runnable onCompletion) {
+    static void refreshRepositoryUuids(boolean enabled, RepositoriesService repositoriesService, Executor executor, Runnable onCompletion) {
         try (var refs = new RefCountingRunnable(onCompletion)) {
             if (enabled == false) {
                 logger.debug("repository UUID refresh is disabled");
@@ -541,20 +538,17 @@ public final class RestoreService implements ClusterStateApplier {
                 if (repository instanceof BlobStoreRepository && repository.getMetadata().uuid().equals(RepositoryData.MISSING_UUID)) {
                     final var repositoryName = repository.getMetadata().name();
                     logger.info("refreshing repository UUID for repository [{}]", repositoryName);
-                    repository.getRepositoryData(
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading here, do we need to fork, see #101445?
-                        ActionListener.releaseAfter(new ActionListener<>() {
-                            @Override
-                            public void onResponse(RepositoryData repositoryData) {
-                                logger.debug(() -> format("repository UUID [%s] refresh completed", repositoryName));
-                            }
+                    repository.getRepositoryData(executor, ActionListener.releaseAfter(new ActionListener<>() {
+                        @Override
+                        public void onResponse(RepositoryData repositoryData) {
+                            logger.debug(() -> format("repository UUID [%s] refresh completed", repositoryName));
+                        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.debug(() -> format("repository UUID [%s] refresh failed", repositoryName), e);
-                            }
-                        }, refs.acquire())
-                    );
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.debug(() -> format("repository UUID [%s] refresh failed", repositoryName), e);
+                        }
+                    }, refs.acquire()));
                 }
             }
         }

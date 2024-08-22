@@ -1908,15 +1908,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         }
                     }
                 }
-                // increment after the delegated onResponse to ensure we don't
-                // record both a success and a failure if there is an exception
                 searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
 
                 if (collectTelemetry()) {
                     extractCCSTelemetry(searchResponse);
                     recordTelemetry();
                 }
-                // TODO: should this be last?
+                // This is last because we want to collect telemetry before returning the response.
+                // We rely on the fact that onResponse would never throw so the increment won't happen more than once.
                 listener.onResponse(searchResponse);
             } catch (Exception e) {
                 onFailure(e);

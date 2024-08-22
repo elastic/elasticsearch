@@ -9,12 +9,12 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
@@ -116,7 +117,7 @@ public class ObjectMapper extends Mapper {
          * If no dynamic settings are explicitly configured, we default to {@link #TRUE}
          */
         static Dynamic getRootDynamic(MappingLookup mappingLookup) {
-            ObjectMapper.Dynamic rootDynamic = mappingLookup.getMapping().getRoot().dynamic;
+            Dynamic rootDynamic = mappingLookup.getMapping().getRoot().dynamic;
             return rootDynamic == null ? Defaults.DYNAMIC : rootDynamic;
         }
     }
@@ -183,7 +184,7 @@ public class ObjectMapper extends Mapper {
                 int firstDotIndex = name.indexOf('.');
                 String immediateChild = name.substring(0, firstDotIndex);
                 String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
-                ObjectMapper.Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
+                Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
                 if (parentBuilder != null) {
                     parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
                     add(parentBuilder);
@@ -195,7 +196,7 @@ public class ObjectMapper extends Mapper {
             }
         }
 
-        private static ObjectMapper.Builder findObjectBuilder(String fullName, DocumentParserContext context) {
+        private static Builder findObjectBuilder(String fullName, DocumentParserContext context) {
             // does the object mapper already exist? if so, use that
             ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullName);
             if (objectMapper != null) {
@@ -262,7 +263,7 @@ public class ObjectMapper extends Mapper {
             throws MapperParsingException {
             parserContext.incrementMappingObjectDepth(); // throws MapperParsingException if depth limit is exceeded
             Optional<Subobjects> subobjects = parseSubobjects(node);
-            ObjectMapper.Builder builder = new Builder(name, subobjects);
+            Builder builder = new Builder(name, subobjects);
             parseObjectFields(node, parserContext, builder);
             parserContext.decrementMappingObjectDepth();
             return builder;
@@ -284,7 +285,7 @@ public class ObjectMapper extends Mapper {
             String fieldName,
             Object fieldNode,
             MappingParserContext parserContext,
-            ObjectMapper.Builder builder
+            Builder builder
         ) {
             if (fieldName.equals("dynamic")) {
                 String value = fieldNode.toString();
@@ -331,11 +332,7 @@ public class ObjectMapper extends Mapper {
             return Defaults.SUBOBJECTS;
         }
 
-        protected static void parseProperties(
-            ObjectMapper.Builder objBuilder,
-            Map<String, Object> propsNode,
-            MappingParserContext parserContext
-        ) {
+        protected static void parseProperties(Builder objBuilder, Map<String, Object> propsNode, MappingParserContext parserContext) {
             Iterator<Map.Entry<String, Object>> iterator = propsNode.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -396,7 +393,7 @@ public class ObjectMapper extends Mapper {
                         for (int i = fieldNameParts.length - 2; i >= 0; --i) {
                             String intermediateObjectName = fieldNameParts[i];
                             validateFieldName(intermediateObjectName, parserContext.indexVersionCreated());
-                            ObjectMapper.Builder intermediate = new ObjectMapper.Builder(intermediateObjectName, Defaults.SUBOBJECTS);
+                            Builder intermediate = new Builder(intermediateObjectName, Defaults.SUBOBJECTS);
                             intermediate.add(fieldBuilder);
                             fieldBuilder = intermediate;
                         }
@@ -468,8 +465,8 @@ public class ObjectMapper extends Mapper {
     /**
      * @return a Builder that will produce an empty ObjectMapper with the same configuration as this one
      */
-    public ObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
-        ObjectMapper.Builder builder = new ObjectMapper.Builder(leafName(), subobjects);
+    public Builder newBuilder(IndexVersion indexVersionCreated) {
+        Builder builder = new Builder(leafName(), subobjects);
         builder.enabled = this.enabled;
         builder.dynamic = this.dynamic;
         return builder;
@@ -558,7 +555,7 @@ public class ObjectMapper extends Mapper {
         Explicit<Boolean> enabled,
         Optional<Subobjects> subObjects,
         Explicit<Boolean> trackArraySource,
-        ObjectMapper.Dynamic dynamic,
+        Dynamic dynamic,
         Map<String, Mapper> mappers
     ) {
         static MergeResult build(ObjectMapper existing, ObjectMapper mergeWithObject, MapperMergeContext parentMergeContext) {
@@ -769,8 +766,8 @@ public class ObjectMapper extends Mapper {
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
         }
-        if (subobjects.isPresent()) {
-            builder.field("subobjects", subobjects.get().printedValue);
+        if (subobjects != Defaults.SUBOBJECTS) {
+            builder.field("subobjects", subobjects.value());
         }
         if (storeArraySource != Defaults.STORE_ARRAY_SOURCE) {
             builder.field(STORE_ARRAY_SOURCE_PARAM, storeArraySource.value());
@@ -845,9 +842,9 @@ public class ObjectMapper extends Mapper {
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            List<SourceLoader.SyntheticFieldLoader.DocValuesLoader> loaders = new ArrayList<>();
+            List<DocValuesLoader> loaders = new ArrayList<>();
             for (SourceLoader.SyntheticFieldLoader field : fields) {
-                SourceLoader.SyntheticFieldLoader.DocValuesLoader loader = field.docValuesLoader(leafReader, docIdsInLeaf);
+                DocValuesLoader loader = field.docValuesLoader(leafReader, docIdsInLeaf);
                 if (loader != null) {
                     loaders.add(loader);
                 }
@@ -859,7 +856,7 @@ public class ObjectMapper extends Mapper {
         }
 
         private class ObjectDocValuesLoader implements DocValuesLoader {
-            private final List<SourceLoader.SyntheticFieldLoader.DocValuesLoader> loaders;
+            private final List<DocValuesLoader> loaders;
 
             private ObjectDocValuesLoader(List<DocValuesLoader> loaders) {
                 this.loaders = loaders;
@@ -868,7 +865,7 @@ public class ObjectMapper extends Mapper {
             @Override
             public boolean advanceToDoc(int docId) throws IOException {
                 boolean anyLeafHasDocValues = false;
-                for (SourceLoader.SyntheticFieldLoader.DocValuesLoader docValueLoader : loaders) {
+                for (DocValuesLoader docValueLoader : loaders) {
                     boolean leafHasValue = docValueLoader.advanceToDoc(docId);
                     anyLeafHasDocValues |= leafHasValue;
                 }
@@ -904,18 +901,24 @@ public class ObjectMapper extends Mapper {
 
             if (ignoredValues != null && ignoredValues.isEmpty() == false) {
                 // Use an ordered map between field names and writer functions, to order writing by field name.
-                Map<String, CheckedConsumer<XContentBuilder, IOException>> orderedFields = new TreeMap<>();
+                Map<String, FieldWriter> orderedFields = new TreeMap<>();
                 for (IgnoredSourceFieldMapper.NameValue value : ignoredValues) {
-                    orderedFields.put(value.name(), value::write);
+                    var existing = orderedFields.get(value.name());
+                    if (existing == null) {
+                        orderedFields.put(value.name(), new FieldWriter.IgnoredSource(value));
+                    } else if (existing instanceof FieldWriter.IgnoredSource isw) {
+                        isw.mergeWith(value);
+                    }
                 }
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
                     if (field.hasValue()) {
                         // Skip if the field source is stored separately, to avoid double-printing.
-                        orderedFields.putIfAbsent(field.fieldName(), field::write);
+                        orderedFields.computeIfAbsent(field.fieldName(), k -> new FieldWriter.FieldLoader(field));
                     }
                 }
+
                 for (var writer : orderedFields.values()) {
-                    writer.accept(b);
+                    writer.writeTo(b);
                 }
                 ignoredValues = null;
             } else {
@@ -945,6 +948,42 @@ public class ObjectMapper extends Mapper {
         @Override
         public String fieldName() {
             return ObjectMapper.this.fullPath();
+        }
+
+        interface FieldWriter {
+            void writeTo(XContentBuilder builder) throws IOException;
+
+            record FieldLoader(SourceLoader.SyntheticFieldLoader loader) implements FieldWriter {
+                @Override
+                public void writeTo(XContentBuilder builder) throws IOException {
+                    loader.write(builder);
+                }
+            }
+
+            class IgnoredSource implements FieldWriter {
+                private final String fieldName;
+                private final String leafName;
+                private final List<BytesRef> values;
+
+                IgnoredSource(IgnoredSourceFieldMapper.NameValue initialValue) {
+                    this.fieldName = initialValue.name();
+                    this.leafName = initialValue.getFieldName();
+                    this.values = new ArrayList<>();
+                    this.values.add(initialValue.value());
+                }
+
+                @Override
+                public void writeTo(XContentBuilder builder) throws IOException {
+                    XContentDataHelper.writeMerged(builder, leafName, values);
+                }
+
+                public FieldWriter mergeWith(IgnoredSourceFieldMapper.NameValue nameValue) {
+                    assert Objects.equals(nameValue.name(), fieldName) : "IgnoredSource is merged with wrong field data";
+
+                    values.add(nameValue.value());
+                    return this;
+                }
+            }
         }
     }
 

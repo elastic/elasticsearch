@@ -182,6 +182,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDeleteJobAfterMissingIndex
   issue: https://github.com/elastic/elasticsearch/issues/112088
+- class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
+  method: testLimitedPrivilege
+  issue: https://github.com/elastic/elasticsearch/issues/112110
 
 # Examples:
 #

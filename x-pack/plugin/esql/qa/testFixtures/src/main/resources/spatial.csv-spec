@@ -489,7 +489,6 @@ POINT (42.97109629958868 14.7552534006536)    | 1
 
 literalGeoPointIntersectsLiteralPolygon
 required_capability: st_intersects
-required_capability: spatial_functions_fix_crstype_folding
 
 ROW pt = TO_GEOPOINT("POINT(0 85)"), polygon = TO_GEOSHAPE("POLYGON((-10 70, 10 70, 10 85, -10 85, -10 70))")
 | EVAL intersects = ST_INTERSECTS(pt, polygon)
@@ -903,7 +902,6 @@ wkt:keyword    | pt:geo_point  | distance:double
 
 literalGeoPointDistanceOneDegree
 required_capability: st_distance
-required_capability: spatial_functions_fix_crstype_folding
 
 ROW wkt = ["POINT(1 0)", "POINT(-1 0)", "POINT(0 1)", "POINT(0 -1)"]
 | MV_EXPAND wkt
@@ -926,7 +924,7 @@ ROW p1 = TO_GEOPOINT("POINT(-90.82814 29.79511)"), p2 = TO_GEOPOINT("POINT(-90.7
 | EVAL d = ST_DISTANCE(p1, p2)
 ;
 
-p1:geo_point  | p2:geo_point  | d:double
+p1:geo_point                | p2:geo_point                           | d:double
 POINT (-90.82814 29.79511)  | POINT (-90.79731509999999 29.8835389)  | 10272.529272836206
 ;
 
@@ -1476,7 +1474,6 @@ POINT (726480.0130685265 3359566.331716279) | 849
 
 literalCartesianPointIntersectsLiteralPolygon
 required_capability: st_intersects
-required_capability: spatial_functions_fix_crstype_folding
 
 ROW pt = TO_CARTESIANPOINT("POINT(0 85)"), polygon = TO_CARTESIANSHAPE("POLYGON((-10 70, 10 70, 10 85, -10 85, -10 70))")
 | EVAL intersects = ST_INTERSECTS(pt, polygon)
@@ -2051,7 +2048,6 @@ wkt:keyword    | pt:cartesian_point  | distance:double
 
 literalCartesianPointDistanceOneUnit
 required_capability: st_distance
-required_capability: spatial_functions_fix_crstype_folding
 
 ROW wkt = ["POINT(1 0)", "POINT(-1 0)", "POINT(0 1)", "POINT(0 -1)"]
 | MV_EXPAND wkt
@@ -2068,7 +2064,6 @@ wkt:keyword    | pt:cartesian_point  | distance:double
 
 twoCitiesPointDistanceCartesian
 required_capability: st_distance
-required_capability: spatial_functions_fix_crstype_folding
 
 ROW p1 = TO_CARTESIANPOINT("POINT(-90.82814 29.79511)"), p2 = TO_CARTESIANPOINT("POINT(-90.79731509999999 29.8835389)")
 | EVAL d = ST_DISTANCE(p1, p2)

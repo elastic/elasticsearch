@@ -178,33 +178,27 @@ setup:
           size: 10
 
 ---
-"Text similarity reranking fails if the field does not exist":
-  - requires:
-      cluster_features: "gte_v8.15.1"
-      reason: bug fixed in 8.15.1
-  - skip:
-      features: contains
+"Reranking on empty field data returns 0 results":
 
   - do:
-      catch: bad_request
       search:
         index: test-index
         body:
           track_total_hits: true
-          fields: [ "text", "topic" ]
+          fields: [ "text", "topic", "something_else" ]
           retriever:
             text_similarity_reranker:
               retriever:
                 standard:
                   query:
                     term:
-                      topic: "How often does the moon hide the sun?"
+                      topic: "science"
               rank_window_size: 10
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
-              field: i-dont-exist
+              field: other_field
           size: 10
 
-  - contains: { error.caused_by.reason: "Field [input] cannot be an empty array" }
-
+  - match: { hits.total.value: 0 }
+  - length: { hits.hits: 0 }
 

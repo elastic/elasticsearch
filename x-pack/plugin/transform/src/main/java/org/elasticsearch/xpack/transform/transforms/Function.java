@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.ScriptConfig;
 
 import java.util.Collection;
 import java.util.List;
@@ -251,6 +252,7 @@ public interface Function {
         TransformIndexerStats stats,
         TransformProgress progress,
         Client client,
-        ScriptService scriptService
+        ScriptService scriptService,
+        ScriptConfig scriptConfig
     );
 }

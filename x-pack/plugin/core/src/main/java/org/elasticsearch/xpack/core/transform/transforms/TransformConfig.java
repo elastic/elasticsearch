@@ -588,7 +588,12 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
 
             // create a new pivot config but set maxPageSearchSize to null
             builder.setPivotConfig(
-                new PivotConfig(builder.getPivotConfig().getGroupConfig(), builder.getPivotConfig().getAggregationConfig(), null)
+                new PivotConfig(
+                    builder.getPivotConfig().getGroupConfig(),
+                    builder.getPivotConfig().getAggregationConfig(),
+                    builder.getPivotConfig().getScriptConfig(),
+                    null
+                )
             );
             // create new settings with maxPageSearchSize
             builder.setSettings(

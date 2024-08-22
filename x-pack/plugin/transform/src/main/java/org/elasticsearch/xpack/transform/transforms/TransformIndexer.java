@@ -1037,7 +1037,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             getStats(),
             progress,
             this.client,
-            this.scriptService
+            this.scriptService,
+            getConfig().getPivotConfig().getScriptConfig()
         );
 
         if (indexRequestStreamAndCursor == null || indexRequestStreamAndCursor.v1() == null) {

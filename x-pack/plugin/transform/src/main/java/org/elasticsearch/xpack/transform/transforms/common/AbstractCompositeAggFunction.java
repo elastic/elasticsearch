@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.ScriptConfig;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 
@@ -172,7 +173,8 @@ public abstract class AbstractCompositeAggFunction implements Function {
         TransformIndexerStats stats,
         TransformProgress progress,
         Client client,
-        ScriptService scriptService
+        ScriptService scriptService,
+        ScriptConfig scriptConfig
     ) {
         InternalAggregations aggregations = searchResponse.getAggregations();
 
@@ -191,70 +193,56 @@ public abstract class AbstractCompositeAggFunction implements Function {
 
         Stream<IndexRequest> indexRequestStream = results.map(doc -> {
             String docId = (String) doc.remove(TransformField.DOCUMENT_ID_FIELD);
-            logger.info("---------------------------HERE---------------------------------- ");
-            System.out.println("docID " + docId);
-            System.out.println("doc " + doc);
+            Object result = doc;
 
-            SearchRequest request = new SearchRequest().indices(destinationIndex)
-                .source(new SearchSourceBuilder().query(QueryBuilders.termQuery("_id", docId)));
-            SearchResponse response = null;
-            try {
-                response = client.search(request).get();
-            } catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e);
+            if (scriptConfig != null) {
+
+                logger.info("---------------------------HERE---------------------------------- ");
+                System.out.println("docID " + docId);
+                System.out.println("doc " + doc);
+
+                SearchRequest request = new SearchRequest().indices(destinationIndex)
+                    .source(new SearchSourceBuilder().query(QueryBuilders.termQuery("_id", docId)));
+                SearchResponse response = null;
+                try {
+                    response = client.search(request).get();
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new RuntimeException(e);
+                }
+
+                System.out.println(request.toString());
+                System.out.println(response.toString());
+
+                SearchHit[] hits = response.getHits().getHits();
+
+                Map<String, Object> oldDoc = hits.length > 0 ? hits[0].getSourceAsMap() : Collections.<String, Object>emptyMap();
+
+                Script script = new Script(
+                    ScriptType.INLINE,
+                    Script.DEFAULT_SCRIPT_LANG,
+                    scriptConfig.getScript().getIdOrCode(),
+                    Collections.emptyMap()
+                );
+
+                ScriptedMetricAggContexts.ReduceScript.Factory factory = scriptService.compile(
+                    script,
+                    ScriptedMetricAggContexts.ReduceScript.CONTEXT
+                );
+
+                Map<String, Object> params = new HashMap<>();
+                params.put("oldDoc", oldDoc);
+                params.put("newDoc", doc);
+
+                ScriptedMetricAggContexts.ReduceScript executableScript = factory.newInstance(params, List.of(doc));
+
+                Object painlessResult = executableScript.execute();
+                System.out.println("painless result " + painlessResult);
+                result = painlessResult;
             }
-
-            System.out.println(request.toString());
-            System.out.println(response.toString());
-
-            SearchHit[] hits = response.getHits().getHits();
-
-            Map<String, Object> oldDoc = hits.length > 0 ? hits[0].getSourceAsMap() : Collections.<String, Object>emptyMap();
-
-            Script script = new Script(
-                ScriptType.INLINE,
-                Script.DEFAULT_SCRIPT_LANG,
-                Strings.format(
-                    "Map results = params.newDoc;"
-                        + "if (params.oldDoc.firstSeenTimestamp != null) {"
-                        + "    results['firstSeenTimestamp'] = params.oldDoc.firstSeenTimestamp;"
-                        + "}"
-
-                        + "List mergedIPs = new ArrayList();"
-                        + "if (params.oldDoc.host != null && params.oldDoc.host.ips != null) {"
-                        + "    mergedIPs.addAll(params.oldDoc.host.ips);"
-                        + "}"
-
-                        + "for (ip in results.host.ip.keySet()) {"
-                        + "    if (!mergedIPs.contains(ip)) {"
-                        + "         mergedIPs.add(ip);"
-                        + "    }"
-                        + "}"
-
-                        + "results['host'].remove('ip');"
-                        + "results['host']['ips'] = mergedIPs;"
-                        + "return results;"
-                ),
-                Collections.emptyMap()
-            );
-
-            ScriptedMetricAggContexts.ReduceScript.Factory factory = scriptService.compile(
-                script,
-                ScriptedMetricAggContexts.ReduceScript.CONTEXT
-            );
-
-            Map<String, Object> params = new HashMap<>();
-            params.put("oldDoc", oldDoc);
-            params.put("newDoc", doc);
-
-            ScriptedMetricAggContexts.ReduceScript executableScript = factory.newInstance(params, List.of(doc));
-
-            Object painlessResult = executableScript.execute();
-            System.out.println("painless result " + painlessResult);
 
             return DocumentConversionUtils.convertDocumentToIndexRequest(
                 docId,
-                documentTransformationFunction((Map<String, Object>) painlessResult),
+                documentTransformationFunction((Map<String, Object>) result),
                 destinationIndex,
                 destinationPipeline
             );

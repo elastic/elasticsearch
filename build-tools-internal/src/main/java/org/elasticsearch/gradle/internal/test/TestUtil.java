@@ -21,12 +21,12 @@ public class TestUtil {
         String platform = String.format(Locale.ROOT, "%s-%s", ElasticsearchDistribution.CURRENT_PLATFORM, arch);
         String existingLibraryPath = System.getProperty("java.library.path");
 
-        String format = "%s/%s%c%s";
-        if (ElasticsearchDistribution.CURRENT_PLATFORM.equals(ElasticsearchDistribution.Platform.WINDOWS)) {
-            // windows doesn't like spaces in paths, so we must wrap the entire path in quotes to guard for it
-            format = "\"" + format + "\"";
+        StringBuilder newPath = new StringBuilder();
+        newPath.append('"').append(nativeLibsDir).append('/').append(platform).append('"');
+        for (String path : existingLibraryPath.split(File.pathSeparator)) {
+            newPath.append(File.pathSeparatorChar);
+            newPath.append('"').append(path).append('"');
         }
-
-        return String.format(Locale.ROOT, format, nativeLibsDir, platform, File.pathSeparatorChar, existingLibraryPath);
+        return newPath.toString();
     }
 }

@@ -80,6 +80,15 @@ d:date_nanos
 2023-03-23T12:15:03.360103847Z
 ;
 
+string to date nanos, milliseconds only
+required_capability: date_nanos_type
+
+ROW d = TO_DATE_NANOS("2023-03-23T12:15:03.360") | KEEP d;
+
+d:date_nanos
+2023-03-23T12:15:03.360Z
+;
+
 string to date nanos, out of range
 required_capability: date_nanos_type
 

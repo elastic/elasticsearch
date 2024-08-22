@@ -49,9 +49,17 @@ public class ToDateNanos extends AbstractConvertFunction {
         Map.entry(TEXT, ToDateNanosFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToLongFromDoubleEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new)
+        /*
+         NB: not including an integer conversion, because max int in nanoseconds is like 2 seconds after epoch, and it seems more likely
+         a user who tries to convert an int to a nanosecond date has made a mistake that we should catch that at parse time.
+         TO_DATE_NANOS(TO_LONG(intVal)) is still possible if someone really needs to do this.
+         */
     );
 
-    @FunctionInfo(returnType = "date_nanos")
+    @FunctionInfo(returnType = "date_nanos", description = """
+        Converts an input to a nanosecond-resolution date value (aka date_nanos).
+        `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'
+        """)
     public ToDateNanos(
         Source source,
         @Param(
@@ -95,7 +103,14 @@ public class ToDateNanos extends AbstractConvertFunction {
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromKeyword(BytesRef in) {
         Instant parsed = DateFormatters.from(DEFAULT_DATE_NANOS_FORMATTER.parse(in.utf8ToString())).toInstant();
-        return parsed.getEpochSecond() * 1_000_000_000 + parsed.getNano();
+        long nanos = parsed.getEpochSecond();
+        try {
+            nanos = Math.multiplyExact(nanos, 1_000_000_000) + parsed.getNano();
+        } catch (ArithmeticException e) {
+            // This seems like a more useful error message than "Long Overflow"
+            throw new IllegalArgumentException("cannot create nanosecond dates after 2262-04-11T23:47:16.854775807Z");
+        }
+        return nanos;
     }
 
     @ConvertEvaluator(extraName = "FromDatetime", warnExceptions = { IllegalArgumentException.class })

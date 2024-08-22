@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -483,28 +484,31 @@ public class AllocationService {
         }
 
         ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
-        for (String index : clusterState.metadata().getProject().getConcreteAllIndices()) {
-            IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
-            if (indexRoutingTable == null) {
-                continue;
-            }
-            if (indexRoutingTable.allShardsActive()) {
-                // GREEN index
-                continue;
-            }
-
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
-                ShardRouting primary = indexShardRoutingTable.primaryShard();
-                if (primary.active()) {
-                    // index has inactive replicas
-                    computeStatus = ClusterHealthStatus.YELLOW;
+        for (ProjectMetadata project : clusterState.metadata().projects().values()) {
+            final RoutingTable routingTable = clusterState.routingTable(project.id());
+            for (String index : project.getConcreteAllIndices()) {
+                IndexRoutingTable indexRoutingTable = routingTable.index(index);
+                if (indexRoutingTable == null) {
                     continue;
                 }
-                computeStatus = getInactivePrimaryHealth(primary);
-                if (computeStatus == ClusterHealthStatus.RED) {
-                    logger.debug("One of inactive primary shard {} causes cluster state RED.", primary.shardId());
-                    return ClusterHealthStatus.RED;
+                if (indexRoutingTable.allShardsActive()) {
+                    // GREEN index
+                    continue;
+                }
+
+                for (int i = 0; i < indexRoutingTable.size(); i++) {
+                    IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
+                    ShardRouting primary = indexShardRoutingTable.primaryShard();
+                    if (primary.active()) {
+                        // index has inactive replicas
+                        computeStatus = ClusterHealthStatus.YELLOW;
+                        continue;
+                    }
+                    computeStatus = getInactivePrimaryHealth(primary);
+                    if (computeStatus == ClusterHealthStatus.RED) {
+                        logger.debug("One of inactive primary shard {} causes cluster state RED.", primary.shardId());
+                        return ClusterHealthStatus.RED;
+                    }
                 }
             }
         }

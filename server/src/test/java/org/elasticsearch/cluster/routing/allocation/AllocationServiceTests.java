@@ -13,11 +13,16 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
+import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -33,6 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
@@ -43,8 +49,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
@@ -56,6 +64,7 @@ import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClu
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class AllocationServiceTests extends ESTestCase {
@@ -293,6 +302,52 @@ public class AllocationServiceTests extends ESTestCase {
                 finding the previous copies of this shard requires an allocator called [unknown] but that allocator was not found; \
                 perhaps the corresponding plugin is not installed"""));
         }
+    }
+
+    public void testHealthStatusWithMultipleProjects() {
+        final Supplier<ProjectMetadata> buildProject = () -> {
+            final ProjectMetadata.Builder builder = ProjectMetadata.builder(new ProjectId(randomUUID()));
+            final Set<String> indices = randomSet(1, 8, () -> randomAlphaOfLengthBetween(3, 12));
+            indices.forEach(
+                indexName -> builder.put(
+                    IndexMetadata.builder(indexName)
+                        .settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
+                )
+            );
+            return builder.build();
+        };
+        final ProjectMetadata project1 = buildProject.get();
+        final ProjectMetadata project2 = buildProject.get();
+        final ProjectMetadata project3 = buildProject.get();
+
+        final Function<GlobalRoutingTable, ClusterState> buildClusterState = routing -> ClusterState.builder(
+            new ClusterName(randomAlphaOfLength(8))
+        ).metadata(Metadata.builder().put(project1).put(project2).put(project3).build()).routingTable(routing).build();
+
+        // Test a cluster state in "green" health - all shards active, no blocks
+        final GlobalRoutingTable.Builder greenRoutingBuilder = GlobalRoutingTable.builder();
+        for (ProjectMetadata project : List.of(project1, project2, project3)) {
+            final RoutingTable.Builder builder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+            project.indices().values().forEach(indexMetadata -> builder.add(IndexRoutingTable.builder(indexMetadata.getIndex()).build()));
+            greenRoutingBuilder.put(project.id(), builder.build());
+        }
+        final ClusterState green = buildClusterState.apply(greenRoutingBuilder.build());
+        assertThat(AllocationService.getHealthStatus(green), is(ClusterHealthStatus.GREEN));
+
+        // Test a cluster state in "yellow" health - shards for 1 of the projects are new (not yet allocated)
+        final GlobalRoutingTable.Builder yellowRoutingBuilder = GlobalRoutingTable.builder(green.globalRoutingTable());
+        final ProjectMetadata randomProject = randomFrom(project1, project2, project3);
+        final RoutingTable.Builder projectRoutingbuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+        randomProject.indices().values().forEach(projectRoutingbuilder::addAsNew);
+        yellowRoutingBuilder.put(randomProject.id(), projectRoutingbuilder.build());
+        final ClusterState yellow = buildClusterState.apply(yellowRoutingBuilder.build());
+        assertThat(AllocationService.getHealthStatus(yellow), is(ClusterHealthStatus.YELLOW));
+
+        // Test a cluster state in "red" health - cluster state not yet recovered
+        final ClusterState red = ClusterState.builder(randomFrom(green, yellow))
+            .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
+            .build();
+        assertThat(AllocationService.getHealthStatus(red), is(ClusterHealthStatus.RED));
     }
 
     private static final String FAKE_IN_SYNC_ALLOCATION_ID = "_in_sync_"; // so we can allocate primaries anywhere

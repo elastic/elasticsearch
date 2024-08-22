@@ -938,7 +938,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return projectMetadata.values().iterator().next();
         }
 
-        Builder put(ProjectMetadata projectMetadata) {
+        public Builder put(ProjectMetadata projectMetadata) {
             return put(ProjectMetadata.builder(projectMetadata));
         }
 

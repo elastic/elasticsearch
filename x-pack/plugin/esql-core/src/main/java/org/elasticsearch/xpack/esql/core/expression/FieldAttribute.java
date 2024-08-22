@@ -30,8 +30,6 @@ import java.util.Objects;
  * - nestedParent - if nested, what's the parent (which might not be the immediate one)
  */
 public class FieldAttribute extends TypedAttribute {
-    @Deprecated()
-    public static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,

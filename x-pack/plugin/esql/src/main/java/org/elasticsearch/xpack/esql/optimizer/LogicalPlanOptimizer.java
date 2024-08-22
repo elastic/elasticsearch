@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -123,15 +122,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     public static String temporaryName(Expression inner, Expression outer, int suffix) {
         String in = toString(inner);
         String out = toString(outer);
-        return rawTemporaryName(in, out, String.valueOf(suffix));
+        return Attribute.rawTemporaryName(in, out, String.valueOf(suffix));
     }
 
     public static String locallyUniqueTemporaryName(String inner, String outer) {
-        return rawTemporaryName(inner, outer, (new NameId()).toString());
-    }
-
-    public static String rawTemporaryName(String inner, String outer, String suffix) {
-        return FieldAttribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX + inner + "$" + outer + "$" + suffix;
+        return Attribute.rawTemporaryName(inner, outer, (new NameId()).toString());
     }
 
     static String toString(Expression ex) {

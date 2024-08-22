@@ -61,7 +61,7 @@ public class CliSessionTests extends SqlCliTestCase {
             null,
             TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_7_0)
         );
-        SqlVersion version = SqlVersion.fromTransportString(v.toReleaseVersion());
+        SqlVersion version = from(v);
         when(httpClient.serverInfo()).thenReturn(
             new MainResponse(randomAlphaOfLength(5), version.toString(), ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID())
         );
@@ -71,7 +71,7 @@ public class CliSessionTests extends SqlCliTestCase {
             "This version of the CLI is only compatible with Elasticsearch version "
                 + ClientVersion.CURRENT.majorMinorToString()
                 + " or newer; attempting to connect to a server version "
-                + version.toString(),
+                + version,
             throwable.getMessage()
         );
         verify(httpClient, times(1)).serverInfo();
@@ -85,13 +85,18 @@ public class CliSessionTests extends SqlCliTestCase {
             TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_7_0),
             null
         );
-        SqlVersion version = SqlVersion.fromTransportString(v.toReleaseVersion());
         when(httpClient.serverInfo()).thenReturn(
-            new MainResponse(randomAlphaOfLength(5), version.toString(), ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID())
+            new MainResponse(randomAlphaOfLength(5), from(v).toString(), ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID())
         );
         CliSession cliSession = new CliSession(httpClient);
         cliSession.checkConnection();
         verify(httpClient, times(1)).serverInfo();
         verifyNoMoreInteractions(httpClient);
+    }
+
+    // Translating a TransportVersion to a SqlVersion/Version must go through the former's string representation, which involves a
+    // mapping; the .id() can't be used directly.
+    public static SqlVersion from(TransportVersion transportVersion) {
+        return SqlVersion.fromTransportString(transportVersion.toReleaseVersion());
     }
 }

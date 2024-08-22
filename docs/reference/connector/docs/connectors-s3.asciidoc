@@ -1,0 +1,431 @@
+[#connectors-s3]
+= Elastic S3 connector reference
+++++
+<titleabbrev>S3</titleabbrev>
+++++
+// Attributes used in this file:
+:service-name: Amazon S3
+:service-name-stub: s3
+
+The _Elastic S3 connector_ is a <<connectors,connector>> for https://aws.amazon.com/s3/[Amazon S3^] data sources.
+
+
+// //////// //// //// //// //// //// //// ////////
+// //////// NATIVE CONNECTOR REFERENCE (MANAGED SERVICE) ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#connectors-s3-native-connector-reference]
+== *Native connector reference (managed service)*
+
+.View reference for the *native connector reference (managed service)*.
+[%collapsible]
+===============
+
+[discrete#connectors-s3-prerequisites]
+=== Availability and prerequisites
+
+This connector is available natively in Elastic Cloud as of version *8.12.0*.
+To use this connector, satisfy all <<native-connectors, native connector requirements>>.
+
+[discrete#connectors-s3-create-native-connector]
+=== Create a {service-name} connector
+include::_connectors-create-native.asciidoc[]
+
+[discrete#connectors-s3-usage]
+=== Usage
+
+To use this native connector, see <<native-connectors>>.
+
+For additional operations, see <<connectors-usage>>.
+
+S3 users will also need to <<connectors-s3-usage-create-iam, Create an IAM identity>>
+
+[discrete#connectors-s3-usage-create-iam]
+==== Create an IAM identity
+
+Users need to create an IAM identity to use this connector as a *connector client*.
+Refer to https://docs.aws.amazon.com/IAM/latest/UserGuide/getting-set-up.html[the AWS documentation^].
+
+The https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html[policy^] associated with the IAM identity must have the following *AWS permissions*:
+
+* `ListAllMyBuckets`
+* `ListBucket`
+* `GetBucketLocation`
+* `GetObject`
+
+[discrete#connectors-s3-compatibility]
+=== Compatibility
+
+Currently the connector does not support S3-compatible vendors.
+
+[discrete#connectors-s3-configuration]
+=== Configuration
+
+The following configuration fields are required to *set up* the connector:
+
+AWS Buckets::
+List of S3 bucket names.
+`*` will fetch data from all buckets.
+Examples:
++
+* `testbucket, prodbucket`
+* `testbucket`
+* `*`
+
+[NOTE]
+====
+This field is ignored when using advanced sync rules.
+====
+
+AWS Access Key ID::
+Access Key ID for the AWS identity that will be used for bucket access.
+
+AWS Secret Key::
+Secret Access Key for the AWS identity that will be used for bucket access.
+
+[discrete#connectors-s3-documents-syncs]
+=== Documents and syncs
+
+[NOTE]
+====
+* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
+* Permissions are not synced.
+**All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
+====
+
+[discrete#connectors-s3-sync-rules]
+=== Sync rules
+
+<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+
+[discrete#connectors-s3-sync-rules-advanced]
+==== Advanced sync rules
+
+[NOTE]
+====
+A <<connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+====
+
+Advanced sync rules are defined through a source-specific DSL JSON snippet.
+
+Use advanced sync rules to filter data to be fetched from Amazon S3 buckets.
+They take the following parameters:
+
+1. `bucket`: S3 bucket the rule applies to.
+2. `extension` (optional): Lists which file types to sync. Defaults to syncing all types.
+3. `prefix` (optional): String of prefix characters.
+The connector will fetch file and folder data that matches the string.
+Defaults to `""` (syncs all bucket objects).
+
+[discrete#connectors-s3-sync-rules-advanced-examples]
+===== Advanced sync rules examples
+
+*Fetching files and folders recursively by prefix*
+
+*Example*: Fetch files/folders in `folder1/docs`.
+
+[source,json]
+----
+[
+  {
+    "bucket": "bucket1",
+    "prefix": "folder1/docs"
+  }
+
+]
+----
+
+*Example*: Fetch files/folder starting with `folder1`.
+
+[source,json]
+----
+[
+  {
+    "bucket": "bucket2",
+    "prefix": "folder1"
+  }
+]
+----
+
+*Fetching files and folders by specifying extensions*
+
+*Example*: Fetch all objects which start with `abc` and then filter using file extensions.
+
+[source,json]
+----
+[
+  {
+    "bucket": "bucket2",
+    "prefix": "abc",
+    "extension": [".txt", ".png"]
+  }
+]
+----
+
+[discrete#connectors-s3-content-extraction]
+=== Content extraction
+
+See <<connectors-content-extraction>>.
+
+[discrete#connectors-s3-known-issues]
+=== Known issues
+
+There are no known issues for this connector.
+
+See <<connectors-known-issues>> for any issues affecting all connectors.
+
+[discrete#connectors-s3-troubleshooting]
+=== Troubleshooting
+
+See <<connectors-troubleshooting>>.
+
+[discrete#connectors-s3-security]
+=== Security
+
+See <<connectors-security>>.
+
+[discrete#connectors-s3-source]
+=== Framework and source
+
+This connector is built with the {connectors-python}[Elastic connector framework^].
+
+View the {connectors-python}/connectors/sources/s3.py[source code for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
+
+
+// Closing the collapsible section 
+===============
+
+
+// //////// //// //// //// //// //// //// ////////
+// //////// CONNECTOR CLIENT REFERENCE (SELF-MANAGED) ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#connectors-s3-connector-client-reference]
+== *Connector client reference (self-managed)*
+
+.View reference for the *connector client reference (self-managed)*.
+[%collapsible]
+===============
+
+[discrete#connectors-s3-client-prerequisites]
+=== Availability and prerequisites
+
+This connector is available as a self-managed *connector client*.
+This connector client is compatible with Elastic versions *8.6.0+*.
+To use this connector, satisfy all <<build-connector,connector client requirements>>.
+
+[discrete#connectors-s3-create-connector-client]
+=== Create a {service-name} connector
+include::_connectors-create-client.asciidoc[]
+
+[discrete#connectors-s3-client-usage]
+=== Usage
+
+To use this connector as a *connector client*, see <<build-connector>>.
+
+For additional operations, see <<connectors-usage>>.
+
+S3 users will also need to <<connectors-s3-client-usage-create-iam, Create an IAM identity>>
+
+[discrete#connectors-s3-client-usage-create-iam]
+==== Create an IAM identity
+
+Users need to create an IAM identity to use this connector as a *connector client*.
+Refer to https://docs.aws.amazon.com/IAM/latest/UserGuide/getting-set-up.html[the AWS documentation^].
+
+The https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html[policy^] associated with the IAM identity must have the following *AWS permissions*:
+
+* `ListAllMyBuckets`
+* `ListBucket`
+* `GetBucketLocation`
+* `GetObject`
+
+[discrete#connectors-s3-client-compatibility]
+=== Compatibility
+
+Currently the connector does not support S3-compatible vendors.
+
+[discrete#connectors-s3-client-configuration]
+=== Configuration
+
+[TIP]
+====
+When using the <<build-connector, connector client>> workflow, these fields will use the default configuration set in the https://github.com/elastic/connectors/blob/a5976d20cd8277ae46511f7176662afc889e56ec/connectors/sources/s3.py#L231-L258[connector source code^].
+These configurable fields will be rendered with their respective *labels* in the Kibana UI.
+Once connected, you'll be able to update these values in Kibana.
+====
+
+The following configuration fields are required to *set up* the connector:
+
+`buckets`::
+List of S3 bucket names.
+`*` will fetch data from all buckets.
+Examples:
++
+* `testbucket, prodbucket`
+* `testbucket`
+* `*`
+
+[NOTE]
+====
+This field is ignored when using advanced sync rules.
+====
+
+`aws_access_key_id`::
+Access Key ID for the AWS identity that will be used for bucket access.
+
+`aws_secret_access_key`::
+Secret Access Key for the AWS identity that will be used for bucket access.
+
+`read_timeout`::
+The `read_timeout` for Amazon S3.
+Default value is `90`.
+
+`connect_timeout`::
+Connection timeout for crawling S3.
+Default value is `90`.
+
+`max_attempts`::
+Maximum retry attempts.
+Default value is `5`.
+
+`page_size`::
+Page size for iterating bucket objects in Amazon S3.
+Default value is `100`.
+
+[discrete#connectors-s3-client-docker]
+=== Deployment using Docker
+
+include::_connectors-docker-instructions.asciidoc[]
+
+[discrete#connectors-s3-client-documents-syncs]
+=== Documents and syncs
+
+[NOTE]
+====
+* Content from files bigger than 10 MB won't be extracted by default. You can use the <<connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
+* Permissions are not synced.
+**All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
+====
+
+[discrete#connectors-s3-client-sync-rules]
+=== Sync rules
+
+<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+
+[discrete#connectors-s3-client-sync-rules-advanced]
+==== Advanced sync rules
+
+[NOTE]
+====
+A <<connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+====
+
+Advanced sync rules are defined through a source-specific DSL JSON snippet.
+
+Use advanced sync rules to filter data to be fetched from Amazon S3 buckets.
+They take the following parameters:
+
+1. `bucket`: S3 bucket the rule applies to.
+2. `extension` (optional): Lists which file types to sync. Defaults to syncing all types.
+3. `prefix` (optional): String of prefix characters.
+The connector will fetch file and folder data that matches the string.
+Defaults to `""` (syncs all bucket objects).
+
+[discrete#connectors-s3-client-sync-rules-advanced-examples]
+===== Advanced sync rules examples
+
+*Fetching files and folders recursively by prefix*
+
+*Example*: Fetch files/folders in `folder1/docs`.
+
+[source,json]
+----
+[
+  {
+    "bucket": "bucket1",
+    "prefix": "folder1/docs"
+  }
+
+]
+----
+
+*Example*: Fetch files/folder starting with `folder1`.
+
+[source,json]
+----
+[
+  {
+    "bucket": "bucket2",
+    "prefix": "folder1"
+  }
+]
+----
+
+*Fetching files and folders by specifying extensions*
+
+*Example*: Fetch all objects which start with `abc` and then filter using file extensions.
+
+[source,json]
+----
+[
+  {
+    "bucket": "bucket2",
+    "prefix": "abc",
+    "extension": [".txt", ".png"]
+  }
+]
+----
+
+[discrete#connectors-s3-client-content-extraction]
+=== Content extraction
+
+See <<connectors-content-extraction>>.
+
+[discrete#connectors-s3-client-testing]
+=== End-to-end testing
+
+The connector framework enables operators to run functional tests against a real data source.
+Refer to <<build-connector-testing>> for more details.
+
+To execute a functional test for the Amazon S3 *connector client*, run the following command:
+
+[source,shell]
+----
+make ftest NAME=s3
+----
+
+By default, this will use a medium-sized dataset.
+To make the test faster add the `DATA_SIZE=small` argument:
+
+[source,shell]
+----
+make ftest NAME=s3 DATA_SIZE=small
+----
+
+[discrete#connectors-s3-client-known-issues]
+=== Known issues
+
+There are no known issues for this connector.
+
+See <<connectors-known-issues>> for any issues affecting all connectors.
+
+[discrete#connectors-s3-client-troubleshooting]
+=== Troubleshooting
+
+See <<connectors-troubleshooting>>.
+
+[discrete#connectors-s3-client-security]
+=== Security
+
+See <<connectors-security>>.
+
+[discrete#connectors-s3-client-source]
+=== Framework and source
+
+This connector is built with the {connectors-python}[Elastic connector framework^].
+
+View the {connectors-python}/connectors/sources/s3.py[source code for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
+
+// Closing the collapsible section 
+===============

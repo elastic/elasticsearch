@@ -1,0 +1,13 @@
+* <<connectors-confluence,Confluence>>
+* <<connectors-dropbox,Dropbox>>
+* <<connectors-jira,Jira>> (including Jira Data Center)
+* <<connectors-github,GitHub>>
+* <<connectors-gmail,Gmail>>
+* <<connectors-google-drive,Google Drive>>
+* <<connectors-network-drive,Network Drive>>
+* <<connectors-onedrive,OneDrive>>
+* <<connectors-outlook,Outlook>>
+* <<connectors-salesforce,Salesforce>>
+* <<connectors-sharepoint-online,SharePoint Online>>
+* <<connectors-sharepoint,SharePoint Server>>
+* <<connectors-servicenow,ServiceNow>>

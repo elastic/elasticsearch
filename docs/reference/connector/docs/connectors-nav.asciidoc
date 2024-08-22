@@ -1,0 +1,7 @@
+[#connectors-references]
+== Connectors references
+
+This page contains the reference documentation for each individual connector.
+For an overview of Elastic connectors, refer to <<connectors>>.
+
+include::connectors-postgresql.asciidoc[]

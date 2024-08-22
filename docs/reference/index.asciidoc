@@ -4,6 +4,8 @@
 include::../Versions.asciidoc[]
 include::links.asciidoc[]
 
+include::connector/docs/index.asciidoc[]
+
 include::landing-page.asciidoc[]
 
 include::intro.asciidoc[]

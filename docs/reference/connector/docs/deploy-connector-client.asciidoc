@@ -1,0 +1,10 @@
+[#deploy-connector-client]
+= Deploying self-managed connectors
+
+To use connector clients in a self-managed environment, you must deploy the connector service.
+The source code is hosted in the https://github.com/elastic/connectors[elastic/connectors^] repository.
+
+You have two deployment options:
+
+* <<connectors-run-from-source, Running the connectors from source>>. Use this option if you're comfortable working with Python and want to iterate quickly locally.
+* <<connectors-run-from-docker, Running the connectors from Docker>>. Use this option if you want to deploy the connectors to a server, or use a container orchestration platform.

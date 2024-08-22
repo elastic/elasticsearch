@@ -1,0 +1,9 @@
+[#connectors-management]
+= Management topics
+
+Refer to the following sections:
+
+* <<connectors-troubleshooting, Troubleshooting>>
+* <<connectors-logs, Logs>>
+* <<connectors-scalability, Scalability>>
+* <<connectors-security, Security>>

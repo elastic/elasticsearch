@@ -1,0 +1,14 @@
+[#connectors-troubleshooting]
+= Troubleshooting connectors
+++++
+<titleabbrev>Troubleshooting</titleabbrev>
+++++
+
+Use the following actions to help diagnose and resolve issues with <<native-connectors,native connectors>> and <<build-connector,connector clients>>:
+
+* <<connectors-usage-indices,View index health and ingestion status>>.
+* <<connectors-usage-index-view,View errors, document count, sync history, and sync statuses>>.
+* <<connectors-usage-documents,View synced documents and index mappings>>.
+* Edit your index configuration: <<native-connectors,native connector>>, <<build-connector,connector client>>.
+
+You can also request <<support,help or support>>.

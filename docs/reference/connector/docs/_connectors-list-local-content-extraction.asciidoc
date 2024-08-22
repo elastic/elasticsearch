@@ -1,0 +1,16 @@
+* <<connectors-azure-blob,Azure Blob Storage>>
+* <<connectors-confluence,Confluence>>
+* <<connectors-dropbox,Dropbox>>
+* <<connectors-github,GitHub>>
+* <<connectors-google-cloud,Google Cloud Storage>>
+* <<connectors-google-drive,Google Drive>>
+* <<connectors-jira,Jira>>
+* <<connectors-network-drive,Network drive>>
+* <<connectors-onedrive,OneDrive>>
+* <<connectors-outlook,Outlook>>
+* <<connectors-s3,S3>>
+* <<connectors-salesforce,Salesforce>>
+* <<connectors-servicenow,ServiceNow>>
+* <<connectors-sharepoint-online,SharePoint Online>>
+* <<connectors-sharepoint,SharePoint Server>>
+* <<connectors-zoom,Zoom>>

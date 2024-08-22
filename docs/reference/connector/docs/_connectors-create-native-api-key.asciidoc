@@ -1,0 +1,59 @@
+[NOTE]
+====
+The user needs the cluster privileges `manage_api_key`, `manage_connector` and `write_connector_secrets` to generate API keys programmatically.
+====
+
+To create an API key for the connector:
+
+. Run the following command, replacing values where indicated.
+Note the `id` and `encoded` return values from the response:
++
+[source, console,subs="+attributes"]
+----
+POST /_security/api_key
+{
+  "name": "<connector_name>-connector-api-key",
+  "role_descriptors": {
+    "<connector_name>-connector-role": {
+      "cluster": [
+        "monitor",
+        "manage_connector"
+      ],
+      "indices": [
+        {
+          "names": [
+            "<index_name>",
+            ".search-acl-filter-<index_name>",
+            ".elastic-connectors*"
+          ],
+          "privileges": [
+            "all"
+          ],
+          "allow_restricted_indices": false
+        }
+      ]
+    }
+  }
+}
+----
++
+. Use the `encoded` value to store a connector secret, and note the `id` return value from this response:
++
+[source, console,subs="+attributes"]
+----
+POST _connector/_secret
+{
+  "value": <encoded_api_key>
+}
+----
++
+. Use the API key `id` and the connector secret `id` to update the connector:
++
+[source, console,subs="+attributes"]
+----
+PUT /_connector/<connector_id>/_api_key_id
+{
+  "api_key_id": "<API key id>",
+  "api_key_secret_id": "<secret id>"
+}
+----

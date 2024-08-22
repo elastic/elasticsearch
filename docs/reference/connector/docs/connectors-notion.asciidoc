@@ -1,0 +1,731 @@
+[#connectors-notion]
+= Elastic Notion Connector reference
+++++
+<titleabbrev>Notion</titleabbrev>
+++++
+
+// Attributes (AKA variables) used in this file
+:service-name: Notion
+:service-name-stub: notion
+ 
+The Notion connector is written in Python using the {connectors-python}[Elastic connector framework^].
+View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
+
+// //////// //// //// //// //// //// //// ////////
+// //////// NATIVE CONNECTOR REFERENCE (MANAGED SERVICE) ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#connectors-notion-native-connector-reference]
+== *Native connector reference (managed service)*
+
+.View reference for the *native connector reference (managed service)*.
+[%collapsible]
+===============
+
+[discrete#connectors-notion-connector-availability-and-prerequisites]
+=== Availability and prerequisites
+
+This native connector was introduced in Elastic *8.14.0* as a managed service on Elastic Cloud.
+
+To use this connector natively in Elastic Cloud, satisfy all <<native-connectors,native connector requirements>>.
+
+[NOTE]
+====
+This connector is in *beta* and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Beta features are not subject to the support SLA of official GA features.
+====
+
+[discrete#connectors-notion-connector-usage]
+=== Usage
+
+To use this connector in the UI, select the *Notion* tile when creating a new connector under *Search -> Connectors*.
+
+If you're already familiar with how connectors work, you can also use the {ref}/connector-apis.html[Connector APIs].
+
+For additional operations, see <<connectors-usage>>.
+
+[discrete#connectors-notion-create-native-connector]
+=== Create a {service-name} connector
+include::_connectors-create-native.asciidoc[]
+
+[discrete#connectors-notion-connector-connecting-to-notion]
+=== Connecting to Notion
+
+To connect to Notion, the user needs to https://www.notion.so/help/create-integrations-with-the-notion-api#create-an-internal-integration[create an internal integration] for their Notion workspace, which can access resources using the Internal Integration Secret Token. Configure the Integration with following settings:
+
+1. Users must grant `READ` permission for content, comment and user capabilities for that integration from the Capabilities tab.
+
+2. Users must manually https://www.notion.so/help/add-and-manage-connections-with-the-api#add-connections-to-pages[add the integration as a connection] to the top-level pages in a workspace. Sub-pages will inherit the connections of the parent page automatically.
+
+[discrete#connectors-notion-connector-configuration]
+=== Configuration
+
+Note the following configuration fields:
+
+`Notion Secret Key`(required)::
+Secret token assigned to your integration, for a particular workspace. Example:
+
+* `zyx-123453-12a2-100a-1123-93fd09d67394`
+
+`Databases`(required)::
+Comma-separated list of database names to be fetched by the connector. If the value is `*`, connector will fetch all the databases available in the workspace. Example:
+
+* `database1, database2`
+* `*`
+
+`Pages`(required)::
+Comma-separated list of page names to be fetched by the connector. If the value is `*`, connector will fetch all the pages available in the workspace. Examples:
+
+* `*`
+* `Page1, Page2`
+
+`Index Comments`::
+
+Toggle to enable fetching and indexing of comments from the Notion workspace for the configured pages, databases and the corresponding child blocks. Default value is `False`.
+
+[NOTE]
+====
+Enabling comment indexing could impact connector performance due to increased network calls. Therefore, by default this value is `False`. 
+====
+
+[discrete#connectors-notion-connector-content-extraction]
+==== Content Extraction
+
+Refer to https://www.elastic.co/guide/en/enterprise-search/current/connectors-content-extraction.html[content extraction].
+
+[discrete#connectors-notion-connector-documents-and-syncs]
+=== Documents and syncs
+
+The connector syncs the following objects and entities:
+
+* *Pages*
+** Includes metadata such as `page name`, `id`, `last updated time`, etc.
+* *Blocks*
+** Includes metadata such as `title`, `type`, `id`, `content` (in case of file block), etc.
+* *Databases*
+** Includes metadata such as `name`, `id`, `records`, `size`, etc.
+* *Users*
+** Includes metadata such as `name`, `id`, `email address`, etc.
+* *Comments*
+** Includes the content and metadata such as `id`, `last updated time`, `created by`, etc.
+** *Note*: Comments are excluded by default.
+
+[NOTE]
+====
+* Files bigger than 10 MB won't be extracted.
+* Permissions are not synced. *All documents* indexed to an Elastic deployment will be visible to *all users with access* to the relevant Elasticsearch index.
+====
+
+[discrete#connectors-notion-connector-sync-rules]
+=== Sync rules
+
+<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+
+[discrete#connectors-notion-connector-advanced-sync-rules]
+=== Advanced sync rules
+
+[NOTE]
+====
+A <<connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+====
+
+The following section describes *advanced sync rules* for this connector, to filter data in Notion _before_ indexing into {es}. 
+Advanced sync rules are defined through a source-specific DSL JSON snippet.
+
+Advanced sync rules for Notion take the following parameters:
+
+1. `searches`: Notion's search filter to search by title.
+2. `query`: Notion's database query filter to fetch a specific database.
+
+[discrete#connectors-notion-connector-advanced-sync-rules-examples]
+==== Examples
+
+[discrete]
+===== Example 1
+
+Indexing every page where the title contains `Demo Page`:
+
+[source,json]
+----
+  {
+    "searches": [
+      {
+        "filter": {
+          "value": "page"
+        },
+        "query": "Demo Page"
+      }
+    ]
+  }
+----
+
+[discrete]
+===== Example 2
+
+Indexing every database where the title contains `Demo Database`:
+
+[source,json]
+----
+{
+  "searches": [
+    {
+      "filter": {
+        "value": "database"
+      },
+      "query": "Demo Database"
+    }
+  ]
+}
+----
+
+[discrete]
+===== Example 3
+
+Indexing every database where the title contains `Demo Database` and every page where the title contains `Demo Page`:
+
+[source,json]
+----
+{
+  "searches": [
+    {
+      "filter": {
+        "value": "database"
+      },
+      "query": "Demo Database"
+    },
+    {
+      "filter": {
+        "value": "page"
+      },
+      "query": "Demo Page"
+    }
+  ]
+}
+----
+
+[discrete]
+===== Example 4
+
+Indexing all pages in the workspace:
+
+[source,json]
+----
+{
+  "searches": [
+    {
+      "filter": {
+        "value": "page"
+      },
+      "query": ""
+    }
+  ]
+}
+----
+
+[discrete]
+===== Example 5
+
+Indexing all the pages and databases connected to the workspace:
+
+[source,json]
+----
+{
+  "searches":[
+    {
+      "query":""
+    }
+  ]
+}
+----
+
+[discrete]
+===== Example 6
+
+Indexing all the rows of a database where the record is `true` for the column `Task completed` and its property(datatype) is a checkbox:
+
+[source,json]
+----
+{
+  "database_query_filters": [
+    {
+      "filter": {
+          "property": "Task completed",
+          "checkbox": {
+            "equals": true
+          }
+      },
+      "database_id": "database_id"
+    }
+  ]
+}
+----
+
+[discrete]
+===== Example 7
+
+Indexing all rows of a specific database:
+
+[source,json]
+----
+{
+  "database_query_filters": [
+    {
+      "database_id": "database_id"
+    }
+  ]
+}
+----
+
+[discrete]
+===== Example 8
+
+Indexing all blocks defined in `searches` and `database_query_filters`:
+
+[source,json]
+----
+{
+  "searches":[
+    {
+      "query":"External tasks",
+      "filter":{
+        "value":"database"
+      }
+    },
+    {
+      "query":"External tasks",
+      "filter":{
+        "value":"page"
+      }
+    }
+  ],
+  "database_query_filters":[
+    {
+      "database_id":"notion_database_id1",
+      "filter":{
+        "property":"Task completed",
+        "checkbox":{
+          "equals":true
+        }
+      }
+    }
+  ]
+}
+----
+
+[NOTE]
+====
+In this example the `filter` object syntax for `database_query_filters` is defined per the https://developers.notion.com/reference/post-database-query-filter[Notion documentation].
+====
+
+[discrete#connectors-notion-connector-known-issues]
+=== Known issues
+
+* *Updates to new pages may not be reflected immediately in the Notion API.*
++
+This could lead to these pages not being indexed by the connector, if a sync is initiated immediately after their addition.
+To ensure all pages are indexed, initiate syncs a few minutes after adding pages to Notion.
+
+* *Notion's Public API does not support linked databases.*
++
+Linked databases in Notion are copies of a database that can be filtered, sorted, and viewed differently.
+To fetch the information in a linked database, you need to target the original *source* database.
+For more details refer to the https://developers.notion.com/docs/working-with-databases#linked-databases[Notion documentation].
+
+* *Documents' `properties` objects are serialized as strings under `details`*.
++
+Notion's schema for `properties` is not consistent, and can lead to `document_parsing_exceptions` if indexed to Elasticsearch as an object.
+For this reason, the `properties` object is instead serialized as a JSON string, and stored under the `details` field.
+If you need to search a sub-object from `properties`, you may need to post-process the `details` field in an ingest pipeline to extract your desired subfield(s).
+
+Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
+
+[discrete#connectors-notion-connector-troubleshooting]
+=== Troubleshooting
+
+See <<connectors-troubleshooting>>.
+
+[discrete#connectors-notion-connector-security]
+=== Security
+
+See <<connectors-security>>.
+
+
+// Closing the collapsible section 
+===============
+
+
+// //////// //// //// //// //// //// //// ////////
+// //////// CONNECTOR CLIENT REFERENCE (SELF-MANAGED) ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#connectors-notion-connector-client-reference]
+== *Connector client reference (self-managed)*
+
+.View reference for the *connector client reference (self-managed)*.
+[%collapsible]
+===============
+
+[discrete#connectors-notion-client-connector-availability-and-prerequisites]
+=== Availability and prerequisites
+
+This connector was introduced in Elastic *8.13.0*, available as a *self-managed* connector client.
+
+To use this connector, satisfy all <<build-connector, connector client prerequisites>>.
+Importantly, you must deploy the connectors service on your own infrastructure.
+You have two deployment options:
+
+* <<connectors-run-from-source, Run connectors service from source>>. Use this option if you're comfortable working with Python and want to iterate quickly locally.
+* <<connectors-run-from-docker, Run connectors service in Docker>>. Use this option if you want to deploy the connectors to a server, or use a container orchestration platform. 
+
+[NOTE]
+====
+This connector is in *beta* and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Beta features are not subject to the support SLA of official GA features.
+====
+
+[discrete#connectors-notion-client-connector-usage]
+=== Usage
+
+To use this connector in the UI, select the *Notion* tile when creating a new connector under *Search -> Connectors*.
+
+For additional operations, see <<connectors-usage>>.
+
+[discrete#connectors-notion-create-connector-client]
+=== Create a {service-name} connector
+include::_connectors-create-client.asciidoc[]
+
+[discrete#connectors-notion-client-connector-connecting-to-notion]
+=== Connecting to Notion
+
+To connect to Notion, the user needs to https://www.notion.so/help/create-integrations-with-the-notion-api#create-an-internal-integration[create an internal integration] for their Notion workspace, which can access resources using the Internal Integration Secret Token. Configure the Integration with following settings:
+
+1. Users must grant `READ` permission for content, comment and user capabilities for that integration from the Capabilities tab.
+
+2. Users must manually https://www.notion.so/help/add-and-manage-connections-with-the-api#add-connections-to-pages[add the integration as a connection] to the top-level pages in a workspace. Sub-pages will inherit the connections of the parent page automatically.
+
+[discrete#connectors-notion-client-connector-docker]
+=== Deploy with Docker
+
+include::_connectors-docker-instructions.asciidoc[]
+
+[discrete#connectors-notion-client-connector-configuration]
+=== Configuration
+
+Note the following configuration fields:
+
+`Notion Secret Key`(required)::
+Secret token assigned to your integration, for a particular workspace. Example:
+
+* `zyx-123453-12a2-100a-1123-93fd09d67394`
+
+`Databases`(required)::
+Comma-separated list of database names to be fetched by the connector. If the value is `*`, connector will fetch all the databases available in the workspace. Example:
+
+* `database1, database2`
+* `*`
+
+`Pages`(required)::
+Comma-separated list of page names to be fetched by the connector. If the value is `*`, connector will fetch all the pages available in the workspace. Examples:
+
+* `*`
+* `Page1, Page2`
+
+`Index Comments`::
+
+Toggle to enable fetching and indexing of comments from the Notion workspace for the configured pages, databases and the corresponding child blocks. Default value is `False`.
+
+[NOTE]
+====
+Enabling comment indexing could impact connector performance due to increased network calls. Therefore, by default this value is `False`. 
+====
+
+[discrete#connectors-notion-client-connector-content-extraction]
+==== Content Extraction
+
+Refer to https://www.elastic.co/guide/en/enterprise-search/current/connectors-content-extraction.html[content extraction].
+
+[discrete#connectors-notion-client-connector-documents-and-syncs]
+=== Documents and syncs
+
+The connector syncs the following objects and entities:
+
+* *Pages*
+** Includes metadata such as `page name`, `id`, `last updated time`, etc.
+* *Blocks*
+** Includes metadata such as `title`, `type`, `id`, `content` (in case of file block), etc.
+* *Databases*
+** Includes metadata such as `name`, `id`, `records`, `size`, etc.
+* *Users*
+** Includes metadata such as `name`, `id`, `email address`, etc.
+* *Comments*
+** Includes the content and metadata such as `id`, `last updated time`, `created by`, etc.
+** *Note*: Comments are excluded by default.
+
+[NOTE]
+====
+* Files bigger than 10 MB won't be extracted.
+* Permissions are not synced. *All documents* indexed to an Elastic deployment will be visible to *all users with access* to the relevant Elasticsearch index.
+====
+
+[discrete#connectors-notion-client-connector-sync-rules]
+=== Sync rules
+
+<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+
+[discrete#connectors-notion-client-connector-advanced-sync-rules]
+=== Advanced sync rules
+
+[NOTE]
+====
+A <<connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+====
+
+The following section describes *advanced sync rules* for this connector, to filter data in Notion _before_ indexing into {es}. 
+Advanced sync rules are defined through a source-specific DSL JSON snippet.
+
+Advanced sync rules for Notion take the following parameters:
+
+1. `searches`: Notion's search filter to search by title.
+2. `query`: Notion's database query filter to fetch a specific database.
+
+[discrete#connectors-notion-client-connector-advanced-sync-rules-examples]
+==== Examples
+
+[discrete]
+===== Example 1
+
+Indexing every page where the title contains `Demo Page`:
+
+[source,json]
+----
+  {
+    "searches": [
+      {
+        "filter": {
+          "value": "page"
+        },
+        "query": "Demo Page"
+      }
+    ]
+  }
+----
+
+[discrete]
+===== Example 2
+
+Indexing every database where the title contains `Demo Database`:
+
+[source,json]
+----
+{
+  "searches": [
+    {
+      "filter": {
+        "value": "database"
+      },
+      "query": "Demo Database"
+    }
+  ]
+}
+----
+
+[discrete]
+===== Example 3
+
+Indexing every database where the title contains `Demo Database` and every page where the title contains `Demo Page`:
+
+[source,json]
+----
+{
+  "searches": [
+    {
+      "filter": {
+        "value": "database"
+      },
+      "query": "Demo Database"
+    },
+    {
+      "filter": {
+        "value": "page"
+      },
+      "query": "Demo Page"
+    }
+  ]
+}
+----
+
+[discrete]
+===== Example 4
+
+Indexing all pages in the workspace:
+
+[source,json]
+----
+{
+  "searches": [
+    {
+      "filter": {
+        "value": "page"
+      },
+      "query": ""
+    }
+  ]
+}
+----
+
+[discrete]
+===== Example 5
+
+Indexing all the pages and databases connected to the workspace:
+
+[source,json]
+----
+{
+  "searches":[
+    {
+      "query":""
+    }
+  ]
+}
+----
+
+[discrete]
+===== Example 6
+
+Indexing all the rows of a database where the record is `true` for the column `Task completed` and its property(datatype) is a checkbox:
+
+[source,json]
+----
+{
+  "database_query_filters": [
+    {
+      "filter": {
+          "property": "Task completed",
+          "checkbox": {
+            "equals": true
+          }
+      },
+      "database_id": "database_id"
+    }
+  ]
+}
+----
+
+[discrete]
+===== Example 7
+
+Indexing all rows of a specific database:
+
+[source,json]
+----
+{
+  "database_query_filters": [
+    {
+      "database_id": "database_id"
+    }
+  ]
+}
+----
+
+[discrete]
+===== Example 8
+
+Indexing all blocks defined in `searches` and `database_query_filters`:
+
+[source,json]
+----
+{
+  "searches":[
+    {
+      "query":"External tasks",
+      "filter":{
+        "value":"database"
+      }
+    },
+    {
+      "query":"External tasks",
+      "filter":{
+        "value":"page"
+      }
+    }
+  ],
+  "database_query_filters":[
+    {
+      "database_id":"notion_database_id1",
+      "filter":{
+        "property":"Task completed",
+        "checkbox":{
+          "equals":true
+        }
+      }
+    }
+  ]
+}
+----
+
+[NOTE]
+====
+In this example the `filter` object syntax for `database_query_filters` is defined per the https://developers.notion.com/reference/post-database-query-filter[Notion documentation].
+====
+
+[discrete#connectors-notion-client-connector-connector-client-operations]
+=== Connector Client operations
+
+[discrete#connectors-notion-client-connector-end-to-end-testing]
+==== End-to-end Testing
+
+The connector framework enables operators to run functional tests against a real data source, using Docker Compose.
+You don't need a running Elasticsearch instance or Notion source to run this test.
+
+Refer to <<build-connector-testing>> for more details.
+
+To perform E2E testing for the Notion connector, run the following command:
+
+
+[source,shell]
+----
+$ make ftest NAME=notion
+----
+
+For faster tests, add the `DATA_SIZE=small` flag:
+
+[source,shell]
+----
+make ftest NAME=notion DATA_SIZE=small
+----
+
+By default, `DATA_SIZE=MEDIUM`.
+
+[discrete#connectors-notion-client-connector-known-issues]
+=== Known issues
+
+* *Updates to new pages may not be reflected immediately in the Notion API.*
++
+This could lead to these pages not being indexed by the connector, if a sync is initiated immediately after their addition.
+To ensure all pages are indexed, initiate syncs a few minutes after adding pages to Notion.
+
+* *Notion's Public API does not support linked databases.*
++
+Linked databases in Notion are copies of a database that can be filtered, sorted, and viewed differently.
+To fetch the information in a linked database, you need to target the original *source* database.
+For more details refer to the https://developers.notion.com/docs/working-with-databases#linked-databases[Notion documentation].
+
+* *Documents' `properties` objects are serialized as strings under `details`*.
++
+Notion's schema for `properties` is not consistent, and can lead to `document_parsing_exceptions` if indexed to Elasticsearch as an object.
+For this reason, the `properties` object is instead serialized as a JSON string, and stored under the `details` field.
+If you need to search a sub-object from `properties`, you may need to post-process the `details` field in an ingest pipeline to extract your desired subfield(s).
+
+Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
+
+[discrete#connectors-notion-client-connector-troubleshooting]
+=== Troubleshooting
+
+See <<connectors-troubleshooting>>.
+
+[discrete#connectors-notion-client-connector-security]
+=== Security
+
+See <<connectors-security>>.
+
+
+// Closing the collapsible section 
+===============

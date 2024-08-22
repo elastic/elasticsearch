@@ -296,7 +296,7 @@ public final class RestoreService implements ClusterStateApplier {
 
             .addListener(listener.delegateResponse((delegate, e) -> {
                 logger.warn(() -> "[" + request.repository() + ":" + request.snapshot() + "] failed to restore snapshot", e);
-                listener.onFailure(e);
+                delegate.onFailure(e);
             }));
     }
 

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -91,7 +91,7 @@ public class ShowColumns extends Command {
                     List<List<?>> rows = emptyList();
                     if (indexResult.isValid()) {
                         rows = new ArrayList<>();
-                        Version version = Version.fromId(session.configuration().version().id);
+                        TransportVersion version = TransportVersion.fromId(session.configuration().version().id);
                         fillInRows(IndexCompatibility.compatible(indexResult, version).get().mapping(), null, rows);
                     }
                     l.onResponse(of(session, rows));

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.root.MainResponse;
@@ -42,17 +42,17 @@ public abstract class WebServerTestCase extends ESTestCase {
     }
 
     MainResponse createCurrentVersionMainResponse() {
-        return createMainResponse(Version.CURRENT);
+        return createMainResponse(TransportVersion.current());
     }
 
-    MainResponse createMainResponse(Version version) {
+    MainResponse createMainResponse(TransportVersion version) {
         // the SQL client only cares about node version,
         // so ignore index & transport versions here (just set them to current)
         String clusterUuid = randomAlphaOfLength(10);
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         IndexVersion indexVersion = IndexVersion.current();
-        Build build = BuildUtils.newBuild(Build.current(), Map.of("version", version.toString()));
+        Build build = BuildUtils.newBuild(Build.current(), Map.of("version", VersionsUtils.from(version).toString()));
         return new MainResponse(nodeName, indexVersion.luceneVersion().toString(), clusterName, clusterUuid, build);
     }
 

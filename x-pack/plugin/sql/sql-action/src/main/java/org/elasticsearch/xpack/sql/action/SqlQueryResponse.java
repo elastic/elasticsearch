@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.action;
 import com.fasterxml.jackson.core.JsonGenerator;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,7 +32,6 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 import static org.elasticsearch.xpack.sql.proto.Mode.JDBC;
-import static org.elasticsearch.xpack.sql.proto.SqlVersion.fromId;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.isClientCompatible;
 
 /**
@@ -108,7 +106,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     ) {
         this.cursor = cursor;
         this.mode = mode;
-        this.sqlVersion = sqlVersion != null ? sqlVersion : fromId(Version.CURRENT.id);
+        this.sqlVersion = sqlVersion != null ? sqlVersion : VersionsUtils.CURRENT;
         this.columnar = columnar;
         this.columns = columns;
         this.rows = rows;
@@ -276,7 +274,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     public static XContentBuilder value(XContentBuilder builder, Mode mode, SqlVersion sqlVersion, Object value) throws IOException {
         if (value instanceof ZonedDateTime zdt) {
             // use the ISO format
-            if (mode == JDBC && isClientCompatible(SqlVersion.fromId(Version.CURRENT.id), sqlVersion)) {
+            if (mode == JDBC && isClientCompatible(VersionsUtils.CURRENT, sqlVersion)) {
                 builder.value(StringUtils.toString(zdt, sqlVersion));
             } else {
                 builder.value(StringUtils.toString(zdt));

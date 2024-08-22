@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.core.Tuple;
@@ -42,14 +42,14 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_VERSION_FIELD_TYPE;
 import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
+import static org.elasticsearch.xpack.sql.util.VersionsUtils.UNSIGNED_LONG_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.VersionsUtils.VERSION_FIELD_TEST_VERSIONS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
@@ -59,25 +59,13 @@ import static org.mockito.Mockito.when;
 
 public class SysColumnsTests extends ESTestCase {
 
-    public static List<SqlVersion> UNSIGNED_LONG_TEST_VERSIONS = List.of(
-        SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER),
-        SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id),
-        SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER),
-        SqlVersion.fromId(Version.CURRENT.id)
-    );
-
-    public static List<SqlVersion> VERSION_FIELD_TEST_VERSIONS = List.of(
-        SqlVersion.fromId(INTRODUCING_VERSION_FIELD_TYPE.id - SqlVersion.MINOR_MULTIPLIER),
-        SqlVersion.fromId(INTRODUCING_VERSION_FIELD_TYPE.id),
-        SqlVersion.fromId(INTRODUCING_VERSION_FIELD_TYPE.id + SqlVersion.MINOR_MULTIPLIER),
-        SqlVersion.fromId(Version.CURRENT.id)
-    );
-
     private static final String CLUSTER_NAME = "cluster";
     private static final Map<String, EsField> MAPPING1 = loadMapping("mapping-multi-field-with-nested.json", true);
     private static final Map<String, EsField> MAPPING2 = loadMapping("mapping-multi-field-variation.json", true);
     private static final int FIELD_COUNT1 = 20;
     private static final int FIELD_COUNT2 = 19;
+
+    private static final SqlVersion CURRENT = SqlVersion.fromTransportString(TransportVersion.current().toReleaseVersion());
 
     private final SqlParser parser = new SqlParser();
 
@@ -156,22 +144,14 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testUnsignedLongFiltering() {
         for (Mode mode : List.of(Mode.JDBC, Mode.ODBC)) {
-            for (SqlVersion version : UNSIGNED_LONG_TEST_VERSIONS) {
+            for (TransportVersion version : UNSIGNED_LONG_TEST_VERSIONS) {
                 List<List<?>> rows = new ArrayList<>();
                 // mapping's mutated by IndexCompatibility.compatible, needs to stay in the loop
                 Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
-                SysColumns.fillInRows(
-                    "test",
-                    "index",
-                    IndexCompatibility.compatible(mapping, Version.fromId(version.id)),
-                    null,
-                    rows,
-                    null,
-                    mode
-                );
+                SysColumns.fillInRows("test", "index", IndexCompatibility.compatible(mapping, version), null, rows, null, mode);
                 List<String> types = rows.stream().map(row -> name(row).toString()).collect(Collectors.toList());
                 assertEquals(
-                    isTypeSupportedInVersion(UNSIGNED_LONG, Version.fromId(version.id)),
+                    isTypeSupportedInVersion(UNSIGNED_LONG, version),
                     types.contains(UNSIGNED_LONG.toString().toLowerCase(Locale.ROOT))
                 );
             }
@@ -180,24 +160,13 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testVersionTypeFiltering() {
         for (Mode mode : List.of(Mode.JDBC, Mode.ODBC)) {
-            for (SqlVersion version : VERSION_FIELD_TEST_VERSIONS) {
+            for (TransportVersion version : VERSION_FIELD_TEST_VERSIONS) {
                 List<List<?>> rows = new ArrayList<>();
                 // mapping's mutated by IndexCompatibility.compatible, needs to stay in the loop
                 Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
-                SysColumns.fillInRows(
-                    "test",
-                    "index",
-                    IndexCompatibility.compatible(mapping, Version.fromId(version.id)),
-                    null,
-                    rows,
-                    null,
-                    mode
-                );
+                SysColumns.fillInRows("test", "index", IndexCompatibility.compatible(mapping, version), null, rows, null, mode);
                 List<String> types = rows.stream().map(row -> name(row).toString()).collect(Collectors.toList());
-                assertEquals(
-                    isTypeSupportedInVersion(VERSION, Version.fromId(version.id)),
-                    types.contains(VERSION.toString().toLowerCase(Locale.ROOT))
-                );
+                assertEquals(isTypeSupportedInVersion(VERSION, version), types.contains(VERSION.toString().toLowerCase(Locale.ROOT)));
             }
         }
     }
@@ -313,7 +282,7 @@ public class SysColumnsTests extends ESTestCase {
             null,
             Mode.ODBC,
             null,
-            SqlVersion.fromId(Version.CURRENT.id),
+            CURRENT,
             null,
             null,
             false,
@@ -360,7 +329,7 @@ public class SysColumnsTests extends ESTestCase {
             null,
             mode,
             null,
-            SqlVersion.fromId(Version.CURRENT.id),
+            CURRENT,
             null,
             null,
             false,

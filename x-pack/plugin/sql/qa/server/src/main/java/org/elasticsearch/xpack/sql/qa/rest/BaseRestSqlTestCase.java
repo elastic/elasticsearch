@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.qa.rest;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -83,7 +83,7 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
             if (isQuery) {
                 Mode mode = (m instanceof Mode) ? (Mode) m : Mode.fromString(modeString);
                 if (Mode.isDedicatedClient(mode)) {
-                    version(Version.CURRENT.toString());
+                    version(TransportVersion.current().toReleaseVersion());
                 }
             }
             return this;

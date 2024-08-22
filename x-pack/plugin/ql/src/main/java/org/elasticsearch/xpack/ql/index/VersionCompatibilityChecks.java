@@ -9,24 +9,20 @@ package org.elasticsearch.xpack.ql.index;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ql.type.DataType;
 
-import static org.elasticsearch.Version.V_8_2_0;
-import static org.elasticsearch.Version.V_8_4_0;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 
 public final class VersionCompatibilityChecks {
 
-    public static final Version INTRODUCING_UNSIGNED_LONG = V_8_2_0;
-    public static final TransportVersion INTRODUCING_UNSIGNED_LONG_TRANSPORT = TransportVersions.V_8_2_0;
-    public static final Version INTRODUCING_VERSION_FIELD_TYPE = V_8_4_0;
+    public static final TransportVersion INTRODUCING_UNSIGNED_LONG = TransportVersions.V_8_2_0;
+    public static final TransportVersion INTRODUCING_VERSION_FIELD_TYPE = TransportVersions.V_8_4_0;
 
     private VersionCompatibilityChecks() {}
 
-    public static boolean isTypeSupportedInVersion(DataType dataType, Version version) {
+    public static boolean isTypeSupportedInVersion(DataType dataType, TransportVersion version) {
         if (dataType == UNSIGNED_LONG) {
             return supportsUnsignedLong(version);
         }
@@ -39,18 +35,18 @@ public final class VersionCompatibilityChecks {
     /**
      * Does the provided {@code version} support the unsigned_long type (PR#60050)?
      */
-    public static boolean supportsUnsignedLong(Version version) {
+    public static boolean supportsUnsignedLong(TransportVersion version) {
         return INTRODUCING_UNSIGNED_LONG.compareTo(version) <= 0;
     }
 
     /**
      * Does the provided {@code version} support the version type (PR#85502)?
      */
-    public static boolean supportsVersionType(Version version) {
+    public static boolean supportsVersionType(TransportVersion version) {
         return INTRODUCING_VERSION_FIELD_TYPE.compareTo(version) <= 0;
     }
 
-    public static @Nullable Version versionIntroducingType(DataType dataType) {
+    public static @Nullable TransportVersion versionIntroducingType(DataType dataType) {
         if (dataType == UNSIGNED_LONG) {
             return INTRODUCING_UNSIGNED_LONG;
         }

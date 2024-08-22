@@ -6,8 +6,11 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.math.BigInteger;
@@ -26,10 +29,9 @@ import java.util.GregorianCalendar;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import static org.elasticsearch.Version.V_8_2_0;
-import static org.elasticsearch.Version.V_8_4_0;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
 
 final class JdbcTestUtils {
 
@@ -43,7 +45,8 @@ final class JdbcTestUtils {
     static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
 
     static final String UNSIGNED_LONG_TYPE_NAME = "UNSIGNED_LONG";
-    static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
+
+    public static final SqlVersion CURRENT = SqlVersion.fromString(Build.current().version());
 
     /*
      * The version of the driver that the QA (bwc-)tests run against.
@@ -59,12 +62,11 @@ final class JdbcTestUtils {
      *     }
      * </code>
      */
-    static final Version JDBC_DRIVER_VERSION;
+    static final SqlVersion JDBC_DRIVER_VERSION;
 
     static {
-        // master's version is x.0.0-SNAPSHOT, tho Version#fromString() won't accept that back for recent versions
-        String jdbcDriverVersion = System.getProperty(DRIVER_VERSION_PROPERTY_NAME, "").replace("-SNAPSHOT", "");
-        JDBC_DRIVER_VERSION = Version.fromString(jdbcDriverVersion); // takes empty and null strings, resolves them to CURRENT
+        String jdbcDriverVersion = System.getProperty(DRIVER_VERSION_PROPERTY_NAME, "");
+        JDBC_DRIVER_VERSION = jdbcDriverVersion.isEmpty() ? CURRENT : SqlVersion.fromString(jdbcDriverVersion);
 
         // Note: keep in sync with org.elasticsearch.xpack.sql.jdbc.TypeUtils#CLASS_TO_TYPE
         Map<Class<?>, EsType> aMap = new LinkedHashMap<>();
@@ -150,15 +152,21 @@ final class JdbcTestUtils {
     }
 
     static boolean versionSupportsDateNanos() {
-        return JDBC_DRIVER_VERSION.onOrAfter(Version.V_7_12_0);
+        return JDBC_DRIVER_VERSION.onOrAfter(DATE_NANOS_SUPPORT_VERSION);
     }
 
     public static boolean isUnsignedLongSupported() {
-        return JDBC_DRIVER_VERSION.onOrAfter(V_8_2_0);
+        return JDBC_DRIVER_VERSION.onOrAfter(from(TransportVersions.V_8_2_0));
     }
 
     public static boolean isVersionFieldTypeSupported() {
-        return JDBC_DRIVER_VERSION.onOrAfter(V_8_4_0);
+        return JDBC_DRIVER_VERSION.onOrAfter(from(TransportVersions.V_8_4_0));
+    }
+
+    // Translating a TransportVersion to a SqlVersion/Version must go through the former's string representation, which involves a
+    // mapping; the .id() can't be used directly.
+    public static SqlVersion from(TransportVersion transportVersion) {
+        return SqlVersion.fromTransportString(transportVersion.toReleaseVersion());
     }
 
 }

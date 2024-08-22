@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -119,7 +119,7 @@ public class SqlSession implements Session {
             AnalyzerContext context = new AnalyzerContext(
                 configuration,
                 functionRegistry,
-                IndexCompatibility.compatible(r, Version.fromId(configuration.version().id))
+                IndexCompatibility.compatible(r, TransportVersion.fromId(configuration.version().id))
             );
             Analyzer analyzer = new Analyzer(context, verifier);
             return analyzer.analyze(parsed, verify);

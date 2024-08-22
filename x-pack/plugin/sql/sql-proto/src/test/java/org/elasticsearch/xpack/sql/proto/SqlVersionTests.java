@@ -37,6 +37,17 @@ public class SqlVersionTests extends ESTestCase {
         assertEquals("1.2.3-Alpha", ver.version);
     }
 
+    public void test123AlphaWithIdFromString() {
+        String version = "1.2.3-Alpha[" + randomIntBetween(0, 100_000_000) + "]";
+        SqlVersion ver = SqlVersion.fromString(version);
+        assertEquals(1, ver.major);
+        assertEquals(2, ver.minor);
+        assertEquals(3, ver.revision);
+        assertEquals(REVISION_MULTIPLIER - 1, ver.build);
+        assertEquals(1 * MAJOR_MULTIPLIER + 2 * MINOR_MULTIPLIER + 3 * REVISION_MULTIPLIER + REVISION_MULTIPLIER - 1, ver.id);
+        assertEquals(version, ver.version);
+    }
+
     public void test123AlphaSnapshotFromString() {
         SqlVersion ver = SqlVersion.fromString("1.2.3-Alpha-SNAPSHOT");
         assertEquals(1, ver.major);

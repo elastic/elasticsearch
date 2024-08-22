@@ -6,9 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
@@ -288,7 +286,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                         validationException
                     );
                 }
-            } else if (SqlVersion.isClientCompatible(SqlVersion.fromId(Version.CURRENT.id), requestInfo().version()) == false) {
+            } else if (SqlVersion.isClientCompatible(VersionsUtils.CURRENT, requestInfo().version()) == false) {
                 validationException = addValidationError(
                     "The ["
                         + requestInfo().version()
@@ -296,7 +294,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                         + mode.toString()
                         + "] "
                         + "client is not compatible with Elasticsearch version ["
-                        + Build.current().version()
+                        + VersionsUtils.CURRENT
                         + "]",
                     validationException
                 );

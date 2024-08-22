@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
@@ -1000,7 +1000,7 @@ public final class Verifier {
     }
 
     private static void checkClientSupportsDataTypes(LogicalPlan p, Set<Failure> localFailures, SqlVersion version) {
-        Version ver = Version.fromId(version.id);
+        TransportVersion ver = TransportVersion.fromId(version.id);
         p.output().forEach(e -> {
             if (e.resolved() && isTypeSupportedInVersion(e.dataType(), ver) == false) {
                 localFailures.add(

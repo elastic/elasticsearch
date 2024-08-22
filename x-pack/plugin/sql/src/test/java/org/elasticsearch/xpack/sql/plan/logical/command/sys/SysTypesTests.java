@@ -6,8 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -15,11 +16,11 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.action.Protocol;
+import org.elasticsearch.xpack.sql.action.VersionsUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
@@ -38,15 +39,15 @@ import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isType
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
-import static org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumnsTests.UNSIGNED_LONG_TEST_VERSIONS;
-import static org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumnsTests.VERSION_FIELD_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.VersionsUtils.UNSIGNED_LONG_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.VersionsUtils.VERSION_FIELD_TEST_VERSIONS;
 import static org.mockito.Mockito.mock;
 
 public class SysTypesTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
 
-    private Tuple<Command, SqlSession> sql(String sql, Mode mode, SqlVersion version) {
+    private Tuple<Command, SqlSession> sql(String sql, Mode mode, @Nullable TransportVersion version) {
         SqlConfiguration configuration = new SqlConfiguration(
             DateUtils.UTC,
             null,
@@ -57,7 +58,7 @@ public class SysTypesTests extends ESTestCase {
             null,
             mode,
             null,
-            version,
+            version != null ? VersionsUtils.from(version) : null,
             null,
             null,
             false,
@@ -76,7 +77,7 @@ public class SysTypesTests extends ESTestCase {
     }
 
     private Tuple<Command, SqlSession> sql(String sql) {
-        return sql(sql, randomFrom(Mode.values()), randomBoolean() ? null : SqlVersion.fromId(Version.CURRENT.id));
+        return sql(sql, randomFrom(Mode.values()), randomBoolean() ? null : TransportVersion.current());
     }
 
     public void testSysTypes() {
@@ -143,9 +144,9 @@ public class SysTypesTests extends ESTestCase {
     }
 
     public void testUnsignedLongFiltering() {
-        Set<SqlVersion> versions = new HashSet<>(UNSIGNED_LONG_TEST_VERSIONS);
+        Set<TransportVersion> versions = new HashSet<>(UNSIGNED_LONG_TEST_VERSIONS);
         versions.add(null);
-        for (SqlVersion version : versions) {
+        for (TransportVersion version : versions) {
             for (Mode mode : Mode.values()) {
                 Tuple<Command, SqlSession> cmd = sql("SYS TYPES", mode, version);
 
@@ -154,7 +155,7 @@ public class SysTypesTests extends ESTestCase {
                     List<String> types = new ArrayList<>();
                     r.forEachRow(rv -> types.add((String) rv.column(0)));
                     assertEquals(
-                        isTypeSupportedInVersion(UNSIGNED_LONG, Version.fromId(cmd.v2().configuration().version().id)),
+                        isTypeSupportedInVersion(UNSIGNED_LONG, TransportVersion.fromId(cmd.v2().configuration().version().id)),
                         types.contains(UNSIGNED_LONG.toString())
                     );
                 }));
@@ -163,9 +164,9 @@ public class SysTypesTests extends ESTestCase {
     }
 
     public void testVersionTypeFiltering() {
-        Set<SqlVersion> versions = new HashSet<>(VERSION_FIELD_TEST_VERSIONS);
+        Set<TransportVersion> versions = new HashSet<>(VERSION_FIELD_TEST_VERSIONS);
         versions.add(null);
-        for (SqlVersion version : versions) {
+        for (TransportVersion version : versions) {
             for (Mode mode : Mode.values()) {
                 Tuple<Command, SqlSession> cmd = sql("SYS TYPES", mode, version);
 
@@ -174,7 +175,7 @@ public class SysTypesTests extends ESTestCase {
                     List<String> types = new ArrayList<>();
                     r.forEachRow(rv -> types.add((String) rv.column(0)));
                     assertEquals(
-                        isTypeSupportedInVersion(VERSION, Version.fromId(cmd.v2().configuration().version().id)),
+                        isTypeSupportedInVersion(VERSION, TransportVersion.fromId(cmd.v2().configuration().version().id)),
                         types.contains(VERSION.toString())
                     );
                 }));

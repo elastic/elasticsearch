@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ql.index;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
@@ -20,7 +20,7 @@ import static org.elasticsearch.xpack.ql.type.Types.propagateUnsupportedType;
 
 public final class IndexCompatibility {
 
-    public static Map<String, EsField> compatible(Map<String, EsField> mapping, Version version) {
+    public static Map<String, EsField> compatible(Map<String, EsField> mapping, TransportVersion version) {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             EsField esField = entry.getValue();
             DataType dataType = esField.getDataType();
@@ -35,12 +35,12 @@ public final class IndexCompatibility {
         return mapping;
     }
 
-    public static EsIndex compatible(EsIndex esIndex, Version version) {
+    public static EsIndex compatible(EsIndex esIndex, TransportVersion version) {
         compatible(esIndex.mapping(), version);
         return esIndex;
     }
 
-    public static IndexResolution compatible(IndexResolution indexResolution, Version version) {
+    public static IndexResolution compatible(IndexResolution indexResolution, TransportVersion version) {
         if (indexResolution.isValid()) {
             compatible(indexResolution.get(), version);
         }

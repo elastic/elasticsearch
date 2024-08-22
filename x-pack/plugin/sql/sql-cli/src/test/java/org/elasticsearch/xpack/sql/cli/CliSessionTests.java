@@ -6,10 +6,11 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.sql.cli.command.CliSession;
 import org.elasticsearch.xpack.sql.client.ClientException;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
@@ -55,8 +56,12 @@ public class CliSessionTests extends SqlCliTestCase {
 
     public void testWrongServerVersion() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
-        Version v = VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion(Version.V_7_7_0));
-        SqlVersion version = new SqlVersion(v.major, v.minor, v.revision);
+        TransportVersion v = TransportVersionUtils.randomVersionBetween(
+            random(),
+            null,
+            TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_7_0)
+        );
+        SqlVersion version = SqlVersion.fromTransportString(v.toReleaseVersion());
         when(httpClient.serverInfo()).thenReturn(
             new MainResponse(randomAlphaOfLength(5), version.toString(), ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID())
         );
@@ -75,8 +80,12 @@ public class CliSessionTests extends SqlCliTestCase {
 
     public void testHigherServerVersion() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
-        Version v = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, null);
-        SqlVersion version = new SqlVersion(v.major, v.minor, v.revision);
+        TransportVersion v = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_7_0),
+            null
+        );
+        SqlVersion version = SqlVersion.fromTransportString(v.toReleaseVersion());
         when(httpClient.serverInfo()).thenReturn(
             new MainResponse(randomAlphaOfLength(5), version.toString(), ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID())
         );

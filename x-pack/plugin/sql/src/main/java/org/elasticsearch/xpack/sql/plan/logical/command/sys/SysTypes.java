@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -87,7 +87,7 @@ public class SysTypes extends Command {
     public final void execute(SqlSession session, ActionListener<Page> listener) {
         Stream<DataType> values = SqlDataTypes.types()
             .stream()
-            .filter(t -> isTypeSupportedInVersion(t, Version.fromId(session.configuration().version().id)));
+            .filter(t -> isTypeSupportedInVersion(t, TransportVersion.fromId(session.configuration().version().id)));
         if (type.intValue() != 0) {
             values = values.filter(t -> type.equals(sqlType(t).getVendorTypeNumber()));
         }

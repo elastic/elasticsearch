@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -156,7 +156,7 @@ public class SysColumns extends Command {
             tableCat = cluster;
         }
 
-        Version version = Version.fromId(session.configuration().version().id);
+        TransportVersion version = TransportVersion.fromId(session.configuration().version().id);
         // special case for '%' (translated to *)
         if ("*".equals(idx)) {
             session.indexResolver()

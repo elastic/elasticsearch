@@ -74,6 +74,39 @@ public class SqlVersion implements Comparable<SqlVersion> {
         return new SqlVersion(version, from(version));
     }
 
+    /**
+     * Parses a transport version string into a {@link SqlVersion}.
+     * The transport version string can take the following shapes:
+     * <ul>
+     *     <li>Major.Minor.Revision</li>
+     *     <li>Major.Minor.Revision-Major.Minor.Revision</li>
+     *     <li>Major.Minor.Revision-snapshot[Id]</li>
+     * </ul>
+     * @param version The TransportVersion string to parse.
+     * @return The SqlVersion representation of the TransportVersion string. In case of a release version range, the upper bound is
+     * considered.
+     * @throws IllegalArgumentException If the version string is not in the expected format.
+     */
+    public static SqlVersion fromTransportString(String version) {
+        if (version == null || version.isEmpty()) {
+            return null;
+        }
+        try {
+            return new SqlVersion(version, from(version));
+        } catch (IllegalArgumentException e) {
+            String[] parts = version.split("-");
+            if (parts.length != 2) {
+                throw e;
+            }
+            // The version has been added between the stack releases separated by the hyphen: only consider the upper bound.
+            try {
+                return new SqlVersion(parts[1], from(parts[1]));
+            } catch (IllegalArgumentException ignored) {
+                throw e;
+            }
+        }
+    }
+
     public static SqlVersion fromId(int id) {
         byte build = (byte) (id % REVISION_MULTIPLIER);
         byte revision = (byte) ((id / REVISION_MULTIPLIER) % REVISION_MULTIPLIER);
@@ -156,6 +189,10 @@ public class SqlVersion implements Comparable<SqlVersion> {
         return majorMinorId(this) - majorMinorId(o);
     }
 
+    public boolean onOrAfter(SqlVersion other) {
+        return id >= other.id;
+    }
+
     public static boolean hasVersionCompatibility(SqlVersion version) {
         return version.compareTo(V_7_7_0) >= 0;
     }
@@ -165,7 +202,7 @@ public class SqlVersion implements Comparable<SqlVersion> {
     // - it's not on a version newer than server's; and
     // - it's major version is at most one unit behind server's.
     public static boolean isClientCompatible(SqlVersion server, SqlVersion client) {
-        // ES's Version.CURRENT not available (core not a dependency), so it needs to be passed in as a parameter.
+        // ES's CURRENT not available (core not a dependency), so it needs to be passed in as a parameter.
         return hasVersionCompatibility(client) && server.compareTo(client) >= 0 && server.major - client.major <= 1;
     }
 

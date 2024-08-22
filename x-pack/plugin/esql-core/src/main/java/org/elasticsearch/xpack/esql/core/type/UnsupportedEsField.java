@@ -21,7 +21,6 @@ import java.util.TreeMap;
  * All the subfields (properties) of an unsupported type are also be unsupported.
  */
 public class UnsupportedEsField extends EsField {
-    static final WriteableInfo ENTRY = new WriteableInfo("UnsupportedEsField", UnsupportedEsField::new);
 
     private final String originalType;
     private final String inherited; // for fields belonging to parents (or grandparents) that have an unsupported type
@@ -45,12 +44,7 @@ public class UnsupportedEsField extends EsField {
         out.writeString(getName());
         out.writeString(getOriginalType());
         out.writeOptionalString(getInherited());
-        ((PlanStreamOutput) out).writeMap(getProperties(), (o, x) -> PlanStreamOutput.writeEsField((PlanStreamOutput) out, x));
-    }
-
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name();
+        out.writeMap(getProperties(), (o, x) -> PlanStreamOutput.writeEsField(out, x));
     }
 
     public String getOriginalType() {

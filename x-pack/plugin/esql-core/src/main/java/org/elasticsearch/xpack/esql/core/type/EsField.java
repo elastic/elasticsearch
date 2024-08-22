@@ -15,40 +15,33 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Information about a field in an ES index.
  */
 public class EsField implements Writeable {
 
-    public record WriteableInfo(String name, Writeable.Reader<? extends EsField> reader) {}
+    private static Map<String, Writeable.Reader<? extends EsField>> readers = Map.of(
+        "EsField",
+        EsField::new,
+        "DateEsField",
+        DateEsField::new,
+        "InvalidMappedField",
+        InvalidMappedField::new,
+        "KeywordEsField",
+        KeywordEsField::new,
+        "MultiTypeEsField",
+        MultiTypeEsField::new,
+        "TextEsField",
+        TextEsField::new,
+        "UnsupportedEsField",
+        UnsupportedEsField::new
+    );
 
-    static final WriteableInfo ENTRY = new WriteableInfo("EsField", EsField::new);
-
-    private static Map<String, WriteableInfo> writeablesMap;
-
-    private static List<WriteableInfo> getWriteablesInfo() {
-        return List.of(
-            EsField.ENTRY,
-            DateEsField.ENTRY,
-            InvalidMappedField.ENTRY,
-            KeywordEsField.ENTRY,
-            MultiTypeEsField.ENTRY,
-            TextEsField.ENTRY,
-            UnsupportedEsField.ENTRY
-        );
-    }
-
-    public static WriteableInfo getWriteableInfo(String name) {
-        if (writeablesMap == null) {
-            writeablesMap = getWriteablesInfo().stream().collect(Collectors.toMap(WriteableInfo::name, Function.identity()));
-        }
-        WriteableInfo result = writeablesMap.get(name);
+    public static Writeable.Reader<? extends EsField> getReader(String name) {
+        Reader<? extends EsField> result = readers.get(name);
         if (result == null) {
             throw new IllegalArgumentException("Invalid EsField type [" + name + "]");
         }
@@ -73,7 +66,7 @@ public class EsField implements Writeable {
         this.isAlias = isAlias;
     }
 
-    public EsField(StreamInput in) throws IOException {
+    protected EsField(StreamInput in) throws IOException {
         this.name = in.readString();
         this.esDataType = readDataType(in);
         this.properties = in.readImmutableMap(i -> ((PlanStreamInput) i).readEsField());
@@ -101,13 +94,13 @@ public class EsField implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         esDataType.writeTo(out);
-        ((PlanStreamOutput) out).writeMap(properties, (o, x) -> PlanStreamOutput.writeEsField((PlanStreamOutput) out, x));
+        out.writeMap(properties, (o, x) -> PlanStreamOutput.writeEsField(out, x));
         out.writeBoolean(aggregatable);
         out.writeBoolean(isAlias);
     }
 
     public String getWriteableName() {
-        return ENTRY.name();
+        return getClass().getSimpleName();
     }
 
     /**

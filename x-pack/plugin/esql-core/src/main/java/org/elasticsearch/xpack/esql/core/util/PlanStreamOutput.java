@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.IOException;
-import java.util.Map;
 
 public interface PlanStreamOutput {
 
@@ -25,12 +24,10 @@ public interface PlanStreamOutput {
      */
     boolean writeAttributeCacheHeader(Attribute attribute) throws IOException;
 
-    static void writeEsField(PlanStreamOutput output, EsField field) throws IOException {
-        output.writeEsField(field);
+    static void writeEsField(StreamOutput output, EsField field) throws IOException {
+        ((PlanStreamOutput) output).writeEsField(field);
     }
 
     void writeEsField(EsField field) throws IOException;
 
-    // TODO get rid of this method when we unify esql and esql-core
-    <V> void writeMap(Map<String, V> map, Writeable.Writer<V> valueWriter) throws IOException;
 }

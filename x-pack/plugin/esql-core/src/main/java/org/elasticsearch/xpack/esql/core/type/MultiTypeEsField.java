@@ -27,7 +27,6 @@ import java.util.Set;
  * type conversion is done at the data node level.
  */
 public class MultiTypeEsField extends EsField {
-    public static final WriteableInfo ENTRY = new WriteableInfo("MultiTypeEsField", MultiTypeEsField::new);
 
     private final Map<String, Expression> indexToConversionExpressions;
 
@@ -36,7 +35,7 @@ public class MultiTypeEsField extends EsField {
         this.indexToConversionExpressions = indexToConversionExpressions;
     }
 
-    private MultiTypeEsField(StreamInput in) throws IOException {
+    protected MultiTypeEsField(StreamInput in) throws IOException {
         this(in.readString(), DataType.readFrom(in), in.readBoolean(), in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)));
     }
 
@@ -46,11 +45,6 @@ public class MultiTypeEsField extends EsField {
         out.writeString(getDataType().typeName());
         out.writeBoolean(isAggregatable());
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
-    }
-
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name();
     }
 
     public Map<String, Expression> getIndexToConversionExpressions() {

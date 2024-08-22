@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
  * It is used specifically for the 'union types' feature in ES|QL.
  */
 public class InvalidMappedField extends EsField {
-    static final WriteableInfo ENTRY = new WriteableInfo("InvalidMappedField", InvalidMappedField::new);
 
     private final String errorMessage;
     private final Map<String, Set<String>> typesToIndices;
@@ -54,7 +53,7 @@ public class InvalidMappedField extends EsField {
         this.typesToIndices = typesToIndices;
     }
 
-    public InvalidMappedField(StreamInput in) throws IOException {
+    protected InvalidMappedField(StreamInput in) throws IOException {
         this(in.readString(), in.readString(), in.readImmutableMap(StreamInput::readString, i -> ((PlanStreamInput) i).readEsField()));
     }
 
@@ -66,12 +65,7 @@ public class InvalidMappedField extends EsField {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(getName());
         out.writeString(errorMessage);
-        ((PlanStreamOutput) out).writeMap(getProperties(), (o, x) -> PlanStreamOutput.writeEsField((PlanStreamOutput) out, x));
-    }
-
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name();
+        out.writeMap(getProperties(), (o, x) -> PlanStreamOutput.writeEsField(out, x));
     }
 
     public String errorMessage() {

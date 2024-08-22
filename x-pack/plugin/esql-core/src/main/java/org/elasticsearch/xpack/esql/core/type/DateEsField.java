@@ -18,7 +18,6 @@ import java.util.Map;
  * Information about a field in an ES index with the {@code date} type
  */
 public class DateEsField extends EsField {
-    static final WriteableInfo ENTRY = new WriteableInfo("DateEsField", DateEsField::new);
 
     public static DateEsField dateEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
         return new DateEsField(name, DataType.DATETIME, properties, hasDocValues);
@@ -28,19 +27,15 @@ public class DateEsField extends EsField {
         super(name, dataType, properties, hasDocValues);
     }
 
-    public DateEsField(StreamInput in) throws IOException {
+    protected DateEsField(StreamInput in) throws IOException {
         this(in.readString(), DataType.DATETIME, in.readImmutableMap(i -> ((PlanStreamInput) i).readEsField()), in.readBoolean());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(getName());
-        ((PlanStreamOutput) out).writeMap(getProperties(), (o, x) -> PlanStreamOutput.writeEsField((PlanStreamOutput) out, x));
+        out.writeMap(getProperties(), (o, x) -> PlanStreamOutput.writeEsField(out, x));
         out.writeBoolean(isAggregatable());
     }
 
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name();
-    }
 }

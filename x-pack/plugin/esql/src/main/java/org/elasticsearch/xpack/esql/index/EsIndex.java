@@ -48,7 +48,7 @@ public class EsIndex implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name());
-        ((PlanStreamOutput) out).writeMap(mapping(), (o, x) -> PlanStreamOutput.writeEsField((PlanStreamOutput) out, x));
+        out.writeMap(mapping(), (o, x) -> PlanStreamOutput.writeEsField(out, x));
         out.writeGenericValue(concreteIndices());
     }
 

@@ -24,7 +24,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
  * Information about a field in an es index with the {@code text} type.
  */
 public class TextEsField extends EsField {
-    static final WriteableInfo ENTRY = new WriteableInfo("TextEsField", TextEsField::new);
 
     public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
         this(name, properties, hasDocValues, false);
@@ -34,21 +33,16 @@ public class TextEsField extends EsField {
         super(name, TEXT, properties, hasDocValues, isAlias);
     }
 
-    public TextEsField(StreamInput in) throws IOException {
+    protected TextEsField(StreamInput in) throws IOException {
         this(in.readString(), in.readImmutableMap(i -> ((PlanStreamInput) i).readEsField()), in.readBoolean(), in.readBoolean());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(getName());
-        ((PlanStreamOutput) out).writeMap(getProperties(), (o, x) -> PlanStreamOutput.writeEsField((PlanStreamOutput) out, x));
+        out.writeMap(getProperties(), (o, x) -> PlanStreamOutput.writeEsField(out, x));
         out.writeBoolean(isAggregatable());
         out.writeBoolean(isAlias());
-    }
-
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name();
     }
 
     @Override

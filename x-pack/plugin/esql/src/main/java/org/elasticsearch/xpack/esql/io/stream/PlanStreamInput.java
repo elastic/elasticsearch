@@ -14,6 +14,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -261,9 +262,9 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
             int cacheId = Math.toIntExact(readZLong());
             if (cacheId < 0) {
                 String className = readString();
-                EsField.WriteableInfo writeable = EsField.getWriteableInfo(className);
+                Writeable.Reader<? extends EsField> reader = EsField.getReader(className);
                 cacheId = -1 - cacheId;
-                EsField result = writeable.reader().read(this);
+                EsField result = reader.read(this);
                 cacheEsField(cacheId, result);
                 return (A) result;
             } else {
@@ -271,8 +272,8 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
             }
         } else {
             String className = readString();
-            EsField.WriteableInfo writeableInfo = EsField.getWriteableInfo(className);
-            return (A) writeableInfo.reader().read(this);
+            Writeable.Reader<? extends EsField> reader = EsField.getReader(className);
+            return (A) reader.read(this);
         }
     }
 

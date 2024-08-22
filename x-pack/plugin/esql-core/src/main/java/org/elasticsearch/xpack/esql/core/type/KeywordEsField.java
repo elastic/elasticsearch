@@ -22,7 +22,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
  * Information about a field in an ES index with the {@code keyword} type.
  */
 public class KeywordEsField extends EsField {
-    static final WriteableInfo ENTRY = new WriteableInfo("KeywordEsField", KeywordEsField::new);
 
     private final int precision;
     private final boolean normalized;
@@ -75,17 +74,12 @@ public class KeywordEsField extends EsField {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(getName());
-        ((PlanStreamOutput) out).writeMap(getProperties(), (o, x) -> PlanStreamOutput.writeEsField((PlanStreamOutput) out, x));
+        out.writeMap(getProperties(), (o, x) -> PlanStreamOutput.writeEsField(out, x));
         out.writeBoolean(isAggregatable());
         out.writeInt(precision);
         out.writeBoolean(normalized);
         out.writeBoolean(isAlias());
 
-    }
-
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name();
     }
 
     public int getPrecision() {

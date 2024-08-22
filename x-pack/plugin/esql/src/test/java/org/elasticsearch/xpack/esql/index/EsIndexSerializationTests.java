@@ -7,11 +7,8 @@
 
 package org.elasticsearch.xpack.esql.index;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -63,7 +60,12 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
 
     @Override
     protected Writeable.Reader<EsIndex> instanceReader() {
-        return EsIndex::new;
+        return a -> new EsIndex(new PlanStreamInput(a, new PlanNameRegistry(), a.namedWriteableRegistry(), null));
+    }
+
+    @Override
+    protected Writeable.Writer<EsIndex> instanceWriter() {
+        return (out, idx) -> new PlanStreamOutput(out, new PlanNameRegistry(), null).writeWriteable(idx);
     }
 
     @Override
@@ -83,23 +85,6 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
             default -> throw new IllegalArgumentException();
         }
         return new EsIndex(name, mapping, concreteIndices);
-    }
-
-    @Override
-    protected EsIndex copyInstance(EsIndex instance, TransportVersion version) throws IOException {
-        NamedWriteableRegistry namedWriteableRegistry = getNamedWriteableRegistry();
-        Writeable.Reader<EsIndex> reader = instanceReader();
-        try (var bso = new BytesStreamOutput(); var output = new PlanStreamOutput(bso, new PlanNameRegistry(), null)) {
-            output.setTransportVersion(version);
-            output.writeWriteable(instance);
-            try (
-                StreamInput in = new NamedWriteableAwareStreamInput(bso.bytes().streamInput(), namedWriteableRegistry);
-                var psi = new PlanStreamInput(in, new PlanNameRegistry(), in.namedWriteableRegistry(), null)
-            ) {
-                psi.setTransportVersion(version);
-                return reader.read(psi);
-            }
-        }
     }
 
     @Override

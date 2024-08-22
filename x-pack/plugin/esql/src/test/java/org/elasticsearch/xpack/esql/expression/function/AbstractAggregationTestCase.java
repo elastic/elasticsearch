@@ -301,13 +301,14 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }
         expression = resolveSurrogates(expression);
 
+        // As expressions may be composed of multiple functions, we need to fold nulls bottom-up
+        expression = expression.transformUp(e -> new FoldNull().rule(e));
+        assertThat(expression.dataType(), equalTo(testCase.expectedType()));
+
         Expression.TypeResolution resolution = expression.typeResolved();
         if (resolution.unresolved()) {
             throw new AssertionError("expected resolved " + resolution.message());
         }
-
-        expression = new FoldNull().rule(expression);
-        assertThat(expression.dataType(), equalTo(testCase.expectedType()));
 
         assumeTrue(
             "Surrogate expression with non-trivial children cannot be evaluated",

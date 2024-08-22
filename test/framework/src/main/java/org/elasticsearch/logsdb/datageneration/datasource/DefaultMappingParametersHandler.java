@@ -31,10 +31,15 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> Map.of("store", ESTestCase.randomBoolean(), "index", ESTestCase.randomBoolean());
     }
 
-    // TODO enable doc_values: false
-    // It is disabled because it hits a bug in synthetic source.
     private Supplier<Map<String, Object>> numberMapping() {
-        return () -> Map.of("store", ESTestCase.randomBoolean(), "index", ESTestCase.randomBoolean());
+        return () -> Map.of(
+            "store",
+            ESTestCase.randomBoolean(),
+            "index",
+            ESTestCase.randomBoolean(),
+            "doc_values",
+            ESTestCase.randomBoolean()
+        );
     }
 
     private Supplier<Map<String, Object>> unsignedLongMapping() {

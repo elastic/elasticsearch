@@ -1204,3 +1204,49 @@ nested object with stored array:
   - match: { hits.hits.1._source.nested_array_stored.0.b.1.c: 100 }
   - match: { hits.hits.1._source.nested_array_stored.1.b.0.c: 20 }
   - match: { hits.hits.1._source.nested_array_stored.1.b.1.c: 200 }
+
+---
+empty nested object sorted as a first document:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              sort.field: "name"
+              sort.order: "asc"
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              nested:
+                type: nested
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "B", "nested": { "a": "b" } }'
+          - '{ "create": { } }'
+          - '{ "name": "A" }'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: name
+
+  - match:  { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.nested.a: "b" }
+

@@ -78,10 +78,6 @@ final class ModelLoaderUtils {
             this.totalParts = totalParts;
         }
 
-        public boolean hasNext() {
-            return false;
-        }
-
         public BytesArray next() throws IOException {
 
             int bytesRead = 0;

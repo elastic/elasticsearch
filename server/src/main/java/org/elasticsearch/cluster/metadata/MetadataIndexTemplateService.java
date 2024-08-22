@@ -369,7 +369,8 @@ public class MetadataIndexTemplateService {
         }
 
         if (finalComponentTemplate.template().lifecycle() != null) {
-            finalComponentTemplate.template().lifecycle().addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get());
+            // We do not know if this lifecycle will belong to an internal data stream, so we fall back to a non internal.
+            finalComponentTemplate.template().lifecycle().addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), false);
         }
 
         logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
@@ -815,7 +816,8 @@ public class MetadataIndexTemplateService {
                         + "] specifies lifecycle configuration that can only be used in combination with a data stream"
                 );
             }
-            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention);
+            // We do not know if this lifecycle will belong to an internal data stream, so we fall back to a non internal.
+            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention, false);
         }
     }
 

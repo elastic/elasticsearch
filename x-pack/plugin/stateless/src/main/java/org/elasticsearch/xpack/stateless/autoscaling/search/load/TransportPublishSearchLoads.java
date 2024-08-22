@@ -72,7 +72,7 @@ public class TransportPublishSearchLoads extends TransportMasterNodeAction<Publi
         ActionListener<ActionResponse.Empty> listener
     ) {
         ActionListener.completeWith(listener, () -> {
-            searchTierMetricsService.processSearchLoadRequest(request);
+            searchTierMetricsService.processSearchLoadRequest(state, request);
             return ActionResponse.Empty.INSTANCE;
         });
     }

@@ -132,9 +132,9 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
     @Override
     public Object fold() {
         try {
-            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType, left());
-            Component2D component2D = asLuceneComponent2D(crsType, right());
-            return (crsType == SpatialCrsType.GEO)
+            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType(), left());
+            Component2D component2D = asLuceneComponent2D(crsType(), right());
+            return (crsType() == SpatialCrsType.GEO)
                 ? GEO.geometryRelatesGeometry(docValueReader, component2D)
                 : CARTESIAN.geometryRelatesGeometry(docValueReader, component2D);
         } catch (IOException e) {

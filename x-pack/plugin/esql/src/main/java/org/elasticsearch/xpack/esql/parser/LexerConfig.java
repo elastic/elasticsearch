@@ -15,7 +15,8 @@ import org.antlr.v4.runtime.Lexer;
  */
 public abstract class LexerConfig extends Lexer {
 
-    EsqlConfig config = new EsqlConfig();
+    // is null when running inside the IDEA plugin
+    EsqlConfig config;
 
     public LexerConfig() {}
 
@@ -23,16 +24,8 @@ public abstract class LexerConfig extends Lexer {
         super(input);
     }
 
-    boolean devVersion() {
-        return config.devVersion;
-    }
-
-    boolean releaseVersion() {
-        return devVersion() == false;
-    }
-
-    boolean hasFeature(String featureName) {
-        return config.hasFeature(featureName);
+    boolean isDevVersion() {
+        return config == null || config.isDevVersion();
     }
 
     void setEsqlConfig(EsqlConfig config) {

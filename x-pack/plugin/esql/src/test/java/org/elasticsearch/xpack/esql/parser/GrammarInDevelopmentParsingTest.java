@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class GrammarInDevelopmentParsingTest extends ESTestCase {
 
@@ -31,18 +32,18 @@ public class GrammarInDevelopmentParsingTest extends ESTestCase {
 
     void parse(String query, String errorMessage) {
         ParsingException pe = expectThrows(ParsingException.class, () -> parser().createStatement(query));
-        // System.out.println(pe.getMessage());
         assertThat(pe.getMessage(), containsString("mismatched input '" + errorMessage + "'"));
+        // check the parser eliminated the DEV_ tokens from the message
+        assertThat(pe.getMessage(), not(containsString("DEV_")));
     }
 
     private EsqlParser parser() {
         EsqlParser parser = new EsqlParser();
-        assumeTrue(" requires snapshot builds", parser.config().devVersion);
+        EsqlConfig config = parser.config();
+        assumeTrue(" requires snapshot builds", config.devVersion);
 
-        EsqlConfig config = new EsqlConfig();
         // manually disable dev mode (make it production)
         config.setDevVersion(false);
-        parser.setEsqlConfig(config);
         return parser;
     }
 }

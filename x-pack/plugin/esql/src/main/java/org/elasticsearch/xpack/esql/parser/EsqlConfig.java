@@ -14,12 +14,15 @@ class EsqlConfig {
     // versioning information
     boolean devVersion = Build.current().isSnapshot();
 
-    public void setDevVersion(boolean dev) {
-        this.devVersion = dev;
+    public boolean isDevVersion() {
+        return devVersion;
     }
 
-    // not great because other grammar parser (Kibana) need the implement this method
-    boolean hasFeature(String featureName) {
-        return false;
+    boolean isReleaseVersion() {
+        return isDevVersion() == false;
+    }
+
+    public void setDevVersion(boolean dev) {
+        this.devVersion = dev;
     }
 }

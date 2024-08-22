@@ -12,22 +12,15 @@ import org.antlr.v4.runtime.TokenStream;
 
 public abstract class ParserConfig extends Parser {
 
+    // is null when running inside the IDEA plugin
     private EsqlConfig config;
 
     public ParserConfig(TokenStream input) {
         super(input);
     }
 
-    boolean devVersion() {
-        return config.devVersion;
-    }
-
-    boolean releaseVersion() {
-        return devVersion() == false;
-    }
-
-    boolean hasFeature(String featureName) {
-        return config.hasFeature(featureName);
+    boolean isDevVersion() {
+        return config == null || config.isDevVersion();
     }
 
     void setEsqlConfig(EsqlConfig config) {

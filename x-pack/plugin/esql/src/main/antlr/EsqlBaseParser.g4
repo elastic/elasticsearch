@@ -1,11 +1,9 @@
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
 parser grammar EsqlBaseParser;
 
 @header {
@@ -38,7 +36,7 @@ sourceCommand
     | rowCommand
     | showCommand
     // in development
-    | {devVersion()}? metricsCommand
+    | {isDevVersion()}? metricsCommand
     ;
 
 processingCommand
@@ -55,9 +53,9 @@ processingCommand
     | enrichCommand
     | mvExpandCommand
     // in development
-    | {devVersion()}? inlinestatsCommand
-    | {devVersion()}? lookupCommand
-    | {devVersion()}? matchCommand
+    | {isDevVersion()}? inlinestatsCommand
+    | {isDevVersion()}? lookupCommand
+    | {isDevVersion()}? matchCommand
     ;
 
 whereCommand
@@ -81,7 +79,7 @@ regexBooleanExpression
     ;
 
 matchBooleanExpression
-    : qualifiedName MATCH_OPERATOR queryString=string
+    : qualifiedName DEV_MATCH queryString=string
     ;
 
 valueExpression
@@ -157,7 +155,7 @@ deprecated_metadata
     ;
 
 metricsCommand
-    : METRICS indexPattern (COMMA indexPattern)* aggregates=fields? (BY grouping=fields)?
+    : DEV_METRICS indexPattern (COMMA indexPattern)* aggregates=fields? (BY grouping=fields)?
     ;
 
 evalCommand
@@ -308,15 +306,15 @@ enrichWithClause
 // In development
 //
 lookupCommand
-    : LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
+    : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
     ;
 
 inlinestatsCommand
-    : INLINESTATS stats=fields (BY grouping=fields)?
+    : DEV_INLINESTATS stats=fields (BY grouping=fields)?
     ;
 
 matchCommand
-    : MATCH matchQuery
+    : DEV_MATCH matchQuery
     ;
 
 matchQuery

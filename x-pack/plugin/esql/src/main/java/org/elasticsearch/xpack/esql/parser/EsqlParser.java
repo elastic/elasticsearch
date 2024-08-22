@@ -7,23 +7,24 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.BaseErrorListener;
-import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenFactory;
 import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.BitSet;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
@@ -108,6 +109,9 @@ public class EsqlParser {
     }
 
     private static final BaseErrorListener ERROR_LISTENER = new BaseErrorListener() {
+        // replace entries that start with <comma?><space?>DEV_<space?>
+        private final Pattern REPLACE_DEV = Pattern.compile(",*\\s*DEV_\\w+\\s*");
+
         @Override
         public void syntaxError(
             Recognizer<?, ?> recognizer,
@@ -117,27 +121,31 @@ public class EsqlParser {
             String message,
             RecognitionException e
         ) {
+            if (recognizer instanceof EsqlBaseParser parser && parser.isDevVersion() == false) {
+                Matcher m = REPLACE_DEV.matcher(message);
+                message = m.replaceAll(StringUtils.EMPTY);
+            }
+
             throw new ParsingException(message, e, line, charPositionInLine);
         }
     };
 
     /**
-     * Finds all parameter tokens (?) and associates them with actual parameter values
+     * Finds all parameter tokens (?) and associates them with actual parameter values.
      * <p>
      * Parameters are positional and we know where parameters occurred in the original stream in order to associate them
      * with actual values.
      */
-    private static class ParametrizedTokenSource implements TokenSource {
+    private static class ParametrizedTokenSource extends DelegatingTokenSource {
         private static String message = "Inconsistent parameter declaration, "
             + "use one of positional, named or anonymous params but not a combination of ";
 
-        private TokenSource delegate;
         private QueryParams params;
         private BitSet paramTypes = new BitSet(3);
         private int param = 1;
 
         ParametrizedTokenSource(TokenSource delegate, QueryParams params) {
-            this.delegate = delegate;
+            super(delegate);
             this.params = params;
         }
 
@@ -161,36 +169,6 @@ public class EsqlParser {
                 }
             }
             return token;
-        }
-
-        @Override
-        public int getLine() {
-            return delegate.getLine();
-        }
-
-        @Override
-        public int getCharPositionInLine() {
-            return delegate.getCharPositionInLine();
-        }
-
-        @Override
-        public CharStream getInputStream() {
-            return delegate.getInputStream();
-        }
-
-        @Override
-        public String getSourceName() {
-            return delegate.getSourceName();
-        }
-
-        @Override
-        public void setTokenFactory(TokenFactory<?> factory) {
-            delegate.setTokenFactory(factory);
-        }
-
-        @Override
-        public TokenFactory<?> getTokenFactory() {
-            return delegate.getTokenFactory();
         }
 
         private void checkAnonymousParam(Token token) {

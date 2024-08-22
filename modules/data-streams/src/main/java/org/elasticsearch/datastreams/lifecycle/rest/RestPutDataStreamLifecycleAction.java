@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.datastreams.lifecycle.rest;
 
+import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
@@ -39,10 +41,17 @@ public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            PutDataStreamLifecycleAction.Request putLifecycleRequest = PutDataStreamLifecycleAction.Request.parseRequest(parser);
-            putLifecycleRequest.indices(Strings.splitStringByCommaToArray(request.param("name")));
-            putLifecycleRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putLifecycleRequest.masterNodeTimeout()));
-            putLifecycleRequest.timeout(request.paramAsTime("timeout", putLifecycleRequest.timeout()));
+            PutDataStreamLifecycleAction.Request putLifecycleRequest = PutDataStreamLifecycleAction.Request.parseRequest(
+                parser,
+                (dataRetention, enabled, downsampling) -> new PutDataStreamLifecycleAction.Request(
+                    getMasterNodeTimeout(request),
+                    getAckTimeout(request),
+                    Strings.splitStringByCommaToArray(request.param("name")),
+                    dataRetention,
+                    enabled,
+                    downsampling
+                )
+            );
             putLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, putLifecycleRequest.indicesOptions()));
             return channel -> client.execute(
                 PutDataStreamLifecycleAction.INSTANCE,

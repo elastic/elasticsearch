@@ -123,8 +123,8 @@ setup:
 
 ---
 "Date range unmapped with children":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: Fixed in 7.10.0
 
   - do:

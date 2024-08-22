@@ -11,6 +11,8 @@ package org.elasticsearch.inference;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.Closeable;
 import java.util.List;
@@ -36,7 +38,7 @@ public interface InferenceService extends Closeable {
      * @param modelId               Model Id
      * @param taskType              The model task type
      * @param config                Configuration options including the secrets
-     * @param platfromArchitectures The Set of platform architectures (OS name and hardware architecture)
+     * @param platformArchitectures The Set of platform architectures (OS name and hardware architecture)
      *                              the cluster nodes and models are running on.
      * @param parsedModelListener   A listener which will handle the resulting model or failure
      */
@@ -44,7 +46,7 @@ public interface InferenceService extends Closeable {
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platfromArchitectures,
+        Set<String> platformArchitectures,
         ActionListener<Model> parsedModelListener
     );
 
@@ -79,17 +81,21 @@ public interface InferenceService extends Closeable {
     /**
      * Perform inference on the model.
      *
-     * @param model The model
-     * @param input Inference input
+     * @param model        The model
+     * @param query        Inference query, mainly for re-ranking
+     * @param input        Inference input
      * @param taskSettings Settings in the request to override the model's defaults
-     * @param inputType For search, ingest etc
-     * @param listener Inference result listener
+     * @param inputType    For search, ingest etc
+     * @param timeout      The timeout for the request
+     * @param listener     Inference result listener
      */
     void infer(
         Model model,
+        @Nullable String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
+        TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
 
@@ -98,19 +104,23 @@ public interface InferenceService extends Closeable {
      * model defaults if {@code chunkingOptions} contains unset
      * values.
      *
-     * @param model The model
-     * @param input Inference input
-     * @param taskSettings Settings in the request to override the model's defaults
-     * @param inputType For search, ingest etc
+     * @param model           The model
+     * @param query           Inference query, mainly for re-ranking
+     * @param input           Inference input
+     * @param taskSettings    Settings in the request to override the model's defaults
+     * @param inputType       For search, ingest etc
      * @param chunkingOptions The window and span options to apply
-     * @param listener Chunked Inference result listener
+     * @param timeout         The timeout for the request
+     * @param listener        Chunked Inference result listener
      */
     void chunkedInfer(
         Model model,
+        @Nullable String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
+        TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     );
 

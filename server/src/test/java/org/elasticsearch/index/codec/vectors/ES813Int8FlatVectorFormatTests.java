@@ -12,8 +12,15 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
+import org.elasticsearch.common.logging.LogConfigurator;
 
 public class ES813Int8FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase {
+
+    static {
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
+
     @Override
     protected Codec getCodec() {
         return new Lucene99Codec() {

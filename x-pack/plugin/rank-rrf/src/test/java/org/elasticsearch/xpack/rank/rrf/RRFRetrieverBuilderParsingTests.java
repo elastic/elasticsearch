@@ -32,7 +32,7 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
         RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder();
 
         if (randomBoolean()) {
-            rrfRetrieverBuilder.windowSize = randomIntBetween(1, 10000);
+            rrfRetrieverBuilder.rankWindowSize = randomIntBetween(1, 10000);
         }
 
         if (randomBoolean()) {

@@ -23,11 +23,11 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 
 `<job_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<snapshot_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 
 [[ml-update-snapshot-request-body]]
 == {api-request-body-title}
@@ -39,7 +39,7 @@ The following properties can be updated after the model snapshot is created:
 
 `retain`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=retain]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=retain]
 
 
 [[ml-update-snapshot-example]]

@@ -74,7 +74,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         null,
         null
     );
-    private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null);
+    private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null, false);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
     private static final SetPriorityAction TEST_PRIORITY_ACTION = new SetPriorityAction(0);
 
@@ -261,7 +261,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     public void testValidateActionsFollowingSearchableSnapshot() {
         {
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
-            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null, false)));
             Phase coldPhase = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, FreezeAction.INSTANCE));
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -277,7 +277,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
-            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null, false)));
             Phase coldPhase = new Phase(
                 "cold",
                 TimeValue.ZERO,
@@ -299,7 +299,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
         {
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
-            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null, false)));
             Phase coldPhase = new Phase(
                 "cold",
                 TimeValue.ZERO,

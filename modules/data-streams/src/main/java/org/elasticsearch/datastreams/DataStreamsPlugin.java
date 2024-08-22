@@ -18,10 +18,10 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
+import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
+import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
+import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -41,15 +41,8 @@ import org.elasticsearch.datastreams.action.ModifyDataStreamsTransportAction;
 import org.elasticsearch.datastreams.action.PromoteDataStreamTransportAction;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
-import org.elasticsearch.datastreams.lifecycle.UpdateDataStreamGlobalRetentionService;
-import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamGlobalRetentionAction;
-import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleStatsAction;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamGlobalRetentionAction;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportDeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportGetDataStreamLifecycleAction;
@@ -58,12 +51,9 @@ import org.elasticsearch.datastreams.lifecycle.action.TransportPutDataStreamLife
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.datastreams.lifecycle.rest.RestDataStreamLifecycleStatsAction;
-import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.rest.RestCreateDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestDataStreamsStatsAction;
@@ -142,7 +132,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
     private final SetOnce<DataStreamLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthInfoPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthIndicatorService> dataStreamLifecycleHealthIndicatorService = new SetOnce<>();
-    private final SetOnce<UpdateDataStreamGlobalRetentionService> dataStreamGlobalRetentionService = new SetOnce<>();
     private final Settings settings;
 
     public DataStreamsPlugin(Settings settings) {
@@ -211,17 +200,16 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
                 services.threadPool()::absoluteTimeInMillis,
                 errorStoreInitialisationService.get(),
                 services.allocationService(),
-                dataStreamLifecycleErrorsPublisher.get()
+                dataStreamLifecycleErrorsPublisher.get(),
+                services.dataStreamGlobalRetentionSettings()
             )
         );
         dataLifecycleInitialisationService.get().init();
         dataStreamLifecycleHealthIndicatorService.set(new DataStreamLifecycleHealthIndicatorService());
-        dataStreamGlobalRetentionService.set(new UpdateDataStreamGlobalRetentionService(services.clusterService()));
 
         components.add(errorStoreInitialisationService.get());
         components.add(dataLifecycleInitialisationService.get());
         components.add(dataStreamLifecycleErrorsPublisher.get());
-        components.add(dataStreamGlobalRetentionService.get());
         return components;
     }
 
@@ -240,24 +228,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         actions.add(new ActionHandler<>(DeleteDataStreamLifecycleAction.INSTANCE, TransportDeleteDataStreamLifecycleAction.class));
         actions.add(new ActionHandler<>(ExplainDataStreamLifecycleAction.INSTANCE, TransportExplainDataStreamLifecycleAction.class));
         actions.add(new ActionHandler<>(GetDataStreamLifecycleStatsAction.INSTANCE, TransportGetDataStreamLifecycleStatsAction.class));
-        actions.add(
-            new ActionHandler<>(
-                PutDataStreamGlobalRetentionAction.INSTANCE,
-                PutDataStreamGlobalRetentionAction.TransportPutDataStreamGlobalRetentionAction.class
-            )
-        );
-        actions.add(
-            new ActionHandler<>(
-                GetDataStreamGlobalRetentionAction.INSTANCE,
-                GetDataStreamGlobalRetentionAction.TransportGetDataStreamGlobalSettingsAction.class
-            )
-        );
-        actions.add(
-            new ActionHandler<>(
-                DeleteDataStreamGlobalRetentionAction.INSTANCE,
-                DeleteDataStreamGlobalRetentionAction.TransportDeleteDataStreamGlobalRetentionAction.class
-            )
-        );
         return actions;
     }
 
@@ -290,18 +260,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         handlers.add(new RestDeleteDataStreamLifecycleAction());
         handlers.add(new RestExplainDataStreamLifecycleAction());
         handlers.add(new RestDataStreamLifecycleStatsAction());
-        handlers.add(new RestPutDataStreamGlobalRetentionAction());
-        handlers.add(new RestGetDataStreamGlobalRetentionAction());
-        handlers.add(new RestDeleteDataStreamGlobalRetentionAction());
         return handlers;
-    }
-
-    @Override
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            new NamedWriteableRegistry.Entry(ClusterState.Custom.class, DataStreamGlobalRetention.TYPE, DataStreamGlobalRetention::read),
-            new NamedWriteableRegistry.Entry(NamedDiff.class, DataStreamGlobalRetention.TYPE, DataStreamGlobalRetention::readDiffFrom)
-        );
     }
 
     @Override

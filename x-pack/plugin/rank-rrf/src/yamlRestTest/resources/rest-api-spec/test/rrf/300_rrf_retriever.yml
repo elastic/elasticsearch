@@ -21,6 +21,10 @@ setup:
                 dims: 1
                 index: true
                 similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  ef_construction: 100
+                  m: 16
 
   - do:
       index:
@@ -82,7 +86,7 @@ setup:
                   }
                 }
               ]
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           size: 10
 
@@ -132,7 +136,7 @@ setup:
                   }
                 }
               ]
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           size: 10
 
@@ -187,7 +191,7 @@ setup:
                   }
                 }
               ]
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           size: 10
 
@@ -256,7 +260,7 @@ setup:
                   }
                 }
               ]
-              window_size: 2
+              rank_window_size: 2
               rank_constant: 1
 
   - match: { hits.total.value : 3 }

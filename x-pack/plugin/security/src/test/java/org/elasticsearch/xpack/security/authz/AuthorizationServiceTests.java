@@ -20,8 +20,8 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -42,12 +42,12 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.bulk.MappingUpdatePerformer;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.TransportDeleteAction;
@@ -94,6 +94,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -124,6 +126,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -200,7 +203,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
+import java.util.function.ObjLongConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -225,7 +228,6 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -233,7 +235,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -942,7 +943,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testUserWithNoRolesCanClosePointInTime() {
-        final ClosePointInTimeRequest closePointInTimeRequest = new ClosePointInTimeRequest(randomAlphaOfLength(8));
+        final ClosePointInTimeRequest closePointInTimeRequest = new ClosePointInTimeRequest(new BytesArray(randomAlphaOfLength(8)));
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
@@ -1430,14 +1431,14 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         assertThrowsAuthorizationException(
-            () -> authorize(authentication, CreateIndexAction.NAME, request),
+            () -> authorize(authentication, TransportCreateIndexAction.TYPE.name(), request),
             TransportIndicesAliasesAction.NAME,
             "test user"
         );
         verify(auditTrail).accessGranted(
             eq(requestId),
             eq(authentication),
-            eq(CreateIndexAction.NAME),
+            eq(TransportCreateIndexAction.TYPE.name()),
             eq(request),
             authzInfoRoles(new String[] { role.getName() })
         );
@@ -1467,12 +1468,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("a_all", role);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
-        authorize(authentication, CreateIndexAction.NAME, request);
+        authorize(authentication, TransportCreateIndexAction.TYPE.name(), request);
 
         verify(auditTrail).accessGranted(
             eq(requestId),
             eq(authentication),
-            eq(CreateIndexAction.NAME),
+            eq(TransportCreateIndexAction.TYPE.name()),
             eq(request),
             authzInfoRoles(new String[] { role.getName() })
         );
@@ -1543,7 +1544,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         RoleDescriptor role = new RoleDescriptor(
             "some_indices_" + randomAlphaOfLengthBetween(3, 6),
             null,
-            new IndicesPrivileges[] { IndicesPrivileges.builder().indices(index).privileges(BulkAction.NAME).build() },
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices(index).privileges(TransportBulkAction.NAME).build() },
             null
         );
         User user = new User(randomAlphaOfLengthBetween(6, 8), role.getName());
@@ -1570,7 +1571,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorize(authentication, TransportShardBulkAction.ACTION_NAME, request);
 
         MappingUpdatePerformer mappingUpdater = (m, s, l) -> l.onResponse(null);
-        Consumer<ActionListener<Void>> waitForMappingUpdate = l -> l.onResponse(null);
+        ObjLongConsumer<ActionListener<Void>> waitForMappingUpdate = (l, mappingVersion) -> l.onResponse(null);
         PlainActionFuture<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>> future = new PlainActionFuture<>();
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.getBulkOperationListener()).thenReturn(new BulkOperationListener() {
@@ -1583,8 +1584,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             mappingUpdater,
             waitForMappingUpdate,
             future,
-            threadPool,
-            Names.WRITE
+            threadPool.executor(Names.WRITE)
         );
 
         TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse> result = future.get();
@@ -2054,7 +2054,10 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
         requests.add(
-            new Tuple<>(BulkAction.NAME + "[s]", new DeleteRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id"))
+            new Tuple<>(
+                TransportBulkAction.NAME + "[s]",
+                new DeleteRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id")
+            )
         );
         requests.add(
             new Tuple<>(
@@ -2063,7 +2066,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             )
         );
         requests.add(
-            new Tuple<>(BulkAction.NAME + "[s]", new IndexRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7)))
+            new Tuple<>(TransportBulkAction.NAME + "[s]", new IndexRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7)))
         );
         requests.add(
             new Tuple<>(
@@ -2328,19 +2331,19 @@ public class AuthorizationServiceTests extends ESTestCase {
         List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
         requests.add(
             new Tuple<>(
-                BulkAction.NAME + "[s]",
+                TransportBulkAction.NAME + "[s]",
                 createBulkShardRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), DeleteRequest::new)
             )
         );
         requests.add(
             new Tuple<>(
-                BulkAction.NAME + "[s]",
+                TransportBulkAction.NAME + "[s]",
                 createBulkShardRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), UpdateRequest::new)
             )
         );
         requests.add(
             new Tuple<>(
-                BulkAction.NAME + "[s]",
+                TransportBulkAction.NAME + "[s]",
                 createBulkShardRequest(
                     randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7),
                     (index, id) -> new IndexRequest(index).id(id)
@@ -2501,7 +2504,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 request = mockRequest;
             }
             case 3 -> {
-                action = BulkAction.NAME + "[s]";
+                action = TransportBulkAction.NAME + "[s]";
                 request = createBulkShardRequest("index", (index, id) -> new IndexRequest(index).id(id));
             }
             case 4 -> {
@@ -2541,7 +2544,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testAuthorizationOfSingleActionMultipleIndicesBulkItems() {
-        final String action = BulkAction.NAME + "[s]";
+        final String action = TransportBulkAction.NAME + "[s]";
         final BulkItemRequest[] items;
         final DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
         // the "good role" authorizes all the bulk items
@@ -2789,7 +2792,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testAuthorizationOfMultipleActionsSingleIndexBulkItems() {
-        final String action = BulkAction.NAME + "[s]";
+        final String action = TransportBulkAction.NAME + "[s]";
         final AtomicInteger idCounter = new AtomicInteger();
         final Set<String> actionTypes = new HashSet<>();
         final Set<Integer> deleteItems = new HashSet<>();
@@ -2930,7 +2933,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testAuthorizationOfIndividualIndexAndDeleteBulkItems() {
-        final String action = BulkAction.NAME + "[s]";
+        final String action = TransportBulkAction.NAME + "[s]";
         final BulkItemRequest[] items = {
             new BulkItemRequest(1, new DeleteRequest("concrete-index", "c1")),
             new BulkItemRequest(2, new IndexRequest("concrete-index").id("c2")),
@@ -3020,7 +3023,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testAuthorizationOfIndividualBulkItemsWithDateMath() {
-        final String action = BulkAction.NAME + "[s]";
+        final String action = TransportBulkAction.NAME + "[s]";
         final BulkItemRequest[] items = {
             new BulkItemRequest(1, new IndexRequest("<datemath-{now/M{YYYY}}>").id("dy1")),
             new BulkItemRequest(2, new DeleteRequest("<datemath-{now/d{YYYY}}>", "dy2")), // resolves to same as above
@@ -3090,7 +3093,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             case 0 -> Tuple.tuple(TransportMultiGetAction.NAME, new MultiGetRequest().add("index", "id"));
             case 1 -> Tuple.tuple(TransportMultiSearchAction.TYPE.name(), new MultiSearchRequest().add(new SearchRequest()));
             case 2 -> Tuple.tuple(MultiTermVectorsAction.NAME, new MultiTermVectorsRequest().add("index", "id"));
-            case 3 -> Tuple.tuple(BulkAction.NAME, new BulkRequest().add(new DeleteRequest("index", "id")));
+            case 3 -> Tuple.tuple(TransportBulkAction.NAME, new BulkRequest().add(new DeleteRequest("index", "id")));
             case 4 -> Tuple.tuple("indices:data/read/mpercolate", new MockCompositeIndicesRequest());
             case 5 -> Tuple.tuple("indices:data/read/msearch/template", new MockCompositeIndicesRequest());
             case 6 -> Tuple.tuple("indices:data/read/search/template", new MockCompositeIndicesRequest());
@@ -3154,41 +3157,38 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testProxyRequestFailsOnNonProxyAction() {
-        TransportRequest request = TransportRequest.Empty.INSTANCE;
+        TransportRequest request = new EmptyRequest();
         DiscoveryNode node = DiscoveryNodeUtils.create("foo");
         TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, request);
-        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        AuditUtil.getOrGenerateRequestId(threadContext);
         User user = new User("test user", "role");
-        ElasticsearchSecurityException ese = expectThrows(
-            ElasticsearchSecurityException.class,
-            () -> authorize(createAuthentication(user), "indices:some/action", transportRequest)
+        final var authentication = createAuthentication(user);
+        assertEquals(
+            """
+                originalRequest is a proxy request for: [org.elasticsearch.transport.EmptyRequest/unset] \
+                but action: [indices:some/action] isn't""",
+            expectThrows(
+                ElasticsearchSecurityException.class,
+                IllegalStateException.class,
+                () -> authorize(authentication, "indices:some/action", transportRequest)
+            ).getMessage()
         );
-        assertThat(ese.getCause(), instanceOf(IllegalStateException.class));
-        IllegalStateException illegalStateException = (IllegalStateException) ese.getCause();
-        assertThat(
-            illegalStateException.getMessage(),
-            startsWith("originalRequest is a proxy request for: [org.elasticsearch.transport.TransportRequest$")
-        );
-        assertThat(illegalStateException.getMessage(), endsWith("] but action: [indices:some/action] isn't"));
     }
 
     public void testProxyRequestFailsOnNonProxyRequest() {
-        TransportRequest request = TransportRequest.Empty.INSTANCE;
+        TransportRequest request = new EmptyRequest();
         User user = new User("test user", "role");
         AuditUtil.getOrGenerateRequestId(threadContext);
-        ElasticsearchSecurityException ese = expectThrows(
-            ElasticsearchSecurityException.class,
-            () -> authorize(createAuthentication(user), TransportActionProxy.getProxyAction("indices:some/action"), request)
-        );
-        assertThat(ese.getCause(), instanceOf(IllegalStateException.class));
-        IllegalStateException illegalStateException = (IllegalStateException) ese.getCause();
-        assertThat(
-            illegalStateException.getMessage(),
-            startsWith("originalRequest is not a proxy request: [org.elasticsearch.transport.TransportRequest$")
-        );
-        assertThat(
-            illegalStateException.getMessage(),
-            endsWith("] but action: [internal:transport/proxy/indices:some/action] is a proxy action")
+        final var authentication = createAuthentication(user);
+        assertEquals(
+            """
+                originalRequest is not a proxy request: [org.elasticsearch.transport.EmptyRequest/unset] \
+                but action: [internal:transport/proxy/indices:some/action] is a proxy action""",
+            expectThrows(
+                ElasticsearchSecurityException.class,
+                IllegalStateException.class,
+                () -> authorize(authentication, TransportActionProxy.getProxyAction("indices:some/action"), request)
+            ).getMessage()
         );
     }
 
@@ -3553,8 +3553,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(authorizationInfo.asMap()).thenReturn(
             Map.of(PRINCIPAL_ROLES_FIELD_NAME, randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(5, 8)))
         );
+        String actionPrefix = randomFrom("indices", "cluster");
         threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
-        final String action = "indices:/some/action/" + randomAlphaOfLengthBetween(0, 8);
+        final String action = actionPrefix + ":/some/action/" + randomAlphaOfLengthBetween(0, 8);
         final String clusterAlias = randomAlphaOfLengthBetween(5, 12);
         final ElasticsearchSecurityException e = authorizationService.remoteActionDenied(authentication, action, clusterAlias);
         assertThat(e.getCause(), nullValue());
@@ -3563,10 +3564,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             equalTo(
                 Strings.format(
                     "action [%s] towards remote cluster [%s] is unauthorized for %s"
-                        + " because no remote indices privileges apply for the target cluster",
+                        + " because no remote %s privileges apply for the target cluster",
                     action,
                     clusterAlias,
-                    new AuthorizationDenialMessages.Default().successfulAuthenticationDescription(authentication, authorizationInfo)
+                    new AuthorizationDenialMessages.Default().successfulAuthenticationDescription(authentication, authorizationInfo),
+                    actionPrefix
                 )
             )
         );
@@ -3579,7 +3581,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             Map.of(PRINCIPAL_ROLES_FIELD_NAME, randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(5, 8)))
         );
         threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
-        final String action = "indices:/some/action/" + randomAlphaOfLengthBetween(0, 8);
+        String actionPrefix = randomFrom("indices", "cluster");
+        final String action = actionPrefix + ":/some/action/" + randomAlphaOfLengthBetween(0, 8);
         final ElasticsearchSecurityException e = authorizationService.actionDenied(authentication, authorizationInfo, action, mock());
         assertThat(e.getCause(), nullValue());
         assertThat(
@@ -3639,7 +3642,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
     }
 
-    private static String createEncodedPIT(Index index) {
+    private static BytesReference createEncodedPIT(Index index) {
         DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
         TestSearchPhaseResult testSearchPhaseResult1 = new TestSearchPhaseResult(new ShardSearchContextId("a", 1), node1);
         testSearchPhaseResult1.setSearchShardTarget(

@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestAllocationAction extends AbstractCatAction {
@@ -61,7 +62,7 @@ public class RestAllocationAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().routingTable(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
@@ -69,8 +70,8 @@ public class RestAllocationAction extends AbstractCatAction {
                 NodesStatsRequest statsRequest = new NodesStatsRequest(nodes);
                 statsRequest.setIncludeShardsStats(false);
                 statsRequest.clear()
-                    .addMetric(NodesStatsRequestParameters.Metric.FS.metricName())
-                    .addMetric(NodesStatsRequestParameters.Metric.ALLOCATIONS.metricName())
+                    .addMetric(NodesStatsRequestParameters.Metric.FS)
+                    .addMetric(NodesStatsRequestParameters.Metric.ALLOCATIONS)
                     .indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
 
                 client.admin().cluster().nodesStats(statsRequest, new RestResponseListener<>(channel) {

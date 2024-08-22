@@ -17,7 +17,7 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -63,7 +63,7 @@ public class RestTable {
 
         return RestResponse.chunked(
             RestStatus.OK,
-            ChunkedRestResponseBody.fromXContent(
+            ChunkedRestResponseBodyPart.fromXContent(
                 ignored -> Iterators.concat(
                     Iterators.single((builder, params) -> builder.startArray()),
                     Iterators.map(rowOrder.iterator(), row -> (builder, params) -> {
@@ -94,7 +94,7 @@ public class RestTable {
 
         return RestResponse.chunked(
             RestStatus.OK,
-            ChunkedRestResponseBody.fromTextChunks(
+            ChunkedRestResponseBodyPart.fromTextChunks(
                 RestResponse.TEXT_CONTENT_TYPE,
                 Iterators.concat(
                     // optional header
@@ -156,9 +156,7 @@ public class RestTable {
                 if (headerAliasMap.containsKey(columnHeader)) {
                     ordering.add(new ColumnOrderElement(headerAliasMap.get(columnHeader), reverse));
                 } else {
-                    throw new UnsupportedOperationException(
-                        String.format(Locale.ROOT, "Unable to sort by unknown sort key `%s`", columnHeader)
-                    );
+                    throw new IllegalArgumentException(String.format(Locale.ROOT, "Unable to sort by unknown sort key `%s`", columnHeader));
                 }
             }
             Collections.sort(rowOrder, new TableIndexComparator(table, ordering));

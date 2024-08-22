@@ -52,6 +52,7 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
@@ -206,7 +207,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
         );
-        mapperService.merge("doc", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("doc", new CompressedXContent(mapper), MergeReason.MAPPING_UPDATE);
     }
 
     private void addQueryFieldMappings() throws Exception {
@@ -223,7 +224,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
         );
-        mapperService.merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("doc", new CompressedXContent(percolatorMapper), MergeReason.MAPPING_UPDATE);
         fieldType = (PercolatorFieldMapper.PercolatorFieldType) mapperService.fieldType(fieldName);
     }
 
@@ -699,7 +700,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
             () -> indexServiceWithoutSettings.mapperService()
-                .merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE)
+                .merge("doc", new CompressedXContent(percolatorMapper), MergeReason.MAPPING_UPDATE)
         );
         assertThat(e.getMessage(), containsString("Mapping definition for [" + fieldName + "] has unsupported parameters:  [index : no]"));
     }
@@ -722,7 +723,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
         );
-        mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MergeReason.MAPPING_UPDATE);
 
         QueryBuilder queryBuilder = matchQuery("field", "value");
         ParsedDocument doc = mapperService.documentMapper()
@@ -763,7 +764,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
         );
-        mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MergeReason.MAPPING_UPDATE);
 
         QueryBuilder queryBuilder = matchQuery("field", "value");
         ParsedDocument doc = mapperService.documentMapper()
@@ -912,7 +913,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         );
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> mapperService.parseMapping("type1", new CompressedXContent(mapping))
+            () -> mapperService.parseMapping("type1", MergeReason.MAPPING_UPDATE, new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("field name cannot be an empty string"));
     }

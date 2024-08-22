@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      version: " - 8.5.99"
+  - requires:
+      cluster_features: ["gte_v8.6.0"]
       reason: "support for byte vectors added in 8.6"
-      features: headers
+      test_runner_features: headers
 
   - do:
       indices.create:
@@ -31,8 +31,8 @@ setup:
 
 ---
 "Indexing of Dense vectors should error when dims don't match defined in the mapping":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "exception changed in 8.8"
 
   - do:

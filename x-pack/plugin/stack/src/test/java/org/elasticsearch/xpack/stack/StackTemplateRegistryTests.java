@@ -429,10 +429,13 @@ public class StackTemplateRegistryTests extends ESTestCase {
         versions.put(StackTemplateRegistry.METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         ClusterChangedEvent sameVersionEvent = createClusterChangedEvent(versions, nodes);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutComponentTemplateAction) {
-                fail("template should not have been re-installed");
+            if (request instanceof PutComponentTemplateAction.Request put) {
+                fail("template should not have been re-installed: " + put.name());
                 return null;
             } else if (action == ILMActions.PUT) {
                 // Ignore this, it's verified in another test
@@ -482,6 +485,18 @@ public class StackTemplateRegistryTests extends ESTestCase {
         );
         versions.put(
             StackTemplateRegistry.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
+        versions.put(
+            StackTemplateRegistry.KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
+        versions.put(
+            StackTemplateRegistry.TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
+        versions.put(
+            StackTemplateRegistry.TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME,
             StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
         );
         ClusterChangedEvent higherVersionEvent = createClusterChangedEvent(versions, nodes);

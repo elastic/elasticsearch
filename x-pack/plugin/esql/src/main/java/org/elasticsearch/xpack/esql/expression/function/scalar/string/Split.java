@@ -8,43 +8,78 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 
 /**
  * Splits a string on some delimiter into a multivalued string field.
  */
 public class Split extends BinaryScalarFunction implements EvaluatorMapper {
-    @FunctionInfo(returnType = "keyword", description = "Split a single valued string into multiple strings.")
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Split", Split::new);
+
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Split a single valued string into multiple strings.",
+        examples = @Example(file = "string", tag = "split")
+    )
     public Split(
         Source source,
-        @Param(name = "string", type = { "keyword", "text" }) Expression str,
-        @Param(name = "delim", type = { "keyword", "text" }) Expression delim
+        @Param(
+            name = "string",
+            type = { "keyword", "text" },
+            description = "String expression. If `null`, the function returns `null`."
+        ) Expression str,
+        @Param(
+            name = "delim",
+            type = { "keyword", "text" },
+            description = "Delimiter. Only single byte delimiters are currently supported."
+        ) Expression delim
     ) {
         super(source, str, delim);
     }
 
+    private Split(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(str());
+        out.writeNamedWriteable(delim());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
     @Override
     public DataType dataType() {
-        return DataTypes.KEYWORD;
+        return DataType.KEYWORD;
     }
 
     @Override
@@ -137,5 +172,13 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
         if (delim.length != 1) {
             throw new InvalidArgumentException("delimiter must be single byte for now");
         }
+    }
+
+    Expression str() {
+        return children().get(0);
+    }
+
+    Expression delim() {
+        return children().get(1);
     }
 }

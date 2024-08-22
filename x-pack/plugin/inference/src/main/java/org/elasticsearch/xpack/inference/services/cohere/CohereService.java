@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -22,34 +23,38 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.cohere.CohereActionCreator;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
 public class CohereService extends SenderService {
     public static final String NAME = "cohere";
+
+    // TODO Batching - We'll instantiate a batching class within the services that want to support it and pass it through to
+    // the Cohere*RequestManager via the CohereActionCreator class
+    // The reason it needs to be done here is that the batching logic needs to hold state but the *RequestManagers are instantiated
+    // on every request
 
     public CohereService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -130,6 +135,16 @@ public class CohereService extends SenderService {
                 secretSettings,
                 context
             );
+            case RERANK -> new CohereRerankModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings, context);
+            case COMPLETION -> new CohereCompletionModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings,
+                context
+            );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }
@@ -173,9 +188,11 @@ public class CohereService extends SenderService {
     @Override
     public void doInfer(
         Model model,
+        String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
+        TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof CohereModel == false) {
@@ -187,37 +204,57 @@ public class CohereService extends SenderService {
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
         var action = cohereModel.accept(actionCreator, taskSettings, inputType);
-        action.execute(input, listener);
+        action.execute(new QueryAndDocsInputs(query, input), timeout, listener);
+    }
+
+    @Override
+    public void doInfer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        if (model instanceof CohereModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        CohereModel cohereModel = (CohereModel) model;
+        var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
+
+        var action = cohereModel.accept(actionCreator, taskSettings, inputType);
+        action.execute(new DocumentsOnlyInput(input), timeout, listener);
     }
 
     @Override
     protected void doChunkedInfer(
         Model model,
+        @Nullable String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
+        TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
-        ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
-            (delegate, response) -> delegate.onResponse(translateToChunkedResults(input, response))
-        );
+        if (model instanceof CohereModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
 
-        doInfer(model, input, taskSettings, inputType, inferListener);
-    }
+        CohereModel cohereModel = (CohereModel) model;
+        var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
-    private static List<ChunkedInferenceServiceResults> translateToChunkedResults(
-        List<String> inputs,
-        InferenceServiceResults inferenceResults
-    ) {
-        if (inferenceResults instanceof TextEmbeddingResults textEmbeddingResults) {
-            return ChunkedTextEmbeddingResults.of(inputs, textEmbeddingResults);
-        } else if (inferenceResults instanceof TextEmbeddingByteResults textEmbeddingByteResults) {
-            return ChunkedTextEmbeddingByteResults.of(inputs, textEmbeddingByteResults);
-        } else if (inferenceResults instanceof ErrorInferenceResults error) {
-            return List.of(new ErrorChunkedInferenceResults(error.getException()));
-        } else {
-            throw createInvalidChunkedResultException(inferenceResults.getWriteableName());
+        var batchedRequests = new EmbeddingRequestChunker(
+            input,
+            EMBEDDING_MAX_BATCH_SIZE,
+            EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(model.getServiceSettings().elementType())
+        ).batchRequestsWithListeners(listener);
+        for (var request : batchedRequests) {
+            var action = cohereModel.accept(actionCreator, taskSettings, inputType);
+            action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
         }
     }
 
@@ -242,8 +279,8 @@ public class CohereService extends SenderService {
     }
 
     private CohereEmbeddingsModel updateModelWithEmbeddingDetails(CohereEmbeddingsModel model, int embeddingSize) {
-        var similarityFromModel = model.getServiceSettings().similarity();
-        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+        var userDefinedSimilarity = model.getServiceSettings().similarity();
+        var similarityToUse = userDefinedSimilarity == null ? defaultSimilarity() : userDefinedSimilarity;
 
         CohereEmbeddingsServiceSettings serviceSettings = new CohereEmbeddingsServiceSettings(
             new CohereServiceSettings(
@@ -251,7 +288,8 @@ public class CohereService extends SenderService {
                 similarityToUse,
                 embeddingSize,
                 model.getServiceSettings().getCommonSettings().maxInputTokens(),
-                model.getServiceSettings().getCommonSettings().modelId()
+                model.getServiceSettings().getCommonSettings().modelId(),
+                model.getServiceSettings().getCommonSettings().rateLimitSettings()
             ),
             model.getServiceSettings().getEmbeddingType()
         );
@@ -259,8 +297,20 @@ public class CohereService extends SenderService {
         return new CohereEmbeddingsModel(model, serviceSettings);
     }
 
+    /**
+     * Return the default similarity measure for the embedding type.
+     * Cohere embeddings are normalized to unit vectors therefor Dot
+     * Product similarity can be used and is the default for all Cohere
+     * models.
+     *
+     * @return The default similarity.
+     */
+    static SimilarityMeasure defaultSimilarity() {
+        return SimilarityMeasure.DOT_PRODUCT;
+    }
+
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_L2_NORM_SIMILARITY_ADDED;
+        return TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED;
     }
 }

@@ -8,18 +8,17 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
@@ -28,9 +27,8 @@ import java.util.Objects;
 
 import static org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation;
 
-public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.SingleValue {
+public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.SingleDoubleValue {
 
-    private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat format;
 
     private final double compression;
@@ -49,9 +47,8 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
         double compression,
         TDigestExecutionHint executionHint
     ) throws IOException {
-        super(name, context, parent, metadata);
+        super(name, config, context, parent, metadata);
         assert config.hasValues();
-        this.valuesSource = (ValuesSource.Numeric) config.getValuesSource();
         this.format = Objects.requireNonNull(format);
         this.compression = compression;
         this.executionHint = executionHint;
@@ -72,39 +69,41 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
     }
 
     @Override
-    public ScoreMode scoreMode() {
-        if (valuesSource.needsScores()) {
-            return ScoreMode.COMPLETE;
-        } else {
-            return ScoreMode.COMPLETE_NO_SCORES;
-        }
-    }
-
-    @Override
-    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
-
+    protected LeafBucketCollector getLeafCollector(SortedNumericDoubleValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-
-                valueSketches = bigArrays().grow(valueSketches, bucket + 1);
-
-                TDigestState valueSketch = valueSketches.get(bucket);
-                if (valueSketch == null) {
-                    valueSketch = TDigestState.create(compression, executionHint);
-                    valueSketches.set(bucket, valueSketch);
-                }
-
                 if (values.advanceExact(doc)) {
-                    final int valueCount = values.docValueCount();
-                    for (int i = 0; i < valueCount; i++) {
-                        final double value = values.nextValue();
-                        valueSketch.add(value);
+                    final TDigestState valueSketch = getExistingOrNewHistogram(bigArrays(), bucket);
+                    for (int i = 0; i < values.docValueCount(); i++) {
+                        valueSketch.add(values.nextValue());
                     }
                 }
             }
         };
+    }
+
+    @Override
+    protected LeafBucketCollector getLeafCollector(NumericDoubleValues values, LeafBucketCollector sub) {
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (values.advanceExact(doc)) {
+                    final TDigestState valueSketch = getExistingOrNewHistogram(bigArrays(), bucket);
+                    valueSketch.add(values.doubleValue());
+                }
+            }
+        };
+    }
+
+    private TDigestState getExistingOrNewHistogram(final BigArrays bigArrays, long bucket) {
+        valueSketches = bigArrays.grow(valueSketches, bucket + 1);
+        TDigestState state = valueSketches.get(bucket);
+        if (state == null) {
+            state = TDigestState.create(compression, executionHint);
+            valueSketches.set(bucket, state);
+        }
+        return state;
     }
 
     @Override

@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+
 public class RestUpdateDesiredNodesAction extends BaseRestHandler {
 
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestUpdateDesiredNodesAction.class);
@@ -66,7 +68,7 @@ public class RestUpdateDesiredNodesAction extends BaseRestHandler {
             }
         }
 
-        updateDesiredNodesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateDesiredNodesRequest.masterNodeTimeout()));
+        updateDesiredNodesRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         return restChannel -> client.execute(
             UpdateDesiredNodesAction.INSTANCE,
             updateDesiredNodesRequest,

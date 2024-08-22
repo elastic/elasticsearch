@@ -12,12 +12,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,52 +32,72 @@ public class MvZipTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        // Note that any null is *not* null, so we explicitly test with nulls
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.KEYWORD, DataTypes.KEYWORD, DataTypes.KEYWORD), () -> {
-            List<Object> left = randomList(1, 3, () -> randomLiteral(DataTypes.KEYWORD).value());
-            List<Object> right = randomList(1, 3, () -> randomLiteral(DataTypes.KEYWORD).value());
-            String delim = randomAlphaOfLengthBetween(1, 1);
+        for (DataType leftType : DataType.types()) {
+            if (leftType != DataType.NULL && DataType.isString(leftType) == false) {
+                continue;
+            }
+            for (DataType rightType : DataType.types()) {
+                if (rightType != DataType.NULL && DataType.isString(rightType) == false) {
+                    continue;
+                }
+                for (DataType delimType : DataType.types()) {
+                    if (delimType != DataType.NULL && DataType.isString(delimType) == false) {
+                        continue;
+                    }
+                    suppliers.add(supplier(leftType, rightType, delimType));
+                }
+                suppliers.add(supplier(leftType, rightType));
+            }
+        }
+
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, (v, p) -> "string"));
+    }
+
+    private static TestCaseSupplier supplier(DataType leftType, DataType rightType, DataType delimType) {
+        return new TestCaseSupplier(List.of(leftType, rightType, delimType), () -> {
+            List<BytesRef> left = randomList(leftType);
+            List<BytesRef> right = randomList(rightType);
+            BytesRef delim = delimType == DataType.NULL ? null : new BytesRef(randomAlphaOfLength(1));
+
             List<BytesRef> expected = calculateExpected(left, right, delim);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(left, DataTypes.KEYWORD, "mvLeft"),
-                    new TestCaseSupplier.TypedData(right, DataTypes.KEYWORD, "mvRight"),
-                    new TestCaseSupplier.TypedData(delim, DataTypes.KEYWORD, "delim")
+                    new TestCaseSupplier.TypedData(left, leftType, "mvLeft"),
+                    new TestCaseSupplier.TypedData(right, rightType, "mvRight"),
+                    new TestCaseSupplier.TypedData(delim, delimType, "delim")
                 ),
                 "MvZipEvaluator[leftField=Attribute[channel=0], rightField=Attribute[channel=1], delim=Attribute[channel=2]]",
-                DataTypes.KEYWORD,
-                equalTo(expected.size() == 1 ? expected.iterator().next() : expected)
+                DataType.KEYWORD,
+                equalTo(expected == null ? null : expected.size() == 1 ? expected.iterator().next() : expected)
             );
-        }));
+        });
+    }
 
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.TEXT, DataTypes.TEXT, DataTypes.TEXT), () -> {
-            List<Object> left = randomList(1, 10, () -> randomLiteral(DataTypes.TEXT).value());
-            List<Object> right = randomList(1, 10, () -> randomLiteral(DataTypes.TEXT).value());
-            String delim = randomAlphaOfLengthBetween(1, 1);
-            List<BytesRef> expected = calculateExpected(left, right, delim);
+    private static TestCaseSupplier supplier(DataType leftType, DataType rightType) {
+        return new TestCaseSupplier(List.of(leftType, rightType), () -> {
+            List<BytesRef> left = randomList(leftType);
+            List<BytesRef> right = randomList(rightType);
+
+            List<BytesRef> expected = calculateExpected(left, right, new BytesRef(","));
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(left, DataTypes.TEXT, "mvLeft"),
-                    new TestCaseSupplier.TypedData(right, DataTypes.TEXT, "mvRight"),
-                    new TestCaseSupplier.TypedData(delim, DataTypes.TEXT, "delim")
+                    new TestCaseSupplier.TypedData(left, leftType, "mvLeft"),
+                    new TestCaseSupplier.TypedData(right, rightType, "mvRight")
                 ),
-                "MvZipEvaluator[leftField=Attribute[channel=0], rightField=Attribute[channel=1], delim=Attribute[channel=2]]",
-                DataTypes.KEYWORD,
-                equalTo(expected.size() == 1 ? expected.iterator().next() : expected)
+                "MvZipEvaluator[leftField=Attribute[channel=0], rightField=Attribute[channel=1], delim=LiteralsEvaluator[lit=,]]",
+                DataType.KEYWORD,
+                equalTo(expected == null ? null : expected.size() == 1 ? expected.iterator().next() : expected)
             );
-        }));
-
-        return parameterSuppliersFromTypedData(suppliers);
+        });
     }
 
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.KEYWORD;
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(strings()), required(strings()), optional(strings()));
+    private static List<BytesRef> randomList(DataType type) {
+        if (type == DataType.NULL) {
+            return null;
+        }
+        return randomList(1, 3, () -> new BytesRef(randomAlphaOfLength(5)));
     }
 
     @Override
@@ -86,35 +105,39 @@ public class MvZipTests extends AbstractScalarFunctionTestCase {
         return new MvZip(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
     }
 
-    private static List<BytesRef> calculateExpected(List<Object> left, List<Object> right, String delim) {
+    private static List<BytesRef> calculateExpected(List<BytesRef> left, List<BytesRef> right, BytesRef delim) {
+        if (delim == null) {
+            return null;
+        }
+        if (left == null) {
+            return right;
+        }
+        if (right == null) {
+            return left;
+        }
         List<BytesRef> expected = new ArrayList<>(max(left.size(), right.size()));
         int i = 0, j = 0;
         while (i < left.size() && j < right.size()) {
             BytesRefBuilder work = new BytesRefBuilder();
-            work.append((BytesRef) left.get(i));
-            work.append(new BytesRef(delim));
-            work.append((BytesRef) right.get(j));
+            work.append(left.get(i));
+            work.append(delim);
+            work.append(right.get(j));
             expected.add(work.get());
             i++;
             j++;
         }
         while (i < left.size()) {
             BytesRefBuilder work = new BytesRefBuilder();
-            work.append((BytesRef) left.get(i));
+            work.append(left.get(i));
             expected.add(work.get());
             i++;
         }
         while (j < right.size()) {
             BytesRefBuilder work = new BytesRefBuilder();
-            work.append((BytesRef) right.get(j));
+            work.append(right.get(j));
             expected.add(work.get());
             j++;
         }
         return expected;
-    }
-
-    @Override
-    public void testSimpleWithNulls() {
-        assumeFalse("mv_zip returns null only if both left and right inputs are nulls", false);
     }
 }

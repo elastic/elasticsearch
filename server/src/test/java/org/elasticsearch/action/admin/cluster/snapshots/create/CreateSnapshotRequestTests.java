@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent.MapParams;
@@ -37,7 +38,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
         String repo = randomAlphaOfLength(5);
         String snap = randomAlphaOfLength(10);
 
-        CreateSnapshotRequest original = new CreateSnapshotRequest(repo, snap);
+        CreateSnapshotRequest original = new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repo, snap);
 
         if (randomBoolean()) {
             List<String> indices = new ArrayList<>();
@@ -96,7 +97,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
         }
 
         if (randomBoolean()) {
-            original.masterNodeTimeout("60s");
+            original.masterNodeTimeout(TimeValue.timeValueMinutes(1));
         }
 
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new MapParams(Collections.emptyMap()));
@@ -105,9 +106,14 @@ public class CreateSnapshotRequestTests extends ESTestCase {
                 .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput())
         ) {
             Map<String, Object> map = parser.mapOrdered();
-            CreateSnapshotRequest processed = new CreateSnapshotRequest((String) map.get("repository"), (String) map.get("snapshot"));
+            CreateSnapshotRequest processed = new CreateSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
+                (String) map.get("repository"),
+                (String) map.get("snapshot")
+            );
             processed.waitForCompletion(original.waitForCompletion());
             processed.masterNodeTimeout(original.masterNodeTimeout());
+            processed.uuid(original.uuid());
             processed.source(map);
 
             assertEquals(original, processed);
@@ -161,7 +167,8 @@ public class CreateSnapshotRequestTests extends ESTestCase {
     }
 
     private CreateSnapshotRequest createSnapshotRequestWithMetadata(Map<String, Object> metadata) {
-        return new CreateSnapshotRequest(randomAlphaOfLength(5), randomAlphaOfLength(5)).indices(randomAlphaOfLength(5))
-            .userMetadata(metadata);
+        return new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, randomAlphaOfLength(5), randomAlphaOfLength(5)).indices(
+            randomAlphaOfLength(5)
+        ).userMetadata(metadata);
     }
 }

@@ -26,7 +26,16 @@ public interface Compressor {
      */
     default StreamInput threadLocalStreamInput(InputStream in) throws IOException {
         // wrap stream in buffer since InputStreamStreamInput doesn't do any buffering itself but does a lot of small reads
-        return new InputStreamStreamInput(new BufferedInputStream(threadLocalInputStream(in), DeflateCompressor.BUFFER_SIZE));
+        return new InputStreamStreamInput(new BufferedInputStream(threadLocalInputStream(in), DeflateCompressor.BUFFER_SIZE) {
+            @Override
+            public int read() throws IOException {
+                // override read to avoid synchronized single byte reads now that JEP374 removed biased locking
+                if (pos >= count) {
+                    return super.read();
+                }
+                return buf[pos++] & 0xFF;
+            }
+        });
     }
 
     /**

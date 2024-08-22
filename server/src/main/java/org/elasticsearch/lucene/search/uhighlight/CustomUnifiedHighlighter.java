@@ -22,6 +22,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.uhighlight.FieldHighlighter;
 import org.apache.lucene.search.uhighlight.FieldOffsetStrategy;
 import org.apache.lucene.search.uhighlight.NoOpOffsetStrategy;
+import org.apache.lucene.search.uhighlight.Passage;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.PassageScorer;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
@@ -38,6 +39,7 @@ import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Locale;
 import java.util.function.Supplier;
 
@@ -161,7 +163,8 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
         PassageScorer passageScorer,
         int maxPassages,
         int maxNoHighlightPassages,
-        PassageFormatter passageFormatter
+        PassageFormatter passageFormatter,
+        Comparator<Passage> passageSortComparator
     ) {
         return new CustomFieldHighlighter(
             field,
@@ -172,6 +175,7 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
             maxPassages,
             (noMatchSize > 0 ? 1 : 0),
             getFormatter(field),
+            passageSortComparator,
             noMatchSize,
             queryMaxAnalyzedOffset
         );
@@ -293,7 +297,8 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
                 if (parent instanceof ESToParentBlockJoinQuery) {
                     hasUnknownLeaf[0] = true;
                 }
-                return super.getSubVisitor(occur, parent);
+                // we want to visit all queries, including those within the must_not clauses.
+                return this;
             }
         });
         return hasUnknownLeaf[0];

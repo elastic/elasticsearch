@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -36,8 +35,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -50,6 +51,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -88,10 +90,11 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
             actionFilters,
             RetentionLeaseSyncAction.Request::new,
             RetentionLeaseSyncAction.Request::new,
-            (service, ignore) -> ThreadPool.Names.MANAGEMENT,
-            false,
+            new ManagementOnlyExecutorFunction(threadPool),
+            PrimaryActionExecution.RejectOnOverload,
             indexingPressure,
-            systemIndices
+            systemIndices,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 
@@ -196,7 +199,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
 
     public static final class Request extends ReplicatedWriteRequest<Request> {
 
-        private RetentionLeases retentionLeases;
+        private final RetentionLeases retentionLeases;
 
         public RetentionLeases getRetentionLeases() {
             return retentionLeases;
@@ -261,6 +264,23 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
     @Override
     protected Response newResponseInstance(StreamInput in) throws IOException {
         return new Response(in);
+    }
+
+    /**
+     * A {@code BiFunction<ExecutorSelector, IndexShard, Executor>} for passing to the super constructor which always returns the
+     * MANAGEMENT executor (but looks it up once at construction time and caches the result, unlike how the obvious lambda would work).
+     */
+    private static class ManagementOnlyExecutorFunction implements BiFunction<ExecutorSelector, IndexShard, Executor> {
+        private final Executor executor;
+
+        ManagementOnlyExecutorFunction(ThreadPool threadPool) {
+            executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
+        }
+
+        @Override
+        public Executor apply(ExecutorSelector executorSelector, IndexShard indexShard) {
+            return executor;
+        }
     }
 
 }

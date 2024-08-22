@@ -1,5 +1,5 @@
 [[modules-node]]
-=== Node
+=== Nodes
 
 Any time that you start an instance of {es}, you are starting a _node_. A
 collection of connected nodes is called a <<modules-cluster,cluster>>. If you
@@ -13,6 +13,10 @@ between nodes; the HTTP layer is used by REST clients.
 All nodes know about all the other nodes in the cluster and can forward client
 requests to the appropriate node.
 // end::modules-node-description-tag[]
+
+TIP: The performance of an {es} node is often limited by the performance of the underlying storage. 
+Review our recommendations for optimizing your storage for <<indexing-use-faster-hardware,indexing>> and 
+<<search-use-faster-hardware,search>>.
 
 [[node-roles]]
 ==== Node roles
@@ -236,6 +240,8 @@ assign data nodes to specific tiers: `data_content`,`data_hot`, `data_warm`,
 
 If you want to include a node in all tiers, or if your cluster does not use multiple tiers, then you can use the generic `data` role.
 
+include::../how-to/shard-limits.asciidoc[]
+
 WARNING: If you assign a node to a specific tier using a specialized data role, then you shouldn't also assign it the generic `data` role. The generic `data` role takes precedence over specialized data roles.
 
 [[generic-data-node]]
@@ -253,7 +259,7 @@ node.roles: [ data ]
 ===== Content data node
 
 Content data nodes are part of the content tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=content-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=content-tier]
 
 To create a dedicated content node, set:
 [source,yaml]
@@ -265,7 +271,7 @@ node.roles: [ data_content ]
 ===== Hot data node
 
 Hot data nodes are part of the hot tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=hot-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=hot-tier]
 
 To create a dedicated hot node, set:
 [source,yaml]
@@ -277,7 +283,7 @@ node.roles: [ data_hot ]
 ===== Warm data node
 
 Warm data nodes are part of the warm tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=warm-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=warm-tier]
 
 To create a dedicated warm node, set:
 [source,yaml]
@@ -289,7 +295,7 @@ node.roles: [ data_warm ]
 ===== Cold data node
 
 Cold data nodes are part of the cold tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=cold-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=cold-tier]
 
 To create a dedicated cold node, set:
 [source,yaml]
@@ -301,7 +307,7 @@ node.roles: [ data_cold ]
 ===== Frozen data node
 
 Frozen data nodes are part of the frozen tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=frozen-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=frozen-tier]
 
 To create a dedicated frozen node, set:
 [source,yaml]
@@ -470,12 +476,6 @@ properly-configured remote block devices (e.g. a SAN) and remote filesystems
 (e.g. NFS) as long as the remote storage behaves no differently from local
 storage. You can run multiple {es} nodes on the same filesystem, but each {es}
 node must have its own data path.
-
-The performance of an {es} cluster is often limited by the performance of the
-underlying storage, so you must ensure that your storage supports acceptable
-performance. Some remote storage performs very poorly, especially under the
-kind of load that {es} imposes, so make sure to benchmark your system carefully
-before committing to a particular storage architecture.
 
 TIP: When using the `.zip` or `.tar.gz` distributions, the `path.data` setting
 should be configured to locate the data directory outside the {es} home

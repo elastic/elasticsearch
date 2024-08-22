@@ -42,12 +42,14 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             Collections.emptyMap(),
             SnapshotRetentionConfiguration.EMPTY
         );
-        CreateSnapshotRequest request = p.toRequest();
-        CreateSnapshotRequest expected = new CreateSnapshotRequest().userMetadata(Collections.singletonMap("policy", "id"));
+        CreateSnapshotRequest request = p.toRequest(TEST_REQUEST_TIMEOUT);
+        CreateSnapshotRequest expected = new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT).userMetadata(
+            Collections.singletonMap("policy", "id")
+        );
 
         p = new SnapshotLifecyclePolicy("id", "name", "0 1 2 3 4 ? 2099", "repo", null, null);
-        request = p.toRequest();
-        expected.waitForCompletion(true).snapshot(request.snapshot()).repository("repo");
+        request = p.toRequest(TEST_REQUEST_TIMEOUT);
+        expected.waitForCompletion(true).snapshot(request.snapshot()).repository("repo").uuid(request.uuid());
         assertEquals(expected, request);
     }
 

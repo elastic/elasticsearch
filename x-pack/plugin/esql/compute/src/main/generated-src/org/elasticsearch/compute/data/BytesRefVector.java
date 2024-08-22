@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -18,14 +20,24 @@ import java.io.IOException;
  * Vector that stores BytesRef values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector {
+public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
+    OrdinalBytesRefVector {
     BytesRef getBytesRef(int position, BytesRef dest);
 
     @Override
     BytesRefBlock asBlock();
 
+    /**
+     * Returns an ordinal BytesRef vector if this vector is backed by a dictionary and ordinals; otherwise,
+     * returns null. Callers must not release the returned vector as no extra reference is retained by this method.
+     */
+    OrdinalBytesRefVector asOrdinals();
+
     @Override
     BytesRefVector filter(int... positions);
+
+    @Override
+    ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
@@ -80,6 +92,7 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
             case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
             case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstantBytesRefVector(in.readBytesRef(), positions);
             case SERIALIZE_VECTOR_ARRAY -> BytesRefArrayVector.readArrayVector(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_ORDINAL -> OrdinalBytesRefVector.readOrdinalVector(blockFactory, in);
             default -> {
                 assert false : "invalid vector serialization type [" + serializationType + "]";
                 throw new IllegalStateException("invalid vector serialization type [" + serializationType + "]");
@@ -95,9 +108,12 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
         if (isConstant() && positions > 0) {
             out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeBytesRef(getBytesRef(0, new BytesRef()));
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof BytesRefArrayVector v) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof BytesRefArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefVector v && v.isDense()) {
+            out.writeByte(SERIALIZE_VECTOR_ORDINAL);
+            v.writeOrdinalVector(out);
         } else {
             out.writeByte(SERIALIZE_VECTOR_VALUES);
             writeValues(this, positions, out);

@@ -11,12 +11,14 @@ package org.elasticsearch.client.internal;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
+import org.elasticsearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
@@ -55,14 +57,14 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         TransportIndexAction.TYPE,
 
         // cluster admin actions
-        ClusterStatsAction.INSTANCE,
-        CreateSnapshotAction.INSTANCE,
-        ClusterRerouteAction.INSTANCE,
+        TransportClusterStatsAction.TYPE,
+        TransportCreateSnapshotAction.TYPE,
+        TransportClusterRerouteAction.TYPE,
 
         // indices admin actions
-        CreateIndexAction.INSTANCE,
+        TransportCreateIndexAction.TYPE,
         IndicesStatsAction.INSTANCE,
-        ClearIndicesCacheAction.INSTANCE,
+        TransportClearIndicesCacheAction.TYPE,
         FlushAction.INSTANCE };
 
     protected ThreadPool threadPool;
@@ -100,30 +102,41 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.prepareGet("idx", "id").execute(new AssertingActionListener<>(TransportGetAction.TYPE.name(), client.threadPool()));
         client.prepareSearch().execute(new AssertingActionListener<>(TransportSearchAction.TYPE.name(), client.threadPool()));
         client.prepareDelete("idx", "id").execute(new AssertingActionListener<>(TransportDeleteAction.NAME, client.threadPool()));
-        client.admin()
-            .cluster()
-            .prepareDeleteStoredScript("id")
-            .execute(new AssertingActionListener<>(TransportDeleteStoredScriptAction.TYPE.name(), client.threadPool()));
+        client.execute(
+            TransportDeleteStoredScriptAction.TYPE,
+            new DeleteStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "id"),
+            new AssertingActionListener<>(TransportDeleteStoredScriptAction.TYPE.name(), client.threadPool())
+        );
         client.prepareIndex("idx")
             .setId("id")
             .setSource("source", XContentType.JSON)
             .execute(new AssertingActionListener<>(TransportIndexAction.NAME, client.threadPool()));
 
         // choosing arbitrary cluster admin actions to test
-        client.admin().cluster().prepareClusterStats().execute(new AssertingActionListener<>(ClusterStatsAction.NAME, client.threadPool()));
         client.admin()
             .cluster()
-            .prepareCreateSnapshot("repo", "bck")
-            .execute(new AssertingActionListener<>(CreateSnapshotAction.NAME, client.threadPool()));
-        client.admin().cluster().prepareReroute().execute(new AssertingActionListener<>(ClusterRerouteAction.NAME, client.threadPool()));
+            .prepareClusterStats()
+            .execute(new AssertingActionListener<>(TransportClusterStatsAction.TYPE.name(), client.threadPool()));
+        client.admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "repo", "bck")
+            .execute(new AssertingActionListener<>(TransportCreateSnapshotAction.TYPE.name(), client.threadPool()));
+        client.execute(
+            TransportClusterRerouteAction.TYPE,
+            new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT),
+            new AssertingActionListener<>(TransportClusterRerouteAction.TYPE.name(), client.threadPool())
+        );
 
         // choosing arbitrary indices admin actions to test
-        client.admin().indices().prepareCreate("idx").execute(new AssertingActionListener<>(CreateIndexAction.NAME, client.threadPool()));
+        client.admin()
+            .indices()
+            .prepareCreate("idx")
+            .execute(new AssertingActionListener<>(TransportCreateIndexAction.TYPE.name(), client.threadPool()));
         client.admin().indices().prepareStats().execute(new AssertingActionListener<>(IndicesStatsAction.NAME, client.threadPool()));
         client.admin()
             .indices()
             .prepareClearCache("idx1", "idx2")
-            .execute(new AssertingActionListener<>(ClearIndicesCacheAction.NAME, client.threadPool()));
+            .execute(new AssertingActionListener<>(TransportClearIndicesCacheAction.TYPE.name(), client.threadPool()));
         client.admin().indices().prepareFlush().execute(new AssertingActionListener<>(FlushAction.NAME, client.threadPool()));
     }
 
@@ -139,12 +152,12 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.admin()
             .cluster()
             .prepareClusterStats()
-            .execute(new AssertingActionListener<>(ClusterStatsAction.NAME, expected, client.threadPool()));
+            .execute(new AssertingActionListener<>(TransportClusterStatsAction.TYPE.name(), expected, client.threadPool()));
 
         client.admin()
             .indices()
             .prepareCreate("idx")
-            .execute(new AssertingActionListener<>(CreateIndexAction.NAME, expected, client.threadPool()));
+            .execute(new AssertingActionListener<>(TransportCreateIndexAction.TYPE.name(), expected, client.threadPool()));
     }
 
     protected static void assertHeaders(Map<String, String> headers, Map<String, String> expected) {

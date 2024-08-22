@@ -7,11 +7,32 @@ Also see <<breaking-changes-8.13,Breaking changes in 8.13>>.
 [float]
 === Known issues
 
+* Searches involving nodes upgraded to 8.13.0 and a coordinator node that is running on version
+  8.12 or earlier can produce duplicate buckets when running `date_histogram` or `histogram`
+  aggregations. This can happen during a rolling upgrade to 8.13 or while running cross-cluster
+  searches. (issue: {es-issue}108181[#108181]).
+
+* Due to a bug in the bundled JDK 22 nodes might crash abruptly under high memory pressure.
+  We recommend <<jvm-version,downgrading to JDK 21.0.2>> asap to mitigate the issue.
+
 * Nodes upgraded to 8.13.0 fail to load downsampling persistent tasks. This prevents them from joining the cluster, blocking its upgrade (issue: {es-issue}106880[#106880])
 +
 This affects clusters running version 8.10 or later, with an active downsampling
 https://www.elastic.co/guide/en/elasticsearch/reference/current/downsampling-ilm.html[configuration]
 or a configuration that was activated at some point since upgrading to version 8.10 or later.
+
+* When upgrading clusters from version 8.11.4 or earlier, if your cluster contains non-master-eligible nodes,
+information about the new functionality of these upgraded nodes may not be registered properly with the master node.
+This can lead to some new functionality added since 8.12.0 not being accessible on the upgraded cluster.
+If your cluster is running on ECK 2.12.1 and above, this may cause problems with finalizing the upgrade.
+To resolve this issue, perform a rolling restart on the non-master-eligible nodes once all Elasticsearch nodes
+are upgraded. This issue is fixed in 8.15.0.
+
+* The `pytorch_inference` process used to run Machine Learning models can consume large amounts of memory.
+In environments where the available memory is limited, the OS Out of Memory Killer will kill the `pytorch_inference`
+process to reclaim memory. This can cause inference requests to fail.
+Elasticsearch will automatically restart the `pytorch_inference` process
+after it is killed up to four times in 24 hours. (issue: {es-issue}110530[#110530])
 
 [[breaking-8.13.0]]
 [float]
@@ -386,7 +407,7 @@ Security::
 
 Snapshot/Restore::
 * Add s3 `HeadObject` request to request stats {es-pull}105105[#105105]
-* Expose `OperationPurpose` via `CustomQueryParameter` to s3 logs {es-pull}105044[#105044]
+* Expose `OperationPurpose` in S3 access logs using a https://docs.aws.amazon.com/AmazonS3/latest/userguide/LogFormat.html#LogFormatCustom[custom query-string parameter] {es-pull}105044[#105044]
 * Fix blob cache race, decay, time dependency {es-pull}104784[#104784]
 * Pause shard snapshots on graceful shutdown {es-pull}101717[#101717]
 * Retry indefinitely for s3 indices blob read errors {es-pull}103300[#103300]
@@ -449,5 +470,3 @@ Search::
 * Upgrade to Lucene 9.9.0 {es-pull}102782[#102782]
 * Upgrade to Lucene 9.9.1 {es-pull}103387[#103387]
 * Upgrade to Lucene 9.9.2 {es-pull}104753[#104753]
-
-

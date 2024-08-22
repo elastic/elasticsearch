@@ -10,13 +10,12 @@ package org.elasticsearch.xpack.core.security.action.user;
 import org.elasticsearch.client.internal.Client;
 
 public interface HasPrivilegesRequestBuilderFactory {
-    HasPrivilegesRequestBuilder create(Client client, boolean restrictRequest);
+    HasPrivilegesRequestBuilder create(Client client);
 
     class Default implements HasPrivilegesRequestBuilderFactory {
 
         @Override
-        public HasPrivilegesRequestBuilder create(Client client, boolean restrictRequest) {
-            assert false == restrictRequest;
+        public HasPrivilegesRequestBuilder create(Client client) {
             return new HasPrivilegesRequestBuilder(client);
         }
     }

@@ -51,7 +51,9 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         return this;
     }
 
-    public GetSettingsRequest() {}
+    public GetSettingsRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public GetSettingsRequest(StreamInput in) throws IOException {
         super(in);

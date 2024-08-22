@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import java.util.Collections;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.ql.index.IndexResolver.ALL_FIELDS;
-import static org.elasticsearch.xpack.ql.index.IndexResolver.INDEX_METADATA_FIELD;
+import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
+import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexResolverFieldNamesTests extends ESTestCase {
@@ -212,11 +212,11 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | limit 4""", Set.of("hire_date", "hire_date.*", "birth_date", "birth_date.*"));
     }
 
-    public void testAutoBucketMonth() {
+    public void testBucketMonth() {
         assertFieldNames("""
             from employees
             | where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
-            | eval hd = auto_bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            | eval hd = bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | sort hire_date
             | keep hire_date, hd""", Set.of("hire_date", "hire_date.*"));
     }
@@ -228,11 +228,11 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
-    public void testAutoBucketMonthInAgg() {
+    public void testBucketMonthInAgg() {
         assertFieldNames("""
             FROM employees
             | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-            | EVAL bucket = AUTO_BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            | EVAL bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | STATS AVG(salary) BY bucket
             | SORT bucket""", Set.of("salary", "salary.*", "hire_date", "hire_date.*"));
     }
@@ -554,11 +554,11 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
-    public void testAutoBucket() {
+    public void testBucket() {
         assertFieldNames("""
             FROM employees
             | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-            | EVAL bh = auto_bucket(height, 20, 1.41, 2.10)
+            | EVAL bh = bucket(height, 20, 1.41, 2.10)
             | SORT hire_date
             | KEEP hire_date, height, bh""", Set.of("hire_date", "hire_date.*", "height", "height.*"));
     }
@@ -1210,6 +1210,14 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | enrich languages_policy
             | keep emp_no"""), Set.of("language_name"));
         assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "language_name", "language_name.*")));
+    }
+
+    public void testDissectOverwriteName() {
+        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+            from employees
+            | dissect first_name "%{first_name} %{more}"
+            | keep emp_no, first_name, more"""), Set.of());
+        assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "first_name", "first_name.*")));
     }
 
     public void testEnrichOnDefaultField() {

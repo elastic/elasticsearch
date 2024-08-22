@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
  * xpack rolling restart tests. We should work on a way to remove this
  * duplication but for now we have no real way to share code.
  */
-public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
+public class IndexingIT extends AbstractRollingUpgradeTestCase {
 
     public IndexingIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

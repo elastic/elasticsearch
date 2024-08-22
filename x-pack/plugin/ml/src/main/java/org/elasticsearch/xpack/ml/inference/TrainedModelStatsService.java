@@ -256,14 +256,14 @@ public class TrainedModelStatsService {
             client,
             clusterState,
             indexNameExpressionResolver,
-            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+            MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT,
             ActionListener.wrap(
                 r -> ElasticsearchMappings.addDocMappingIfMissing(
                     MlStatsIndex.writeAlias(),
                     MlStatsIndex::wrappedMapping,
                     client,
                     clusterState,
-                    MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+                    MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT,
                     listener,
                     MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
                 ),

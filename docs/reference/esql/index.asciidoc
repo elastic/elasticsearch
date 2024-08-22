@@ -1,12 +1,10 @@
 [[esql]]
 = {esql}
 
-:esql-tests: {xes-repo-dir}/../../plugin/esql/qa
+:esql-tests: {elasticsearch-root}/x-pack/docs/{lang}/../../plugin/esql/qa
 :esql-specs: {esql-tests}/testFixtures/src/main/resources
 
 [partintro]
-
-preview::["Do not use {esql} on production environments. This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
 The {es} Query Language ({esql}) provides a powerful way to filter, transform,
 and analyze data stored in {es}, and in the future in other runtimes. It is

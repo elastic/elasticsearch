@@ -48,7 +48,8 @@ public final class InFlightShardSnapshotStates {
         assert snapshots.stream().map(SnapshotsInProgress.Entry::repository).distinct().count() == 1
             : "snapshots must either be an empty list or all belong to the same repository but saw " + snapshots;
         for (SnapshotsInProgress.Entry runningSnapshot : snapshots) {
-            for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot.shardsByRepoShardId()
+            for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot
+                .shardSnapshotStatusByRepoShardId()
                 .entrySet()) {
                 final RepositoryShardId sid = shard.getKey();
                 addStateInformation(generations, busyIds, shard.getValue(), sid.shardId(), sid.indexName());
@@ -97,7 +98,8 @@ public final class InFlightShardSnapshotStates {
         @Nullable ShardGeneration activeGeneration
     ) {
         final ShardGeneration bestGeneration = generations.getOrDefault(indexName, Collections.emptyMap()).get(shardId);
-        assert bestGeneration == null || activeGeneration == null || activeGeneration.equals(bestGeneration);
+        assert bestGeneration == null || activeGeneration == null || activeGeneration.equals(bestGeneration)
+            : "[" + indexName + "][" + shardId + "]: " + bestGeneration + " vs " + activeGeneration;
         return true;
     }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -28,6 +29,7 @@ import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -52,6 +54,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     // Versions over the wire
     public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersions.V_8_10_X;
+    public static final String EFFECTIVE_RETENTION_REST_API_CAPABILITY = "data_stream_lifecycle_effective_retention";
 
     public static final String DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME = "data_streams.lifecycle_only.mode";
     // The following XContent params are used to enrich the DataStreamLifecycle json with effective retention information
@@ -142,7 +145,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     /**
-     * The least amount of time data should be kept by elasticsearch.
+     * The least amount of time data should be kept by elasticsearch. If a caller does not want the global retention considered (for
+     * example, when evaluating the effective retention for a system data stream or a template) then null should be given for
+     * globalRetention.
+     * @param globalRetention The global retention, or null if global retention does not exist or should not be applied
      * @return the time period or null, null represents that data should never be deleted.
      */
     @Nullable
@@ -151,10 +157,13 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     /**
-     * The least amount of time data should be kept by elasticsearch.
-     * @return the time period or null, null represents that data should never be deleted.
+     * The least amount of time data should be kept by elasticsearch. If a caller does not want the global retention considered (for
+     * example, when evaluating the effective retention for a system data stream or a template) then null should be given for
+     * globalRetention.
+     * @param globalRetention The global retention, or null if global retention does not exist or should not be applied
+     * @return A tuple containing the time period or null as v1 (where null represents that data should never be deleted), and the non-null
+     * retention source as v2.
      */
-    @Nullable
     public Tuple<TimeValue, RetentionSource> getEffectiveDataRetentionWithSource(@Nullable DataStreamGlobalRetention globalRetention) {
         // If lifecycle is disabled there is no effective retention
         if (enabled == false) {
@@ -165,12 +174,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             return Tuple.tuple(dataStreamRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
         }
         if (dataStreamRetention == null) {
-            return globalRetention.getDefaultRetention() != null
-                ? Tuple.tuple(globalRetention.getDefaultRetention(), RetentionSource.DEFAULT_GLOBAL_RETENTION)
-                : Tuple.tuple(globalRetention.getMaxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
+            return globalRetention.defaultRetention() != null
+                ? Tuple.tuple(globalRetention.defaultRetention(), RetentionSource.DEFAULT_GLOBAL_RETENTION)
+                : Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
         }
-        if (globalRetention.getMaxRetention() != null && globalRetention.getMaxRetention().getMillis() < dataStreamRetention.getMillis()) {
-            return Tuple.tuple(globalRetention.getMaxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
+        if (globalRetention.maxRetention() != null && globalRetention.maxRetention().getMillis() < dataStreamRetention.getMillis()) {
+            return Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
         } else {
             return Tuple.tuple(dataStreamRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
         }
@@ -184,6 +193,44 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     @Nullable
     public TimeValue getDataStreamRetention() {
         return dataRetention == null ? null : dataRetention.value;
+    }
+
+    /**
+     * This method checks if the effective retention is matching what the user has configured; if the effective retention
+     * does not match then it adds a warning informing the user about the effective retention and the source.
+     */
+    public void addWarningHeaderIfDataRetentionNotEffective(@Nullable DataStreamGlobalRetention globalRetention) {
+        if (globalRetention == null) {
+            return;
+        }
+        Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = getEffectiveDataRetentionWithSource(
+            globalRetention
+        );
+        if (effectiveDataRetentionWithSource.v1() == null) {
+            return;
+        }
+        String effectiveRetentionStringRep = effectiveDataRetentionWithSource.v1().getStringRep();
+        switch (effectiveDataRetentionWithSource.v2()) {
+            case DEFAULT_GLOBAL_RETENTION -> HeaderWarning.addWarning(
+                "Not providing a retention is not allowed for this project. The default retention of ["
+                    + effectiveRetentionStringRep
+                    + "] will be applied."
+            );
+            case MAX_GLOBAL_RETENTION -> {
+                String retentionProvidedPart = getDataStreamRetention() == null
+                    ? "Not providing a retention is not allowed for this project."
+                    : "The retention provided ["
+                        + (getDataStreamRetention() == null ? "infinite" : getDataStreamRetention().getStringRep())
+                        + "] is exceeding the max allowed data retention of this project ["
+                        + effectiveRetentionStringRep
+                        + "].";
+                HeaderWarning.addWarning(
+                    retentionProvidedPart + " The max retention of [" + effectiveRetentionStringRep + "] will be applied"
+                );
+            }
+            case DATA_STREAM_CONFIGURATION -> {
+            }
+        }
     }
 
     /**
@@ -317,6 +364,15 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     public static DataStreamLifecycle fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    /**
+     * Adds a retention param to signal that this serialisation should include the effective retention metadata.
+     * @param params the XContent params to be extended with the new flag
+     * @return XContent params with `include_effective_retention` set to true. If the flag exists it will override it.
+     */
+    public static ToXContent.Params addEffectiveRetentionParams(ToXContent.Params params) {
+        return new DelegatingMapParams(INCLUDE_EFFECTIVE_RETENTION_PARAMS, params);
     }
 
     public static Builder newBuilder(DataStreamLifecycle lifecycle) {

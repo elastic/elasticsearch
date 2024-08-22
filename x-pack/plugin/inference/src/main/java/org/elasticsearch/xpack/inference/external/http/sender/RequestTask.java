@@ -16,7 +16,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -26,20 +25,20 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 class RequestTask implements RejectableTask {
 
     private final AtomicBoolean finished = new AtomicBoolean();
-    private final ExecutableRequestCreator requestCreator;
-    private final List<String> input;
+    private final RequestManager requestCreator;
+    private final InferenceInputs inferenceInputs;
     private final ActionListener<InferenceServiceResults> listener;
 
     RequestTask(
-        ExecutableRequestCreator requestCreator,
-        List<String> input,
+        RequestManager requestCreator,
+        InferenceInputs inferenceInputs,
         @Nullable TimeValue timeout,
         ThreadPool threadPool,
         ActionListener<InferenceServiceResults> listener
     ) {
         this.requestCreator = Objects.requireNonNull(requestCreator);
-        this.input = Objects.requireNonNull(input);
         this.listener = getListener(Objects.requireNonNull(listener), timeout, Objects.requireNonNull(threadPool));
+        this.inferenceInputs = Objects.requireNonNull(inferenceInputs);
     }
 
     private ActionListener<InferenceServiceResults> getListener(
@@ -81,8 +80,8 @@ class RequestTask implements RejectableTask {
     }
 
     @Override
-    public List<String> getInput() {
-        return input;
+    public InferenceInputs getInferenceInputs() {
+        return inferenceInputs;
     }
 
     @Override
@@ -96,7 +95,7 @@ class RequestTask implements RejectableTask {
     }
 
     @Override
-    public ExecutableRequestCreator getRequestCreator() {
+    public RequestManager getRequestManager() {
         return requestCreator;
     }
 }

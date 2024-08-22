@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      cluster_features: ["cluster_desired_balance"]
+      cluster_features: ["gte_v8.6.0"]
       reason: "API added in in 8.6.0"
 
 ---
@@ -62,7 +62,7 @@ setup:
 "Test cluster_balance_stats":
 
   - requires:
-      cluster_features: ["cluster_desired_balance_stats"]
+      cluster_features: ["gte_v8.7.0"]
       reason: "cluster_balance_stats added in in 8.7.0"
 
   - do:
@@ -110,7 +110,7 @@ setup:
 "Test cluster_info":
 
   - requires:
-      cluster_features: ["cluster_info"]
+      cluster_features: [gte_v8.8.0]
       reason: "cluster_info added in in 8.8.0"
 
   - do:
@@ -122,7 +122,7 @@ setup:
 "Test cluster_balance_stats contains node ID and roles":
 
   - requires:
-      cluster_features: ["cluster_desired_balance_extended"]
+      cluster_features: ["gte_v8.8.0"]
       reason: "node_id and roles added in in 8.8.0"
 
   - do:
@@ -141,7 +141,7 @@ setup:
 "Test tier_preference":
 
   - requires:
-      cluster_features: ["cluster_desired_balance_extended"]
+      cluster_features: ["gte_v8.8.0"]
       reason: "tier_preference added in in 8.8.0"
 
   - do:
@@ -166,7 +166,7 @@ setup:
 "Test computed_shard_movements":
 
   - requires:
-      cluster_features: ["cluster_desired_balance_extended"]
+      cluster_features: ["gte_v8.8.0"]
       reason: "computed_shard_movements added in in 8.8.0"
 
   - do:
@@ -178,7 +178,7 @@ setup:
 "Test reset desired balance":
 
   - requires:
-      cluster_features: ["cluster_desired_balance_extended"]
+      cluster_features: ["gte_v8.8.0"]
       reason: "reset API added in in 8.8.0"
 
   - do:
@@ -188,7 +188,7 @@ setup:
 "Test undesired_shard_allocation_count":
 
   - requires:
-      cluster_features: ["cluster_desired_balance_stats_undesired_count"]
+      cluster_features: ["gte_v8.12.0"]
       reason: "undesired_shard_allocation_count added in in 8.12.0"
 
   - do:
@@ -226,7 +226,7 @@ setup:
 "Test unassigned_shards, total_allocations, undesired_allocations and undesired_allocations_fraction":
 
   - requires:
-      cluster_features: [ "cluster_desired_balance_stats_undesired_count" ]
+      cluster_features: [ "gte_v8.12.0" ]
       reason: "undesired_shard_allocation_count added in in 8.12.0"
 
   - do:

@@ -490,7 +490,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .setBulkSize(SETTING_BULK_SIZE.get(settings))
             .build();
 
-        HistoryStore historyStore = new HistoryStore(bulkProcessor);
+        HistoryStore historyStore = new HistoryStore(bulkProcessor, settings);
 
         // schedulers
         final Set<Schedule.Parser<?>> scheduleParsers = new HashSet<>();
@@ -613,6 +613,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         settings.add(SETTING_BULK_CONCURRENT_REQUESTS);
         settings.add(SETTING_BULK_FLUSH_INTERVAL);
         settings.add(SETTING_BULK_SIZE);
+        settings.add(HistoryStore.MAX_HISTORY_SIZE_SETTING);
 
         // notification services
         settings.addAll(SlackService.getSettings());
@@ -834,7 +835,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .orElse(false);
 
         if (manuallyStopped == false) {
-            WatcherServiceRequest serviceRequest = new WatcherServiceRequest();
+            WatcherServiceRequest serviceRequest = new WatcherServiceRequest(TimeValue.THIRTY_SECONDS /* TODO should this be longer? */);
             serviceRequest.stop();
             originClient.execute(WatcherServiceAction.INSTANCE, serviceRequest, ActionListener.wrap((response) -> {
                 listener.onResponse(Collections.singletonMap("manually_stopped", manuallyStopped));
@@ -855,7 +856,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         Client originClient = new OriginSettingClient(client, WATCHER_ORIGIN);
         boolean manuallyStopped = (boolean) preUpgradeMetadata.getOrDefault("manually_stopped", false);
         if (manuallyStopped == false) {
-            WatcherServiceRequest serviceRequest = new WatcherServiceRequest();
+            WatcherServiceRequest serviceRequest = new WatcherServiceRequest(TimeValue.THIRTY_SECONDS /* TODO should this be longer? */);
             serviceRequest.start();
             originClient.execute(WatcherServiceAction.INSTANCE, serviceRequest, ActionListener.wrap((response) -> {
                 listener.onResponse(response.isAcknowledged());
@@ -874,7 +875,6 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     private static Settings getWatchesIndexSettings() {
         return Settings.builder()
             .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
             .put("index.auto_expand_replicas", "0-1")
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)
             .put(IndexMetadata.SETTING_PRIORITY, 800)

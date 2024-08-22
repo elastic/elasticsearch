@@ -13,8 +13,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -211,7 +211,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             ElasticsearchSecurityException.class,
             () -> client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue))
                 .execute(
-                    CreateIndexAction.INSTANCE,
+                    TransportCreateIndexAction.TYPE,
                     new CreateIndexRequest(randomFrom(randomAlphaOfLengthBetween(3, 8), SECURITY_MAIN_ALIAS))
                 )
                 .actionGet()
@@ -247,12 +247,9 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         @SuppressWarnings("unchecked")
         final Map<String, ?> descriptor = (Map<String, ?>) fleetServerRoleDescriptor.get("elastic/fleet-server");
 
-        final RoleDescriptor roleDescriptor = RoleDescriptor.parse(
-            "elastic/fleet-server",
-            XContentTestUtils.convertToXContent(descriptor, XContentType.JSON),
-            false,
-            XContentType.JSON
-        );
+        final RoleDescriptor roleDescriptor = RoleDescriptor.parserBuilder()
+            .build()
+            .parse("elastic/fleet-server", XContentTestUtils.convertToXContent(descriptor, XContentType.JSON), XContentType.JSON);
         assertThat(roleDescriptor, equalTo(ServiceAccountService.getServiceAccounts().get("elastic/fleet-server").roleDescriptor()));
     }
 
@@ -588,16 +585,17 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         final Map<String, Object> roleDescriptors = (Map<String, Object>) document.get("role_descriptors");
         assertThat(roleDescriptors.keySet(), contains("cross_cluster"));
         @SuppressWarnings("unchecked")
-        final RoleDescriptor actualRoleDescriptor = RoleDescriptor.parse(
-            "cross_cluster",
-            XContentTestUtils.convertToXContent((Map<String, Object>) roleDescriptors.get("cross_cluster"), XContentType.JSON),
-            false,
-            XContentType.JSON
-        );
+        final RoleDescriptor actualRoleDescriptor = RoleDescriptor.parserBuilder()
+            .build()
+            .parse(
+                "cross_cluster",
+                XContentTestUtils.convertToXContent((Map<String, Object>) roleDescriptors.get("cross_cluster"), XContentType.JSON),
+                XContentType.JSON
+            );
 
         final RoleDescriptor expectedRoleDescriptor = new RoleDescriptor(
             "cross_cluster",
-            new String[] { "cross_cluster_search" },
+            new String[] { "cross_cluster_search", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")
@@ -649,7 +647,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     public void testUpdateCrossClusterApiKey() throws IOException {
         final RoleDescriptor originalRoleDescriptor = new RoleDescriptor(
             "cross_cluster",
-            new String[] { "cross_cluster_search" },
+            new String[] { "cross_cluster_search", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")

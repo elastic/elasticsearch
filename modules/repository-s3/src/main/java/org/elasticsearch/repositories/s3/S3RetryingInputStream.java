@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
 import org.elasticsearch.rest.RestStatus;
 
@@ -109,16 +110,10 @@ class S3RetryingInputStream extends InputStream {
                     }
                     if (amazonS3Exception.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
                         throw addSuppressedExceptions(
-                            new IOException(
-                                "Requested range [start="
-                                    + start
-                                    + ", end="
-                                    + end
-                                    + ", currentOffset="
-                                    + currentOffset
-                                    + "] cannot be satisfied for blob object ["
-                                    + blobKey
-                                    + ']',
+                            new RequestedRangeNotSatisfiedException(
+                                blobKey,
+                                currentStreamFirstOffset,
+                                (end < Long.MAX_VALUE - 1) ? end - currentStreamFirstOffset + 1 : end,
                                 amazonS3Exception
                             )
                         );

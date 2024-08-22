@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestClusterGetSettingsAction extends BaseRestHandler {
@@ -64,7 +65,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     private static void setUpRequestParams(MasterNodeReadRequest<?> clusterRequest, RestRequest request) {
         clusterRequest.local(request.paramAsBoolean("local", clusterRequest.local()));
-        clusterRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRequest.masterNodeTimeout()));
+        clusterRequest.masterNodeTimeout(getMasterNodeTimeout(request));
     }
 
     @Override

@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      version: " - 8.10.99"
-      reason: "ESQL is available in 8.11+"
-      features: allowed_warnings_regex
+  - requires:
+      cluster_features: ["esql.metrics_counter_fields"]
+      reason: "require metrics counter fields"
+      test_runner_features: allowed_warnings_regex
   - do:
       indices.create:
           index: test
@@ -38,7 +38,7 @@ setup:
                               type: long
                               time_series_metric: counter
                             rx:
-                              type: long
+                              type: integer
                               time_series_metric: counter
   - do:
       bulk:
@@ -107,12 +107,11 @@ setup:
 
 ---
 load everything:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "_source is available in 8.13+"
   - do:
       allowed_warnings_regex:
-        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
@@ -125,9 +124,9 @@ load everything:
   - match: {columns.2.name: "k8s.pod.name"}
   - match: {columns.2.type: "keyword"}
   - match: {columns.3.name: "k8s.pod.network.rx"}
-  - match: {columns.3.type: "unsupported"}
+  - match: {columns.3.type: "counter_integer"}
   - match: {columns.4.name: "k8s.pod.network.tx"}
-  - match: {columns.4.type: "unsupported"}
+  - match: {columns.4.type: "counter_long"}
   - match: {columns.5.name: "k8s.pod.uid"}
   - match: {columns.5.type: "keyword"}
   - match: {columns.6.name: "metricset"}
@@ -138,7 +137,6 @@ load everything:
 load a document:
   - do:
       allowed_warnings_regex:
-        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
@@ -149,24 +147,56 @@ load a document:
   - match: {values.0.0: "2021-04-28T18:50:23.142Z"}
   - match: {values.0.1: "10.10.55.3"}
   - match: {values.0.2: "dog"}
-  - match: {values.0.3: null }
-  - match: {values.0.4: null }
+  - match: {values.0.3: 530600088 }
+  - match: {values.0.4: 1434577921 }
   - match: {values.0.5: "df3145b3-0563-4d3b-a0f7-897eb2876ea9"}
   - match: {values.0.6: "pod"}
 
 ---
-filter on counter:
+filter on counter without cast:
   - do:
-      catch: /Cannot use field \[k8s.pod.network.tx\] with unsupported type \[counter\]/
+      catch: bad_request
       esql.query:
         body:
           query: 'from test | where k8s.pod.network.tx == 1434577921'
 
 ---
+cast counter then filter:
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where k8s.pod.network.tx::long == 2005177954 and k8s.pod.network.rx::integer == 801479970 | sort @timestamp | limit 10'
+  - length: {values: 1}
+  - length: {values.0: 7}
+  - match: {values.0.0: "2021-04-28T18:50:24.467Z"}
+  - match: {values.0.1: "10.10.55.1"}
+  - match: {values.0.2: "cat"}
+  - match: {values.0.3: 801479970 }
+  - match: {values.0.4: 2005177954 }
+  - match: {values.0.5: "947e4ced-1786-4e53-9e0c-5c447e959507"}
+  - match: {values.0.6: "pod"}
+
+---
+sort on counter without cast:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from test |  KEEP k8s.pod.network.tx | sort @k8s.pod.network.tx | limit 1'
+
+---
+cast then sort on counter:
+  - do:
+      esql.query:
+        body:
+          query: 'from test | KEEP k8s.pod.network.tx | EVAL tx=to_long(k8s.pod.network.tx) | sort tx | limit 1'
+  - length: {values: 1}
+  - match: {values.0.0: 1434521831 }
+
+---
 from doc with aggregate_metric_double:
   - do:
       allowed_warnings_regex:
-        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
@@ -196,7 +226,6 @@ stats on aggregate_metric_double:
 from index pattern unsupported counter:
   - do:
       allowed_warnings_regex:
-        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
@@ -213,7 +242,7 @@ from index pattern unsupported counter:
   - match: {columns.4.name: "k8s.pod.name"}
   - match: {columns.4.type: "keyword"}
   - match: {columns.5.name: "k8s.pod.network.rx"}
-  - match: {columns.5.type: "unsupported"}
+  - match: {columns.5.type: "counter_integer"}
   - match: {columns.6.name: "k8s.pod.network.tx"}
   - match: {columns.6.type: "unsupported"}
   - match: {columns.7.name: "k8s.pod.uid"}
@@ -224,17 +253,29 @@ from index pattern unsupported counter:
 
 ---
 from index pattern explicit counter use:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_fix_rename_resolution]
+      reason: "Union type resolution fix for rename also allows direct usage of unsupported fields in KEEP"
+
   - do:
-      catch: '/Cannot use field \[k8s.pod.network.tx\] due to ambiguities being mapped as different metric types in indices: \[test, test2\]/'
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'FROM test* | keep *.tx'
-
+  - match: {columns.0.name: "k8s.pod.network.tx"}
+  - match: {columns.0.type: "unsupported"}
+  - length: {values: 10}
 
 ---
 _source:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "_source is available in 8.13+"
 
   - do:

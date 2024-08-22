@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesActio
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -700,7 +700,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
                     basicAuthHeaderValue("aliases_only", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
                 )
             ).admin().indices().prepareCreate("test_1")::get,
-            CreateIndexAction.NAME,
+            TransportCreateIndexAction.TYPE.name(),
             "aliases_only"
         );
     }

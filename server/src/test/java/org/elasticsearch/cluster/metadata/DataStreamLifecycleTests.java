@@ -31,7 +31,9 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DATA_STREAM_CONFIGURATION;
@@ -132,7 +134,9 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             } else {
                 assertThat(serialized, containsString("data_retention"));
             }
-            if (lifecycle.isEnabled()) {
+            boolean globalRetentionIsNotNull = globalRetention.defaultRetention() != null || globalRetention.maxRetention() != null;
+            boolean configuredLifeCycleIsNotNull = lifecycle.getDataRetention() != null && lifecycle.getDataRetention().value() != null;
+            if (lifecycle.isEnabled() && (globalRetentionIsNotNull || configuredLifeCycleIsNotNull)) {
                 assertThat(serialized, containsString("effective_retention"));
             } else {
                 assertThat(serialized, not(containsString("effective_retention")));
@@ -342,6 +346,15 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         }
     }
 
+    public void testEffectiveRetentionParams() {
+        Map<String, String> initialParams = randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+        ToXContent.Params params = DataStreamLifecycle.addEffectiveRetentionParams(new ToXContent.MapParams(initialParams));
+        assertThat(params.paramAsBoolean(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, false), equalTo(true));
+        for (String key : initialParams.keySet()) {
+            assertThat(initialParams.get(key), equalTo(params.param(key)));
+        }
+    }
+
     @Nullable
     public static DataStreamLifecycle randomLifecycle() {
         return DataStreamLifecycle.newBuilder()
@@ -356,12 +369,12 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         return switch (randomInt(2)) {
             case 0 -> null;
             case 1 -> DataStreamLifecycle.Retention.NULL;
-            default -> new DataStreamLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
+            default -> new DataStreamLifecycle.Retention(randomTimeValue(1, 365, TimeUnit.DAYS));
         };
     }
 
     @Nullable
-    private static DataStreamLifecycle.Downsampling randomDownsampling() {
+    static DataStreamLifecycle.Downsampling randomDownsampling() {
         return switch (randomInt(2)) {
             case 0 -> null;
             case 1 -> DataStreamLifecycle.Downsampling.NULL;
@@ -369,7 +382,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                 var count = randomIntBetween(0, 9);
                 List<DataStreamLifecycle.Downsampling.Round> rounds = new ArrayList<>();
                 var previous = new DataStreamLifecycle.Downsampling.Round(
-                    TimeValue.timeValueDays(randomIntBetween(1, 365)),
+                    randomTimeValue(1, 365, TimeUnit.DAYS),
                     new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
                 );
                 rounds.add(previous);

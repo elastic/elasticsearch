@@ -22,8 +22,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.CodecProvider;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -51,6 +54,7 @@ public final class EngineConfig {
     private volatile boolean enableGcDeletes = true;
     private final TimeValue flushMergesAfter;
     private final String codecName;
+    private final MapperService mapperService;
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final ThreadPool threadPool;
     private final Engine.Warmer warmer;
@@ -58,7 +62,7 @@ public final class EngineConfig {
     private final MergePolicy mergePolicy;
     private final Analyzer analyzer;
     private final Similarity similarity;
-    private final CodecService codecService;
+    private final CodecProvider codecProvider;
     private final Engine.EventListener eventListener;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
@@ -93,11 +97,16 @@ public final class EngineConfig {
      * This setting is also settable on the node and the index level, it's commonly used in hot/cold node archs where index is likely
      * allocated on both `kind` of nodes.
      */
-    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", s -> {
+    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", settings -> {
+        IndexMode indexMode = IndexSettings.MODE.get(settings);
+        return indexMode.getDefaultCodec();
+    }, s -> {
         switch (s) {
-            case "default":
-            case "best_compression":
-            case "lucene_default":
+            case CodecService.DEFAULT_CODEC:
+            case CodecService.LEGACY_DEFAULT_CODEC:
+            case CodecService.BEST_COMPRESSION_CODEC:
+            case CodecService.LEGACY_BEST_COMPRESSION_CODEC:
+            case CodecService.LUCENE_DEFAULT_CODEC:
                 return s;
             default:
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
@@ -146,7 +155,7 @@ public final class EngineConfig {
         MergePolicy mergePolicy,
         Analyzer analyzer,
         Similarity similarity,
-        CodecService codecService,
+        CodecProvider codecProvider,
         Engine.EventListener eventListener,
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
@@ -163,7 +172,8 @@ public final class EngineConfig {
         Comparator<LeafReader> leafSorter,
         LongSupplier relativeTimeInNanosSupplier,
         Engine.IndexCommitListener indexCommitListener,
-        boolean promotableToPrimary
+        boolean promotableToPrimary,
+        MapperService mapperService
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -173,9 +183,10 @@ public final class EngineConfig {
         this.mergePolicy = mergePolicy;
         this.analyzer = analyzer;
         this.similarity = similarity;
-        this.codecService = codecService;
+        this.codecProvider = codecProvider;
         this.eventListener = eventListener;
-        codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
+        this.codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
+        this.mapperService = mapperService;
         // We need to make the indexing buffer for this shard at least as large
         // as the amount of memory that is available for all engines on the
         // local node so that decisions to flush segments to disk are made by
@@ -248,14 +259,22 @@ public final class EngineConfig {
      * </p>
      */
     public Codec getCodec() {
-        return codecService.codec(codecName);
+        return codecProvider.codec(codecName);
     }
 
     /**
-     * @return the {@link CodecService}
+     * @return the {@link CodecProvider}
      */
-    public CodecService getCodecService() {
-        return codecService;
+    public CodecProvider getCodecProvider() {
+        return codecProvider;
+    }
+
+    /**
+     * @return the {@link CodecProvider}
+     */
+    @Deprecated // to avoid breaking serverless, just temporary
+    public CodecProvider getCodecService() {
+        return codecProvider;
     }
 
     /**
@@ -435,5 +454,9 @@ public final class EngineConfig {
      */
     public boolean getUseCompoundFile() {
         return useCompoundFile;
+    }
+
+    public MapperService getMapperService() {
+        return mapperService;
     }
 }

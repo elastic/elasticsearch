@@ -39,8 +39,8 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimulatePipelineRequest.class);
     private String id;
     private boolean verbose;
-    private BytesReference source;
-    private XContentType xContentType;
+    private final BytesReference source;
+    private final XContentType xContentType;
     private RestApiVersion restApiVersion;
 
     /**
@@ -55,8 +55,6 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         this.xContentType = Objects.requireNonNull(xContentType);
         this.restApiVersion = restApiVersion;
     }
-
-    SimulatePipelineRequest() {}
 
     SimulatePipelineRequest(StreamInput in) throws IOException {
         super(in);

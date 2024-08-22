@@ -23,9 +23,9 @@ import java.util.Objects;
  */
 public class ClusterStateResponse extends ActionResponse {
 
-    private ClusterName clusterName;
-    private ClusterState clusterState;
-    private boolean waitForTimedOut = false;
+    private final ClusterName clusterName;
+    private final ClusterState clusterState;
+    private final boolean waitForTimedOut;
 
     public ClusterStateResponse(StreamInput in) throws IOException {
         super(in);

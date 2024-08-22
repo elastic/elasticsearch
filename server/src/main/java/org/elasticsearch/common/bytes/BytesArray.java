@@ -59,16 +59,19 @@ public final class BytesArray extends AbstractBytesReference {
     @Override
     public int indexOf(byte marker, int from) {
         final int len = length - from;
-        int off = offset + from;
-        final int toIndex = offset + length;
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+        final int offsetAsLocal = offset;
+        int off = offsetAsLocal + from;
+        final int toIndex = offsetAsLocal + length;
+        final byte[] bytesAsLocal = bytes;
         // First, try to find the marker in the first few bytes, so we can enter the faster 8-byte aligned loop below.
         // The idea for this logic is taken from Netty's io.netty.buffer.ByteBufUtil.firstIndexOf and optimized for little endian hardware.
         // See e.g. https://richardstartin.github.io/posts/finding-bytes for the idea behind this optimization.
         final int byteCount = len & 7;
         if (byteCount > 0) {
-            final int index = unrolledFirstIndexOf(bytes, off, byteCount, marker);
+            final int index = unrolledFirstIndexOf(bytesAsLocal, off, byteCount, marker);
             if (index != -1) {
-                return index - offset;
+                return index - offsetAsLocal;
             }
             off += byteCount;
             if (off == toIndex) {
@@ -79,9 +82,9 @@ public final class BytesArray extends AbstractBytesReference {
         // faster SWAR (SIMD Within A Register) loop
         final long pattern = compilePattern(marker);
         for (int i = 0; i < longCount; i++) {
-            int index = findInLong(ByteUtils.readLongLE(bytes, off), pattern);
+            int index = findInLong(ByteUtils.readLongLE(bytesAsLocal, off), pattern);
             if (index < Long.BYTES) {
-                return off + index - offset;
+                return off + index - offsetAsLocal;
             }
             off += Long.BYTES;
         }

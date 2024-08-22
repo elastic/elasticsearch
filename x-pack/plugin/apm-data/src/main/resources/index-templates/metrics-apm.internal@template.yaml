@@ -1,7 +1,7 @@
 ---
 version: ${xpack.apmdata.template.version}
 index_patterns: ["metrics-apm.internal-*"]
-priority: 140
+priority: 210
 data_stream: {}
 allow_auto_create: true
 _meta:
@@ -23,8 +23,11 @@ ignore_missing_component_templates:
 template:
   settings:
     index:
-      default_pipeline: apm@default-pipeline
+      default_pipeline: metrics-apm.internal@default-pipeline
       final_pipeline: metrics-apm@pipeline
+      lifecycle:
+        name: metrics-apm.internal_metrics-default_policy
+        prefer_ilm: false
   mappings:
     properties:
       data_stream.dataset:

@@ -1,6 +1,6 @@
 keyword:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -48,8 +48,8 @@ keyword:
 
 ---
 stored text:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -97,8 +97,8 @@ stored text:
 
 ---
 force_synthetic_source_ok:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -161,8 +161,8 @@ force_synthetic_source_ok:
 
 ---
 force_synthetic_source_bad_mapping:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: message changed in 8.5
 
   - do:

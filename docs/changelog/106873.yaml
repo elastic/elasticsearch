@@ -1,6 +1,0 @@
-pr: 106873
-summary: Query API Key Information API support for the `typed_keys` request parameter
-area: Security
-type: enhancement
-issues:
- - 106817

@@ -114,9 +114,8 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
-            return this;
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override
@@ -175,9 +174,8 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
-            return this;
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override
@@ -236,9 +234,8 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
-            return this;
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override
@@ -297,9 +294,8 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
-            return this;
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override
@@ -361,9 +357,8 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
-            return this;
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override

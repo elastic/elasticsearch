@@ -56,19 +56,23 @@ import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -84,35 +88,34 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
-        entries.addAll(
-            Arrays.asList(
-                new NamedXContentRegistry.Entry(
-                    LifecycleType.class,
-                    new ParseField(TimeseriesLifecycleType.TYPE),
-                    (p) -> TimeseriesLifecycleType.INSTANCE
-                ),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
-                new NamedXContentRegistry.Entry(
-                    LifecycleAction.class,
-                    new ParseField(WaitForSnapshotAction.NAME),
-                    WaitForSnapshotAction::parse
-                ),
-                new NamedXContentRegistry.Entry(
-                    LifecycleAction.class,
-                    new ParseField(SearchableSnapshotAction.NAME),
-                    SearchableSnapshotAction::parse
-                ),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MigrateAction.NAME), MigrateAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DownsampleAction.NAME), DownsampleAction::parse)
-            )
+        Collections.addAll(
+            entries,
+            new NamedXContentRegistry.Entry(
+                LifecycleType.class,
+                new ParseField(TimeseriesLifecycleType.TYPE),
+                (p) -> TimeseriesLifecycleType.INSTANCE
+            ),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
+            new NamedXContentRegistry.Entry(
+                LifecycleAction.class,
+                new ParseField(WaitForSnapshotAction.NAME),
+                WaitForSnapshotAction::parse
+            ),
+            new NamedXContentRegistry.Entry(
+                LifecycleAction.class,
+                new ParseField(SearchableSnapshotAction.NAME),
+                SearchableSnapshotAction::parse
+            ),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MigrateAction.NAME), MigrateAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DownsampleAction.NAME), DownsampleAction::parse)
         );
         return new NamedXContentRegistry(entries);
     }
@@ -130,7 +133,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(clusterName).build();
         ReservedLifecycleAction action = new ReservedLifecycleAction(xContentRegistry(), client, mock(XPackLicenseState.class));
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState prevState = new TransformState(state, Set.of());
 
         String badPolicyJSON = """
             {
@@ -145,9 +148,9 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
               }
             }""";
 
-        assertEquals(
-            "[1:2] [lifecycle_policy] unknown field [phase] did you mean [phases]?",
-            expectThrows(XContentParseException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
+        assertThat(
+            expectThrows(XContentParseException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage(),
+            is("[1:2] [lifecycle_policy] unknown field [phase] did you mean [phases]?")
         );
     }
 
@@ -162,10 +165,10 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
         String emptyJSON = "";
 
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState prevState = new TransformState(state, Set.of());
 
         TransformState updatedState = processJSON(action, prevState, emptyJSON);
-        assertEquals(0, updatedState.keys().size());
+        assertThat(updatedState.keys(), empty());
         assertEquals(prevState.state(), updatedState.state());
 
         String twoPoliciesJSON = """
@@ -359,9 +362,9 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         AtomicReference<Exception> x = new AtomicReference<>();
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, (e) -> x.set(e));
+            controller.process("operator", parser, x::set);
 
-            assertTrue(x.get() instanceof IllegalStateException);
+            assertThat(x.get(), instanceOf(IllegalStateException.class));
             assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
         }
 
@@ -380,11 +383,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         );
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, (e) -> {
-                if (e != null) {
-                    fail("Should not fail");
-                }
-            });
+            controller.process("operator", parser, Assert::assertNull);
         }
     }
 
@@ -411,9 +410,9 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
                         "my_timeseries_lifecycle",
                         Map.of(
                             "warm",
-                            new Phase("warm", new TimeValue(10, TimeUnit.SECONDS), Collections.emptyMap()),
+                            new Phase("warm", new TimeValue(10, TimeUnit.SECONDS), Map.of()),
                             "delete",
-                            new Phase("delete", new TimeValue(30, TimeUnit.SECONDS), Collections.emptyMap())
+                            new Phase("delete", new TimeValue(30, TimeUnit.SECONDS), Map.of())
                         )
                     )
                 )
@@ -421,9 +420,9 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
             new ReservedStateVersion(123L, Version.CURRENT)
         );
 
-        controller.process("operator", pack, (e) -> x.set(e));
+        controller.process("operator", pack, x::set);
 
-        assertTrue(x.get() instanceof IllegalStateException);
+        assertThat(x.get(), instanceOf(IllegalStateException.class));
         assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
 
         Client client = mock(Client.class);
@@ -440,10 +439,6 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
             )
         );
 
-        controller.process("operator", pack, (e) -> {
-            if (e != null) {
-                fail("Should not fail");
-            }
-        });
+        controller.process("operator", pack, Assert::assertNull);
     }
 }

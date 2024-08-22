@@ -1,18 +1,16 @@
 ---
 setup:
-  - skip:
-      version: "9.0.0 - "
-      reason: "compatible from 8.x to 7.x"
-      features:
+  - requires:
+      test_runner_features:
         - "headers"
         - "allowed_warnings_regex"
 
 ---
 Basic test for upgrade indices:
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "_upgrade api is deprecated since 7.11.0"
-      features:
+      test_runner_features:
         - "warnings"
   - do:
       indices.create:

@@ -39,7 +39,7 @@ by using a comma-separated list of {dfanalytics-jobs} or a wildcard expression.
 
 `<data_frame_analytics_id>`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-default]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-default]
 +
 --
 You can get information for all {dfanalytics-jobs} by using _all, by specifying
@@ -53,19 +53,19 @@ You can get information for all {dfanalytics-jobs} by using _all, by specifying
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-dfa-jobs]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-dfa-jobs]
 
 `exclude_generated`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-generated]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=exclude-generated]
 
 `from`::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=from]
 
 `size`::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=size]
 
 [role="child_attributes"]
 [[ml-get-dfanalytics-results]]

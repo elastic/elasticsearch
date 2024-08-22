@@ -25,7 +25,7 @@ public class AugmentationTests extends ScriptTestCase {
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
-        List<Whitelist> digestWhitelist = new ArrayList<>(PainlessPlugin.BASE_WHITELISTS);
+        List<Whitelist> digestWhitelist = new ArrayList<>(PAINLESS_BASE_WHITELIST);
         digestWhitelist.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.ingest.txt"));
         contexts.put(DigestTestScript.CONTEXT, digestWhitelist);
 

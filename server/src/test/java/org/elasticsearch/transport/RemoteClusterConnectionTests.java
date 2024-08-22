@@ -761,7 +761,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                         .sendRequest(
                                             randomNonNegativeLong(),
                                             "arbitrary",
-                                            TransportRequest.Empty.INSTANCE,
+                                            new EmptyRequest(),
                                             TransportRequestOptions.of(null, type)
                                         )
                                 ).getMessage(),
@@ -835,7 +835,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                     try {
                                         Transport.Connection lowLevelConnection = connection.getConnection();
                                         assertNotNull(lowLevelConnection);
-                                    } catch (NoSuchRemoteClusterException e) {
+                                    } catch (ConnectTransportException e) {
                                         // ignore, this is an expected exception
                                     }
                                 }
@@ -855,7 +855,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                     DiscoveryNode node = randomFrom(discoverableNodes);
                                     try {
                                         connection.getConnectionManager().getConnection(node);
-                                    } catch (NoSuchRemoteClusterException e) {
+                                    } catch (ConnectTransportException e) {
                                         // Ignore
                                     }
                                 }
@@ -922,7 +922,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         RemoteClusterCredentialsManager.EMPTY
                     )
                 ) {
-                    PlainActionFuture.get(fut -> connection.ensureConnected(fut.map(x -> null)));
+                    safeAwait(listener -> connection.ensureConnected(listener.map(x -> null)));
                     for (int i = 0; i < 10; i++) {
                         // always a direct connection as the remote node is already connected
                         Transport.Connection remoteConnection = connection.getConnection(seedNode);

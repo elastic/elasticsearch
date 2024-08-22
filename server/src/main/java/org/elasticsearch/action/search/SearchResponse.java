@@ -8,15 +8,16 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
@@ -39,6 +40,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -75,7 +77,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final Boolean terminatedEarly;
     private final int numReducePhases;
     private final String scrollId;
-    private final String pointInTimeId;
+    private final BytesReference pointInTimeId;
     private final int totalShards;
     private final int successfulShards;
     private final int skippedShards;
@@ -109,7 +111,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
-        pointInTimeId = in.readOptionalString();
+        pointInTimeId = in.readOptionalBytesReference();
     }
 
     public SearchResponse(
@@ -156,7 +158,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         long tookInMillis,
         ShardSearchFailure[] shardFailures,
         Clusters clusters,
-        String pointInTimeId
+        BytesReference pointInTimeId
     ) {
         this(
             searchResponseSections.hits,
@@ -192,7 +194,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         long tookInMillis,
         ShardSearchFailure[] shardFailures,
         Clusters clusters,
-        String pointInTimeId
+        BytesReference pointInTimeId
     ) {
         this.hits = hits;
         hits.incRef();
@@ -349,7 +351,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     /**
      * Returns the encoded string of the search context that the search request is used to executed
      */
-    public String pointInTimeId() {
+    public BytesReference pointInTimeId() {
         return pointInTimeId;
     }
 
@@ -419,7 +421,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             builder.field(SCROLL_ID.getPreferredName(), scrollId);
         }
         if (pointInTimeId != null) {
-            builder.field(POINT_IN_TIME_ID.getPreferredName(), pointInTimeId);
+            builder.field(
+                POINT_IN_TIME_ID.getPreferredName(),
+                Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(pointInTimeId))
+            );
         }
         builder.field(TOOK.getPreferredName(), tookInMillis);
         builder.field(TIMED_OUT.getPreferredName(), isTimedOut());
@@ -462,7 +467,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
-        out.writeOptionalString(pointInTimeId);
+        out.writeOptionalBytesReference(pointInTimeId);
     }
 
     @Override
@@ -1149,7 +1154,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     // public for tests
     public static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
         return new SearchResponse(
-            SearchHits.empty(new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN),
+            SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN),
             InternalAggregations.EMPTY,
             null,
             false,

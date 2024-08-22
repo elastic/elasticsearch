@@ -18,7 +18,6 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -38,11 +37,11 @@ import static java.util.stream.Collectors.joining;
 
 public class HashAggregationOperator implements Operator {
 
-    public record GroupSpec(int channel, ElementType elementType) {}
-
-    public record HashAggregationOperatorFactory(List<GroupSpec> groups, List<GroupingAggregator.Factory> aggregators, int maxPageSize)
-        implements
-            OperatorFactory {
+    public record HashAggregationOperatorFactory(
+        List<BlockHash.GroupSpec> groups,
+        List<GroupingAggregator.Factory> aggregators,
+        int maxPageSize
+    ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new HashAggregationOperator(
@@ -355,7 +354,7 @@ public class HashAggregationOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ESQL_TIMINGS;
+            return TransportVersions.V_8_14_0;
         }
     }
 }

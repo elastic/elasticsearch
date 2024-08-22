@@ -1,9 +1,7 @@
 ---
 setup:
-  - skip:
-      version: "9.0.0 - "
-      reason: "compatible from 8.x to 7.x"
-      features:
+  - requires:
+      test_runner_features:
         - "headers"
         - "warnings"
 

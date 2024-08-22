@@ -20,7 +20,8 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
-import org.hamcrest.CoreMatchers;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
 import java.net.URI;
@@ -62,7 +63,8 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             similarityMeasure,
             dims,
             maxInputTokens,
-            randomBoolean()
+            randomBoolean(),
+            RateLimitSettingsTests.createRandom()
         );
     }
 
@@ -103,7 +105,8 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     SimilarityMeasure.DOT_PRODUCT,
                     dims,
                     maxInputTokens,
-                    true
+                    true,
+                    null
                 )
             )
         );
@@ -143,7 +146,8 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     SimilarityMeasure.DOT_PRODUCT,
                     null,
                     maxInputTokens,
-                    false
+                    false,
+                    null
                 )
             )
         );
@@ -188,7 +192,57 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     SimilarityMeasure.DOT_PRODUCT,
                     dims,
                     maxInputTokens,
-                    false
+                    false,
+                    null
+                )
+            )
+        );
+    }
+
+    public void testFromMap_Persistent_CreatesSettingsCorrectly_WithRateLimitSettings() {
+        var modelId = "model-foo";
+        var url = "https://www.abc.com";
+        var org = "organization";
+        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
+        var dims = 1536;
+        var maxInputTokens = 512;
+        var rateLimit = 3;
+        var serviceSettings = OpenAiEmbeddingsServiceSettings.fromMap(
+            new HashMap<>(
+                Map.of(
+                    ServiceFields.MODEL_ID,
+                    modelId,
+                    ServiceFields.URL,
+                    url,
+                    OpenAiServiceFields.ORGANIZATION,
+                    org,
+                    ServiceFields.SIMILARITY,
+                    similarity,
+                    ServiceFields.DIMENSIONS,
+                    dims,
+                    ServiceFields.MAX_INPUT_TOKENS,
+                    maxInputTokens,
+                    OpenAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                    false,
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit))
+                )
+            ),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new OpenAiEmbeddingsServiceSettings(
+                    modelId,
+                    ServiceUtils.createUri(url),
+                    org,
+                    SimilarityMeasure.DOT_PRODUCT,
+                    dims,
+                    maxInputTokens,
+                    false,
+                    new RateLimitSettings(rateLimit)
                 )
             )
         );
@@ -200,21 +254,99 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(settings, is(new OpenAiEmbeddingsServiceSettings("m", (URI) null, null, null, null, null, true)));
+        assertThat(settings, is(new OpenAiEmbeddingsServiceSettings("m", (URI) null, null, null, null, null, true, null)));
     }
 
-    public void testFromMap_PersistentContext_ThrowsException_WhenDimensionsSetByUserIsNull() {
-        var exception = expectThrows(
+    public void testFromMap_ThrowsException_WhenDimensionsAreZero() {
+        var modelId = "model-foo";
+        var url = "https://www.abc.com";
+        var org = "organization";
+        var dimensions = 0;
+
+        var settingsMap = getServiceSettingsMap(modelId, url, org, dimensions, null, null);
+
+        var thrownException = expectThrows(
             ValidationException.class,
-            () -> OpenAiEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.DIMENSIONS, 1, ServiceFields.MODEL_ID, "m")),
-                ConfigurationParseContext.PERSISTENT
-            )
+            () -> OpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
         );
 
         assertThat(
-            exception.getMessage(),
-            containsString("Validation Failed: 1: [service_settings] does not contain the required setting [dimensions_set_by_user];")
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;")
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenDimensionsAreNegative() {
+        var modelId = "model-foo";
+        var url = "https://www.abc.com";
+        var org = "organization";
+        var dimensions = randomNegativeInt();
+
+        var settingsMap = getServiceSettingsMap(modelId, url, org, dimensions, null, null);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> OpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [dimensions] must be a positive integer;",
+                    dimensions
+                )
+            )
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenMaxInputTokensAreZero() {
+        var modelId = "model-foo";
+        var url = "https://www.abc.com";
+        var org = "organization";
+        var maxInputTokens = 0;
+
+        var settingsMap = getServiceSettingsMap(modelId, url, org, null, maxInputTokens, null);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> OpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [max_input_tokens] must be a positive integer;")
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenMaxInputTokensAreNegative() {
+        var modelId = "model-foo";
+        var url = "https://www.abc.com";
+        var org = "organization";
+        var maxInputTokens = randomNegativeInt();
+
+        var settingsMap = getServiceSettingsMap(modelId, url, org, null, maxInputTokens, null);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> OpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [max_input_tokens] must be a positive integer;",
+                    maxInputTokens
+                )
+            )
+        );
+    }
+
+    public void testFromMap_PersistentContext_DoesNotThrowException_WhenDimensionsSetByUserIsNull() {
+        OpenAiEmbeddingsServiceSettings.fromMap(
+            new HashMap<>(Map.of(ServiceFields.DIMENSIONS, 1, ServiceFields.MODEL_ID, "m")),
+            ConfigurationParseContext.PERSISTENT
         );
     }
 
@@ -289,7 +421,9 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(
             thrownException.getMessage(),
-            is(Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];", url, ServiceFields.URL))
+            containsString(
+                Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]", url, ServiceFields.URL)
+            )
         );
     }
 
@@ -313,50 +447,74 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     }
 
     public void testToXContent_WritesDimensionsSetByUserTrue() throws IOException {
-        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", null, null, null, true);
+        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", null, null, null, true, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"model_id":"model","url":"url","organization_id":"org","dimensions_set_by_user":true}"""));
+        assertThat(xContentResult, is("""
+            {"model_id":"model","url":"url","organization_id":"org",""" + """
+            "rate_limit":{"requests_per_minute":3000},"dimensions_set_by_user":true}"""));
     }
 
     public void testToXContent_WritesDimensionsSetByUserFalse() throws IOException {
-        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", null, null, null, false);
+        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", null, null, null, false, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"model_id":"model","url":"url","organization_id":"org","dimensions_set_by_user":false}"""));
+        assertThat(xContentResult, is("""
+            {"model_id":"model","url":"url","organization_id":"org",""" + """
+            "rate_limit":{"requests_per_minute":3000},"dimensions_set_by_user":false}"""));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", SimilarityMeasure.DOT_PRODUCT, 1, 2, false);
+        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", SimilarityMeasure.DOT_PRODUCT, 1, 2, false, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
+        assertThat(xContentResult, is("""
             {"model_id":"model","url":"url","organization_id":"org","similarity":"dot_product",""" + """
-            "dimensions":1,"max_input_tokens":2,"dimensions_set_by_user":false}"""));
+            "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_minute":3000},"dimensions_set_by_user":false}"""));
     }
 
     public void testToFilteredXContent_WritesAllValues_ExceptDimensionsSetByUser() throws IOException {
-        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", SimilarityMeasure.DOT_PRODUCT, 1, 2, false);
+        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", SimilarityMeasure.DOT_PRODUCT, 1, 2, false, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         var filteredXContent = entity.getFilteredXContentObject();
         filteredXContent.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
+        assertThat(xContentResult, is("""
             {"model_id":"model","url":"url","organization_id":"org","similarity":"dot_product",""" + """
-            "dimensions":1,"max_input_tokens":2}"""));
+            "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_minute":3000}}"""));
+    }
+
+    public void testToFilteredXContent_WritesAllValues_WithSpecifiedRateLimit() throws IOException {
+        var entity = new OpenAiEmbeddingsServiceSettings(
+            "model",
+            "url",
+            "org",
+            SimilarityMeasure.DOT_PRODUCT,
+            1,
+            2,
+            false,
+            new RateLimitSettings(2000)
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        var filteredXContent = entity.getFilteredXContentObject();
+        filteredXContent.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is("""
+            {"model_id":"model","url":"url","organization_id":"org","similarity":"dot_product",""" + """
+            "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_minute":2000}}"""));
     }
 
     @Override
@@ -371,7 +529,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     @Override
     protected OpenAiEmbeddingsServiceSettings mutateInstance(OpenAiEmbeddingsServiceSettings instance) throws IOException {
-        return createRandomWithNonNullUrl();
+        return randomValueOtherThan(instance, OpenAiEmbeddingsServiceSettingsTests::createRandomWithNonNullUrl);
     }
 
     public static Map<String, Object> getServiceSettingsMap(String modelId, @Nullable String url, @Nullable String org) {
@@ -392,6 +550,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         @Nullable String url,
         @Nullable String org,
         @Nullable Integer dimensions,
+        @Nullable Integer maxInputTokens,
         @Nullable Boolean dimensionsSetByUser
     ) {
         var map = new HashMap<String, Object>();
@@ -407,6 +566,10 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         if (dimensions != null) {
             map.put(ServiceFields.DIMENSIONS, dimensions);
+        }
+
+        if (maxInputTokens != null) {
+            map.put(ServiceFields.MAX_INPUT_TOKENS, maxInputTokens);
         }
 
         if (dimensionsSetByUser != null) {

@@ -34,7 +34,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -243,12 +243,22 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
                         throw new IllegalArgumentException("[" + FAIL_AFTER_BYTES_PARAM + "] must be present and non-negative");
                     }
                     return channel -> randomExecutor(client.threadPool()).execute(
-                        () -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBody() {
+                        () -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBodyPart() {
                             int bytesRemaining = failAfterBytes;
 
                             @Override
-                            public boolean isDone() {
+                            public boolean isPartComplete() {
                                 return false;
+                            }
+
+                            @Override
+                            public boolean isLastPart() {
+                                return true;
+                            }
+
+                            @Override
+                            public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+                                fail("no continuations here");
                             }
 
                             @Override

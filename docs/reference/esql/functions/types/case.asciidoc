@@ -5,5 +5,15 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 condition | trueValue | result
-
+boolean | boolean | boolean
+boolean | cartesian_point | cartesian_point
+boolean | date | date
+boolean | double | double
+boolean | geo_point | geo_point
+boolean | integer | integer
+boolean | ip | ip
+boolean | long | long
+boolean | text | text
+boolean | unsigned_long | unsigned_long
+boolean | version | version
 |===

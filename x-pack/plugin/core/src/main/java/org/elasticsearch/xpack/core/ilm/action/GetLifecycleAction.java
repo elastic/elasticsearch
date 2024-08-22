@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -40,7 +41,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
 
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
 
-        private List<LifecyclePolicyResponseItem> policies;
+        private final List<LifecyclePolicyResponseItem> policies;
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -101,9 +102,10 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
-        private String[] policyNames;
+        private final String[] policyNames;
 
-        public Request(String... policyNames) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String... policyNames) {
+            super(masterNodeTimeout, ackTimeout);
             if (policyNames == null) {
                 throw new IllegalArgumentException("ids cannot be null");
             }
@@ -113,10 +115,6 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
         public Request(StreamInput in) throws IOException {
             super(in);
             policyNames = in.readStringArray();
-        }
-
-        public Request() {
-            policyNames = Strings.EMPTY_ARRAY;
         }
 
         @Override

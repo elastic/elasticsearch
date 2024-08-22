@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -26,6 +25,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,8 +44,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
     TransportVerifyShardIndexBlockAction.ShardRequest,
     ReplicationResponse> {
 
-    public static final String NAME = AddIndexBlockAction.NAME + "[s]";
-    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME);
+    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(TransportAddIndexBlockAction.TYPE.name() + "[s]");
 
     @Inject
     public TransportVerifyShardIndexBlockAction(
@@ -59,7 +58,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
     ) {
         super(
             settings,
-            NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             indicesService,
@@ -68,7 +67,10 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
             actionFilters,
             ShardRequest::new,
             ShardRequest::new,
-            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            threadPool.executor(ThreadPool.Names.MANAGEMENT),
+            SyncGlobalCheckpointAfterOperation.DoNotSync,
+            PrimaryActionExecution.RejectOnOverload,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 

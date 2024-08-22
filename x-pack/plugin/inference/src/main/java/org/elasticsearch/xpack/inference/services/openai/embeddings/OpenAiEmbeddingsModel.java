@@ -58,7 +58,12 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         OpenAiEmbeddingsTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        super(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelSecrets(secrets),
+            serviceSettings,
+            secrets
+        );
     }
 
     private OpenAiEmbeddingsModel(OpenAiEmbeddingsModel originalModel, OpenAiEmbeddingsTaskSettings taskSettings) {

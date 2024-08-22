@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.time.Instant;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.Mockito.mock;
@@ -38,12 +39,15 @@ public class NativeRealmTests extends ESTestCase {
             true,
             true,
             true,
+            true,
+            null,
+            null,
             null,
             concreteSecurityIndexName,
             indexStatus,
             IndexMetadata.State.OPEN,
-            null,
-            "my_uuid"
+            "my_uuid",
+            Set.of()
         );
     }
 

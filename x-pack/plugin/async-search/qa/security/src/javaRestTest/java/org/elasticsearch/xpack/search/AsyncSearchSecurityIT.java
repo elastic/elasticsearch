@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
@@ -177,6 +178,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
      * @throws IOException
      */
     public void testStatusWithUsersWhileSearchIsRunning() throws IOException {
+        assumeTrue("[error_query] is only available in snapshot builds", Build.current().isSnapshot());
         String user = randomFrom("user1", "user2");
         String other = user.equals("user1") ? "user2" : "user1";
         String indexName = "index-" + user;
@@ -247,6 +249,9 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         // user-monitor can access the status
         assertOK(getAsyncStatus(id, "user-monitor"));
 
+        // user-monitor can access status and set keep_alive
+        assertOK(getAsyncStatusAndSetKeepAlive(id, "user-monitor"));
+
         // user-monitor cannot access the result
         exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, "user-monitor"));
         assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
@@ -286,7 +291,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     private SearchHit[] getSearchHits(String asyncId, String user) throws IOException {
         final Response resp = getAsyncSearch(asyncId, user);
         assertOK(resp);
-        SearchResponse searchResponse = ASYNC_SEARCH_RESPONSE_PARSER.apply(
+        AsyncSearchResponse asyncSearchResponse = ASYNC_SEARCH_RESPONSE_PARSER.apply(
             XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE,
@@ -294,11 +299,13 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
                 XContentType.JSON
             ),
             null
-        ).getSearchResponse();
+        );
+        SearchResponse searchResponse = asyncSearchResponse.getSearchResponse();
         try {
             return searchResponse.getHits().asUnpooled().getHits();
         } finally {
             searchResponse.decRef();
+            asyncSearchResponse.decRef();
         }
     }
 
@@ -479,6 +486,13 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     static Response getAsyncStatus(String id, String user) throws IOException {
         final Request request = new Request("GET", "/_async_search/status/" + id);
         setRunAsHeader(request, user);
+        return client().performRequest(request);
+    }
+
+    static Response getAsyncStatusAndSetKeepAlive(String id, String user) throws IOException {
+        final Request request = new Request("GET", "/_async_search/status/" + id);
+        setRunAsHeader(request, user);
+        request.addParameter("keep_alive", "3m");
         return client().performRequest(request);
     }
 

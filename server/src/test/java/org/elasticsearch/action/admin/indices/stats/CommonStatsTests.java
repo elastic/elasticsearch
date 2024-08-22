@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.DenseVectorStats;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
@@ -50,6 +51,7 @@ public class CommonStatsTests extends AbstractWireSerializingTestCase<CommonStat
     @Override
     protected CommonStats mutateInstance(CommonStats instance) throws IOException {
         CommonStats another = createTestInstance();
+
         long denseVectorCount = instance.getDenseVectorStats() == null
             ? randomNonNegativeLong()
             : randomValueOtherThan(instance.getDenseVectorStats().getValueCount(), ESTestCase::randomNonNegativeLong);
@@ -58,6 +60,16 @@ public class CommonStatsTests extends AbstractWireSerializingTestCase<CommonStat
         } else {
             another.getDenseVectorStats().add(new DenseVectorStats(denseVectorCount));
         }
+
+        long sparseVectorCount = instance.getSparseVectorStats() == null
+            ? randomNonNegativeLong()
+            : randomValueOtherThan(instance.getSparseVectorStats().getValueCount(), ESTestCase::randomNonNegativeLong);
+        if (another.getSparseVectorStats() == null) {
+            another.sparseVectorStats = new SparseVectorStats(sparseVectorCount);
+        } else {
+            another.getSparseVectorStats().add(new SparseVectorStats(sparseVectorCount));
+        }
+
         another.add(instance);
         return another;
     }

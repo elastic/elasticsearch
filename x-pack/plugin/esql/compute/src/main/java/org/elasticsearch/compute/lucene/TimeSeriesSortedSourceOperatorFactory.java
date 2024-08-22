@@ -13,10 +13,12 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -43,18 +45,24 @@ import java.util.function.Function;
  * This operator currently only supports shard level concurrency. A new concurrency mechanism should be introduced at the time serie level
  * in order to read tsdb indices in parallel.
  */
-public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, int taskConcurrency, LuceneSliceQueue sliceQueue)
-    implements
-        LuceneOperator.Factory {
+public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factory {
+
+    private final int maxPageSize;
+
+    private TimeSeriesSortedSourceOperatorFactory(
+        List<? extends ShardContext> contexts,
+        Function<ShardContext, Query> queryFunction,
+        int taskConcurrency,
+        int maxPageSize,
+        int limit
+    ) {
+        super(contexts, queryFunction, DataPartitioning.SHARD, taskConcurrency, limit, ScoreMode.COMPLETE_NO_SCORES);
+        this.maxPageSize = maxPageSize;
+    }
 
     @Override
     public SourceOperator get(DriverContext driverContext) {
         return new Impl(driverContext.blockFactory(), sliceQueue, maxPageSize, limit);
-    }
-
-    @Override
-    public int taskConcurrency() {
-        return taskConcurrency;
     }
 
     @Override
@@ -69,10 +77,7 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
         List<? extends ShardContext> searchContexts,
         Function<ShardContext, Query> queryFunction
     ) {
-        var weightFunction = LuceneOperator.weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES);
-        var sliceQueue = LuceneSliceQueue.create(searchContexts, weightFunction, DataPartitioning.SHARD, taskConcurrency);
-        taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
-        return new TimeSeriesSortedSourceOperatorFactory(limit, maxPageSize, taskConcurrency, sliceQueue);
+        return new TimeSeriesSortedSourceOperatorFactory(searchContexts, queryFunction, taskConcurrency, maxPageSize, limit);
     }
 
     static final class Impl extends SourceOperator {
@@ -85,10 +90,10 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
         private boolean doneCollecting;
         private IntVector.Builder docsBuilder;
         private IntVector.Builder segmentsBuilder;
-        private LongVector.Builder timestampIntervalBuilder;
-        // TODO: handle when a time series spans across backing indices
-        // In that case we need to bytes representation of the tsid
-        private IntVector.Builder tsOrdBuilder;
+        private LongVector.Builder timestampsBuilder;
+        // TODO: add an ordinal block for tsid hashes
+        // (This allows for efficiently grouping by tsid locally, no need to use bytes representation of tsid hash)
+        private BytesRefVector.Builder tsHashesBuilder;
         private TimeSeriesIterator iterator;
 
         Impl(BlockFactory blockFactory, LuceneSliceQueue sliceQueue, int maxPageSize, int limit) {
@@ -97,8 +102,8 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
             this.remainingDocs = limit;
             this.docsBuilder = blockFactory.newIntVectorBuilder(Math.min(limit, maxPageSize));
             this.segmentsBuilder = null;
-            this.timestampIntervalBuilder = blockFactory.newLongVectorBuilder(Math.min(limit, maxPageSize));
-            this.tsOrdBuilder = blockFactory.newIntVectorBuilder(Math.min(limit, maxPageSize));
+            this.timestampsBuilder = blockFactory.newLongVectorBuilder(Math.min(limit, maxPageSize));
+            this.tsHashesBuilder = blockFactory.newBytesRefVectorBuilder(Math.min(limit, maxPageSize));
             this.sliceQueue = sliceQueue;
         }
 
@@ -127,8 +132,8 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
             IntBlock shard = null;
             IntVector leaf = null;
             IntVector docs = null;
-            LongVector timestampIntervals = null;
-            IntVector tsids = null;
+            LongVector timestamps = null;
+            BytesRefVector tsids = null;
             try {
                 if (iterator == null) {
                     var slice = sliceQueue.nextSlice();
@@ -154,15 +159,15 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                 docs = docsBuilder.build();
                 docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
 
-                timestampIntervals = timestampIntervalBuilder.build();
-                timestampIntervalBuilder = blockFactory.newLongVectorBuilder(Math.min(remainingDocs, maxPageSize));
-                tsids = tsOrdBuilder.build();
-                tsOrdBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
+                timestamps = timestampsBuilder.build();
+                timestampsBuilder = blockFactory.newLongVectorBuilder(Math.min(remainingDocs, maxPageSize));
+                tsids = tsHashesBuilder.build();
+                tsHashesBuilder = blockFactory.newBytesRefVectorBuilder(Math.min(remainingDocs, maxPageSize));
                 page = new Page(
                     currentPagePos,
                     new DocVector(shard.asVector(), leaf, docs, leaf.isConstant()).asBlock(),
                     tsids.asBlock(),
-                    timestampIntervals.asBlock()
+                    timestamps.asBlock()
                 );
 
                 currentPagePos = 0;
@@ -173,7 +178,7 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                 throw new UncheckedIOException(e);
             } finally {
                 if (page == null) {
-                    Releasables.closeExpectNoException(shard, leaf, docs, timestampIntervals, tsids);
+                    Releasables.closeExpectNoException(shard, leaf, docs, timestamps, tsids);
                 }
             }
             return page;
@@ -181,7 +186,7 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(docsBuilder, segmentsBuilder, timestampIntervalBuilder, tsOrdBuilder);
+            Releasables.closeExpectNoException(docsBuilder, segmentsBuilder, timestampsBuilder, tsHashesBuilder);
         }
 
         class TimeSeriesIterator {
@@ -194,7 +199,7 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
 
             TimeSeriesIterator(LuceneSlice slice) throws IOException {
                 this.slice = slice;
-                Weight weight = slice.weight().get();
+                Weight weight = slice.weight();
                 if (slice.numLeaves() == 1) {
                     queue = null;
                     leaf = new Leaf(weight, slice.getLeaf(0).leafReaderContext());
@@ -223,8 +228,8 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
 
             void consume() throws IOException {
                 if (queue != null) {
-                    currentTsid = BytesRef.deepCopyOf(queue.top().timeSeriesHash);
                     if (queue.size() > 0) {
+                        currentTsid = BytesRef.deepCopyOf(queue.top().timeSeriesHash);
                         queue.top().reinitializeIfNeeded(Thread.currentThread());
                     }
                     while (queue.size() > 0) {
@@ -236,8 +241,8 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                         Leaf leaf = queue.top();
                         segmentsBuilder.appendInt(leaf.segmentOrd);
                         docsBuilder.appendInt(leaf.iterator.docID());
-                        timestampIntervalBuilder.appendLong(leaf.timestamp);
-                        tsOrdBuilder.appendInt(globalTsidOrd);
+                        timestampsBuilder.appendLong(leaf.timestamp);
+                        tsHashesBuilder.appendBytesRef(currentTsid);
                         final Leaf newTop;
                         if (leaf.nextDoc()) {
                             // TODO: updating the top is one of the most expensive parts of this operation.
@@ -247,18 +252,22 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                             queue.pop();
                             newTop = queue.size() > 0 ? queue.top() : null;
                         }
-                        if (newTop != null && newTop.timeSeriesHash.equals(currentTsid) == false) {
-                            newTop.reinitializeIfNeeded(Thread.currentThread());
-                            globalTsidOrd++;
-                            currentTsid = BytesRef.deepCopyOf(newTop.timeSeriesHash);
+                        if (newTop != null) {
+                            if (newTop != leaf) {
+                                newTop.reinitializeIfNeeded(Thread.currentThread());
+                            }
+                            if (newTop.timeSeriesHash.equals(currentTsid) == false) {
+                                globalTsidOrd++;
+                                currentTsid = BytesRef.deepCopyOf(newTop.timeSeriesHash);
+                            }
                         }
                     }
                 } else {
                     // Only one segment, so no need to use priority queue and use segment ordinals as tsid ord.
                     leaf.reinitializeIfNeeded(Thread.currentThread());
                     while (leaf.nextDoc()) {
-                        tsOrdBuilder.appendInt(leaf.timeSeriesHashOrd);
-                        timestampIntervalBuilder.appendLong(leaf.timestamp);
+                        tsHashesBuilder.appendBytesRef(leaf.timeSeriesHash);
+                        timestampsBuilder.appendLong(leaf.timestamp);
                         // Don't append segment ord, because there is only one segment.
                         docsBuilder.appendInt(leaf.iterator.docID());
                         currentPagePos++;
@@ -300,7 +309,8 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                     this.createdThread = Thread.currentThread();
                     tsids = leaf.reader().getSortedDocValues("_tsid");
                     timestamps = leaf.reader().getSortedNumericDocValues("@timestamp");
-                    iterator = weight.scorer(leaf).iterator();
+                    final Scorer scorer = weight.scorer(leaf);
+                    iterator = scorer != null ? scorer.iterator() : DocIdSetIterator.empty();
                 }
 
                 boolean nextDoc() throws IOException {
@@ -323,7 +333,8 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                     if (executingThread != createdThread) {
                         tsids = leaf.reader().getSortedDocValues("_tsid");
                         timestamps = leaf.reader().getSortedNumericDocValues("@timestamp");
-                        iterator = weight.scorer(leaf).iterator();
+                        final Scorer scorer = weight.scorer(leaf);
+                        iterator = scorer != null ? scorer.iterator() : DocIdSetIterator.empty();
                         if (docID != -1) {
                             iterator.advance(docID);
                         }

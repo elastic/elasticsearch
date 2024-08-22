@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -58,7 +59,7 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(ctx, fieldname);
         List<Mapper> dynamicMappers = ctx.getDynamicMappers();
         assertEquals(1, dynamicMappers.size());
-        assertEquals(fieldname, dynamicMappers.get(0).name());
+        assertEquals(fieldname, dynamicMappers.get(0).fullPath());
         assertEquals(expectedType, dynamicMappers.get(0).typeName());
     }
 
@@ -67,9 +68,9 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, source);
         SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
 
-        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null).setSynthetic().build();
-        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
-            new PassThroughObjectMapper.Builder("labels").setContainsDimensions().dynamic(ObjectMapper.Dynamic.TRUE)
+        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false).setSynthetic().build();
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
+            new PassThroughObjectMapper.Builder("labels").setPriority(0).setContainsDimensions().dynamic(ObjectMapper.Dynamic.TRUE)
         ).build(MapperBuilderContext.root(false, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
 
@@ -89,7 +90,7 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(ctx, "f1");
         List<Mapper> dynamicMappers = ctx.getDynamicMappers();
         assertEquals(1, dynamicMappers.size());
-        assertEquals("labels.f1", dynamicMappers.get(0).name());
+        assertEquals("labels.f1", dynamicMappers.get(0).fullPath());
         assertEquals("keyword", dynamicMappers.get(0).typeName());
     }
 }

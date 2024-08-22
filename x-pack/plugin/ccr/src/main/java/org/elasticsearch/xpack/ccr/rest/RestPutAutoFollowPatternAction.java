@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -17,6 +18,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction.INSTANCE;
 
 public class RestPutAutoFollowPatternAction extends BaseRestHandler {
@@ -39,7 +41,7 @@ public class RestPutAutoFollowPatternAction extends BaseRestHandler {
 
     private static Request createRequest(RestRequest restRequest) throws IOException {
         try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
-            return Request.fromXContent(parser, restRequest.param("name"));
+            return Request.fromXContent(getMasterNodeTimeout(restRequest), TimeValue.THIRTY_SECONDS, parser, restRequest.param("name"));
         }
     }
 }

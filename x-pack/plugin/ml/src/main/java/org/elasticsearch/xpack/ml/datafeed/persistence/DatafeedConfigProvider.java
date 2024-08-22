@@ -351,14 +351,20 @@ public class DatafeedConfigProvider {
                         return;
                     }
 
-                    ActionListener<Boolean> validatedListener = ActionListener.wrap(
-                        ok -> indexUpdatedConfig(updatedConfig, seqNo, primaryTerm, ActionListener.wrap(indexResponse -> {
-                            assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
-                            delegate.onResponse(updatedConfig);
-                        }, delegate::onFailure)),
-                        delegate::onFailure
+                    validator.accept(
+                        updatedConfig,
+                        delegate.delegateFailureAndWrap(
+                            (l, ok) -> indexUpdatedConfig(
+                                updatedConfig,
+                                seqNo,
+                                primaryTerm,
+                                l.delegateFailureAndWrap((ll, indexResponse) -> {
+                                    assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                                    ll.onResponse(updatedConfig);
+                                })
+                            )
+                        )
                     );
-                    validator.accept(updatedConfig, validatedListener);
                 }
             }
         );

@@ -43,6 +43,7 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
         private final XContentType contentType;
 
         public Request(TaskType taskType, String inferenceEntityId, BytesReference content, XContentType contentType) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
             this.content = content;
@@ -86,7 +87,7 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
             if (MlStrings.isValidId(this.inferenceEntityId) == false) {
-                validationException.addValidationError(Messages.getMessage(Messages.INVALID_ID, "model_id", this.inferenceEntityId));
+                validationException.addValidationError(Messages.getMessage(Messages.INVALID_ID, "inference_id", this.inferenceEntityId));
             }
 
             if (validationException.validationErrors().isEmpty() == false) {

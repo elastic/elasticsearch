@@ -23,11 +23,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -93,21 +93,24 @@ public class MetadataDeleteIndexService {
     public static ClusterState deleteIndices(ClusterState currentState, Set<Index> indices, Settings settings) {
         final Metadata meta = currentState.metadata();
         final Set<Index> indicesToDelete = new HashSet<>();
-        final Map<Index, DataStream> backingIndices = new HashMap<>();
+        final Map<Index, DataStream> dataStreamIndices = new HashMap<>();
         for (Index index : indices) {
             IndexMetadata im = meta.getIndexSafe(index);
             DataStream parent = meta.getIndicesLookup().get(im.getIndex().getName()).getParentDataStream();
             if (parent != null) {
-                if (parent.getWriteIndex().equals(im.getIndex())) {
+                boolean isFailureStoreWriteIndex = im.getIndex().equals(parent.getFailureStoreWriteIndex());
+                if (isFailureStoreWriteIndex || im.getIndex().equals(parent.getWriteIndex())) {
                     throw new IllegalArgumentException(
                         "index ["
                             + index.getName()
-                            + "] is the write index for data stream ["
+                            + "] is the "
+                            + (isFailureStoreWriteIndex ? "failure store " : "")
+                            + "write index for data stream ["
                             + parent.getName()
                             + "] and cannot be deleted"
                     );
                 } else {
-                    backingIndices.put(index, parent);
+                    dataStreamIndices.put(index, parent);
                 }
             }
             indicesToDelete.add(im.getIndex());
@@ -135,9 +138,13 @@ public class MetadataDeleteIndexService {
             routingTableBuilder.remove(indexName);
             clusterBlocksBuilder.removeIndexBlocks(indexName);
             metadataBuilder.remove(indexName);
-            if (backingIndices.containsKey(index)) {
-                DataStream parent = metadataBuilder.dataStream(backingIndices.get(index).getName());
-                metadataBuilder.put(parent.removeBackingIndex(index));
+            if (dataStreamIndices.containsKey(index)) {
+                DataStream parent = metadataBuilder.dataStream(dataStreamIndices.get(index).getName());
+                if (parent.isFailureStoreIndex(index.getName())) {
+                    metadataBuilder.put(parent.removeFailureStoreIndex(index));
+                } else {
+                    metadataBuilder.put(parent.removeBackingIndex(index));
+                }
             }
         }
         // add tombstones to the cluster state for each deleted index

@@ -95,6 +95,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
+    protected void throwIfBeyondLength(int i) {
+        if (i >= size()) {
+            throw new IndexOutOfBoundsException("A document doesn't have a value for a field at position [" + i + "]!");
+        }
+    }
+
     public static class Longs extends ScriptDocValues<Long> {
 
         public Longs(Supplier<Long> supplier) {
@@ -108,6 +114,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public Long get(int index) {
             throwIfEmpty();
+            throwIfBeyondLength(index);
             return supplier.getInternal(index);
         }
 
@@ -133,12 +140,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public ZonedDateTime get(int index) {
-            if (supplier.size() == 0) {
-                throw new IllegalStateException(
-                    "A document doesn't have a value for a field! "
-                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
-                );
-            }
+            throwIfEmpty();
             if (index >= supplier.size()) {
                 throw new IndexOutOfBoundsException(
                     "attempted to fetch the [" + index + "] date when there are only [" + supplier.size() + "] dates."
@@ -207,12 +209,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public Double get(int index) {
-            if (supplier.size() == 0) {
-                throw new IllegalStateException(
-                    "A document doesn't have a value for a field! "
-                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
-                );
-            }
+            throwIfEmpty();
+            throwIfBeyondLength(index);
             return supplier.getInternal(index);
         }
 
@@ -312,12 +310,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoPoint get(int index) {
-            if (supplier.size() == 0) {
-                throw new IllegalStateException(
-                    "A document doesn't have a value for a field! "
-                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
-                );
-            }
+            throwIfEmpty();
+            throwIfBeyondLength(index);
             final GeoPoint point = supplier.getInternal(index);
             return new GeoPoint(point.lat(), point.lon());
         }
@@ -408,6 +402,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public Boolean get(int index) {
             throwIfEmpty();
+            throwIfBeyondLength(index);
             return supplier.getInternal(index);
         }
 
@@ -484,12 +479,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public String get(int index) {
-            if (supplier.size() == 0) {
-                throw new IllegalStateException(
-                    "A document doesn't have a value for a field! "
-                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
-                );
-            }
+            throwIfEmpty();
+            throwIfBeyondLength(index);
             return supplier.getInternal(index);
         }
 
@@ -513,6 +504,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public BytesRef get(int index) {
             throwIfEmpty();
+            throwIfBeyondLength(index);
             return supplier.getInternal(index);
         }
 

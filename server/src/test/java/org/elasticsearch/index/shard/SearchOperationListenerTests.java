@@ -12,8 +12,8 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequest.Empty;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -269,11 +269,11 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(0, validateSearchContext.get());
 
             if (throwingListeners == 0) {
-                compositeListener.validateReaderContext(mock(ReaderContext.class), Empty.INSTANCE);
+                compositeListener.validateReaderContext(mock(ReaderContext.class), new EmptyRequest());
             } else {
                 RuntimeException expected = expectThrows(
                     RuntimeException.class,
-                    () -> compositeListener.validateReaderContext(mock(ReaderContext.class), Empty.INSTANCE)
+                    () -> compositeListener.validateReaderContext(mock(ReaderContext.class), new EmptyRequest())
                 );
                 assertNull(expected.getMessage());
                 assertEquals(throwingListeners - 1, expected.getSuppressed().length);

@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -49,9 +48,12 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         private String name;
         private boolean includeDefaults;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.name = name;
             this.includeDefaults = false;
         }
@@ -119,8 +121,6 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         private final Map<String, ComponentTemplate> componentTemplates;
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
-        @Nullable
-        private final DataStreamGlobalRetention globalRetention;
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -130,25 +130,39 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             } else {
                 rolloverConfiguration = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
-                globalRetention = in.readOptionalWriteable(DataStreamGlobalRetention::read);
-            } else {
-                globalRetention = null;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
+                && in.getTransportVersion().before(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
+                in.readOptionalWriteable(DataStreamGlobalRetention::read);
             }
         }
 
+        /**
+         * Please use {@link GetComponentTemplateAction.Response#Response(Map)}
+         */
+        @Deprecated
         public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable DataStreamGlobalRetention globalRetention) {
-            this(componentTemplates, null, globalRetention);
+            this(componentTemplates, (RolloverConfiguration) null);
         }
 
+        /**
+         * Please use {@link GetComponentTemplateAction.Response#Response(Map, RolloverConfiguration)}
+         */
+        @Deprecated
         public Response(
             Map<String, ComponentTemplate> componentTemplates,
             @Nullable RolloverConfiguration rolloverConfiguration,
-            @Nullable DataStreamGlobalRetention globalRetention
+            @Nullable DataStreamGlobalRetention ignored
         ) {
+            this(componentTemplates, rolloverConfiguration);
+        }
+
+        public Response(Map<String, ComponentTemplate> componentTemplates) {
+            this(componentTemplates, (RolloverConfiguration) null);
+        }
+
+        public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable RolloverConfiguration rolloverConfiguration) {
             this.componentTemplates = componentTemplates;
             this.rolloverConfiguration = rolloverConfiguration;
-            this.globalRetention = globalRetention;
         }
 
         public Map<String, ComponentTemplate> getComponentTemplates() {
@@ -159,8 +173,14 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             return rolloverConfiguration;
         }
 
+        /**
+         * @return null
+         * @deprecated The global retention is not used anymore in the component template response
+         */
+        @Deprecated
+        @Nullable
         public DataStreamGlobalRetention getGlobalRetention() {
-            return globalRetention;
+            return null;
         }
 
         @Override
@@ -169,8 +189,9 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
-                out.writeOptionalWriteable(globalRetention);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
+                && out.getTransportVersion().before(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
+                out.writeOptionalWriteable(null);
             }
         }
 
@@ -180,25 +201,23 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             if (o == null || getClass() != o.getClass()) return false;
             Response that = (Response) o;
             return Objects.equals(componentTemplates, that.componentTemplates)
-                && Objects.equals(rolloverConfiguration, that.rolloverConfiguration)
-                && Objects.equals(globalRetention, that.globalRetention);
+                && Objects.equals(rolloverConfiguration, that.rolloverConfiguration);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(componentTemplates, rolloverConfiguration, globalRetention);
+            return Objects.hash(componentTemplates, rolloverConfiguration);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            Params withEffectiveRetentionParams = new DelegatingMapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS, params);
             builder.startObject();
             builder.startArray(COMPONENT_TEMPLATES.getPreferredName());
             for (Map.Entry<String, ComponentTemplate> componentTemplate : this.componentTemplates.entrySet()) {
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), componentTemplate.getKey());
                 builder.field(COMPONENT_TEMPLATE.getPreferredName());
-                componentTemplate.getValue().toXContent(builder, withEffectiveRetentionParams, rolloverConfiguration, globalRetention);
+                componentTemplate.getValue().toXContent(builder, params, rolloverConfiguration);
                 builder.endObject();
             }
             builder.endArray();
@@ -207,5 +226,4 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         }
 
     }
-
 }

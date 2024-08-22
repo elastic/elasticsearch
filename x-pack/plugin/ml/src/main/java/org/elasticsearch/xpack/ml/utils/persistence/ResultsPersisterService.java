@@ -11,10 +11,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -218,7 +218,7 @@ public class ResultsPersisterService {
                 headers,
                 ClientHelper.ML_ORIGIN,
                 client,
-                BulkAction.INSTANCE,
+                TransportBulkAction.TYPE,
                 providedBulkRequest,
                 listener
             )
@@ -325,7 +325,7 @@ public class ResultsPersisterService {
     }
 
     @SuppressWarnings("NonAtomicOperationOnVolatileField")
-    private static class BulkRequestRewriter {
+    static class BulkRequestRewriter {
         private volatile BulkRequest bulkRequest;
 
         BulkRequestRewriter(BulkRequest initialRequest) {
@@ -533,7 +533,7 @@ public class ResultsPersisterService {
         }
     }
 
-    private static BulkRequest buildNewRequestFromFailures(BulkRequest bulkRequest, BulkResponse bulkResponse) {
+    static BulkRequest buildNewRequestFromFailures(BulkRequest bulkRequest, BulkResponse bulkResponse) {
         // If we failed, lets set the bulkRequest to be a collection of the failed requests
         BulkRequest bulkRequestOfFailures = new BulkRequest();
         Set<String> failedDocIds = Arrays.stream(bulkResponse.getItems())
@@ -542,6 +542,9 @@ public class ResultsPersisterService {
             .collect(Collectors.toSet());
         bulkRequest.requests().forEach(docWriteRequest -> {
             if (failedDocIds.contains(docWriteRequest.id())) {
+                if (docWriteRequest instanceof IndexRequest ir) {
+                    ir.reset();
+                }
                 bulkRequestOfFailures.add(docWriteRequest);
             }
         });

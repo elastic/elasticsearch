@@ -15,10 +15,10 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,6 +35,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.getTask;
 
 public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsyncStatusRequest, AsyncStatusResponse> {
     private final TransportService transportService;
@@ -76,7 +77,7 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
             if (request.getKeepAlive() != null && request.getKeepAlive().getMillis() > 0) {
                 long expirationTime = System.currentTimeMillis() + request.getKeepAlive().getMillis();
                 store.updateExpirationTime(searchId.getDocId(), expirationTime, ActionListener.wrap(p -> {
-                    AsyncSearchTask asyncSearchTask = store.getTaskAndCheckAuthentication(taskManager, searchId, AsyncSearchTask.class);
+                    AsyncSearchTask asyncSearchTask = getTask(taskManager, searchId, AsyncSearchTask.class);
                     if (asyncSearchTask != null) {
                         asyncSearchTask.setExpirationTime(expirationTime);
                     }

@@ -9,6 +9,8 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -20,7 +22,7 @@ import java.util.BitSet;
  */
 final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanArrayBlock.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanArrayBlock.class);
 
     private final BooleanArrayVector vector;
 
@@ -110,6 +112,11 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
             }
             return builder.mvOrdering(mvOrdering()).build();
         }
+    }
+
+    @Override
+    public ReleasableIterator<BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new BooleanLookup(this, positions, targetBlockSize);
     }
 
     @Override

@@ -8,11 +8,13 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -23,6 +25,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -60,6 +63,8 @@ public class QueryRewriteContext {
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
+    private final ResolvedIndices resolvedIndices;
+    private final PointInTimeBuilder pit;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -68,14 +73,15 @@ public class QueryRewriteContext {
         final MapperService mapperService,
         final MappingLookup mappingLookup,
         final Map<String, MappedFieldType> runtimeMappings,
-        final Predicate<String> allowedFields,
         final IndexSettings indexSettings,
         final Index fullyQualifiedIndex,
         final Predicate<String> indexNameMatcher,
         final NamedWriteableRegistry namedWriteableRegistry,
         final ValuesSourceRegistry valuesSourceRegistry,
         final BooleanSupplier allowExpensiveQueries,
-        final ScriptCompiler scriptService
+        final ScriptCompiler scriptService,
+        final ResolvedIndices resolvedIndices,
+        final PointInTimeBuilder pit
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -85,7 +91,6 @@ public class QueryRewriteContext {
         this.mappingLookup = Objects.requireNonNull(mappingLookup);
         this.allowUnmappedFields = indexSettings == null || indexSettings.isDefaultAllowUnmappedFields();
         this.runtimeMappings = runtimeMappings;
-        this.allowedFields = allowedFields;
         this.indexSettings = indexSettings;
         this.fullyQualifiedIndex = fullyQualifiedIndex;
         this.indexNameMatcher = indexNameMatcher;
@@ -93,6 +98,8 @@ public class QueryRewriteContext {
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.scriptService = scriptService;
+        this.resolvedIndices = resolvedIndices;
+        this.pit = pit;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -110,7 +117,34 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            null,
             null
+        );
+    }
+
+    public QueryRewriteContext(
+        final XContentParserConfiguration parserConfiguration,
+        final Client client,
+        final LongSupplier nowInMillis,
+        final ResolvedIndices resolvedIndices,
+        final PointInTimeBuilder pit
+    ) {
+        this(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            null,
+            MappingLookup.EMPTY,
+            Collections.emptyMap(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            resolvedIndices,
+            pit
         );
     }
 
@@ -359,5 +393,17 @@ public class QueryRewriteContext {
             : runtimeMappings.entrySet().stream().filter(entry -> allowedFields.test(entry.getKey())).collect(Collectors.toSet());
         // runtime mappings and non-runtime fields don't overlap, so we can simply concatenate the iterables here
         return () -> Iterators.concat(allEntrySet.iterator(), runtimeEntrySet.iterator());
+    }
+
+    public ResolvedIndices getResolvedIndices() {
+        return resolvedIndices;
+    }
+
+    /**
+     * Returns the {@link PointInTimeBuilder} used by the search request, or null if not specified.
+     */
+    @Nullable
+    public PointInTimeBuilder getPointInTimeBuilder() {
+        return pit;
     }
 }

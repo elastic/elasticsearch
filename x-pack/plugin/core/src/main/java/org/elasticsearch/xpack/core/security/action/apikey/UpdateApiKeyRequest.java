@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -28,10 +26,6 @@ public final class UpdateApiKeyRequest extends BaseSingleUpdateApiKeyRequest {
         @Nullable final TimeValue expiration
     ) {
         super(roleDescriptors, metadata, expiration, id);
-    }
-
-    public UpdateApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
     }
 
     @Override

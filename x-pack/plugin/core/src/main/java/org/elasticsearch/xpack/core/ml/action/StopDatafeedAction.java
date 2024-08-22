@@ -62,10 +62,6 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH_V7);
         }
 
-        public static Request fromXContent(XContentParser parser) {
-            return parseRequest(null, parser);
-        }
-
         public static Request parseRequest(String datafeedId, XContentParser parser) {
             Request request = PARSER.apply(parser, null);
             if (datafeedId != null) {

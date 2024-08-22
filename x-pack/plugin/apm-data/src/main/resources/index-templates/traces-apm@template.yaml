@@ -1,7 +1,7 @@
 ---
 version: ${xpack.apmdata.template.version}
 index_patterns: ["traces-apm-*"]
-priority: 140
+priority: 210
 data_stream: {}
 allow_auto_create: true
 _meta:
@@ -22,8 +22,11 @@ ignore_missing_component_templates:
 template:
   settings:
     index:
-      default_pipeline: apm@default-pipeline
+      default_pipeline: traces-apm@default-pipeline
       final_pipeline: traces-apm@pipeline
+      lifecycle:
+        name: traces-apm.traces-default_policy
+        prefer_ilm: false
   mappings:
     properties:
       data_stream.type:

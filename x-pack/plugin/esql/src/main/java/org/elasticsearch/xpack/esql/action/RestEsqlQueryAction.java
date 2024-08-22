@@ -39,13 +39,18 @@ public class RestEsqlQueryAction extends BaseRestHandler {
     }
 
     @Override
+    public Set<String> supportedCapabilities() {
+        return EsqlCapabilities.CAPABILITIES;
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         EsqlQueryRequest esqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             esqlRequest = RequestXContent.parseSync(parser);
         }
 
-        LOGGER.info("Beginning execution of ESQL query.\nQuery string: [{}]", esqlRequest.query());
+        LOGGER.debug("Beginning execution of ESQL query.\nQuery string: [{}]", esqlRequest.query());
 
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());

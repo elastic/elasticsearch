@@ -782,9 +782,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
             long coordinatingRejections = 0;
             long primaryRejections = 0;
             long replicaRejections = 0;
+            long primaryDocumentRejections = 0;
             long memoryLimit = 0;
 
             long totalCoordinatingOps = 0;
+            long totalCoordinatingRequests = 0;
             long totalPrimaryOps = 0;
             long totalReplicaOps = 0;
             long currentCoordinatingOps = 0;
@@ -811,6 +813,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     currentCoordinatingOps += nodeStatIndexingPressureStats.getCurrentCoordinatingOps();
                     currentPrimaryOps += nodeStatIndexingPressureStats.getCurrentPrimaryOps();
                     currentReplicaOps += nodeStatIndexingPressureStats.getCurrentReplicaOps();
+                    primaryDocumentRejections += nodeStatIndexingPressureStats.getPrimaryDocumentRejections();
+                    totalCoordinatingRequests += nodeStatIndexingPressureStats.getTotalCoordinatingRequests();
                 }
             }
             indexingPressureStats = new IndexingPressureStats(
@@ -831,7 +835,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 totalReplicaOps,
                 currentCoordinatingOps,
                 currentPrimaryOps,
-                currentReplicaOps
+                currentReplicaOps,
+                primaryDocumentRejections,
+                totalCoordinatingRequests
             );
         }
 

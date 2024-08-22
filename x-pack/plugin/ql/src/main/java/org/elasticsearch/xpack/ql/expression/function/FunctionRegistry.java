@@ -460,5 +460,4 @@ public class FunctionRegistry {
         }
         return (Boolean) extras[0];
     }
-
 }

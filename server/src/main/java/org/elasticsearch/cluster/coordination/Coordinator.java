@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.Clus
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
+import org.elasticsearch.cluster.coordination.ElectionStrategy.NodeEligibility;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -71,7 +72,6 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.NodeDisconnectedException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -223,7 +223,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.onJoinValidators = NodeJoinExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
         this.electionStrategy = electionStrategy;
-        this.joinReasonService = new JoinReasonService(transportService.getThreadPool()::relativeTimeInMillis);
+        this.joinReasonService = new JoinReasonService(transportService.getThreadPool().relativeTimeInMillisSupplier());
         this.joinHelper = new JoinHelper(
             allocationService,
             masterService,
@@ -431,6 +431,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     PublishWithJoinResponse handlePublishRequest(PublishRequest publishRequest) {
+        assert ThreadPool.assertCurrentThreadPool(Names.CLUSTER_COORDINATION);
         assert publishRequest.getAcceptedState().nodes().getLocalNode().equals(getLocalNode())
             : publishRequest.getAcceptedState().nodes().getLocalNode() + " != " + getLocalNode();
 
@@ -544,8 +545,14 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             // The preVoteCollector is only active while we are candidate, but it does not call this method with synchronisation, so we have
             // to check our mode again here.
             if (mode == Mode.CANDIDATE) {
-                if (localNodeMayWinElection(getLastAcceptedState(), electionStrategy) == false) {
-                    logger.trace("skip election as local node may not win it: {}", getLastAcceptedState().coordinationMetadata());
+                final var nodeEligibility = localNodeMayWinElection(getLastAcceptedState(), electionStrategy);
+                if (nodeEligibility.mayWin() == false) {
+                    assert nodeEligibility.reason().isEmpty() == false;
+                    logger.trace(
+                        "skip election as local node may not win it ({}): {}",
+                        nodeEligibility.reason(),
+                        getLastAcceptedState().coordinationMetadata()
+                    );
                     return;
                 }
 
@@ -598,7 +605,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         becomeCandidate("after abdicating to " + newMaster);
     }
 
-    private static boolean localNodeMayWinElection(ClusterState lastAcceptedState, ElectionStrategy electionStrategy) {
+    private static NodeEligibility localNodeMayWinElection(ClusterState lastAcceptedState, ElectionStrategy electionStrategy) {
         final DiscoveryNode localNode = lastAcceptedState.nodes().getLocalNode();
         assert localNode != null;
         return electionStrategy.nodeMayWinElection(lastAcceptedState, localNode);
@@ -751,7 +758,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         transportService.sendRequest(
             discoveryNode,
             JoinHelper.JOIN_PING_ACTION_NAME,
-            TransportRequest.Empty.INSTANCE,
+            new JoinHelper.JoinPingRequest(),
             TransportRequestOptions.of(null, channelType),
             TransportResponseHandler.empty(clusterCoordinationExecutor, listener.delegateResponse((l, e) -> {
                 logger.warn(() -> format("failed to ping joining node [%s] on channel type [%s]", discoveryNode, channelType), e);
@@ -1283,8 +1290,12 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             metadataBuilder.coordinationMetadata(coordinationMetadata);
 
             coordinationState.get().setInitialState(ClusterState.builder(currentState).metadata(metadataBuilder).build());
-            assert localNodeMayWinElection(getLastAcceptedState(), electionStrategy)
-                : "initial state does not allow local node to win election: " + getLastAcceptedState().coordinationMetadata();
+            var nodeEligibility = localNodeMayWinElection(getLastAcceptedState(), electionStrategy);
+            assert nodeEligibility.mayWin()
+                : "initial state does not allow local node to win election, reason: "
+                    + nodeEligibility.reason()
+                    + " , metadata: "
+                    + getLastAcceptedState().coordinationMetadata();
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
             startElectionScheduler();
             return true;
@@ -1767,9 +1778,14 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 synchronized (mutex) {
                     if (mode == Mode.CANDIDATE) {
                         final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
-
-                        if (localNodeMayWinElection(lastAcceptedState, electionStrategy) == false) {
-                            logger.trace("skip prevoting as local node may not win election: {}", lastAcceptedState.coordinationMetadata());
+                        final var nodeEligibility = localNodeMayWinElection(lastAcceptedState, electionStrategy);
+                        if (nodeEligibility.mayWin() == false) {
+                            assert nodeEligibility.reason().isEmpty() == false;
+                            logger.info(
+                                "skip prevoting as local node may not win election ({}): {}",
+                                nodeEligibility.reason(),
+                                lastAcceptedState.coordinationMetadata()
+                            );
                             return;
                         }
 
@@ -1983,10 +1999,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                         // if necessary, abdicate to another node or improve the voting configuration
                                         boolean attemptReconfiguration = true;
                                         final ClusterState state = getLastAcceptedState(); // committed state
-                                        if (localNodeMayWinElection(state, electionStrategy) == false) {
+                                        if (localNodeMayWinElection(state, electionStrategy).mayWin() == false) {
                                             final List<DiscoveryNode> masterCandidates = completedNodes().stream()
                                                 .filter(DiscoveryNode::isMasterNode)
-                                                .filter(node -> electionStrategy.nodeMayWinElection(state, node))
+                                                .filter(node -> electionStrategy.nodeMayWinElection(state, node).mayWin())
                                                 .filter(node -> {
                                                     // check if master candidate would be able to get an election quorum if we were to
                                                     // abdicate to it. Assume that every node that completed the publication can provide

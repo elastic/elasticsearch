@@ -354,5 +354,10 @@ public final class XContentTestUtils {
             }
             return (T) context;
         }
+
+        @Override
+        public String toString() {
+            return "JsonMapView{map=" + map + '}';
+        }
     }
 }

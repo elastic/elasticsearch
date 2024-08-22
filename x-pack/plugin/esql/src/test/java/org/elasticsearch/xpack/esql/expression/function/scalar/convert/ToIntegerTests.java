@@ -12,11 +12,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -24,9 +24,9 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
+import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
 
-public class ToIntegerTests extends AbstractFunctionTestCase {
+public class ToIntegerTests extends AbstractScalarFunctionTestCase {
     public ToIntegerTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -38,16 +38,16 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         Function<String, String> evaluatorName = s -> "ToIntegerFrom" + s + "Evaluator[field=" + read + "]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryInt(suppliers, read, DataTypes.INTEGER, i -> i, Integer.MIN_VALUE, Integer.MAX_VALUE, List.of());
+        TestCaseSupplier.forUnaryInt(suppliers, read, DataType.INTEGER, i -> i, Integer.MIN_VALUE, Integer.MAX_VALUE, List.of());
 
-        TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataTypes.INTEGER, b -> b ? 1 : 0, List.of());
+        TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataType.INTEGER, b -> b ? 1 : 0, List.of());
 
         // datetimes that fall within Integer's range
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("Long"),
             dateCases(0, Integer.MAX_VALUE),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             l -> ((Long) l).intValue(),
             List.of()
         );
@@ -56,29 +56,31 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             suppliers,
             evaluatorName.apply("Long"),
             dateCases(Integer.MAX_VALUE + 1L, Long.MAX_VALUE),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             l -> null,
             l -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + l + "] out of [integer] range"
+                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + l + "] out of [integer] range"
             )
         );
         // random strings that don't look like an Integer
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             evaluatorName.apply("String"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [" + bytesRef.utf8ToString() + "]"
+                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
+                    + bytesRef.utf8ToString()
+                    + "]"
             )
         );
         // from doubles within Integer's range
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             evaluatorName.apply("Double"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             d -> safeToInt(Math.round(d)),
             Integer.MIN_VALUE,
             Integer.MAX_VALUE,
@@ -88,26 +90,26 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             evaluatorName.apply("Double"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             d -> null,
             Double.NEGATIVE_INFINITY,
             Integer.MIN_VALUE - 1d,
             d -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + d + "] out of [integer] range"
+                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [integer] range"
             )
         );
         // from doubles outside Integer's range, positive
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             evaluatorName.apply("Double"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             d -> null,
             Integer.MAX_VALUE + 1d,
             Double.POSITIVE_INFINITY,
             d -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + d + "] out of [integer] range"
+                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [integer] range"
             )
         );
 
@@ -115,7 +117,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             evaluatorName.apply("UnsignedLong"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             BigInteger::intValue,
             BigInteger.ZERO,
             BigInteger.valueOf(Integer.MAX_VALUE),
@@ -125,13 +127,13 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             evaluatorName.apply("UnsignedLong"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             ul -> null,
             BigInteger.valueOf(Integer.MAX_VALUE).add(BigInteger.ONE),
             UNSIGNED_LONG_MAX,
             ul -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + ul + "] out of [integer] range"
+                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + ul + "] out of [integer] range"
 
             )
         );
@@ -140,7 +142,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             evaluatorName.apply("Long"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             l -> (int) l,
             Integer.MIN_VALUE,
             Integer.MAX_VALUE,
@@ -150,13 +152,13 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             evaluatorName.apply("Long"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             l -> null,
             Long.MIN_VALUE,
             Integer.MIN_VALUE - 1L,
             l -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + l + "] out of [integer] range"
+                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + l + "] out of [integer] range"
 
             )
         );
@@ -164,13 +166,13 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             evaluatorName.apply("Long"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             l -> null,
             Integer.MAX_VALUE + 1L,
             Long.MAX_VALUE,
             l -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + l + "] out of [integer] range"
+                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + l + "] out of [integer] range"
             )
         );
 
@@ -178,17 +180,17 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("String"),
-            TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE)
+            TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             bytesRef -> Integer.valueOf(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
@@ -196,17 +198,17 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("String"),
-            TestCaseSupplier.doubleCases(Integer.MIN_VALUE, Integer.MAX_VALUE)
+            TestCaseSupplier.doubleCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             bytesRef -> safeToInt(Math.round(Double.parseDouble(((BytesRef) bytesRef).utf8ToString()))),
             List.of()
         );
@@ -214,21 +216,21 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("String"),
-            TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, Integer.MIN_VALUE - 1d)
+            TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, Integer.MIN_VALUE - 1d, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number ["
+                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "]"
             )
@@ -237,27 +239,40 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("String"),
-            TestCaseSupplier.doubleCases(Integer.MAX_VALUE + 1d, Double.POSITIVE_INFINITY)
+            TestCaseSupplier.doubleCases(Integer.MAX_VALUE + 1d, Double.POSITIVE_INFINITY, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number ["
+                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "]"
             )
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        TestCaseSupplier.unary(
+            suppliers,
+            "Attribute[channel=0]",
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomInt, DataType.COUNTER_INTEGER)),
+            DataType.INTEGER,
+            l -> l,
+            List.of()
+        );
+
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
+            true,
+            suppliers,
+            (v, p) -> "boolean or counter_integer or datetime or numeric or string"
+        );
     }
 
     @Override
@@ -268,13 +283,13 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
     private static List<TestCaseSupplier.TypedDataSupplier> dateCases(long min, long max) {
         List<TestCaseSupplier.TypedDataSupplier> dataSuppliers = new ArrayList<>(2);
         if (min == 0L) {
-            dataSuppliers.add(new TestCaseSupplier.TypedDataSupplier("<1970-01-01T00:00:00Z>", () -> 0L, DataTypes.DATETIME));
+            dataSuppliers.add(new TestCaseSupplier.TypedDataSupplier("<1970-01-01T00:00:00Z>", () -> 0L, DataType.DATETIME));
         }
         if (max <= Integer.MAX_VALUE) {
-            dataSuppliers.add(new TestCaseSupplier.TypedDataSupplier("<1970-01-25T20:31:23.647Z>", () -> 2147483647L, DataTypes.DATETIME));
+            dataSuppliers.add(new TestCaseSupplier.TypedDataSupplier("<1970-01-25T20:31:23.647Z>", () -> 2147483647L, DataType.DATETIME));
         }
         dataSuppliers.add(
-            new TestCaseSupplier.TypedDataSupplier("<date>", () -> ESTestCase.randomLongBetween(min, max), DataTypes.DATETIME)
+            new TestCaseSupplier.TypedDataSupplier("<date>", () -> ESTestCase.randomLongBetween(min, max), DataType.DATETIME)
         );
         return dataSuppliers;
     }

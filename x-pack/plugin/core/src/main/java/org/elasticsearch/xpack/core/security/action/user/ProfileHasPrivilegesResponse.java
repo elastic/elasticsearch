@@ -21,7 +21,7 @@ import java.util.Set;
 
 public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXContentObject {
 
-    private Set<String> hasPrivilegeUids;
+    private final Set<String> hasPrivilegeUids;
     private final Map<String, Exception> errors;
 
     public ProfileHasPrivilegesResponse(StreamInput in) throws IOException {

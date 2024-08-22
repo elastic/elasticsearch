@@ -307,7 +307,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeVInt(rank);
         } else if (rank != NO_RANK) {
-            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");
+            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
         }
         out.writeOptionalText(id);
         if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {

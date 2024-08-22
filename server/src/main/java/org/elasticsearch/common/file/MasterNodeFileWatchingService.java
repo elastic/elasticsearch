@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.gateway.GatewayService;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -58,7 +59,8 @@ public abstract class MasterNodeFileWatchingService extends AbstractFileWatching
     @Override
     public final void clusterChanged(ClusterChangedEvent event) {
         ClusterState clusterState = event.state();
-        if (clusterState.nodes().isLocalNodeElectedMaster()) {
+        if (clusterState.nodes().isLocalNodeElectedMaster()
+            && clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
             synchronized (this) {
                 if (watching() || active == false) {
                     refreshExistingFileStateIfNeeded(clusterState);

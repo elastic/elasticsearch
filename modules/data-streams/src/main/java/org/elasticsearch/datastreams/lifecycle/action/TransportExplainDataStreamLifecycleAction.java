@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams.lifecycle.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -17,17 +18,17 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -43,6 +44,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
     ExplainDataStreamLifecycleAction.Response> {
 
     private final DataStreamLifecycleErrorStore errorStore;
+    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
 
     @Inject
     public TransportExplainDataStreamLifecycleAction(
@@ -51,7 +53,8 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DataStreamLifecycleErrorStore dataLifecycleServiceErrorStore
+        DataStreamLifecycleErrorStore dataLifecycleServiceErrorStore,
+        DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
         super(
             ExplainDataStreamLifecycleAction.INSTANCE.name(),
@@ -65,6 +68,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.errorStore = dataLifecycleServiceErrorStore;
+        this.globalRetentionSettings = globalRetentionSettings;
     }
 
     @Override
@@ -90,7 +94,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             DataStream parentDataStream = indexAbstraction.getParentDataStream();
             if (parentDataStream == null
                 || parentDataStream.isIndexManagedByDataStreamLifecycle(idxMetadata.getIndex(), metadata::index) == false) {
-                explainIndices.add(new ExplainIndexDataStreamLifecycle(index, false, null, null, null, null, null));
+                explainIndices.add(new ExplainIndexDataStreamLifecycle(index, false, false, null, null, null, null, null));
                 continue;
             }
 
@@ -99,6 +103,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle = new ExplainIndexDataStreamLifecycle(
                 index,
                 true,
+                parentDataStream.isSystem(),
                 idxMetadata.getCreationDate(),
                 rolloverInfo == null ? null : rolloverInfo.getTime(),
                 generationDate,
@@ -113,7 +118,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             new ExplainDataStreamLifecycleAction.Response(
                 explainIndices,
                 request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
-                DataStreamGlobalRetention.getFromClusterState(state)
+                globalRetentionSettings.get()
             )
         );
     }

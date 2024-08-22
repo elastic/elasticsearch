@@ -610,6 +610,17 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(time()));
             return builder;
         }
+
+        @Override
+        public synchronized String toString() {
+            return Strings.format(
+                "Translog{recovered=%d, total=%d, totalOnStart=%d, totalLocal=%d}",
+                recovered,
+                total,
+                totalOnStart,
+                totalLocal
+            );
+        }
     }
 
     public static class FileDetail implements ToXContentObject, Writeable {

@@ -646,11 +646,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testFractionalTimeValue() {
-        final Setting<TimeValue> setting = Setting.timeSetting(
-            "key",
-            TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"),
-            TimeValue.ZERO
-        );
+        final Setting<TimeValue> setting = Setting.timeSetting("key", randomTimeValue(0, 24, TimeUnit.HOURS), TimeValue.ZERO);
         final TimeValue expected = TimeValue.timeValueMillis(randomNonNegativeLong());
         final Settings settings = Settings.builder().put("key", expected).build();
         /*
@@ -683,11 +679,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testSetByTimeUnit() {
-        final Setting<TimeValue> setting = Setting.timeSetting(
-            "key",
-            TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"),
-            TimeValue.ZERO
-        );
+        final Setting<TimeValue> setting = Setting.timeSetting("key", randomTimeValue(0, 24, TimeUnit.HOURS), TimeValue.ZERO);
         final TimeValue expected = new TimeValue(1500, TimeUnit.MICROSECONDS);
         final Settings settings = Settings.builder().put("key", expected.getMicros(), TimeUnit.MICROSECONDS).build();
         /*

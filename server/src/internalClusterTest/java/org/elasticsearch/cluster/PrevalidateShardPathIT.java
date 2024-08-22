@@ -9,8 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
-import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodePrevalidateShardPathResponse;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPathRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPathResponse;
@@ -23,9 +22,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -39,6 +41,13 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class PrevalidateShardPathIT extends ESIntegTestCase {
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.cluster.service.MasterService:DEBUG, "
+            + "org.elasticsearch.indices.store.IndicesStore:TRACE,"
+            + "org.elasticsearch.indices.cluster.IndicesClusterStateService:DEBUG,"
+            + "org.elasticsearch.indices.IndicesService:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/104807"
+    )
     public void testCheckShards() throws Exception {
         internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startDataOnlyNode();
@@ -53,8 +62,8 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
             .stream()
             .map(ShardRouting::shardId)
             .collect(Collectors.toSet());
-        String node1Id = internalCluster().clusterService(node1).localNode().getId();
-        String node2Id = internalCluster().clusterService(node2).localNode().getId();
+        String node1Id = getNodeId(node1);
+        String node2Id = getNodeId(node2);
         Set<ShardId> shardIdsToCheck = new HashSet<>(shardIds);
         boolean includeUnknownShardId = randomBoolean();
         if (includeUnknownShardId) {
@@ -71,6 +80,8 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
         }
         // Check that after relocation the source node doesn't have the shard path
         String node3 = internalCluster().startDataOnlyNode();
+        ensureStableCluster(4);
+        logger.info("Relocating shards from the node {}", node2);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node2), indexName);
         ensureGreen(indexName);
         assertBusy(() -> {
@@ -83,20 +94,25 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
                 assertTrue("There should be no failures in the response", resp.failures().isEmpty());
                 Set<ShardId> node2ShardIds = resp2.getNodes().get(0).getShardIds();
                 if (node2ShardIds.size() > 0) {
-                    for (var node2Shard : clusterService().state()
+                    logger.info(
+                        "Relocation source node {} should have no shards after the relocation, but still got {}",
+                        node2Id,
+                        node2ShardIds
+                    );
+                    List<ShardRouting> node2Shards = clusterService().state()
                         .routingTable()
                         .allShards()
                         .filter(s -> s.getIndexName().equals(indexName))
                         .filter(s -> node2ShardIds.contains(s.shardId()))
-                        .filter(s -> s.currentNodeId().equals(node2Id))
-                        .toList()) {
-                        var explanation = client().execute(
-                            TransportClusterAllocationExplainAction.TYPE,
-                            new ClusterAllocationExplainRequest().setIndex(node2Shard.getIndexName())
-                                .setCurrentNode(node2Shard.currentNodeId())
-                                .setShard(node2Shard.id())
-                                .setPrimary(node2Shard.primary())
-                        ).get();
+                        .toList();
+                    logger.info("Found {} shards on the relocation source node {} in the cluster state", node2Shards, node2Id);
+                    for (var node2Shard : node2Shards) {
+                        var explanation = ClusterAllocationExplanationUtils.getClusterAllocationExplanation(
+                            client(),
+                            node2Shard.getIndexName(),
+                            node2Shard.id(),
+                            node2Shard.primary()
+                        );
                         logger.info(
                             "Shard: {} is still located on relocation source node: {}. Allocation explanation: {}",
                             node2Shard.shardId(),
@@ -111,12 +127,13 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
                 // If for whatever reason the removal is not triggered (e.g. not enough nodes reported that the shards are active) or it
                 // temporarily failed to clean up the shard folder, we need to trigger another cluster state change for this removal to
                 // finally succeed.
+                logger.info("Triggering an extra cluster state update");
                 updateIndexSettings(
                     Settings.builder().put("index.routing.allocation.exclude.name", "non-existent" + randomAlphaOfLength(5)),
                     indexName
                 );
                 throw e;
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 }

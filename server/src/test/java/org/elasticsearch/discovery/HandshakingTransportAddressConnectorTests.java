@@ -18,12 +18,14 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -153,25 +155,28 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         FailureListener failureListener = new FailureListener();
 
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "message",
-                HandshakingTransportAddressConnector.class.getCanonicalName(),
-                Level.WARN,
-                "completed handshake with ["
-                    + remoteNode.descriptionWithoutAttributes()
-                    + "] at ["
-                    + discoveryAddress
-                    + "] but followup connection to ["
-                    + remoteNodeAddress
-                    + "] failed"
-            )
-        );
-        try (var ignored = mockAppender.capturing(HandshakingTransportAddressConnector.class)) {
+        try (var mockLog = MockLog.capture(HandshakingTransportAddressConnector.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "message",
+                    HandshakingTransportAddressConnector.class.getCanonicalName(),
+                    Level.WARN,
+                    Strings.format(
+                        """
+                            Successfully discovered master-eligible node [%s] at address [%s] but could not connect to it at its publish \
+                            address of [%s]. Each node in a cluster must be accessible at its publish address by all other nodes in the \
+                            cluster. See %s for more information.""",
+                        remoteNode.descriptionWithoutAttributes(),
+                        discoveryAddress,
+                        remoteNodeAddress,
+                        ReferenceDocs.NETWORK_BINDING_AND_PUBLISHING
+                    )
+                )
+            );
+
             handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
             assertThat(failureListener.getFailureMessage(), containsString("simulated"));
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

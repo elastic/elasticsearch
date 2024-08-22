@@ -55,7 +55,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         String modelId = randomAlphaOfLength(10);
         Request request = new Request(modelId, deploymemtIdSameAsModelId ? modelId : randomAlphaOfLength(10));
         if (randomBoolean()) {
-            request.setTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), Request.TIMEOUT.getPreferredName()));
+            request.setTimeout(randomPositiveTimeValue());
         }
         if (randomBoolean()) {
             request.setWaitForState(randomFrom(AllocationStatus.State.values()));
@@ -71,7 +71,8 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         }
         if (randomBoolean()) {
             request.setPriority(randomFrom(Priority.values()).toString());
-            if (request.getNumberOfAllocations() > 1 || request.getThreadsPerAllocation() > 1) {
+            if ((request.getNumberOfAllocations() != null && request.getNumberOfAllocations() > 1)
+                || request.getThreadsPerAllocation() > 1) {
                 request.setPriority(Priority.NORMAL.toString());
             }
         }
@@ -230,7 +231,8 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         Request request = new Request(randomAlphaOfLength(10), randomAlphaOfLength(10));
         assertThat(request.getTimeout(), equalTo(TimeValue.timeValueSeconds(30)));
         assertThat(request.getWaitForState(), equalTo(AllocationStatus.State.STARTED));
-        assertThat(request.getNumberOfAllocations(), equalTo(1));
+        assertThat(request.getNumberOfAllocations(), nullValue());
+        assertThat(request.computeNumberOfAllocations(), equalTo(1));
         assertThat(request.getThreadsPerAllocation(), equalTo(1));
         assertThat(request.getQueueCapacity(), equalTo(1024));
     }

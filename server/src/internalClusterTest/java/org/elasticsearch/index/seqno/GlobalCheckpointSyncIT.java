@@ -25,11 +25,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -143,37 +139,14 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
         final int numberOfDocuments = randomIntBetween(0, 256);
 
         final int numberOfThreads = randomIntBetween(1, 4);
-        final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
 
         // start concurrent indexing threads
-        final List<Thread> threads = new ArrayList<>(numberOfThreads);
-        for (int i = 0; i < numberOfThreads; i++) {
-            final int index = i;
-            final Thread thread = new Thread(() -> {
-                try {
-                    barrier.await();
-                } catch (BrokenBarrierException | InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                for (int j = 0; j < numberOfDocuments; j++) {
-                    final String id = Integer.toString(index * numberOfDocuments + j);
-                    prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
-                }
-                try {
-                    barrier.await();
-                } catch (BrokenBarrierException | InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-            threads.add(thread);
-            thread.start();
-        }
-
-        // synchronize the start of the threads
-        barrier.await();
-
-        // wait for the threads to finish
-        barrier.await();
+        startInParallel(numberOfThreads, index -> {
+            for (int j = 0; j < numberOfDocuments; j++) {
+                final String id = Integer.toString(index * numberOfDocuments + j);
+                prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
+            }
+        });
 
         afterIndexing.accept(client());
 
@@ -203,19 +176,16 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
             }
         }, 60, TimeUnit.SECONDS);
         ensureGreen("test");
-        for (final Thread thread : threads) {
-            thread.join();
-        }
     }
 
     public void testPersistGlobalCheckpoint() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         Settings.Builder indexSettings = Settings.builder()
-            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(100, 1000, "ms"))
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(100, 1000, TimeUnit.MILLISECONDS))
             .put("index.number_of_replicas", randomIntBetween(0, 1));
         if (randomBoolean()) {
             indexSettings.put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
-                .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(100, 1000, "ms"));
+                .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(100, 1000, TimeUnit.MILLISECONDS));
         }
         prepareCreate("test", indexSettings).get();
         if (randomBoolean()) {

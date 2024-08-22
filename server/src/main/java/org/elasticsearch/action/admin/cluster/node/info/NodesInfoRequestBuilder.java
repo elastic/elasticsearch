@@ -14,8 +14,8 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 // TODO: This class's interface should match that of NodesInfoRequest
 public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesInfoRequest, NodesInfoResponse, NodesInfoRequestBuilder> {
 
-    public NodesInfoRequestBuilder(ElasticsearchClient client) {
-        super(client, TransportNodesInfoAction.TYPE, new NodesInfoRequest());
+    public NodesInfoRequestBuilder(ElasticsearchClient client, String[] nodeIds) {
+        super(client, TransportNodesInfoAction.TYPE, new NodesInfoRequest(nodeIds));
     }
 
     /**

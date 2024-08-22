@@ -22,7 +22,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -133,8 +132,8 @@ public interface Repository extends LifecycleComponent {
     IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException;
 
     /**
-     * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots and the indices across all snapshots
-     * found in the repository. Completes the listener with a {@link RepositoryException} if there was an error in reading the data.
+     * Fetches the {@link RepositoryData} and passes it into the listener. May completes the listener with a {@link RepositoryException} if
+     * there is an error in reading the repository data.
      *
      * @param responseExecutor Executor to use to complete the listener if not using the calling thread. Using {@link
      *                         org.elasticsearch.common.util.concurrent.EsExecutors#DIRECT_EXECUTOR_SERVICE} means to complete the listener
@@ -161,13 +160,19 @@ public interface Repository extends LifecycleComponent {
      * @param repositoryDataGeneration     the generation of the {@link RepositoryData} in the repository at the start of the deletion
      * @param minimumNodeVersion           the minimum {@link IndexVersion} across the nodes in the cluster, with which the repository
      *                                     format must remain compatible
-     * @param listener                     completion listener, see {@link SnapshotDeleteListener}.
+     * @param repositoryDataUpdateListener listener completed when the {@link RepositoryData} is updated, or when the process fails
+     *                                     without changing the repository contents - in either case, it is now safe for the next operation
+     *                                     on this repository to proceed.
+     * @param onCompletion                 action executed on completion of the cleanup actions that follow a successful
+     *                                     {@link RepositoryData} update; not called if {@code repositoryDataUpdateListener} completes
+     *                                     exceptionally.
      */
     void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
-        SnapshotDeleteListener listener
+        ActionListener<RepositoryData> repositoryDataUpdateListener,
+        Runnable onCompletion
     );
 
     /**

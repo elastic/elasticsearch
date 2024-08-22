@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -117,7 +116,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
         return rarely()
             ? null
             : new SnapshotRetentionConfiguration(
-                rarely() ? null : TimeValue.parseTimeValue(randomTimeValue(), "random retention generation"),
+                rarely() ? null : randomTimeValue(),
                 rarely() ? null : randomIntBetween(1, 10),
                 rarely() ? null : randomIntBetween(15, 30)
             );

@@ -11,6 +11,7 @@ import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -38,13 +39,18 @@ public class RestModifyDataStreamsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         ModifyDataStreamsAction.Request modifyDsRequest;
         try (XContentParser parser = request.contentParser()) {
-            modifyDsRequest = ModifyDataStreamsAction.Request.PARSER.parse(parser, null);
+            modifyDsRequest = ModifyDataStreamsAction.Request.PARSER.parse(
+                parser,
+                actions -> new ModifyDataStreamsAction.Request(
+                    RestUtils.getMasterNodeTimeout(request),
+                    RestUtils.getAckTimeout(request),
+                    actions
+                )
+            );
         }
         if (modifyDsRequest.getActions() == null || modifyDsRequest.getActions().isEmpty()) {
             throw new IllegalArgumentException("no data stream actions specified, at least one must be specified");
         }
-        modifyDsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", modifyDsRequest.masterNodeTimeout()));
-        modifyDsRequest.timeout(request.paramAsTime("timeout", modifyDsRequest.timeout()));
         return channel -> client.execute(ModifyDataStreamsAction.INSTANCE, modifyDsRequest, new RestToXContentListener<>(channel));
     }
 

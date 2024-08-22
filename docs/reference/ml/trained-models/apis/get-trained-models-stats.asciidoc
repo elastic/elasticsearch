@@ -53,15 +53,15 @@ model.
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-models]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-models]
 
 `from`::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from-models]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=from-models]
 
 `size`::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size-models]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=size-models]
 
 [role="child_attributes"]
 [[ml-get-trained-models-stats-results]]
@@ -120,7 +120,7 @@ The desired number of nodes for model allocation.
 ======
 
 `deployment_id`:::
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 
 `error_count`:::
 (integer)
@@ -132,7 +132,7 @@ The sum of `inference_count` for all nodes in the deployment.
 
 `model_id`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 `nodes`:::
 (array of objects)
@@ -190,22 +190,22 @@ Information pertaining to the node.
 ========
 `attributes`:::
 (object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
 
 `ephemeral_id`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
 
 `id`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=node-id]
 
 `name`:::
 (string) The node name.
 
 `transport_address`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 ========
 
 `number_of_allocations`:::
@@ -365,7 +365,7 @@ section in <<cluster-nodes-stats>>.
 
 `model_id`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 `model_size_stats`:::
 (object)

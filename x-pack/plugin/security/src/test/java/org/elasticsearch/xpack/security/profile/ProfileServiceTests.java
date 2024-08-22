@@ -11,8 +11,8 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
@@ -623,7 +623,7 @@ public class ProfileServiceTests extends ESTestCase {
             final ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(expectedException);
             return null;
-        }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), anyActionListener());
 
         final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
         profileService.activateProfile(AuthenticationTestHelper.builder().realm().build(), future1);
@@ -1480,6 +1480,8 @@ public class ProfileServiceTests extends ESTestCase {
                     null,
                     null,
                     Map.of("_key", "value"),
+                    null,
+                    null,
                     null,
                     null,
                     null

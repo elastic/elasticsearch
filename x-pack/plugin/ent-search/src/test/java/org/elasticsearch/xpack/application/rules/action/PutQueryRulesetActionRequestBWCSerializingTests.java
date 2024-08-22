@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.application.rules.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.application.rules.QueryRule;
 import org.elasticsearch.xpack.application.rules.QueryRuleCriteria;
 import org.elasticsearch.xpack.application.rules.QueryRuleset;
-import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ public class PutQueryRulesetActionRequestBWCSerializingTests extends AbstractBWC
 
     @Override
     protected PutQueryRulesetAction.Request createTestInstance() {
-        this.queryRulesSet = SearchApplicationTestUtils.randomQueryRuleset();
+        this.queryRulesSet = EnterpriseSearchModuleTestUtils.randomQueryRuleset();
         return new PutQueryRulesetAction.Request(this.queryRulesSet);
     }
 
@@ -59,7 +60,13 @@ public class PutQueryRulesetActionRequestBWCSerializingTests extends AbstractBWC
                         new QueryRuleCriteria(criteria.criteriaType(), criteria.criteriaMetadata(), criteria.criteriaValues().subList(0, 1))
                     );
                 }
-                rules.add(new QueryRule(rule.id(), rule.type(), newCriteria, rule.actions()));
+                rules.add(new QueryRule(rule.id(), rule.type(), newCriteria, rule.actions(), null));
+            }
+            return new PutQueryRulesetAction.Request(new QueryRuleset(instance.queryRuleset().id(), rules));
+        } else if (version.before(TransportVersions.QUERY_RULE_CRUD_API_PUT)) {
+            List<QueryRule> rules = new ArrayList<>();
+            for (QueryRule rule : instance.queryRuleset().rules()) {
+                rules.add(new QueryRule(rule.id(), rule.type(), rule.criteria(), rule.actions(), null));
             }
             return new PutQueryRulesetAction.Request(new QueryRuleset(instance.queryRuleset().id(), rules));
         }

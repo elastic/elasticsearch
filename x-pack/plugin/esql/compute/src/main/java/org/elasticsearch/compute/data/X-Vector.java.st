@@ -13,6 +13,8 @@ $endif$
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -21,7 +23,8 @@ import java.io.IOException;
  * This class is generated. Do not edit it.
  */
 $if(BytesRef)$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, ConstantNullVector {
+public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
+    OrdinalBytesRefVector {
 $elseif(boolean)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
     ConstantNullVector {
@@ -42,8 +45,31 @@ $endif$
     @Override
     $Type$Block asBlock();
 
+$if(BytesRef)$
+    /**
+     * Returns an ordinal BytesRef vector if this vector is backed by a dictionary and ordinals; otherwise,
+     * returns null. Callers must not release the returned vector as no extra reference is retained by this method.
+     */
+    OrdinalBytesRefVector asOrdinals();
+$endif$
+
     @Override
     $Type$Vector filter(int... positions);
+
+    @Override
+    ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+$if(int)$
+    /**
+     * The minimum value in the Vector. An empty Vector will return {@link Integer#MAX_VALUE}.
+     */
+    int min();
+
+    /**
+     * The maximum value in the Vector. An empty Vector will return {@link Integer#MIN_VALUE}.
+     */
+    int max();
+$endif$
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
@@ -95,6 +121,8 @@ $elseif(boolean)$
             result = 31 * result + Boolean.hashCode(vector.getBoolean(pos));
 $elseif(int)$
             result = 31 * result + vector.getInt(pos);
+$elseif(float)$
+            result = 31 * result + Float.floatToIntBits(vector.getFloat(pos));
 $elseif(long)$
             long element = vector.getLong(pos);
             result = 31 * result + (int) (element ^ (element >>> 32));
@@ -114,7 +142,9 @@ $endif$
             case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
             case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstant$Type$Vector(in.read$Type$(), positions);
             case SERIALIZE_VECTOR_ARRAY -> $Type$ArrayVector.readArrayVector(positions, in, blockFactory);
-$if(BytesRef)$$else$
+$if(BytesRef)$
+            case SERIALIZE_VECTOR_ORDINAL -> OrdinalBytesRefVector.readOrdinalVector(blockFactory, in);
+$else$
             case SERIALIZE_VECTOR_BIG_ARRAY -> $Type$BigArrayVector.readArrayVector(positions, in, blockFactory);
 $endif$
             default -> {
@@ -136,11 +166,15 @@ $if(BytesRef)$
 $else$
             out.write$Type$(get$Type$(0));
 $endif$
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof $Type$ArrayVector v) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$ArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
-$if(BytesRef)$$else$
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_VECTOR) && this instanceof $Type$BigArrayVector v) {
+$if(BytesRef)$
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefVector v && v.isDense()) {
+            out.writeByte(SERIALIZE_VECTOR_ORDINAL);
+            v.writeOrdinalVector(out);
+$else$
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$BigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
 $endif$
@@ -153,7 +187,7 @@ $endif$
     private static $Type$Vector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.append$Type$(in.read$Type$());
+                builder.append$Type$($if(BytesRef)$$else$i, $endif$in.read$Type$());
             }
             return builder.build();
         }
@@ -211,6 +245,9 @@ $else$
          */
         @Override
         FixedBuilder append$Type$($type$ value);
+
+        FixedBuilder append$Type$(int index, $type$ value);
+
     }
 $endif$
 }

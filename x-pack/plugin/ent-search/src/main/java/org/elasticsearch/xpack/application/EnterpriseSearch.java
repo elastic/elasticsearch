@@ -54,10 +54,13 @@ import org.elasticsearch.xpack.application.connector.action.RestGetConnectorActi
 import org.elasticsearch.xpack.application.connector.action.RestListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestPostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestPutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorActiveFilteringAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorErrorAction;
+import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorFeaturesAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorFilteringAction;
+import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorFilteringValidationAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorIndexNameAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorLastSeenAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorLastSyncStatsAction;
@@ -72,10 +75,13 @@ import org.elasticsearch.xpack.application.connector.action.TransportGetConnecto
 import org.elasticsearch.xpack.application.connector.action.TransportListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportPostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportPutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorActiveFilteringAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorErrorAction;
+import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorFeaturesAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorFilteringAction;
+import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorFilteringValidationAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorIndexNameAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorLastSeenAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorLastSyncStatsAction;
@@ -85,10 +91,13 @@ import org.elasticsearch.xpack.application.connector.action.TransportUpdateConne
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorServiceTypeAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorStatusAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorActiveFilteringAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFeaturesAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringValidationAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorIndexNameAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSeenAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSyncStatsAction;
@@ -114,12 +123,14 @@ import org.elasticsearch.xpack.application.connector.secrets.action.TransportPos
 import org.elasticsearch.xpack.application.connector.secrets.action.TransportPutConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.ClaimConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.GetConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.ListConnectorSyncJobsAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestCancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestCheckInConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.RestClaimConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestDeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestGetConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestListConnectorSyncJobsAction;
@@ -128,6 +139,7 @@ import org.elasticsearch.xpack.application.connector.syncjob.action.RestUpdateCo
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestUpdateConnectorSyncJobIngestionStatsAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportCancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportCheckInConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.TransportClaimConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportDeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportGetConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportListConnectorSyncJobsAction;
@@ -139,17 +151,26 @@ import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnec
 import org.elasticsearch.xpack.application.rules.QueryRulesConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 import org.elasticsearch.xpack.application.rules.RuleQueryBuilder;
+import org.elasticsearch.xpack.application.rules.action.DeleteQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.DeleteQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.GetQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.GetQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.ListQueryRulesetsAction;
+import org.elasticsearch.xpack.application.rules.action.PutQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.PutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.RestDeleteQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.RestDeleteQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.RestGetQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.RestGetQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.RestListQueryRulesetsAction;
+import org.elasticsearch.xpack.application.rules.action.RestPutQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.RestPutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.TransportDeleteQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.TransportDeleteQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.TransportGetQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.TransportGetQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportListQueryRulesetsAction;
+import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
@@ -242,6 +263,9 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                 new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class),
                 new ActionHandler<>(ListQueryRulesetsAction.INSTANCE, TransportListQueryRulesetsAction.class),
                 new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class),
+                new ActionHandler<>(DeleteQueryRuleAction.INSTANCE, TransportDeleteQueryRuleAction.class),
+                new ActionHandler<>(GetQueryRuleAction.INSTANCE, TransportGetQueryRuleAction.class),
+                new ActionHandler<>(PutQueryRuleAction.INSTANCE, TransportPutQueryRuleAction.class),
 
                 usageAction,
                 infoAction
@@ -261,7 +285,13 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new ActionHandler<>(UpdateConnectorApiKeyIdAction.INSTANCE, TransportUpdateConnectorApiKeyIdAction.class),
                     new ActionHandler<>(UpdateConnectorConfigurationAction.INSTANCE, TransportUpdateConnectorConfigurationAction.class),
                     new ActionHandler<>(UpdateConnectorErrorAction.INSTANCE, TransportUpdateConnectorErrorAction.class),
+                    new ActionHandler<>(UpdateConnectorFeaturesAction.INSTANCE, TransportUpdateConnectorFeaturesAction.class),
                     new ActionHandler<>(UpdateConnectorFilteringAction.INSTANCE, TransportUpdateConnectorFilteringAction.class),
+                    new ActionHandler<>(UpdateConnectorActiveFilteringAction.INSTANCE, TransportUpdateConnectorActiveFilteringAction.class),
+                    new ActionHandler<>(
+                        UpdateConnectorFilteringValidationAction.INSTANCE,
+                        TransportUpdateConnectorFilteringValidationAction.class
+                    ),
                     new ActionHandler<>(UpdateConnectorIndexNameAction.INSTANCE, TransportUpdateConnectorIndexNameAction.class),
                     new ActionHandler<>(UpdateConnectorLastSeenAction.INSTANCE, TransportUpdateConnectorLastSeenAction.class),
                     new ActionHandler<>(UpdateConnectorLastSyncStatsAction.INSTANCE, TransportUpdateConnectorLastSyncStatsAction.class),
@@ -283,7 +313,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new ActionHandler<>(
                         UpdateConnectorSyncJobIngestionStatsAction.INSTANCE,
                         TransportUpdateConnectorSyncJobIngestionStatsAction.class
-                    )
+                    ),
+                    new ActionHandler<>(ClaimConnectorSyncJobAction.INSTANCE, TransportClaimConnectorSyncJobAction.class)
                 )
             );
         }
@@ -339,7 +370,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                 new RestDeleteQueryRulesetAction(getLicenseState()),
                 new RestGetQueryRulesetAction(getLicenseState()),
                 new RestListQueryRulesetsAction(getLicenseState()),
-                new RestPutQueryRulesetAction(getLicenseState())
+                new RestPutQueryRulesetAction(getLicenseState()),
+                new RestDeleteQueryRuleAction(getLicenseState()),
+                new RestGetQueryRuleAction(getLicenseState()),
+                new RestPutQueryRuleAction(getLicenseState())
             )
         );
 
@@ -356,6 +390,9 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new RestUpdateConnectorApiKeyIdAction(),
                     new RestUpdateConnectorConfigurationAction(),
                     new RestUpdateConnectorErrorAction(),
+                    new RestUpdateConnectorActiveFilteringAction(),
+                    new RestUpdateConnectorFeaturesAction(),
+                    new RestUpdateConnectorFilteringValidationAction(),
                     new RestUpdateConnectorFilteringAction(),
                     new RestUpdateConnectorIndexNameAction(),
                     new RestUpdateConnectorLastSeenAction(),
@@ -375,7 +412,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new RestCheckInConnectorSyncJobAction(),
                     new RestListConnectorSyncJobsAction(),
                     new RestUpdateConnectorSyncJobErrorAction(),
-                    new RestUpdateConnectorSyncJobIngestionStatsAction()
+                    new RestUpdateConnectorSyncJobIngestionStatsAction(),
+                    new RestClaimConnectorSyncJobAction()
                 )
             );
         }

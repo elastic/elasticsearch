@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -151,16 +150,6 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
         static final ParseField EXPECTED_SHARDS = new ParseField("expected_shards");
         static final ParseField SHARDS_TO_ALLOCATE = new ParseField("shards_left_to_allocate");
         static final ParseField MESSAGE = new ParseField("message");
-        static final ConstructingObjectParser<CheckShrinkReadyStep.Info, Void> PARSER = new ConstructingObjectParser<>(
-            "check_shrink_ready_step_info",
-            a -> new CheckShrinkReadyStep.Info((String) a[0], (long) a[1], (long) a[2])
-        );
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), NODE_ID);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), EXPECTED_SHARDS);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), SHARDS_TO_ALLOCATE);
-            PARSER.declareString((i, s) -> {}, MESSAGE);
-        }
 
         public Info(String nodeId, long expectedShards, long numberShardsLeftToAllocate) {
             this.nodeId = nodeId;

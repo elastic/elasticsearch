@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
@@ -50,11 +49,6 @@ public class ListTasksResponse extends BaseTasksResponse {
     ) {
         super(taskFailures, nodeFailures);
         this.tasks = tasks == null ? List.of() : List.copyOf(tasks);
-    }
-
-    public ListTasksResponse(StreamInput in) throws IOException {
-        super(in);
-        tasks = in.readCollectionAsImmutableList(TaskInfo::from);
     }
 
     @Override

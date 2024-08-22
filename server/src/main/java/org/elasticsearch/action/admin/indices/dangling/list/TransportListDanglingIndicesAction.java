@@ -16,9 +16,9 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.gateway.DanglingIndicesState;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,7 +39,6 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
 
     public static final ActionType<ListDanglingIndicesResponse> TYPE = new ActionType<>("cluster:admin/indices/dangling/list");
 
-    private final TransportService transportService;
     private final DanglingIndicesState danglingIndicesState;
 
     @Inject
@@ -58,7 +57,6 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
             NodeListDanglingIndicesRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.transportService = transportService;
         this.danglingIndicesState = danglingIndicesState;
     }
 

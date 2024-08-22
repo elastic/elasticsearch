@@ -58,16 +58,12 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     /**
      * Prototype for index requests.
      */
-    private IndexRequest destination;
+    private final IndexRequest destination;
 
     private RemoteInfo remoteInfo;
 
     public ReindexRequest() {
         this(new SearchRequest(), new IndexRequest(), true);
-    }
-
-    ReindexRequest(SearchRequest search, IndexRequest destination) {
-        this(search, destination, true);
     }
 
     ReindexRequest(SearchRequest search, IndexRequest destination, boolean setDefaults) {

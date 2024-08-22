@@ -9,15 +9,12 @@
 package org.elasticsearch.cluster.coordination.stateless;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -68,7 +65,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
 
         // Either there's no heartbeat or is stale
         if (randomBoolean()) {
-            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
+            safeAwait((ActionListener<Void> l) -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), l));
             fakeClock.set(maxTimeSinceLastHeartbeat.millis() + randomLongBetween(0, 1000));
         }
 
@@ -85,13 +82,9 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
         final var heartbeatFrequency = TimeValue.timeValueSeconds(randomIntBetween(15, 30));
         final var maxTimeSinceLastHeartbeat = TimeValue.timeValueSeconds(2 * heartbeatFrequency.seconds());
         DiscoveryNodeUtils.create("master");
-        final var logger = LogManager.getLogger(AtomicRegisterPreVoteCollector.class);
-        final var appender = new MockLogAppender();
-        appender.start();
-        try {
-            Loggers.addAppender(logger, appender);
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(AtomicRegisterPreVoteCollector.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "log emitted when skipping election",
                     AtomicRegisterPreVoteCollector.class.getCanonicalName(),
                     Level.INFO,
@@ -113,7 +106,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
                 }
             };
 
-            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
+            safeAwait((ActionListener<Void> l) -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), l));
             fakeClock.addAndGet(randomLongBetween(0L, maxTimeSinceLastHeartbeat.millis() - 1));
 
             var startElection = new AtomicBoolean();
@@ -122,10 +115,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
             preVoteCollector.start(ClusterState.EMPTY_STATE, Collections.emptyList());
 
             assertThat(startElection.get(), is(false));
-            appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -150,7 +140,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
             }
         };
 
-        PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
+        safeAwait((ActionListener<Void> l) -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), l));
 
         var startElection = new AtomicBoolean();
         var preVoteCollector = new AtomicRegisterPreVoteCollector(heartbeatService, () -> startElection.set(true));

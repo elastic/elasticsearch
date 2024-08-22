@@ -14,15 +14,18 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements ProfilingQuery {
+    private final Integer kParam;
     private long vectorOpsCount;
 
-    public ESKnnFloatVectorQuery(String field, float[] target, int k, Query filter) {
-        super(field, target, k, filter);
+    public ESKnnFloatVectorQuery(String field, float[] target, Integer k, int numCands, Query filter) {
+        super(field, target, numCands, filter);
+        this.kParam = k;
     }
 
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
-        TopDocs topK = super.mergeLeafResults(perLeafResults);
+        // if k param is set, we get only top k results from each shard
+        TopDocs topK = kParam == null ? super.mergeLeafResults(perLeafResults) : TopDocs.merge(kParam, perLeafResults);
         vectorOpsCount = topK.totalHits.value;
         return topK;
     }

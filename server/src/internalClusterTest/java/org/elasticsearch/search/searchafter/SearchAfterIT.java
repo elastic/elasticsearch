@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -73,7 +74,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                 prepareSearch("test").addSort("field1", SortOrder.ASC)
                     .setQuery(matchAllQuery())
                     .searchAfter(new Object[] { 0 })
-                    .setScroll("1m")
+                    .setScroll(TimeValue.timeValueMinutes(1))
             );
             assertThat(e.getMessage(), containsString("[search_after] cannot be used in a scroll context"));
         }
@@ -452,7 +453,7 @@ public class SearchAfterIT extends ESIntegTestCase {
             }
         }
         // search_after with sort with point in time
-        String pitID;
+        BytesReference pitID;
         {
             OpenPointInTimeRequest openPITRequest = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(5));
             pitID = client().execute(TransportOpenPointInTimeAction.TYPE, openPITRequest).actionGet().getPointInTimeId();

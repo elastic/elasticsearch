@@ -16,6 +16,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
@@ -82,7 +84,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             prepareIndex("test").setId(id).setSource("value", i).get();
         }
         refresh("test");
-        String pitId = openPointInTime(new String[] { "test" }, TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(new String[] { "test" }, TimeValue.timeValueMinutes(2));
         assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp1 -> {
             assertThat(resp1.pointInTimeId(), equalTo(pitId));
             assertHitCount(resp1, numDocs);
@@ -128,7 +130,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             prepareIndex(index).setId(id).setSource("value", i).get();
         }
         refresh();
-        String pitId = openPointInTime(new String[] { "*" }, TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(new String[] { "*" }, TimeValue.timeValueMinutes(2));
         try {
             int moreDocs = randomIntBetween(10, 50);
             assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
@@ -181,7 +183,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             OpenPointInTimeRequest request = new OpenPointInTimeRequest("*").keepAlive(TimeValue.timeValueMinutes(2));
             request.indexFilter(new RangeQueryBuilder("@timestamp").gte("2023-03-01"));
             final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
-            String pitId = response.getPointInTimeId();
+            BytesReference pitId = response.getPointInTimeId();
             try {
                 SearchContextId searchContextId = SearchContextId.decode(writableRegistry(), pitId);
                 String[] actualIndices = searchContextId.getActualIndices();
@@ -210,7 +212,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             prepareIndex("test").setId(Integer.toString(i)).setSource("value", i).get();
         }
         refresh();
-        String pitId = openPointInTime(new String[] { "test" }, TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(new String[] { "test" }, TimeValue.timeValueMinutes(2));
         try {
             assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
                 assertHitCount(resp, numDocs);
@@ -262,7 +264,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             prepareIndex("index").setId(id).setSource("value", i).get();
         }
         refresh();
-        String pit = openPointInTime(new String[] { "index" }, TimeValue.timeValueSeconds(5));
+        BytesReference pit = openPointInTime(new String[] { "index" }, TimeValue.timeValueSeconds(5));
         assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pit)), resp1 -> {
             assertHitCount(resp1, index1);
             if (rarely()) {
@@ -303,7 +305,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             prepareIndex("index-2").setId(id).setSource("value", i).get();
         }
         refresh();
-        String pit = openPointInTime(new String[] { "index-*" }, TimeValue.timeValueMinutes(2));
+        BytesReference pit = openPointInTime(new String[] { "index-*" }, TimeValue.timeValueMinutes(2));
         try {
             assertNoFailuresAndResponse(
                 prepareSearch().setPointInTime(new PointInTimeBuilder(pit)),
@@ -333,7 +335,7 @@ public class PointInTimeIT extends ESIntegTestCase {
     public void testAllowNoIndex() {
         var request = new OpenPointInTimeRequest("my_index").indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .keepAlive(TimeValue.timeValueMinutes(between(1, 10)));
-        String pit = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet().getPointInTimeId();
+        BytesReference pit = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet().getPointInTimeId();
         var closeResp = client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pit)).actionGet();
         assertThat(closeResp.status(), equalTo(RestStatus.OK));
     }
@@ -346,7 +348,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(settings).setMapping("""
             {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}"""));
         ensureGreen("test");
-        String pitId = openPointInTime(new String[] { "test*" }, TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(new String[] { "test*" }, TimeValue.timeValueMinutes(2));
         try {
             for (String node : internalCluster().nodesInclude("test")) {
                 for (IndexService indexService : internalCluster().getInstance(IndicesService.class, node)) {
@@ -413,7 +415,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             prepareIndex(randomFrom("test-2")).setId(Integer.toString(i)).setSource("value", i).get();
         }
         refresh();
-        String pitId = openPointInTime(new String[] { "test-*" }, TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(new String[] { "test-*" }, TimeValue.timeValueMinutes(2));
         try {
             assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
                 assertHitCount(resp, numDocs1 + numDocs2);
@@ -445,7 +447,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             }
         }
         refresh("index-*");
-        String pit = openPointInTime(new String[] { "index-*" }, TimeValue.timeValueHours(1));
+        BytesReference pit = openPointInTime(new String[] { "index-*" }, TimeValue.timeValueHours(1));
         try {
             for (int size = 1; size <= numIndex; size++) {
                 SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
@@ -476,7 +478,10 @@ public class PointInTimeIT extends ESIntegTestCase {
     }
 
     public void testCloseInvalidPointInTime() {
-        expectThrows(Exception.class, client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest("")));
+        expectThrows(
+            Exception.class,
+            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(BytesArray.EMPTY))
+        );
         List<TaskInfo> tasks = clusterAdmin().prepareListTasks().setActions(TransportClosePointInTimeAction.TYPE.name()).get().getTasks();
         assertThat(tasks, empty());
     }
@@ -585,13 +590,13 @@ public class PointInTimeIT extends ESIntegTestCase {
         assertThat(seen.size(), equalTo(expectedNumDocs));
     }
 
-    private String openPointInTime(String[] indices, TimeValue keepAlive) {
+    private BytesReference openPointInTime(String[] indices, TimeValue keepAlive) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
         final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
         return response.getPointInTimeId();
     }
 
-    private void closePointInTime(String readerId) {
+    private void closePointInTime(BytesReference readerId) {
         client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(readerId)).actionGet();
     }
 }

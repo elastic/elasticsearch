@@ -45,6 +45,7 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestThreadPoolAction extends AbstractCatAction {
@@ -72,7 +73,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
@@ -85,7 +86,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
                         nodesStatsRequest.setIncludeShardsStats(false);
-                        nodesStatsRequest.clear().addMetric(NodesStatsRequestParameters.Metric.THREAD_POOL.metricName());
+                        nodesStatsRequest.clear().addMetric(NodesStatsRequestParameters.Metric.THREAD_POOL);
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {

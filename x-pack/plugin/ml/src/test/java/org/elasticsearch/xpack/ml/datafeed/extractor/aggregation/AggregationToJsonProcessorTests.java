@@ -414,11 +414,13 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
     }
 
     public void testProcessGivenUnsupportedAggregationUnderHistogram() {
-        InternalHistogram.Bucket histogramBucket = createHistogramBucket(1000L, 2);
         InternalAggregation anotherHistogram = mock(InternalAggregation.class);
         when(anotherHistogram.getName()).thenReturn("nested-agg");
-        InternalAggregations subAggs = createAggs(Arrays.asList(createMax("time", 1000), anotherHistogram));
-        when(histogramBucket.getAggregations()).thenReturn(subAggs);
+        InternalHistogram.Bucket histogramBucket = createHistogramBucket(
+            1000L,
+            2,
+            Arrays.asList(createMax("time", 1000), anotherHistogram)
+        );
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -428,13 +430,11 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
     }
 
     public void testProcessGivenMultipleBucketAggregations() {
-        InternalHistogram.Bucket histogramBucket = createHistogramBucket(1000L, 2);
         StringTerms terms1 = mock(StringTerms.class);
         when(terms1.getName()).thenReturn("terms_1");
         StringTerms terms2 = mock(StringTerms.class);
         when(terms2.getName()).thenReturn("terms_2");
-        InternalAggregations subAggs = createAggs(Arrays.asList(createMax("time", 1000), terms1, terms2));
-        when(histogramBucket.getAggregations()).thenReturn(subAggs);
+        InternalHistogram.Bucket histogramBucket = createHistogramBucket(1000L, 2, Arrays.asList(createMax("time", 1000), terms1, terms2));
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

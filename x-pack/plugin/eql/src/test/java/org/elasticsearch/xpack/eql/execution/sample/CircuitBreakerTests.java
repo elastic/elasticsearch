@@ -22,6 +22,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -192,7 +194,7 @@ public class CircuitBreakerTests extends ESTestCase {
 
     private class ESMockClient extends NoOpClient {
         protected final CircuitBreaker circuitBreaker;
-        private final String pitId = "test_pit_id";
+        private final BytesReference pitId = new BytesArray("test_pit_id");
 
         ESMockClient(ThreadPool threadPool, CircuitBreaker circuitBreaker) {
             super(threadPool);
@@ -256,6 +258,11 @@ public class CircuitBreakerTests extends ESTestCase {
                     @Override
                     public void readBytes(byte[] b, int offset, int len) throws IOException {
 
+                    }
+
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        return 0;
                     }
 
                     @Override

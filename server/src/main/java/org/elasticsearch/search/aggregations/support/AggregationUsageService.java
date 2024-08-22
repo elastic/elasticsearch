@@ -9,12 +9,18 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
 
 public class AggregationUsageService implements ReportingService<AggregationInfo> {
+    private static final String ES_SEARCH_QUERY_AGGREGATIONS_TOTAL_COUNT = "es.search.query.aggregations.total";
+    private final String AGGREGATION_NAME_KEY = "aggregation_name";
+    private final String VALUES_SOURCE_KEY = "values_source";
+    private final LongCounter aggregationsUsageCounter;
     private final Map<String, Map<String, LongAdder>> aggs;
     private final AggregationInfo info;
 
@@ -22,9 +28,16 @@ public class AggregationUsageService implements ReportingService<AggregationInfo
 
     public static class Builder {
         private final Map<String, Map<String, LongAdder>> aggs;
+        private final MeterRegistry meterRegistry;
 
         public Builder() {
+            this(MeterRegistry.NOOP);
+        }
+
+        public Builder(MeterRegistry meterRegistry) {
             aggs = new HashMap<>();
+            assert meterRegistry != null;
+            this.meterRegistry = meterRegistry;
         }
 
         public void registerAggregationUsage(String aggregationName) {
@@ -45,9 +58,16 @@ public class AggregationUsageService implements ReportingService<AggregationInfo
         }
     }
 
+    // Attribute names for the metric
+
     private AggregationUsageService(Builder builder) {
         this.aggs = builder.aggs;
         info = new AggregationInfo(aggs);
+        this.aggregationsUsageCounter = builder.meterRegistry.registerLongCounter(
+            ES_SEARCH_QUERY_AGGREGATIONS_TOTAL_COUNT,
+            "Aggregations usage",
+            "count"
+        );
     }
 
     public void incAggregationUsage(String aggregationName, String valuesSourceType) {
@@ -61,6 +81,8 @@ public class AggregationUsageService implements ReportingService<AggregationInfo
             assert adder != null : "Unknown subtype [" + aggregationName + "][" + valuesSourceType + "]";
         }
         assert valuesSourceMap != null : "Unknown aggregation [" + aggregationName + "][" + valuesSourceType + "]";
+        // tests will have a no-op implementation here
+        aggregationsUsageCounter.incrementBy(1, Map.of(AGGREGATION_NAME_KEY, aggregationName, VALUES_SOURCE_KEY, valuesSourceType));
     }
 
     public Map<String, Object> getUsageStats() {

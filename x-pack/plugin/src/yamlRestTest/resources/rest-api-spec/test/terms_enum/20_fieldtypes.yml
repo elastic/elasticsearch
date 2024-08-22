@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 7.15.0"
+  - requires:
+      cluster_features: ["gte_v7.15.1"]
       reason:  original indices are propagated correctly in 7.15.1
-      features: headers
+      test_runner_features: headers
   - do:
       cluster.health:
         wait_for_status: yellow

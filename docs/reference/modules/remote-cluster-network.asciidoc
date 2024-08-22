@@ -1,8 +1,6 @@
 [[remote-cluster-network-settings]]
 ==== Advanced remote cluster (API key based model) settings
 
-beta::[]
-
 Use the following advanced settings to configure the remote cluster interface (API key based model)
 independently of the <<transport-settings,transport interface>>. You can also
 configure both interfaces together using the <<common-network-settings,network settings>>.

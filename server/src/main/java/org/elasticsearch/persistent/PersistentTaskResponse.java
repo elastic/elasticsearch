@@ -19,7 +19,7 @@ import java.util.Objects;
  * Response upon a successful start or an persistent task
  */
 public class PersistentTaskResponse extends ActionResponse {
-    private PersistentTask<?> task;
+    private final PersistentTask<?> task;
 
     public PersistentTaskResponse(StreamInput in) throws IOException {
         super(in);

@@ -11,9 +11,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.inference.external.http.sender.ExecutableRequestCreator;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public interface RequestExecutor {
@@ -28,8 +28,8 @@ public interface RequestExecutor {
     boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException;
 
     void execute(
-        ExecutableRequestCreator requestCreator,
-        List<String> input,
+        RequestManager requestCreator,
+        InferenceInputs inferenceInputs,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );

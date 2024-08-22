@@ -62,14 +62,15 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
         assert indexAbstraction != null : "invalid cluster metadata. index [" + indexName + "] was not found";
         DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
-            assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
-            if (dataStream.getWriteIndex().equals(index)) {
+            boolean isFailureStoreWriteIndex = index.equals(dataStream.getFailureStoreWriteIndex());
+            if (isFailureStoreWriteIndex || dataStream.getWriteIndex().equals(index)) {
                 String errorMessage = String.format(
                     Locale.ROOT,
-                    "index [%s] is the write index for data stream [%s], pausing "
+                    "index [%s] is the%s write index for data stream [%s], pausing "
                         + "ILM execution of lifecycle [%s] until this index is no longer the write index for the data stream via manual or "
                         + "automated rollover",
                     indexName,
+                    isFailureStoreWriteIndex ? " failure store" : "",
                     dataStream.getName(),
                     policyName
                 );

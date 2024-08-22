@@ -162,10 +162,14 @@ public class RestVectorTileAction extends BaseRestHandler {
                         searchResponse.getShardFailures(),
                         searchResponse.getClusters()
                     );
-                    tileBuilder.addLayers(buildMetaLayer(meta, bounds, request, featureFactory));
-                    ensureOpen();
-                    tileBuilder.build().writeTo(bytesOut);
-                    return new RestResponse(RestStatus.OK, MIME_TYPE, bytesOut.bytes());
+                    try {
+                        tileBuilder.addLayers(buildMetaLayer(meta, bounds, request, featureFactory));
+                        ensureOpen();
+                        tileBuilder.build().writeTo(bytesOut);
+                        return new RestResponse(RestStatus.OK, MIME_TYPE, bytesOut.bytes());
+                    } finally {
+                        meta.decRef();
+                    }
                 }
             }
         });

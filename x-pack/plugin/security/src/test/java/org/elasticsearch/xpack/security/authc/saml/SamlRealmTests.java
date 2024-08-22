@@ -266,9 +266,9 @@ public class SamlRealmTests extends SamlTestCase {
         }
     }
 
-    public void testMinRefreshGreaterThanRefreshThrowsSettingsException() throws Exception {
-        var refresh = randomTimeValue(20, 110, "m", "s");
-        var minRefresh = randomTimeValue(2, 8, "h");
+    public void testMinRefreshGreaterThanRefreshThrowsSettingsException() {
+        var refresh = randomTimeValue(20, 110, TimeUnit.MINUTES, TimeUnit.SECONDS);
+        var minRefresh = randomTimeValue(2, 8, TimeUnit.HOURS);
 
         Tuple<RealmConfig, SSLService> tuple = buildConfig(
             "https://localhost:9900/metadata.xml",
@@ -300,7 +300,7 @@ public class SamlRealmTests extends SamlTestCase {
             throwableWithMessage(
                 containsString(
                     "greater than the value ("
-                        + refresh
+                        + refresh.getStringRep()
                         + ") for ["
                         + RealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH)
                         + "]"
@@ -309,8 +309,10 @@ public class SamlRealmTests extends SamlTestCase {
         );
     }
 
-    public void testAbsurdlyLowMinimumRefreshThrowsException() throws Exception {
-        var minRefresh = randomBoolean() ? randomTimeValue(1, 450, "ms") : randomTimeValue(1, 999, "micros", "nanos");
+    public void testAbsurdlyLowMinimumRefreshThrowsException() {
+        var minRefresh = randomBoolean()
+            ? randomTimeValue(1, 450, TimeUnit.MILLISECONDS)
+            : randomTimeValue(1, 999, TimeUnit.MICROSECONDS, TimeUnit.NANOSECONDS);
 
         Tuple<RealmConfig, SSLService> tuple = buildConfig(
             "https://localhost:9900/metadata.xml",

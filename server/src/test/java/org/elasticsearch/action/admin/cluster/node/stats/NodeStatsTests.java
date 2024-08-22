@@ -54,6 +54,7 @@ import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardCountStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -560,7 +561,12 @@ public class NodeStatsTests extends ESTestCase {
 
     private static CommonStats createIndexLevelCommonStats() {
         CommonStats stats = new CommonStats(new CommonStatsFlags().clear().set(CommonStatsFlags.Flag.Mappings, true));
-        stats.nodeMappings = new NodeMappingStats(randomNonNegativeLong(), randomNonNegativeLong());
+        stats.nodeMappings = new NodeMappingStats(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
         return stats;
     }
 
@@ -628,7 +634,7 @@ public class NodeStatsTests extends ESTestCase {
 
         indicesCommonStats.getMerge().add(mergeStats);
         indicesCommonStats.getRefresh().add(new RefreshStats(++iota, ++iota, ++iota, ++iota, ++iota));
-        indicesCommonStats.getFlush().add(new FlushStats(++iota, ++iota, ++iota));
+        indicesCommonStats.getFlush().add(new FlushStats(++iota, ++iota, ++iota, ++iota));
         indicesCommonStats.getWarmer().add(new WarmerStats(++iota, ++iota, ++iota));
         indicesCommonStats.getCompletion().add(new CompletionStats(++iota, null));
         indicesCommonStats.getTranslog().add(new TranslogStats(++iota, ++iota, ++iota, ++iota, ++iota));
@@ -643,6 +649,7 @@ public class NodeStatsTests extends ESTestCase {
         indicesCommonStats.getShards().add(new ShardCountStats(++iota));
 
         indicesCommonStats.getDenseVectorStats().add(new DenseVectorStats(++iota));
+        indicesCommonStats.getSparseVectorStats().add(new SparseVectorStats(++iota));
 
         return indicesCommonStats;
     }
@@ -971,7 +978,8 @@ public class NodeStatsTests extends ESTestCase {
                             randomLongBetween(0, maxStatValue),
                             randomLongBetween(0, maxStatValue),
                             randomLongBetween(0, maxStatValue)
-                        )
+                        ),
+                        new IngestStats.ByteStats(randomLongBetween(0, maxStatValue), randomLongBetween(0, maxStatValue))
                     )
                 );
 
@@ -1021,6 +1029,8 @@ public class NodeStatsTests extends ESTestCase {
         if (frequently()) {
             long maxStatValue = Long.MAX_VALUE / 5;
             indexingPressureStats = new IndexingPressureStats(
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),

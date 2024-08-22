@@ -86,6 +86,7 @@ public final class EnrichStore {
                 String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(
                     current,
                     IndicesOptions.strictExpandOpen(),
+                    true,
                     indexExpression
                 );
                 for (String concreteIndex : concreteIndices) {

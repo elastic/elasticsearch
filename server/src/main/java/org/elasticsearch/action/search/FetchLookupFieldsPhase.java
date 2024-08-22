@@ -87,7 +87,7 @@ final class FetchLookupFieldsPhase extends SearchPhase {
                 : "lookup across clusters only if [ccs_minimize_roundtrips] is disabled";
             for (LookupField lookupField : cluster.lookupFields) {
                 final SearchRequest searchRequest = lookupField.toSearchRequest(clusterAlias);
-                searchRequest.setCcsMinimizeRoundtrips(false);
+                searchRequest.setCcsMinimizeRoundtrips(context.getRequest().isCcsMinimizeRoundtrips());
                 multiSearchRequest.add(searchRequest);
             }
         }

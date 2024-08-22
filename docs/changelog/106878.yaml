@@ -1,5 +1,0 @@
-pr: 106878
-summary: Gate reading of optional string array for bwc
-area: Downsampling
-type: bug
-issues: []

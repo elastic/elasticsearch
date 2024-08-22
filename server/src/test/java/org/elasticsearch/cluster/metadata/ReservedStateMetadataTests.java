@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.NO_VERSION;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -78,7 +79,7 @@ public class ReservedStateMetadataTests extends ESTestCase {
 
     public void testReservedStateVersionWithError() {
         final ReservedStateMetadata meta = createRandom(false, true);
-        assertEquals(-1L, meta.version().longValue());
+        assertEquals(NO_VERSION.longValue(), meta.version().longValue());
     }
 
     private static ReservedStateMetadata createRandom(boolean addHandlers, boolean addErrors) {

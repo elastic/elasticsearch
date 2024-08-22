@@ -15,10 +15,13 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.List;
@@ -54,7 +57,7 @@ public class NodeShutdownIT extends ESRestTestCase {
         checkCRUD(randomFrom("sigterm", "SIGTERM"), null, null, randomPositiveTimeValue());
     }
 
-    public void checkCRUD(String type, @Nullable String allocationDelay, @Nullable String targetNodeName, @Nullable String grace)
+    public void checkCRUD(String type, @Nullable TimeValue allocationDelay, @Nullable String targetNodeName, @Nullable TimeValue grace)
         throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
         checkCRUD(nodeIdToShutdown, type, allocationDelay, targetNodeName, true, grace);
@@ -64,10 +67,10 @@ public class NodeShutdownIT extends ESRestTestCase {
     public void checkCRUD(
         String nodeIdToShutdown,
         String type,
-        @Nullable String allocationDelay,
+        @Nullable TimeValue allocationDelay,
         @Nullable String targetNodeName,
         boolean delete,
-        @Nullable String grace
+        @Nullable TimeValue grace
     ) throws Exception {
         // Ensure if we do a GET before the cluster metadata is set up, we don't get an error
         assertNoShuttingDownNodes(nodeIdToShutdown);
@@ -83,9 +86,9 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertThat(nodesArray.get(0).get("node_id"), equalTo(nodeIdToShutdown));
             assertThat((String) nodesArray.get(0).get("type"), equalToIgnoringCase(type));
             assertThat(nodesArray.get(0).get("reason"), equalTo(this.getTestName()));
-            assertThat(nodesArray.get(0).get("allocation_delay"), equalTo(allocationDelay));
+            assertThat(nodesArray.get(0).get("allocation_delay"), equalsOptionalTimeValue(allocationDelay));
             assertThat(nodesArray.get(0).get("target_node_name"), equalTo(targetNodeName));
-            assertThat(nodesArray.get(0).get("grace_period"), equalTo(grace));
+            assertThat(nodesArray.get(0).get("grace_period"), equalsOptionalTimeValue(grace));
         }
 
         if (delete) {
@@ -96,12 +99,22 @@ public class NodeShutdownIT extends ESRestTestCase {
         }
     }
 
+    private static Matcher<Object> equalsOptionalTimeValue(TimeValue timeValue) {
+        return timeValue == null ? nullValue() : equalTo(timeValue.getStringRep());
+    }
+
     public void testPutShutdownIsIdempotentForRestart() throws Exception {
         checkPutShutdownIdempotency("RESTART");
     }
 
     public void testPutShutdownIsIdempotentForRemove() throws Exception {
         checkPutShutdownIdempotency("REMOVE");
+    }
+
+    private static void maybeAddMasterNodeTimeout(Request request) {
+        if (randomBoolean()) {
+            request.addParameter(RestUtils.REST_MASTER_TIMEOUT_PARAM, TEST_REQUEST_TIMEOUT.getStringRep());
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -116,12 +129,14 @@ public class NodeShutdownIT extends ESRestTestCase {
 
         // Put a shutdown request
         Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
+        maybeAddMasterNodeTimeout(putShutdown);
         putShutdown.setJsonEntity("{\"type\":  \"" + type + "\", \"reason\":  \"" + newReason + "\"}");
         assertOK(client().performRequest(putShutdown));
 
         // Ensure we can read it back and it has the new reason
         {
             Request getShutdownStatus = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            maybeAddMasterNodeTimeout(getShutdownStatus);
             Map<String, Object> statusResponse = responseAsMap(client().performRequest(getShutdownStatus));
             List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
             assertThat(nodesArray, hasSize(1));
@@ -396,14 +411,15 @@ public class NodeShutdownIT extends ESRestTestCase {
     private void putNodeShutdown(
         String nodeIdToShutdown,
         String type,
-        @Nullable String allocationDelay,
+        @Nullable TimeValue allocationDelay,
         @Nullable String targetNodeName,
-        @Nullable String grace
+        @Nullable TimeValue grace
     ) throws IOException {
         String reason = this.getTestName();
 
         // Put a shutdown request
         Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
+        maybeAddMasterNodeTimeout(putShutdown);
 
         try (XContentBuilder putBody = JsonXContent.contentBuilder()) {
             putBody.startObject();
@@ -412,7 +428,7 @@ public class NodeShutdownIT extends ESRestTestCase {
                 putBody.field("reason", reason);
                 if (allocationDelay != null) {
                     assertThat("allocation delay parameter is only valid for RESTART-type shutdowns", type, equalToIgnoringCase("restart"));
-                    putBody.field("allocation_delay", allocationDelay);
+                    putBody.field("allocation_delay", allocationDelay.getStringRep());
                 }
                 if (targetNodeName != null) {
                     assertThat("target node name parameter is only valid for REPLACE-type shutdowns", type, equalToIgnoringCase("replace"));
@@ -422,7 +438,7 @@ public class NodeShutdownIT extends ESRestTestCase {
                 }
                 if (grace != null) {
                     assertThat("grace only valid for SIGTERM-type shutdowns", type, equalToIgnoringCase("sigterm"));
-                    putBody.field("grace_period", grace);
+                    putBody.field("grace_period", grace.getStringRep());
                 }
             }
             putBody.endObject();
@@ -436,7 +452,7 @@ public class NodeShutdownIT extends ESRestTestCase {
                 {
                     putBody.field("type", type);
                     putBody.field("reason", reason);
-                    putBody.field("allocation_delay", allocationDelay);
+                    putBody.field("allocation_delay", allocationDelay.getStringRep());
                 }
                 putBody.endObject();
                 putShutdown.setJsonEntity(Strings.toString(putBody));
@@ -458,7 +474,7 @@ public class NodeShutdownIT extends ESRestTestCase {
                     }
                     if (grace != null) {
                         assertThat("grace only valid for SIGTERM-type shutdowns", type, equalToIgnoringCase("sigterm"));
-                        putBody.field("grace_period", grace);
+                        putBody.field("grace_period", grace.getStringRep());
                     }
                 }
                 putBody.endObject();

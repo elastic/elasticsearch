@@ -78,7 +78,7 @@ following output:
       "start_offset" : 24,
       "end_offset" : 28,
       "type" : "word",
-      "position" : 4
+      "position" : 5
     }
   ]
 }

@@ -27,12 +27,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -233,7 +233,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             // mappings are updated on the node when creating in the shards, this prevents race-conditions since all mapping must be
             // applied once we took the snapshot and if somebody messes things up and switches the index read/write and adds docs we
             // miss the mappings for everything is corrupted and hard to debug
-            .ackTimeout(targetIndex.timeout())
+            .ackTimeout(targetIndex.ackTimeout())
             .masterNodeTimeout(targetIndex.masterNodeTimeout())
             .settings(targetIndex.settings())
             .aliases(targetIndex.aliases())

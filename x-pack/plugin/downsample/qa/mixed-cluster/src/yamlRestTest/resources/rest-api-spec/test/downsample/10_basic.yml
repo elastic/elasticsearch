@@ -1,7 +1,7 @@
 setup:
-  - skip:
-      version: " - 8.4.99"
-      reason: "rollup renamed to downsample in 8.5.0"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "Downsampling executed using persistent task framework from version 8.10"
 
   - do:
       indices.create:
@@ -87,6 +87,9 @@ setup:
 
 ---
 "Downsample index":
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "Downsampling executed using persistent task framework from version 8.10"
 
   - do:
       indices.downsample:

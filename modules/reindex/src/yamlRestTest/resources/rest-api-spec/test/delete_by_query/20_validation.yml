@@ -32,8 +32,8 @@
 
 ---
 "invalid max_docs fails":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
@@ -52,8 +52,8 @@
 
 ---
 "max_docs shoule be greater than slices":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:

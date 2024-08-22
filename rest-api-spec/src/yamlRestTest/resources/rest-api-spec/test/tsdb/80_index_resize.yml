@@ -1,9 +1,14 @@
 ---
 setup:
+  - requires:
+      cluster_features: "gte_v8.2.0"
+      reason: "tsdb indexing changed in 8.2.0"
+      test_runner_features: "arbitrary_key"
   - skip:
-      version: " - 8.1.99,8.7.00 - 8.12.99"
-      reason: _tsid hashing introduced in 8.13
-      features: "arbitrary_key"
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.13.0"
+      reason: "_tsid hashing introduced in 8.13"
 
   # Force allocating all shards to a single node so that we can shrink later.
   # In production you can move the shards to the single node after they've been
@@ -85,8 +90,8 @@ setup:
 
 ---
 split:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -101,8 +106,8 @@ split:
 
 ---
 shrink:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -128,8 +133,8 @@ shrink:
 
 ---
 clone:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:

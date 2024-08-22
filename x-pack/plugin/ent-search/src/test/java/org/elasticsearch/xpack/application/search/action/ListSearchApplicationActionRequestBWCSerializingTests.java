@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.application.search.action;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
@@ -27,7 +27,7 @@ public class ListSearchApplicationActionRequestBWCSerializingTests extends Abstr
     @Override
     protected ListSearchApplicationAction.Request createTestInstance() {
 
-        PageParams pageParams = SearchApplicationTestUtils.randomPageParams();
+        PageParams pageParams = EnterpriseSearchModuleTestUtils.randomPageParams();
         String query = randomFrom(new String[] { null, randomAlphaOfLengthBetween(1, 10) });
         return new ListSearchApplicationAction.Request(query, pageParams);
     }

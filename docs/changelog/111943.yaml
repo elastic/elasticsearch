@@ -1,0 +1,6 @@
+pr: 111943
+summary: Fix synthetic source for empty nested objects
+area: Mapping
+type: bug
+issues:
+ - 111811

@@ -26,7 +26,7 @@ stream.
 
 The steps for setting up data tiers vary based on your deployment type:
 
-include::{es-repo-dir}/tab-widgets/data-tiers-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/data-tiers-widget.asciidoc[]
 
 [discrete]
 [[register-snapshot-repository]]
@@ -39,7 +39,7 @@ To use {search-snaps}, you must register a supported snapshot repository. The
 steps for registering this repository vary based on your deployment type and
 storage provider:
 
-include::{es-repo-dir}/tab-widgets/snapshot-repo-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/snapshot-repo-widget.asciidoc[]
 
 [discrete]
 [[create-edit-index-lifecycle-policy]]
@@ -58,7 +58,7 @@ ensure your policy:
 * Uses {search-snaps} in the cold and frozen phases, if wanted.
 * Includes a delete phase, if needed.
 
-include::{es-repo-dir}/tab-widgets/ilm-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/ilm-widget.asciidoc[]
 
 [discrete]
 [[create-ts-component-templates]]
@@ -68,19 +68,19 @@ TIP: If you use {fleet} or {agent}, skip to <<search-visualize-your-data>>.
 {fleet} and {agent} use built-in templates to create data streams for you.
 
 If you use a custom application, you need to set up your own data stream.
-include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-component-templates]
+include::{es-ref-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-component-templates]
 
 [discrete]
 [[create-ts-index-template]]
 === Create an index template
 
-include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-index-template]
+include::{es-ref-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-index-template]
 
 [discrete]
 [[add-data-to-data-stream]]
 === Add data to a data stream
 
-include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-data-stream]
+include::{es-ref-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-data-stream]
 
 [discrete]
 [[search-visualize-your-data]]

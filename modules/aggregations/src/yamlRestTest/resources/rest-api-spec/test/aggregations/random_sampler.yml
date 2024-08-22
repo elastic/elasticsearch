@@ -30,9 +30,9 @@ setup:
 
 ---
 "Test random_sampler aggregation with no filter":
-  - skip:
-      features: close_to
-      version: " - 8.1.99"
+  - requires:
+      test_runner_features: close_to
+      cluster_features: ["gte_v8.2.0"]
       reason: added in 8.2.0
   - do:
       search:
@@ -80,8 +80,8 @@ setup:
   - match: { aggregations.sampled.mean.value: 2.5 }
 ---
 "Test random_sampler aggregation with filter":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: added in 8.2.0
   - do:
       search:
@@ -143,8 +143,8 @@ setup:
   - match: { aggregations.sampled.mean.value: 1.0 }
 ---
 "Test random_sampler aggregation with poor settings":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: added in 8.2.0
   - do:
       catch: /\[probability\] must be between 0.0 and 0.5 or exactly 1.0, was \[1.5\]/

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 
@@ -45,8 +46,6 @@ final class PerThreadIDVersionAndSeqNoLookup {
     // TODO: do we really need to store all this stuff? some if it might not speed up anything.
     // we keep it around for now, to reduce the amount of e.g. hash lookups by field and stuff
 
-    /** terms enum for uid field */
-    final String uidField;
     private final TermsEnum termsEnum;
 
     /** Reused for iteration (when the term exists) */
@@ -62,10 +61,8 @@ final class PerThreadIDVersionAndSeqNoLookup {
     /**
      * Initialize lookup for the provided segment
      */
-    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField, boolean trackReaderKey, boolean loadTimestampRange)
-        throws IOException {
-        this.uidField = uidField;
-        final Terms terms = reader.terms(uidField);
+    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, boolean trackReaderKey, boolean loadTimestampRange) throws IOException {
+        final Terms terms = reader.terms(IdFieldMapper.NAME);
         if (terms == null) {
             // If a segment contains only no-ops, it does not have _uid but has both _soft_deletes and _tombstone fields.
             final NumericDocValues softDeletesDV = reader.getNumericDocValues(Lucene.SOFT_DELETES_FIELD);
@@ -107,8 +104,8 @@ final class PerThreadIDVersionAndSeqNoLookup {
         }
     }
 
-    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField, boolean loadTimestampRange) throws IOException {
-        this(reader, uidField, true, loadTimestampRange);
+    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, boolean loadTimestampRange) throws IOException {
+        this(reader, true, loadTimestampRange);
     }
 
     /** Return null if id is not found.

@@ -1,11 +1,14 @@
 setup:
-  - skip:
-      version: ' - 8.12.99'
+  - requires:
+      cluster_features: "gte_v8.13.0"
       reason: 'kNN int8_flat index added in 8.13'
   - do:
       indices.create:
         index: int8_flat
         body:
+          settings:
+            index:
+              number_of_shards: 1
           mappings:
             properties:
               name:
@@ -17,6 +20,7 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: int8_flat
+                  confidence_interval: 0.9
               another_vector:
                 type: dense_vector
                 dims: 5
@@ -24,6 +28,7 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: int8_flat
+                  confidence_interval: 0.9
 
   - do:
       index:

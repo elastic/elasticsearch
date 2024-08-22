@@ -54,6 +54,10 @@ public interface TopNEncoder {
 
     int decodeInt(BytesRef bytes);
 
+    void encodeFloat(float value, BreakingBytesRefBuilder bytesRefBuilder);
+
+    float decodeFloat(BytesRef bytes);
+
     void encodeDouble(double value, BreakingBytesRefBuilder bytesRefBuilder);
 
     double decodeDouble(BytesRef bytes);

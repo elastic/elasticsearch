@@ -18,6 +18,12 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.CONSTRUCTOR)
 public @interface Example {
+
+    /**
+     * The description that will appear before the example
+     */
+    String description() default "";
+
     /**
      * The test file that contains the example.
      */
@@ -27,4 +33,9 @@ public @interface Example {
      * The tag that fences this example.
      */
     String tag();
+
+    /**
+     * The explanation that will appear after the example.
+     */
+    String explanation() default "";
 }

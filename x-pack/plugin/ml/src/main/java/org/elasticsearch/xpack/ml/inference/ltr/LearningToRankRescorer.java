@@ -56,22 +56,16 @@ public class LearningToRankRescorer implements Rescorer {
             throw new IllegalStateException("local model reference is null, missing rewriteAndFetch before rescore phase?");
         }
 
-        if (rescoreContext.getWindowSize() < topDocs.scoreDocs.length) {
-            throw new IllegalArgumentException(
-                "Rescore window is too small and should be at least the value of from + size but was ["
-                    + rescoreContext.getWindowSize()
-                    + "]"
-            );
-        }
-
         LocalModel definition = ltrRescoreContext.regressionModelDefinition;
 
-        // First take top slice of incoming docs, to be rescored:
-        TopDocs topNFirstPass = topN(topDocs, rescoreContext.getWindowSize());
+        // Because scores of the first-pass query and the LTR model are not comparable, there is no way to combine the results.
+        // We will truncate the {@link TopDocs} to the window size so rescoring will be done on the full topDocs.
+        topDocs = topN(topDocs, rescoreContext.getWindowSize());
+
         // Save doc IDs for which rescoring was applied to be used in score explanation
-        Set<Integer> topNDocIDs = Arrays.stream(topNFirstPass.scoreDocs).map(scoreDoc -> scoreDoc.doc).collect(toUnmodifiableSet());
-        rescoreContext.setRescoredDocs(topNDocIDs);
-        ScoreDoc[] hitsToRescore = topNFirstPass.scoreDocs;
+        Set<Integer> topDocIDs = Arrays.stream(topDocs.scoreDocs).map(scoreDoc -> scoreDoc.doc).collect(toUnmodifiableSet());
+        rescoreContext.setRescoredDocs(topDocIDs);
+        ScoreDoc[] hitsToRescore = topDocs.scoreDocs;
         Arrays.sort(hitsToRescore, Comparator.comparingInt(a -> a.doc));
         int hitUpto = 0;
         int readerUpto = -1;
@@ -81,7 +75,7 @@ public class LearningToRankRescorer implements Rescorer {
         LeafReaderContext currentSegment = null;
         boolean changedSegment = true;
         List<FeatureExtractor> featureExtractors = ltrRescoreContext.buildFeatureExtractors(searcher);
-        List<Map<String, Object>> docFeatures = new ArrayList<>(topNDocIDs.size());
+        List<Map<String, Object>> docFeatures = new ArrayList<>(topDocIDs.size());
         int featureSize = featureExtractors.stream().mapToInt(fe -> fe.featureNames().size()).sum();
         while (hitUpto < hitsToRescore.length) {
             final ScoreDoc hit = hitsToRescore[hitUpto];

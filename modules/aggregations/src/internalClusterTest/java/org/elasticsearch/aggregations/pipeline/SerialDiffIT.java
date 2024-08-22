@@ -12,8 +12,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.aggregations.AggregationIntegTestCase;
 import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -91,7 +91,7 @@ public class SerialDiffIT extends AggregationIntegTestCase {
         }
     }
 
-    private void assertBucketContents(Histogram.Bucket actual, Double expectedCount, Double expectedValue) {
+    private void assertBucketContents(Bucket actual, Double expectedCount, Double expectedValue) {
         // This is a gap bucket
         SimpleValue countDiff = actual.getAggregations().get("diff_counts");
         if (expectedCount == null) {
@@ -239,7 +239,7 @@ public class SerialDiffIT extends AggregationIntegTestCase {
                 List<Double> expectedCounts = testValues.get(MetricTarget.COUNT.toString());
                 List<Double> expectedValues = testValues.get(MetricTarget.VALUE.toString());
 
-                Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
+                Iterator<? extends Bucket> actualIter = buckets.iterator();
                 Iterator<PipelineAggregationHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
                 Iterator<Double> expectedCountsIter = expectedCounts.iterator();
                 Iterator<Double> expectedValuesIter = expectedValues.iterator();
@@ -247,7 +247,7 @@ public class SerialDiffIT extends AggregationIntegTestCase {
                 while (actualIter.hasNext()) {
                     assertValidIterators(expectedBucketIter, expectedCountsIter, expectedValuesIter);
 
-                    Histogram.Bucket actual = actualIter.next();
+                    Bucket actual = actualIter.next();
                     PipelineAggregationHelperTests.MockBucket expected = expectedBucketIter.next();
                     Double expectedCount = expectedCountsIter.next();
                     Double expectedValue = expectedValuesIter.next();

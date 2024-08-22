@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -62,6 +63,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
@@ -152,9 +154,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // important: note that we pass the context object as lock object
         super(threadPool, initialState, initialPosition, jobStats, context);
         ExceptionsHelper.requireNonNull(transformServices, "transformServices");
-        this.transformsConfigManager = transformServices.getConfigManager();
+        this.transformsConfigManager = transformServices.configManager();
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
-        this.auditor = transformServices.getAuditor();
+        this.auditor = transformServices.auditor();
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
         this.progress = transformProgress != null ? transformProgress : new TransformProgress();
         this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");
@@ -268,9 +270,17 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     @Override
     protected void onStart(long now, ActionListener<Boolean> listener) {
         if (context.getTaskState() == TransformTaskState.FAILED) {
-            logger.debug("[{}] attempted to start while failed.", getJobId());
+            logger.debug("[{}] attempted to start while in state [{}].", getJobId(), TransformTaskState.FAILED.value());
             listener.onFailure(new ElasticsearchException("Attempted to start a failed transform [{}].", getJobId()));
             return;
+        }
+
+        switch (getState()) {
+            case ABORTING, STOPPING, STOPPED -> {
+                logger.debug("[{}] attempted to start while in state [{}].", getJobId(), getState().value());
+                listener.onResponse(false);
+                return;
+            }
         }
 
         if (context.getAuthState() != null && HealthStatus.RED.equals(context.getAuthState().getStatus())) {
@@ -286,7 +296,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         ActionListener<Void> finalListener = listener.delegateFailureAndWrap((l, r) -> {
             // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
             if (context.getPageSize() == 0) {
-                configurePageSize(getConfig().getSettings().getMaxPageSearchSize());
+                // check the pageSize again in case another thread has updated it
+                configurePageSize(() -> context.getPageSize() == 0, getConfig().getSettings().getMaxPageSearchSize());
             }
 
             runState = determineRunStateAtStart();
@@ -340,8 +351,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }, listener::onFailure);
 
         var deducedDestIndexMappings = new SetOnce<Map<String, String>>();
-        var shouldMaybeCreateDestIndexForUnattended = context.getCheckpoint() == 0
-            && TransformEffectiveSettings.isUnattended(transformConfig.getSettings());
+
+        // if the unattended transform had not created the destination index yet, or if the destination index was deleted for any
+        // type of transform during the last run, then we try to create the destination index.
+        // This is important to create the destination index explicitly before indexing documents. Otherwise, the destination
+        // index aliases may be missing.
+        var shouldMaybeCreateDestIndex = isFirstUnattendedRun() || context.shouldRecreateDestinationIndex();
 
         ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(destIndexMappings -> {
             if (destIndexMappings.isEmpty() == false) {
@@ -351,11 +366,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 // ... otherwise we fall back to index mappings deduced based on source indices
                 this.fieldMappings = deducedDestIndexMappings.get();
             }
-            // Since the unattended transform could not have created the destination index yet, we do it here.
-            // This is important to create the destination index explicitly before indexing first documents. Otherwise, the destination
-            // index aliases may be missing.
-            if (destIndexMappings.isEmpty() && shouldMaybeCreateDestIndexForUnattended) {
-                doMaybeCreateDestIndex(deducedDestIndexMappings.get(), configurationReadyListener);
+
+            if (destIndexMappings.isEmpty() && shouldMaybeCreateDestIndex) {
+                doMaybeCreateDestIndex(deducedDestIndexMappings.get(), configurationReadyListener.delegateFailure((delegate, response) -> {
+                    context.setShouldRecreateDestinationIndex(false);
+                    delegate.onResponse(response);
+                }));
             } else {
                 configurationReadyListener.onResponse(null);
             }
@@ -372,7 +388,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             deducedDestIndexMappings.set(validationResponse.getDestIndexMappings());
             if (isContinuous()) {
                 transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(config -> {
-                    if (transformConfig.equals(config) && fieldMappings != null && shouldMaybeCreateDestIndexForUnattended == false) {
+                    if (transformConfig.equals(config) && fieldMappings != null && shouldMaybeCreateDestIndex == false) {
                         logger.trace("[{}] transform config has not changed.", getJobId());
                         configurationReadyListener.onResponse(null);
                     } else {
@@ -382,11 +398,19 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     }
                 }, failure -> {
                     String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION, getJobId());
-                    // If the transform config index or the transform config is gone, something serious occurred
-                    // We are in an unknown state and should fail out
+                    // If the transform config index or the transform config is gone, then it is possible the transform was deleted.
+                    // If the transform was deleted, it will be in the Aborting state, and we can safely return out. If it is not in the
+                    // Aborting state, then something serious has occurred, and we should fail out.
                     if (failure instanceof ResourceNotFoundException) {
-                        logger.error(msg, failure);
-                        reLoadFieldMappingsListener.onFailure(new TransformConfigLostOnReloadException(msg, failure));
+                        if (IndexerState.ABORTING == getState()) {
+                            logger.atDebug()
+                                .withThrowable(failure)
+                                .log("Transform is in state [{}] during possible failure [{}].", IndexerState.ABORTING.value(), msg);
+                            listener.onResponse(false);
+                        } else {
+                            logger.error(msg, failure);
+                            reLoadFieldMappingsListener.onFailure(new TransformConfigLostOnReloadException(msg, failure));
+                        }
                     } else {
                         logger.warn(msg, failure);
                         auditor.warning(getJobId(), msg);
@@ -399,7 +423,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }, listener::onFailure);
 
         Instant instantOfTrigger = Instant.ofEpochMilli(now);
-        // If we are not on the initial batch checkpoint and its the first pass of whatever continuous checkpoint we are on,
+        // If we are not on the initial batch checkpoint and it's the first pass of whatever continuous checkpoint we are on,
         // we should verify if there are local changes based on the sync config. If not, do not proceed further and exit.
         if (context.getCheckpoint() > 0 && initialRun()) {
             checkpointProvider.sourceHasChanged(getLastCheckpoint(), ActionListener.wrap(hasChanged -> {
@@ -420,8 +444,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 hasSourceChanged = true;
                 listener.onFailure(failure);
             }));
-        } else if (context.getCheckpoint() == 0 && TransformEffectiveSettings.isUnattended(transformConfig.getSettings())) {
-            // this transform runs in unattended mode and has never run, to go on
+        } else if (shouldMaybeCreateDestIndex) {
             validate(changedSourceListener);
         } else {
             hasSourceChanged = true;
@@ -429,6 +452,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             context.setChangesLastDetectedAt(instantOfTrigger);
             changedSourceListener.onResponse(new ValidateTransformAction.Response(emptyMap()));
         }
+    }
+
+    /**
+     * Returns true if this transform runs in unattended mode and has never run.
+     */
+    private boolean isFirstUnattendedRun() {
+        return context.getCheckpoint() == 0 && TransformEffectiveSettings.isUnattended(transformConfig.getSettings());
     }
 
     protected void initializeFunction() {
@@ -543,7 +573,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private void finalizeCheckpoint(ActionListener<Void> listener) {
         try {
             // reset the page size, so we do not memorize a low page size forever
-            context.setPageSize(function.getInitialPageSize());
+            var pageSize = initialConfiguredPageSize;
+            // only update if the initialConfiguredPageSize hadn't been changed by the user between the last line and the next line
+            // if the user also called configurePageSize, keep their new value rather than resetting it to their previous value
+            configurePageSize(() -> Objects.equals(pageSize, initialConfiguredPageSize), pageSize);
+
             // reset the changed bucket to free memory
             if (changeCollector != null) {
                 changeCollector.clear();
@@ -628,22 +662,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 return false;
             }
 
-            /*
-             * ignore if indexer thread is shutting down (after finishing a checkpoint)
-             * shutting down means:
-             *  - indexer has finished a checkpoint and called onFinish
-             *  - indexer state has changed from indexing to started
-             *  - state persistence has been called but has _not_ returned yet
-             *
-             *  If we trigger the indexer in this situation the 2nd indexer thread might
-             *  try to save state at the same time, causing a version conflict
-             *  see gh#67121
-             */
-            if (indexerThreadShuttingDown) {
-                logger.debug("[{}] indexer thread is shutting down. Ignoring trigger.", getJobId());
-                return false;
-            }
-
             return super.maybeTriggerAsyncJob(now);
         }
     }
@@ -658,9 +676,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         logger.info("[{}] transform settings have been updated.", transformConfig.getId());
 
         docsPerSecond = newSettings.getDocsPerSecond() != null ? newSettings.getDocsPerSecond() : -1;
-        if (Objects.equals(newSettings.getMaxPageSearchSize(), initialConfiguredPageSize) == false) {
-            configurePageSize(newSettings.getMaxPageSearchSize());
-        }
+        configurePageSize(
+            () -> Objects.equals(newSettings.getMaxPageSearchSize(), initialConfiguredPageSize) == false,
+            newSettings.getMaxPageSearchSize()
+        );
         rethrottle();
     }
 
@@ -1219,14 +1238,19 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return RunState.IDENTIFY_CHANGES;
     }
 
-    private void configurePageSize(Integer newPageSize) {
-        initialConfiguredPageSize = newPageSize;
-
-        // if the user explicitly set a page size, take it from the config, otherwise let the function decide
-        if (initialConfiguredPageSize != null && initialConfiguredPageSize > 0) {
-            context.setPageSize(initialConfiguredPageSize);
-        } else {
-            context.setPageSize(function.getInitialPageSize());
+    private void configurePageSize(Supplier<Boolean> shouldUpdate, Integer newPageSize) {
+        synchronized (context) {
+            if (shouldUpdate.get()) {
+                initialConfiguredPageSize = newPageSize;
+                if (newPageSize != null && newPageSize > 0) {
+                    context.setPageSize(initialConfiguredPageSize);
+                } else if (function != null) {
+                    context.setPageSize(function.getInitialPageSize());
+                } else {
+                    // we should never be in a state where both initialConfiguredPageSize and function are null, but just in case...
+                    context.setPageSize(Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE);
+                }
+            }
         }
     }
 

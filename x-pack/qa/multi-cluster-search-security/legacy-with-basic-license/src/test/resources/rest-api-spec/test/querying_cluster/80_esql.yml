@@ -150,8 +150,8 @@ teardown:
 
 ---
 "Enrich across clusters":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Enrich across clusters available in 8.13 or later"
   - do:
       indices.create:

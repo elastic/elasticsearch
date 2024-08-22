@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: "8.7.00 - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
 
   - do:
@@ -54,8 +54,8 @@ setup:
 
 ---
 "Basic test":
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: Time series result serialization changed in 8.6.0
 
   - do:
@@ -83,8 +83,8 @@ setup:
 ---
 
 "Basic test profiled":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: Time series profiling enabled in 8.8
 
   - do:
@@ -107,8 +107,8 @@ setup:
 
 ---
 "Size test":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -151,8 +151,8 @@ setup:
 
 ---
 "Score test filter some":
-  - skip:
-      version: " - 8.8.99"
+  - requires:
+      cluster_features: ["gte_v8.9.0"]
       reason: Time series min score fixed in 8.9
 
   - do:
@@ -179,8 +179,8 @@ setup:
 
 ---
 "Score test filter all":
-  - skip:
-      version: " - 8.8.99"
+  - requires:
+      cluster_features: ["gte_v8.9.0"]
       reason: Time series min score fixed in 8.9
 
   - do:
@@ -205,8 +205,8 @@ setup:
 
 ---
 "Sampler aggregation with nested time series aggregation failure":
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: "Handling for time series aggregation failures introduced in 8.7.0"
 
   - do:
@@ -234,8 +234,8 @@ setup:
 
 ---
 "Composite aggregation with nested time series aggregation failure":
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: "Handling for time series aggregation failures introduced in 8.7.0"
 
   - do:
@@ -271,8 +271,8 @@ setup:
 
 ---
 "Global aggregation with nested time series aggregation failure":
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: "Handling for time series aggregation failures introduced in 8.7.0"
 
   - do:
@@ -293,12 +293,12 @@ setup:
                         field: val
 ---
 "Configure with no synthetic source":
-  - skip:
-      version: " - 8.8.99"
-      reason: "Error message fix in 8.9"
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: "Error message changed in 8.15.0"
 
   - do:
-      catch: '/Time series indices only support synthetic source./'
+      catch: '/Indices with with index mode \[time_series\] only support synthetic source/'
       indices.create:
         index: tsdb_error
         body:
@@ -311,8 +311,8 @@ setup:
 
 ---
 "Number for keyword routing field":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -354,8 +354,8 @@ setup:
   # collection and reduction order. Note that changing the hashing algorithm might require selecting proper values
   # for dimensions fields such that sort(_tsid, timestamp) != sort(_tsid hash, timestamp).
 
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -453,8 +453,8 @@ setup:
 
 ---
 "auto_date_histogram aggregation with time_series aggregation":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Handling for time series aggregation failures introduced in 8.13.0"
 
   - do:
@@ -472,8 +472,8 @@ setup:
 
 ---
 "variable_width_histogram aggregation with time_series aggregation":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Handling for time series aggregation failures introduced in 8.13.0"
 
   - do:
@@ -491,8 +491,8 @@ setup:
 
 ---
 "rare_terms aggregation with time_series aggregation":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Handling for time series aggregation failures introduced in 8.13.0"
 
   - do:

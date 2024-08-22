@@ -2,7 +2,7 @@
 "Dynamic templates":
   - requires:
       test_runner_features: ["contains"]
-      cluster_features: ["bulk_dynamic_template_document_parse_exception"]
+      cluster_features: ["gte_v8.8.0"]
       reason: "Exception type has changed in 8.8.0"
 
   - do:
@@ -176,7 +176,7 @@
 ---
 "Dynamic templates with op_type":
   - requires:
-      cluster_features: ["bulk_dynamic_template_op_type"]
+      cluster_features: ["gte_v8.6.1"]
       reason: "bug fixed in 8.6.1"
 
   - do:

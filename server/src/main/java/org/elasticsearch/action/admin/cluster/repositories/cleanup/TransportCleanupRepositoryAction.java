@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,11 +24,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
@@ -59,6 +60,7 @@ import java.util.List;
  */
 public final class TransportCleanupRepositoryAction extends TransportMasterNodeAction<CleanupRepositoryRequest, CleanupRepositoryResponse> {
 
+    public static final ActionType<CleanupRepositoryResponse> TYPE = new ActionType<>("cluster:admin/repository/_cleanup");
     private static final Logger logger = LogManager.getLogger(TransportCleanupRepositoryAction.class);
 
     private final RepositoriesService repositoriesService;
@@ -73,12 +75,12 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            CleanupRepositoryAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            CleanupRepositoryRequest::new,
+            CleanupRepositoryRequest::readFrom,
             indexNameExpressionResolver,
             CleanupRepositoryResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE

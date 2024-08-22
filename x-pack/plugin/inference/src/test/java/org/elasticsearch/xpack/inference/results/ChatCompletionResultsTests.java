@@ -76,6 +76,20 @@ public class ChatCompletionResultsTests extends AbstractWireSerializingTestCase<
             }"""));
     }
 
+    public void testTransformToCoordinationFormat() {
+        String resultOneContent = "content 1";
+        String resultTwoContent = "content 2";
+
+        var entity = new ChatCompletionResults(
+            List.of(new ChatCompletionResults.Result(resultOneContent), new ChatCompletionResults.Result(resultTwoContent))
+        );
+
+        var transformedEntity = entity.transformToCoordinationFormat();
+
+        assertThat(transformedEntity.get(0).asMap(), is(Map.of(ChatCompletionResults.Result.RESULT, resultOneContent)));
+        assertThat(transformedEntity.get(1).asMap(), is(Map.of(ChatCompletionResults.Result.RESULT, resultTwoContent)));
+    }
+
     @Override
     protected Writeable.Reader<ChatCompletionResults> instanceReader() {
         return ChatCompletionResults::new;
@@ -109,6 +123,13 @@ public class ChatCompletionResultsTests extends AbstractWireSerializingTestCase<
         }
 
         return new ChatCompletionResults(chatCompletionResults);
+    }
+
+    public static Map<String, Object> buildExpectationCompletion(List<String> results) {
+        return Map.of(
+            ChatCompletionResults.COMPLETION,
+            results.stream().map(result -> Map.of(ChatCompletionResults.Result.RESULT, result)).toList()
+        );
     }
 
     private static ChatCompletionResults.Result createRandomChatCompletionResult() {

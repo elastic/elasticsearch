@@ -1,0 +1,390 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.vectors.bit_vectors"]
+      reason: "support for bit vectors added in 8.15"
+      test_runner_features: headers
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                index: false
+                element_type: bit
+                dims: 40
+              indexed_vector:
+                type: dense_vector
+                element_type: bit
+                dims: 40
+                index: true
+                similarity: l2_norm
+
+  - do:
+      index:
+        index: test-index
+        id: "1"
+        body:
+          vector: [8, 5, -15, 1, -7]
+          indexed_vector: [8, 5, -15, 1, -7]
+
+  - do:
+      index:
+        index: test-index
+        id: "2"
+        body:
+          vector: [-1, 115, -3, 4, -128]
+          indexed_vector: [-1, 115, -3, 4, -128]
+
+  - do:
+      index:
+        index: test-index
+        id: "3"
+        body:
+          vector: [2, 18, -5, 0, -124]
+          indexed_vector: [2, 18, -5, 0, -124]
+
+  - do:
+      indices.refresh: {}
+
+---
+"Test vector magnitude equality":
+  - skip:
+      features: close_to
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "doc['vector'].magnitude"
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 4.690416, error: 0.01}}
+
+  - match: {hits.hits.1._id: "1"}
+  - close_to: {hits.hits.1._score: {value: 3.8729835, error: 0.01}}
+
+  - match: {hits.hits.2._id: "3"}
+  - close_to: {hits.hits.2._score: {value: 3.4641016, error: 0.01}}
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "doc['indexed_vector'].magnitude"
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 4.690416, error: 0.01}}
+
+  - match: {hits.hits.1._id: "1"}
+  - close_to: {hits.hits.1._score: {value: 3.8729835, error: 0.01}}
+
+  - match: {hits.hits.2._id: "3"}
+  - close_to: {hits.hits.2._score: {value: 3.4641016, error: 0.01}}
+
+---
+"Dot Product is not supported":
+  - do:
+      catch: bad_request
+      headers:
+        Content-Type: application/json
+      search:
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "dotProduct(params.query_vector, 'vector')"
+                params:
+                  query_vector: [0, 111, -13, 14, -124]
+  - do:
+      catch: bad_request
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "dotProduct(params.query_vector, 'vector')"
+                params:
+                  query_vector: "006ff30e84"
+
+---
+"Cosine Similarity is not supported":
+  - do:
+      catch: bad_request
+      headers:
+        Content-Type: application/json
+      search:
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "cosineSimilarity(params.query_vector, 'vector')"
+                params:
+                  query_vector: [0, 111, -13, 14, -124]
+  - do:
+      catch: bad_request
+      headers:
+        Content-Type: application/json
+      search:
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "cosineSimilarity(params.query_vector, 'vector')"
+                params:
+                  query_vector: "006ff30e84"
+
+  - do:
+      catch: bad_request
+      headers:
+        Content-Type: application/json
+      search:
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "cosineSimilarity(params.query_vector, 'indexed_vector')"
+                params:
+                  query_vector: [0, 111, -13, 14, -124]
+---
+"L1 norm":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "l1norm(params.query_vector, 'vector')"
+                params:
+                  query_vector: [0, 111, -13, 14, -124]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._score: 17.0}
+
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 16.0}
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2._score: 11.0}
+
+---
+"L1 norm hexidecimal":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "l1norm(params.query_vector, 'vector')"
+                params:
+                  query_vector: "006ff30e84"
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._score: 17.0}
+
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 16.0}
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2._score: 11.0}
+---
+"L2 norm":
+  - requires:
+      test_runner_features: close_to
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "l2norm(params.query_vector, 'vector')"
+                params:
+                  query_vector: [0, 111, -13, 14, -124]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 4.123, error: 0.001}}
+
+  - match: {hits.hits.1._id: "1"}
+  - close_to: {hits.hits.1._score: {value: 4, error: 0.001}}
+
+  - match: {hits.hits.2._id: "3"}
+  - close_to: {hits.hits.2._score: {value: 3.316, error: 0.001}}
+---
+"L2 norm hexidecimal":
+  - requires:
+      test_runner_features: close_to
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "l2norm(params.query_vector, 'vector')"
+                params:
+                  query_vector: "006ff30e84"
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 4.123, error: 0.001}}
+
+  - match: {hits.hits.1._id: "1"}
+  - close_to: {hits.hits.1._score: {value: 4, error: 0.001}}
+
+  - match: {hits.hits.2._id: "3"}
+  - close_to: {hits.hits.2._score: {value: 3.316, error: 0.001}}
+---
+"Hamming distance":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "hamming(params.query_vector, 'vector')"
+                params:
+                  query_vector: [0, 111, -13, 14, -124]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._score: 17.0}
+
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 16.0}
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2._score: 11.0}
+
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "hamming(params.query_vector, 'indexed_vector')"
+                params:
+                  query_vector: [0, 111, -13, 14, -124]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._score: 17.0}
+
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 16.0}
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2._score: 11.0}
+---
+"Hamming distance hexidecimal":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "hamming(params.query_vector, 'vector')"
+                params:
+                  query_vector: "006ff30e84"
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._score: 17.0}
+
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 16.0}
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2._score: 11.0}
+
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "hamming(params.query_vector, 'indexed_vector')"
+                params:
+                  query_vector: "006ff30e84"
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._score: 17.0}
+
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 16.0}
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2._score: 11.0}

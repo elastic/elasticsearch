@@ -26,7 +26,7 @@ restResources {
 }
 
 def supportedVersion = bwcVersion -> {
-  return bwcVersion.onOrAfter("8.8.0");
+  return bwcVersion.onOrAfter("8.10.0");
 }
 
 BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->

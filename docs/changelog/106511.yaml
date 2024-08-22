@@ -1,5 +1,0 @@
-pr: 106511
-summary: Wait indefintely for http connections on shutdown by default
-area: Infra/Node Lifecycle
-type: bug
-issues: []

@@ -10,9 +10,12 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Vector implementation that stores an array of long values.
@@ -22,7 +25,9 @@ final class LongArrayVector extends AbstractVector implements LongVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
-        + RamUsageEstimator.shallowSizeOfInstance(LongVectorBlock.class);
+        + RamUsageEstimator.shallowSizeOfInstance(LongVectorBlock.class)
+        // TODO: remove this if/when we account for memory used by Pages
+        + Block.PAGE_MEM_OVERHEAD_PER_BLOCK;
 
     private final long[] values;
 
@@ -87,6 +92,11 @@ final class LongArrayVector extends AbstractVector implements LongVector {
         }
     }
 
+    @Override
+    public ReleasableIterator<LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new LongLookup(asBlock(), positions, targetBlockSize);
+    }
+
     public static long ramBytesEstimated(long[] values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
     }
@@ -111,7 +121,11 @@ final class LongArrayVector extends AbstractVector implements LongVector {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+        String valuesString = IntStream.range(0, getPositionCount())
+            .limit(10)
+            .mapToObj(n -> String.valueOf(values[n]))
+            .collect(Collectors.joining(", ", "[", getPositionCount() > 10 ? ", ...]" : "]"));
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + valuesString + ']';
     }
 
 }

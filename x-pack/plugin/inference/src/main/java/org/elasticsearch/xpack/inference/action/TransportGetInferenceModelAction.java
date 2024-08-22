@@ -13,18 +13,19 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.common.InferenceExceptions;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -83,26 +84,12 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         modelRegistry.getModel(inferenceEntityId, listener.delegateFailureAndWrap((delegate, unparsedModel) -> {
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {
-                delegate.onFailure(
-                    new ElasticsearchStatusException(
-                        "Unknown service [{}] for model [{}]. ",
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        unparsedModel.service(),
-                        unparsedModel.inferenceEntityId()
-                    )
-                );
+                delegate.onFailure(serviceNotFoundException(unparsedModel.service(), unparsedModel.inferenceEntityId()));
                 return;
             }
 
             if (requestedTaskType.isAnyOrSame(unparsedModel.taskType()) == false) {
-                delegate.onFailure(
-                    new ElasticsearchStatusException(
-                        "Requested task type [{}] does not match the model's task type [{}]",
-                        RestStatus.BAD_REQUEST,
-                        requestedTaskType,
-                        unparsedModel.taskType()
-                    )
-                );
+                delegate.onFailure(InferenceExceptions.mismatchedTaskTypeException(requestedTaskType, unparsedModel.taskType()));
                 return;
             }
 
@@ -131,12 +118,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         for (var unparsedModel : unparsedModels) {
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {
-                throw new ElasticsearchStatusException(
-                    "Unknown service [{}] for model [{}]. ",
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    unparsedModel.service(),
-                    unparsedModel.inferenceEntityId()
-                );
+                throw serviceNotFoundException(unparsedModel.service(), unparsedModel.inferenceEntityId());
             }
             parsedModels.add(
                 service.get()
@@ -145,5 +127,14 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
             );
         }
         return new GetInferenceModelAction.Response(parsedModels);
+    }
+
+    private ElasticsearchStatusException serviceNotFoundException(String service, String inferenceId) {
+        throw new ElasticsearchStatusException(
+            "Unknown service [{}] for inference endpoint [{}]. ",
+            RestStatus.INTERNAL_SERVER_ERROR,
+            service,
+            inferenceId
+        );
     }
 }

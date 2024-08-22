@@ -98,7 +98,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
         // other bucket
         assertAggs(API_KEY_USER_AUTH_HEADER, typedAggs, """
             {
-              "aggs": {
+              "aggregations": {
                 "only_user_keys": {
                   "filters": {
                     "other_bucket_key": "other_user_keys",
@@ -246,10 +246,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 """);
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
-            assertThat(
-                exception.getMessage(),
-                containsString("Field [api_key_invalidated] is not allowed for API Key query or aggregation")
-            );
+            assertThat(exception.getMessage(), containsString("Field [api_key_invalidated] is not allowed for querying or aggregation"));
         }
         {
             Request request = new Request("GET", "/_security/_query/api_key" + (randomBoolean() ? "?typed_keys" : ""));
@@ -267,7 +264,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                           "good-api-key-invalidated": { "term": {"invalidated": false}}
                         }
                       },
-                      "aggs": {
+                      "aggregations": {
                         "wrong-field": {
                           "filters": {
                             "filters": {
@@ -282,7 +279,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 """);
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
-            assertThat(exception.getMessage(), containsString("Field [creator.realm] is not allowed for API Key query or aggregation"));
+            assertThat(exception.getMessage(), containsString("Field [creator.realm] is not allowed for querying or aggregation"));
         }
     }
 
@@ -418,7 +415,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 """);
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
-            assertThat(exception.getMessage(), containsString("Field [runtime_key_type] is not allowed for API Key query or aggregation"));
+            assertThat(exception.getMessage(), containsString("Field [runtime_key_type] is not allowed for querying or aggregation"));
         }
     }
 
@@ -487,7 +484,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                       { "usernames": { "terms": { "field": "username" } } }
                     ]
                   },
-                  "aggs": {
+                  "aggregations": {
                     "not_expired": {
                       "filter": {
                         "range": {
@@ -549,7 +546,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 """);
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
-            assertThat(exception.getMessage(), containsString("Field [creator] is not allowed for API Key query or aggregation"));
+            assertThat(exception.getMessage(), containsString("Field [creator] is not allowed for querying or aggregation"));
         }
     }
 
@@ -564,7 +561,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             );
             request.setJsonEntity("""
                 {
-                  "aggs": {
+                  "aggregations": {
                     "all_.security_docs": {
                       "global": {},
                       "aggs": {

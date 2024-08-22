@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -82,7 +81,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         }).when(indicesClient).forceMerge(any(), any());
 
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f));
+        performActionAndWait(step, indexMetadata, null, null);
     }
 
     public void testPerformActionThrowsException() {
@@ -109,13 +108,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         }).when(indicesClient).forceMerge(any(), any());
 
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
-        assertSame(
-            exception,
-            expectThrows(
-                Exception.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f))
-            )
-        );
+        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, null, null)));
     }
 
     public void testForcemergeFailsOnSomeShards() {

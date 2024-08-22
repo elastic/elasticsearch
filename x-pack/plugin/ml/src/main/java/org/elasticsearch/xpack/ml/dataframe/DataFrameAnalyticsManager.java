@@ -169,29 +169,21 @@ public class DataFrameAnalyticsManager {
 
         }, task::setFailed);
 
-        // Retrieve configuration
-        ActionListener<Boolean> statsIndexListener = configListener.delegateFailureAndWrap(
-            (l, aBoolean) -> configProvider.get(task.getParams().getId(), l)
-        );
-
-        // Make sure the stats index and alias exist
-        ActionListener<Boolean> stateAliasListener = ActionListener.wrap(
-            aBoolean -> createStatsIndexAndUpdateMappingsIfNecessary(
-                new ParentTaskAssigningClient(client, task.getParentTaskId()),
-                clusterState,
-                masterNodeTimeout,
-                statsIndexListener
-            ),
-            configListener::onFailure
-        );
-
         // Make sure the state index and alias exist
         AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessaryAndWaitForYellow(
             new ParentTaskAssigningClient(client, task.getParentTaskId()),
             clusterState,
             expressionResolver,
             masterNodeTimeout,
-            stateAliasListener
+            configListener.delegateFailureAndWrap(
+                (delegate, aBoolean) -> createStatsIndexAndUpdateMappingsIfNecessary(
+                    new ParentTaskAssigningClient(client, task.getParentTaskId()),
+                    clusterState,
+                    masterNodeTimeout,
+                    // Retrieve configuration
+                    delegate.delegateFailureAndWrap((l, ignored) -> configProvider.get(task.getParams().getId(), l))
+                )
+            )
         );
     }
 
@@ -305,7 +297,7 @@ public class DataFrameAnalyticsManager {
             config,
             listener.delegateFailureAndWrap((delegate, extractedFieldsDetector) -> {
                 ExtractedFields extractedFields = extractedFieldsDetector.detect().v1();
-                InferenceRunner inferenceRunner = new InferenceRunner(
+                InferenceRunner inferenceRunner = InferenceRunner.create(
                     settings,
                     parentTaskClient,
                     modelLoadingService,
@@ -314,7 +306,8 @@ public class DataFrameAnalyticsManager {
                     config,
                     extractedFields,
                     task.getStatsHolder().getProgressTracker(),
-                    task.getStatsHolder().getDataCountsTracker()
+                    task.getStatsHolder().getDataCountsTracker(),
+                    threadPool
                 );
                 InferenceStep inferenceStep = new InferenceStep(client, task, auditor, config, threadPool, inferenceRunner);
                 delegate.onResponse(inferenceStep);

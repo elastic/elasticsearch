@@ -128,10 +128,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     protected IndexMetadata buildIndexMetadata(int replicas, Settings indexSettings, String mappings) {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+        Settings settings = indexSettings(1, replicas).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
             .put(indexSettings)
             .build();
@@ -895,8 +892,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     );
                     listener.onResponse((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result);
                 }),
-                threadPool,
-                Names.WRITE
+                threadPool.executor(Names.WRITE)
             );
         } catch (Exception e) {
             listener.onFailure(e);

@@ -15,6 +15,7 @@ import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -58,6 +59,13 @@ public interface ActionPlugin {
      * ActionType filters added by this plugin.
      */
     default Collection<ActionFilter> getActionFilters() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Action filters applying to a single action added by this plugin.
+     */
+    default Collection<MappedActionFilter> getMappedActionFilters() {
         return Collections.emptyList();
     }
 

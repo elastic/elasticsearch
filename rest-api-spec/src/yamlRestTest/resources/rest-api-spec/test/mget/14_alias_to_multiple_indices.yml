@@ -1,7 +1,7 @@
 ---
 "Multi Get with alias that resolves to multiple indices":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "message was changed to fix grammar in 7.9"
 
   - do:

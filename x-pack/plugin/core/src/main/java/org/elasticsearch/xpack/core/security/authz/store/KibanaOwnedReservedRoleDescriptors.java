@@ -49,7 +49,11 @@ class KibanaOwnedReservedRoleDescriptors {
             null,
             null,
             metadata,
-            null
+            null,
+            null,
+            null,
+            null,
+            "Grants access to all features in Kibana."
         );
     }
 
@@ -69,6 +73,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 // For Fleet package upgrade
                 "manage_pipeline",
                 "manage_ilm",
+                // For connectors telemetry
+                "monitor_connector",
                 // For the endpoint package that ships a transform
                 "manage_transform",
                 InvalidateApiKeyAction.NAME,
@@ -132,6 +138,9 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-apm.*").privileges("read", "read_cross_cluster").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm.*").privileges("read", "read_cross_cluster").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm-*").privileges("read", "read_cross_cluster").build(),
+
+                // Logstash telemetry queries of kibana task runner to access Logstash metric indices
+                RoleDescriptor.IndicesPrivileges.builder().indices("metrics-logstash.*").privileges("read").build(),
 
                 // Data telemetry reads mappings, metadata and stats of indices
                 RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("view_index_metadata", "monitor").build(),
@@ -242,6 +251,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         ".logs-endpoint.heartbeat-*",
                         ".logs-osquery_manager.actions-*",
                         ".logs-osquery_manager.action.responses-*",
+                        "logs-osquery_manager.action.responses-*",
                         "profiling-*"
                     )
                     .privileges(
@@ -262,16 +272,27 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".logs-endpoint.actions-*")
                     .privileges("auto_configure", "read", "write")
                     .build(),
-                // Osquery manager specific action responses. Kibana reads from these to display responses to the user.
+                // Legacy Osquery manager specific action responses. Kibana reads from these to display responses to the user.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-osquery_manager.action.responses-*")
                     .privileges("auto_configure", "create_index", "read", "index", "delete")
+                    .build(),
+                // Osquery manager specific action responses. Kibana reads from these to display responses to the user.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-osquery_manager.action.responses-*")
+                    .privileges("read", "view_index_metadata")
                     .build(),
                 // Osquery manager specific actions. Kibana reads and writes to this index to track new actions and display them.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-osquery_manager.actions-*")
                     .privileges("auto_configure", "create_index", "read", "index", "write", "delete")
                     .build(),
+
+                // Third party agent (that use non-Elastic Defend integrations) info logs indices.
+                // Kibana reads from these to display agent status/info to the user.
+                // These are indices that filebeat writes to, and the data in these indices are ingested by Fleet integrations
+                // in order to provide support for response actions related to malicious events for such agents.
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs-sentinel_one.*", "logs-crowdstrike.*").privileges("read").build(),
                 // For ILM policy for APM, Endpoint, & Synthetics packages that have delete action
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
@@ -400,7 +421,15 @@ class KibanaOwnedReservedRoleDescriptors {
                 getRemoteIndicesReadPrivileges("metrics-apm.*"),
                 getRemoteIndicesReadPrivileges("traces-apm.*"),
                 getRemoteIndicesReadPrivileges("traces-apm-*") },
-            null
+            null,
+            null,
+            "Grants access necessary for the Kibana system user to read from and write to the Kibana indices, "
+                + "manage index templates and tokens, and check the availability of the Elasticsearch cluster. "
+                + "It also permits activating, searching, and retrieving user profiles, "
+                + "as well as updating user profile data for the kibana-* namespace. "
+                + "Additionally, this role grants read access to the .monitoring-* indices "
+                + "and read and write access to the .reporting-* indices. "
+                + "Note: This role should not be assigned to users as the granted permissions may change between releases."
         );
     }
 }

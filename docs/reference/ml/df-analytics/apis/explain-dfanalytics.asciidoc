@@ -52,7 +52,7 @@ they are not included in the explanation.
 
 `<data_frame_analytics_id>`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 
 [[ml-explain-dfanalytics-request-body]]
 == {api-request-body-title}

@@ -9,7 +9,6 @@ package org.elasticsearch.protocol.xpack.graph;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.graph.Connection.ConnectionId;
@@ -22,8 +21,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-
-import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 
 /**
  * Graph explore response holds a graph of {@link Vertex} and {@link Connection} objects
@@ -42,40 +39,6 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
     static final String RETURN_DETAILED_INFO_PARAM = "returnDetailedInfo";
 
     public GraphExploreResponse() {}
-
-    public GraphExploreResponse(StreamInput in) throws IOException {
-        super(in);
-        tookInMillis = in.readVLong();
-        timedOut = in.readBoolean();
-
-        int size = in.readVInt();
-        if (size == 0) {
-            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
-        } else {
-            shardFailures = new ShardSearchFailure[size];
-            for (int i = 0; i < shardFailures.length; i++) {
-                shardFailures[i] = readShardSearchFailure(in);
-            }
-        }
-        // read vertices
-        size = in.readVInt();
-        vertices = new HashMap<>();
-        for (int i = 0; i < size; i++) {
-            Vertex n = Vertex.readFrom(in);
-            vertices.put(n.getId(), n);
-        }
-
-        size = in.readVInt();
-
-        connections = new HashMap<>();
-        for (int i = 0; i < size; i++) {
-            Connection e = new Connection(in, vertices);
-            connections.put(e.getId(), e);
-        }
-
-        returnDetailedInfo = in.readBoolean();
-
-    }
 
     public GraphExploreResponse(
         long tookInMillis,

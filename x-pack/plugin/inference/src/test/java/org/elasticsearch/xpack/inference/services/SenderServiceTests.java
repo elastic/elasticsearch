@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
@@ -32,7 +33,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -58,7 +58,7 @@ public class SenderServiceTests extends ESTestCase {
         var sender = mock(Sender.class);
 
         var factory = mock(HttpRequestSender.Factory.class);
-        when(factory.createSender(anyString())).thenReturn(sender);
+        when(factory.createSender()).thenReturn(sender);
 
         try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
@@ -66,7 +66,7 @@ public class SenderServiceTests extends ESTestCase {
 
             listener.actionGet(TIMEOUT);
             verify(sender, times(1)).start();
-            verify(factory, times(1)).createSender(anyString());
+            verify(factory, times(1)).createSender();
         }
 
         verify(sender, times(1)).close();
@@ -78,7 +78,7 @@ public class SenderServiceTests extends ESTestCase {
         var sender = mock(Sender.class);
 
         var factory = mock(HttpRequestSender.Factory.class);
-        when(factory.createSender(anyString())).thenReturn(sender);
+        when(factory.createSender()).thenReturn(sender);
 
         try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
@@ -88,7 +88,7 @@ public class SenderServiceTests extends ESTestCase {
             service.start(mock(Model.class), listener);
             listener.actionGet(TIMEOUT);
 
-            verify(factory, times(1)).createSender(anyString());
+            verify(factory, times(1)).createSender();
             verify(sender, times(2)).start();
         }
 
@@ -108,6 +108,20 @@ public class SenderServiceTests extends ESTestCase {
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {
+
+        }
+
+        @Override
+        protected void doInfer(
+            Model model,
+            @Nullable String query,
+            List<String> input,
+            Map<String, Object> taskSettings,
+            InputType inputType,
+            TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
 
@@ -116,10 +130,12 @@ public class SenderServiceTests extends ESTestCase {
         @Override
         protected void doChunkedInfer(
             Model model,
+            @Nullable String query,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
             ChunkingOptions chunkingOptions,
+            TimeValue timeout,
             ActionListener<List<ChunkedInferenceServiceResults>> listener
         ) {
 
@@ -135,7 +151,7 @@ public class SenderServiceTests extends ESTestCase {
             String inferenceEntityId,
             TaskType taskType,
             Map<String, Object> config,
-            Set<String> platfromArchitectures,
+            Set<String> platformArchitectures,
             ActionListener<Model> parsedModelListener
         ) {
             parsedModelListener.onResponse(null);

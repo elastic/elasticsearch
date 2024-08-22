@@ -1,11 +1,8 @@
 [[esql-getting-started]]
 == Getting started with {esql} queries
-
 ++++
 <titleabbrev>Getting started</titleabbrev>
 ++++
-
-preview::["Do not use {esql} on production environments. This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
 This guide shows how you can use {esql} to query and aggregate your data.
 
@@ -21,7 +18,7 @@ This getting started is also available as an https://github.com/elastic/elastics
 To follow along with the queries in this guide, you can either set up your own
 deployment, or use Elastic's public {esql} demo environment.
 
-include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget-sample-data.asciidoc[]
+include::{es-ref-dir}/tab-widgets/esql/esql-getting-started-widget-sample-data.asciidoc[]
 
 [discrete]
 [[esql-getting-started-running-queries]]
@@ -29,7 +26,7 @@ include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget-sample-data.
 
 In {kib}, you can use Console or Discover to run {esql} queries:
 
-include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget-discover-console.asciidoc[]
+include::{es-ref-dir}/tab-widgets/esql/esql-getting-started-widget-discover-console.asciidoc[]
 
 [discrete]
 [[esql-getting-started-first-query]]
@@ -240,30 +237,23 @@ include::{esql-specs}/eval.csv-spec[tag=gs-eval-stats-backticks]
 === Create a histogram
 
 To track statistics over time, {esql} enables you to create histograms using the
-<<esql-auto_bucket>> function. `AUTO_BUCKET` creates human-friendly bucket sizes
+<<esql-bucket>> function. `BUCKET` creates human-friendly bucket sizes
 and returns a value for each row that corresponds to the resulting bucket the
 row falls into.
 
-For example, to create hourly buckets for the data on October 23rd:
-
-[source,esql]
-----
-include::{esql-specs}/date.csv-spec[tag=gs-auto_bucket]
-----
-
-Combine `AUTO_BUCKET` with <<esql-stats-by>> to create a histogram. For example,
+Combine `BUCKET` with <<esql-stats-by>> to create a histogram. For example,
 to count the number of events per hour:
 
 [source,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=gs-auto_bucket-stats-by]
+include::{esql-specs}/bucket.csv-spec[tag=gs-bucket-stats-by]
 ----
 
 Or the median duration per hour:
 
 [source,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=gs-auto_bucket-stats-by-median]
+include::{esql-specs}/bucket.csv-spec[tag=gs-bucket-stats-by-median]
 ----
 
 [discrete]
@@ -279,7 +269,7 @@ Before you can use `ENRICH`, you first need to
 <<esql-create-enrich-policy,create>> and <<esql-execute-enrich-policy,execute>>
 an <<esql-enrich-policy,enrich policy>>.
 
-include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget-enrich-policy.asciidoc[]
+include::{es-ref-dir}/tab-widgets/esql/esql-getting-started-widget-enrich-policy.asciidoc[]
 
 After creating and executing a policy, you can use it with the `ENRICH`
 command:

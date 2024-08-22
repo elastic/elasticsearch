@@ -1,6 +1,6 @@
 setup:
   - skip:
-      cluster_features: [ "templates_v2" ]
+      cluster_features: [ "gte_v7.8.0" ]
       reason: "index template v2 API unavailable before 7.8"
       features: allowed_warnings
 
@@ -93,8 +93,8 @@ setup:
 ---
 "Add data stream lifecycle":
   - skip:
-      cluster_features: ["datastream_lifecycle", "data_stream.lifecycle.global_retention"]
-      reason: "Data stream lifecycle with effective retention was released in 8.14"
+      cluster_features: ["gte_v8.11.0"]
+      reason: "Data stream lifecycle in index templates was updated after 8.10"
       features: allowed_warnings
 
   - do:
@@ -124,14 +124,12 @@ setup:
   - match: {index_templates.0.index_template.template.mappings: {properties: {field: {type: keyword}}}}
   - match: {index_templates.0.index_template.template.lifecycle.enabled: true}
   - match: {index_templates.0.index_template.template.lifecycle.data_retention: "30d"}
-  - match: {index_templates.0.index_template.template.lifecycle.effective_retention: "30d"}
-  - match: {index_templates.0.index_template.template.lifecycle.retention_determined_by: "data_stream_configuration"}
 
 ---
 "Get data stream lifecycle with default rollover":
   - skip:
-      cluster_features: ["datastream_lifecycle", "data_stream.lifecycle.global_retention"]
-      reason: "Data stream lifecycle with effective retention was released in 8.14"
+      cluster_features: ["gte_v8.11.0"]
+      reason: "Data stream lifecycle in index templates was updated after 8.10"
       features: allowed_warnings
 
   - do:
@@ -154,14 +152,12 @@ setup:
   - match: {index_templates.0.index_template.index_patterns: ["data-stream-with-lifecycle-*"]}
   - match: {index_templates.0.index_template.template.lifecycle.enabled: true}
   - match: {index_templates.0.index_template.template.lifecycle.data_retention: "30d"}
-  - match: {index_templates.0.index_template.template.lifecycle.effective_retention: "30d"}
-  - match: {index_templates.0.index_template.template.lifecycle.retention_determined_by: "data_stream_configuration"}
   - is_true: index_templates.0.index_template.template.lifecycle.rollover
 
 ---
 "Reject data stream lifecycle without data stream configuration":
-  - skip:
-      cluster_features: ["datastream_lifecycle"]
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "Data stream lifecycle in index templates was updated after 8.10"
   - do:
       catch:  bad_request
@@ -181,8 +177,8 @@ setup:
 
 ---
 "Get index template always shows composed_of":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "A bug was fixed in 8.13.0 to make `composed_of` always returned"
 
   - do:

@@ -45,6 +45,7 @@ import java.util.Map;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -97,7 +98,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder(), nf -> false)
+            () -> RestMultiSearchAction.parseRequest(restRequest, true, new UsageService().getSearchUsageHolder(), nf -> false)
         );
         assertEquals("key [unknown_key] is not supported in the metadata section", ex.getMessage());
     }
@@ -113,7 +114,6 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(
             restRequest,
-            null,
             true,
             new UsageService().getSearchUsageHolder(),
             nf -> false
@@ -137,7 +137,6 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).withParams(Collections.singletonMap("ignore_unavailable", "true")).build();
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(
             restRequest,
-            null,
             true,
             new UsageService().getSearchUsageHolder(),
             nf -> false
@@ -250,7 +249,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         IllegalArgumentException expectThrows = expectThrows(
             IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder(), nf -> false)
+            () -> RestMultiSearchAction.parseRequest(restRequest, true, new UsageService().getSearchUsageHolder(), nf -> false)
         );
         assertEquals("The msearch request must be terminated by a newline [\n]", expectThrows.getMessage());
 
@@ -261,7 +260,6 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         MultiSearchRequest msearchRequest = RestMultiSearchAction.parseRequest(
             restRequestWithNewLine,
-            null,
             true,
             new UsageService().getSearchUsageHolder(),
             nf -> false
@@ -585,11 +583,12 @@ public class MultiSearchRequestTests extends ESTestCase {
                 """, null);
             fail("should have caught second line; extra closing brackets");
         } catch (XContentParseException e) {
-            assertEquals(
-                "[1:31] Unexpected close marker '}': expected ']' (for root starting at "
-                    + "[Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\"; line: 1, column: 0])\n "
-                    + "at [Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\"; line: 1, column: 31]",
-                e.getMessage()
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "Unexpected close marker '}': expected ']' (for root starting at "
+                        + "[Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\""
+                )
             );
         }
     }

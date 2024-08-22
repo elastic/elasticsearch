@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -23,13 +24,13 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,6 +52,7 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
     AnalyzeIndexDiskUsageResponse,
     AnalyzeDiskUsageShardRequest,
     AnalyzeDiskUsageShardResponse> {
+    public static final ActionType<AnalyzeIndexDiskUsageResponse> TYPE = new ActionType<>("indices:admin/analyze_disk_usage");
     private final IndicesService indicesService;
     private final ThreadPool threadPool;
 
@@ -63,7 +65,7 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            AnalyzeIndexDiskUsageAction.NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,

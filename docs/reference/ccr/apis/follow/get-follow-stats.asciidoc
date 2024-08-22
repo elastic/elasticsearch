@@ -5,7 +5,7 @@
 <titleabbrev>Get follower stats</titleabbrev>
 ++++
 
-Get follower stats.
+Get <<xpack-ccr,{ccr}>> follower stats.
 
 [[ccr-get-follow-stats-request]]
 ==== {api-request-title}
@@ -55,6 +55,12 @@ following tasks associated with each shard for the specified indices.
 
 `<index>`::
   (Required, string) A comma-delimited list of index patterns.
+
+[[ccr-get-follow-stats-query-params]]
+==== {api-query-parms-title}
+
+`timeout`::
+(Optional, time) Controls the amount of time to wait for results. Defaults to unlimited.
 
 [role="child_attributes"]
 [[ccr-get-follow-stats-response-body]]

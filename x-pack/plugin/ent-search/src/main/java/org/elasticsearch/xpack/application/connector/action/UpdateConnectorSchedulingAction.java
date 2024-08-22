@@ -73,6 +73,15 @@ public class UpdateConnectorSchedulingAction {
                 validationException = addValidationError("[scheduling] cannot be [null].", validationException);
             }
 
+            if (Objects.isNull(scheduling.getFull())
+                && Objects.isNull(scheduling.getIncremental())
+                && Objects.isNull(scheduling.getIncremental())) {
+                validationException = addValidationError(
+                    "[scheduling] object needs to define at least one schedule type: [full | incremental | access_control]",
+                    validationException
+                );
+            }
+
             return validationException;
         }
 

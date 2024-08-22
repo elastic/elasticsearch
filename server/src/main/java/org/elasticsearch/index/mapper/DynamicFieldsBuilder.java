@@ -161,7 +161,7 @@ final class DynamicFieldsBuilder {
         Mapper mapper = createObjectMapperFromTemplate(context, name);
         return mapper != null
             ? mapper
-            : new ObjectMapper.Builder(name, ObjectMapper.Defaults.SUBOBJECTS).enabled(ObjectMapper.Defaults.ENABLED)
+            : new ObjectMapper.Builder(name, context.parent().subobjects).enabled(ObjectMapper.Defaults.ENABLED)
                 .build(context.createDynamicMapperBuilderContext());
     }
 
@@ -411,7 +411,10 @@ final class DynamicFieldsBuilder {
         }
 
         boolean newDynamicBinaryField(DocumentParserContext context, String name) throws IOException {
-            return createDynamicField(new BinaryFieldMapper.Builder(name), context);
+            return createDynamicField(
+                new BinaryFieldMapper.Builder(name, context.indexSettings().getMode().isSyntheticSourceEnabled()),
+                context
+            );
         }
     }
 

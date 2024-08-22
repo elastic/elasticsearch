@@ -1,0 +1,6 @@
+pr: 112090
+summary: Always check `crsType` when folding spatial functions
+area: Geo
+type: bug
+issues:
+ - 112089

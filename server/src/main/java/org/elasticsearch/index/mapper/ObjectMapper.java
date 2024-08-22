@@ -33,8 +33,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
@@ -177,7 +177,7 @@ public class ObjectMapper extends Mapper {
             if (name.contains(".") == false || (subobjects.isPresent() && (subobjects.get() == Subobjects.DISABLED))) {
                 add(name, mapper);
             } else {
-                // otherwise we strip off the first object path of the mapper name, load or create
+                // We strip off the first object path of the mapper name, load or create
                 // the relevant object mapper, and then recurse down into it, passing the remainder
                 // of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then
                 // call addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
@@ -189,8 +189,10 @@ public class ObjectMapper extends Mapper {
                     parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
                     add(parentBuilder);
                 } else if (subobjects.isPresent() && subobjects.get() == Subobjects.AUTO) {
+                    // No matching parent object was found, the mapper is added as a leaf - similar to subobjects false.
                     add(name, mapper);
                 } else {
+                    // Expected to find a matching parent object but got null.
                     throw new IllegalStateException("Missing intermediate object " + immediateChildFullName);
                 }
             }
@@ -207,6 +209,7 @@ public class ObjectMapper extends Mapper {
             if (objectMapper != null) {
                 return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
+            // no object mapper found
             return null;
         }
 
@@ -766,8 +769,8 @@ public class ObjectMapper extends Mapper {
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
         }
-        if (subobjects != Defaults.SUBOBJECTS) {
-            builder.field("subobjects", subobjects.value());
+        if (subobjects.isPresent()) {
+            builder.field("subobjects", subobjects.get().printedValue);
         }
         if (storeArraySource != Defaults.STORE_ARRAY_SOURCE) {
             builder.field(STORE_ARRAY_SOURCE_PARAM, storeArraySource.value());

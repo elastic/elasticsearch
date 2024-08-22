@@ -176,9 +176,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testForceSleepsProfile {ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/112049
-- class: org.elasticsearch.index.codec.tsdb.DocValuesCodecDuelTests
-  method: testDuel
-  issue: https://github.com/elastic/elasticsearch/issues/112082
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/80_random_rerank_retriever/Random rerank retriever predictably shuffles results}
   issue: https://github.com/elastic/elasticsearch/issues/111999

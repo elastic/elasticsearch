@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -71,7 +72,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLSession;
@@ -89,11 +89,13 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     private ThreadPool threadPool;
     private ResourceWatcherService resourceWatcherService;
 
+    private static final TimeValue RESOURCE_WATCHER_RELOAD_INTERVAL = TimeValue.timeValueMillis(500);
+
     @Before
     public void setup() {
         threadPool = new TestThreadPool("reload tests");
         resourceWatcherService = new ResourceWatcherService(
-            Settings.builder().put("resource.reload.interval.high", "1s").build(),
+            Settings.builder().put("resource.reload.interval.high", RESOURCE_WATCHER_RELOAD_INTERVAL.millis() + "ms").build(),
             threadPool
         );
     }
@@ -201,14 +203,19 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                     throw new RuntimeException("Exception starting or connecting to the mock server", e);
                 }
             };
-            final Runnable modifier = () -> {
+            final List<Runnable> modifierFunctions = List.of(() -> {
                 try {
                     atomicMoveIfPossible(updatedKeyPath, keyPath);
+                } catch (Exception e) {
+                    throw new RuntimeException("failed to modify file", e);
+                }
+            }, () -> {
+                try {
                     atomicMoveIfPossible(updatedCertPath, certPath);
                 } catch (Exception e) {
                     throw new RuntimeException("failed to modify file", e);
                 }
-            };
+            });
 
             // The new server certificate is not in the client's truststore so SSLHandshake should fail
             final Consumer<SSLContext> keyMaterialPostChecks = (updatedContext) -> {
@@ -224,7 +231,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                     throw new RuntimeException("Exception starting or connecting to the mock server", e);
                 }
             };
-            validateSSLConfigurationIsReloaded(env, keyMaterialPreChecks, modifier, keyMaterialPostChecks);
+            validateSSLConfigurationIsReloaded(env, keyMaterialPreChecks, modifierFunctions, keyMaterialPostChecks);
         }
     }
 
@@ -559,10 +566,19 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     private void validateSSLConfigurationIsReloaded(
         Environment env,
         Consumer<SSLContext> preChecks,
-        Runnable modificationFunction,
+        Runnable modifierFunction,
         Consumer<SSLContext> postChecks
     ) throws Exception {
-        final CountDownLatch reloadLatch = new CountDownLatch(1);
+        validateSSLConfigurationIsReloaded(env, preChecks, List.of(modifierFunction), postChecks);
+    }
+
+    private void validateSSLConfigurationIsReloaded(
+        Environment env,
+        Consumer<SSLContext> preChecks,
+        List<Runnable> modifierFunctions,
+        Consumer<SSLContext> postChecks
+    ) throws Exception {
+        final CountDownLatch reloadLatch = new CountDownLatch(modifierFunctions.size());
         final SSLService sslService = new SSLService(env);
         final SslConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         final Consumer<SslConfiguration> reloadConsumer = sslConfiguration -> {
@@ -576,10 +592,14 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         // Baseline checks
         preChecks.accept(sslService.sslContextHolder(config).sslContext());
 
-        assertEquals("nothing should have called reload", 1, reloadLatch.getCount());
+        assertEquals("nothing should have called reload", modifierFunctions.size(), reloadLatch.getCount());
 
         // modify
-        modificationFunction.run();
+        for (var modifierFunction : modifierFunctions) {
+            modifierFunction.run();
+            Thread.sleep(RESOURCE_WATCHER_RELOAD_INTERVAL.millis() + 1);
+        }
+
         reloadLatch.await();
         // checks after reload
         postChecks.accept(sslService.sslContextHolder(config).sslContext());

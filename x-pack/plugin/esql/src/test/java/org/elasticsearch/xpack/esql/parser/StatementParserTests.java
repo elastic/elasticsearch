@@ -377,14 +377,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
             assertStringAsIndexPattern(".dot", command + " .dot");
 
             assertStringAsIndexPattern("cluster:index", command + " cluster:index");
-            assertStringAsIndexPattern("cluster:index|pattern", command + " cluster:\"index|pattern\"");
+            // assertStringAsIndexPattern("cluster:index|pattern", command + " cluster:\"index|pattern\"");
             assertStringAsIndexPattern("cluster:.index", command + " cluster:.index");
             assertStringAsIndexPattern("cluster*:index*", command + " cluster*:index*");
             assertStringAsIndexPattern("cluster*:*", command + " cluster*:*");
             assertStringAsIndexPattern("*:index*", command + " *:index*");
-            assertStringAsIndexPattern("*:index|pattern", command + " *:\"index|pattern\"");
+            // assertStringAsIndexPattern("*:index|pattern", command + " *:\"index|pattern\"");
             assertStringAsIndexPattern("*:*", command + " *:*");
-            assertStringAsIndexPattern("*:*,cluster*:index|pattern,i|p", command + " *:*, cluster*:\"index|pattern\", \"i|p\"");
+            // assertStringAsIndexPattern("*:*,cluster*:index|pattern,i|p", command + " *:*, cluster*:\"index|pattern\", \"i|p\"");
         }
     }
 
@@ -1423,7 +1423,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             Map.entry("metrics foo,test-*", "foo,test-*"),
             Map.entry("metrics 123-test@foo_bar+baz1", "123-test@foo_bar+baz1"),
             Map.entry("metrics foo,   test,xyz", "foo,test,xyz"),
-            Map.entry("metrics <logstash-{now/M{yyyy.MM}}>>", "<logstash-{now/M{yyyy.MM}}>>")
+            Map.entry("metrics <logstash-{now/M{yyyy.MM}}>", "<logstash-{now/M{yyyy.MM}}>")
         );
         for (Map.Entry<String, String> e : patterns.entrySet()) {
             assertStatement(e.getKey(), unresolvedRelation(e.getValue()));

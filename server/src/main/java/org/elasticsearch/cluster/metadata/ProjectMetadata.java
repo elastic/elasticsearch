@@ -401,6 +401,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         }
     }
 
+    public ProjectId id() {
+        return this.id;
+    }
+
     /**
      * Checks whether an index exists (as of this {@link ProjectMetadata} with the given name. Does not check aliases or data streams.
      * @param index An index name that may or may not exist in the cluster.

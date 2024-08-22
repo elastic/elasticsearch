@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -356,6 +357,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
     public RoutingTable routingTable() {
         return routingTable.getRoutingTable();
+    }
+
+    public RoutingTable routingTable(ProjectId projectId) {
+        return routingTable.routingTable(projectId);
     }
 
     public RoutingTable getRoutingTable() {

@@ -87,7 +87,7 @@ public class PatternBank {
                     throw new IllegalArgumentException("circular reference detected: " + String.join("->", visited) + "->" + node);
                 } else if (visited.contains(node)) {
                     /*
-                     * We are only looking for a cycle starting and ending at traversalStartNode right now. But this node has bee been
+                     * We are only looking for a cycle starting and ending at traversalStartNode right now. But this node has been
                      * visited more than once in the path rooted at traversalStartNode. This could be because it is a cycle, or could be
                      * because two nodes in the path both point to it. We add it to nodesVisitedMoreThanOnceInAPath so that we make sure
                      * to check the path rooted at this node later.

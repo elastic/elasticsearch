@@ -20,12 +20,15 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.privilege.ApplicationPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkDeleteRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -399,7 +402,12 @@ public final class ConfigurableClusterPrivileges {
     public static class ManageRolesPrivilege implements ConfigurableClusterPrivilege {
         public static final String WRITEABLE_NAME = "manage-roles-privilege";
         private final List<ManageRolesIndexPermissionGroup> indexPermissionGroups;
-        Function<RestrictedIndices, Predicate<TransportRequest>> requestPredicateSupplier;
+        private final Function<RestrictedIndices, Predicate<TransportRequest>> requestPredicateSupplier;
+
+        private static final Set<String> EXPECTED_INDEX_GROUP_FIELDS = Set.of(
+            Fields.NAMES.getPreferredName(),
+            Fields.PRIVILEGES.getPreferredName()
+        );
 
         public ManageRolesPrivilege(List<ManageRolesIndexPermissionGroup> manageRolesIndexPermissionGroups) {
             this.indexPermissionGroups = manageRolesIndexPermissionGroups;
@@ -494,6 +502,19 @@ public final class ConfigurableClusterPrivileges {
             );
         }
 
+        private static void expectedIndexGroupFields(String fieldName, XContentParser parser) {
+            if (EXPECTED_INDEX_GROUP_FIELDS.contains(fieldName) == false) {
+                throw new XContentParseException(
+                    parser.getTokenLocation(),
+                    "failed to parse privilege. expected one of ["
+                        + Arrays.toString(EXPECTED_INDEX_GROUP_FIELDS.toArray(String[]::new))
+                        + "] but found ["
+                        + fieldName
+                        + "] instead"
+                );
+            }
+        }
+
         public static ManageRolesPrivilege parse(XContentParser parser) throws IOException {
             expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
             expectFieldName(parser, Fields.MANAGE);
@@ -509,10 +530,12 @@ public final class ConfigurableClusterPrivileges {
                 expectedToken(token, parser, XContentParser.Token.START_OBJECT);
                 expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
                 String currentFieldName = parser.currentName();
+                expectedIndexGroupFields(currentFieldName, parser);
                 expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
                 parsedArraysByFieldName.put(currentFieldName, XContentUtils.readStringArray(parser, false));
                 expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
                 currentFieldName = parser.currentName();
+                expectedIndexGroupFields(currentFieldName, parser);
                 expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
                 parsedArraysByFieldName.put(currentFieldName, XContentUtils.readStringArray(parser, false));
                 expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
@@ -609,12 +632,7 @@ public final class ConfigurableClusterPrivileges {
         public ClusterPermission.Builder buildPermission(final ClusterPermission.Builder builder) {
             return builder.addWithPredicateSupplier(
                 this,
-                Set.of(
-                    "cluster:admin/xpack/security/role/put",
-                    "cluster:admin/xpack/security/role/bulk_put",
-                    "cluster:admin/xpack/security/role/bulk_delete",
-                    "cluster:admin/xpack/security/role/delete"
-                ),
+                Set.of(PutRoleAction.NAME, ActionTypes.BULK_PUT_ROLES.name(), ActionTypes.BULK_DELETE_ROLES.name(), DeleteRoleAction.NAME),
                 requestPredicateSupplier
             );
         }

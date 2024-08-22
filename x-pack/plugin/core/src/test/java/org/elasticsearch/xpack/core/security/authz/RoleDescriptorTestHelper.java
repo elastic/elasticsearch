@@ -70,7 +70,7 @@ public final class RoleDescriptorTestHelper {
     }
 
     public static ConfigurableClusterPrivilege[] randomClusterPrivileges() {
-        final ConfigurableClusterPrivilege[] configurableClusterPrivileges = switch (randomIntBetween(0, 4)) {
+        return switch (randomIntBetween(0, 5)) {
             case 0 -> new ConfigurableClusterPrivilege[0];
             case 1 -> new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
@@ -94,9 +94,9 @@ public final class RoleDescriptorTestHelper {
                 new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
                     Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
                 ) };
+            case 5 -> randomManageRolesPrivileges();
             default -> throw new IllegalStateException("Unexpected value");
         };
-        return configurableClusterPrivileges;
     }
 
     public static RoleDescriptor.ApplicationResourcePrivileges[] randomApplicationPrivileges() {

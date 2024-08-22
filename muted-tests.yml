@@ -179,6 +179,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {stats.ByTwoCalculatedSecondOverwrites SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/112117
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {stats.ByTwoCalculatedSecondOverwritesReferencingFirst SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/112118
 
 # Examples:
 #

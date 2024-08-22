@@ -70,7 +70,7 @@ final class ModelLoaderUtils {
         private final int chunkSize;
         private final int totalParts;
         private final AtomicLong totalBytesRead = new AtomicLong();
-        private final AtomicInteger currentPart = new AtomicInteger();
+        private final AtomicInteger currentPart = new AtomicInteger(-1);
 
         InputStreamChunker(InputStream inputStream, int chunkSize, int totalParts) {
             this.inputStream = inputStream;

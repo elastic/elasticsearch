@@ -79,7 +79,7 @@ public class ModelImporterTests extends ESTestCase {
 
         latch.await();
         verify(client, times(totalParts)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
-        assertEquals(totalParts, task.getStatus().downloadProgress().downloadedParts());
+        assertEquals(totalParts - 1, task.getStatus().downloadProgress().downloadedParts());
         assertEquals(totalParts, task.getStatus().downloadProgress().totalParts());
     }
 

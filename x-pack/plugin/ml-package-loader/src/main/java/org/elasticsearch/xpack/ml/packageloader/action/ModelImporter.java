@@ -144,7 +144,7 @@ class ModelImporter {
             return;
         }
 
-        task.setProgress(chunkIterator.getTotalParts(), chunkIterator.getCurrentPart().get());
+        task.setProgress(chunkIterator.getTotalParts(), Math.max(0, chunkIterator.getCurrentPart().get()));
         try {
             BytesArray definition = chunkIterator.next();
 

@@ -4,7 +4,7 @@
 <titleabbrev>Cluster allocation explain</titleabbrev>
 ++++
 
-Provides an explanation for a shard's current allocation.
+Provides an explanation for a shard's current <<index-modules-allocation,allocation>>.
 
 [source,console]
 ----

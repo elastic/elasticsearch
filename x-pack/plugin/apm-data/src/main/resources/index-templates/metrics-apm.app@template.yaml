@@ -24,3 +24,6 @@ template:
     index:
       default_pipeline: metrics-apm.app@default-pipeline
       final_pipeline: metrics-apm@pipeline
+      lifecycle:
+        name: metrics-apm.app_metrics-default_policy
+        prefer_ilm: false

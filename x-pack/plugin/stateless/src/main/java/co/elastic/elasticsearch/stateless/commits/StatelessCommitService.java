@@ -19,7 +19,6 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
-import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
@@ -36,8 +35,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.action.support.RefCountingListener;
-import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -528,62 +525,82 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // we should acquire a reference to avoid deleting the commit before notifying the unpromotable shards.
         // todo: reevaluate this.
         blobReference.incRef();
-        var bccUpload = new BatchedCompoundCommitUpload(commitState, ActionListener.runAfter(new ActionListener<>() {
-            @Override
-            public void onResponse(BatchedCompoundCommit uploadedBcc) {
-                try {
-                    commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc);
-                } catch (Exception e) {
-                    // TODO: we should assert false here once we fix https://elasticco.atlassian.net/browse/ES-8336
-                    logger.warn(
-                        () -> format(
-                            "%s failed to send new uploaded BCC [%s] notification",
-                            virtualBcc.getShardId(),
-                            virtualBcc.getPrimaryTermAndGeneration().generation()
-                        ),
-                        e
-                    );
+        var bccUpload = new BatchedCompoundCommitUploadTask(
+            threadPool,
+            cacheWarmingService,
+            objectStoreService,
+            commitState,
+            virtualBcc,
+            TimeValue.timeValueMillis(50),
+            ActionListener.runAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(BatchedCompoundCommit uploadedBcc) {
+                    try {
+                        commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc);
+                    } catch (Exception e) {
+                        // TODO: we should assert false here once we fix https://elasticco.atlassian.net/browse/ES-8336
+                        logger.warn(
+                            () -> format(
+                                "%s failed to send new uploaded BCC [%s] notification",
+                                virtualBcc.getShardId(),
+                                virtualBcc.getPrimaryTermAndGeneration().generation()
+                            ),
+                            e
+                        );
+                    }
                 }
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                assert assertClosedOrRejectionFailure(e);
-                ShardCommitState.State state = commitState.state;
-                if (commitState.isClosed()) {
-                    logger.debug(
-                        () -> format(
-                            "%s failed to upload BCC [%s] to object store because shard has invalid state %s",
-                            virtualBcc.getShardId(),
-                            virtualBcc.getPrimaryTermAndGeneration().generation(),
-                            state
-                        ),
-                        e
-                    );
-                } else {
-                    logger.warn(
-                        () -> format(
-                            "%s failed to upload BCC [%s] to object store for unexpected reason",
-                            virtualBcc.getShardId(),
-                            virtualBcc.getPrimaryTermAndGeneration().generation()
-                        ),
-                        e
-                    );
+                @Override
+                public void onFailure(Exception e) {
+                    assert assertClosedOrRejectionFailure(e);
+                    ShardCommitState.State state = commitState.state;
+                    if (commitState.isClosed()) {
+                        logger.debug(
+                            () -> format(
+                                "%s failed to upload BCC [%s] to object store because shard has invalid state %s",
+                                virtualBcc.getShardId(),
+                                virtualBcc.getPrimaryTermAndGeneration().generation(),
+                                state
+                            ),
+                            e
+                        );
+                    } else {
+                        logger.warn(
+                            () -> format(
+                                "%s failed to upload BCC [%s] to object store for unexpected reason",
+                                virtualBcc.getShardId(),
+                                virtualBcc.getPrimaryTermAndGeneration().generation()
+                            ),
+                            e
+                        );
+                    }
                 }
-            }
 
-            private boolean assertClosedOrRejectionFailure(final Exception e) {
-                final var closed = commitState.isClosed();
-                assert closed
-                    || e instanceof EsRejectedExecutionException
-                    || e instanceof IndexNotFoundException
-                    || e instanceof ShardNotFoundException : closed + " vs " + e;
-                return true;
-            }
-        }, () -> {
-            IOUtils.closeWhileHandlingException(virtualBcc);
-            blobReference.decRef();
-        }), virtualBcc, TimeValue.timeValueMillis(50));
+                private boolean assertClosedOrRejectionFailure(final Exception e) {
+                    final var closed = commitState.isClosed();
+                    assert closed
+                        || e instanceof EsRejectedExecutionException
+                        || e instanceof IndexNotFoundException
+                        || e instanceof ShardNotFoundException : closed + " vs " + e;
+                    return true;
+                }
+            }, () -> {
+                IOUtils.closeWhileHandlingException(virtualBcc);
+                blobReference.decRef();
+            })
+        );
+
+        // Update the histograms with the new remote blob store upload info.
+        final Map<String, Object> attributes = Map.of(
+            "index_name",
+            virtualBcc.getShardId().getIndexName(),
+            "shard_id",
+            virtualBcc.getShardId().id()
+        );
+        bccSizeInBytesHistogram.record(virtualBcc.getTotalSizeInBytes(), attributes);
+        bccNumberCommitsHistogram.record(virtualBcc.size(), attributes);
+        bccAgeHistogram.record(threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis(), attributes);
+
         bccUpload.run();
     }
 
@@ -593,162 +610,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             return commitState.pendingUploadBccGenerations.isEmpty() == false;
         } catch (AlreadyClosedException ace) {
             return false;
-        }
-    }
-
-    public class BatchedCompoundCommitUpload extends RetryableAction<BatchedCompoundCommit> {
-
-        private final VirtualBatchedCompoundCommit virtualBcc;
-        private final ShardCommitState shardCommitState;
-        private final ShardId shardId;
-        private final long generation;
-        private final long startNanos;
-        private final AtomicBoolean cacheWarmedAttempted = new AtomicBoolean();
-        private int uploadTryNumber = 0;
-
-        public BatchedCompoundCommitUpload(
-            ShardCommitState shardCommitState,
-            ActionListener<BatchedCompoundCommit> listener,
-            VirtualBatchedCompoundCommit virtualBcc,
-            TimeValue initialDelay
-        ) {
-            super(
-                logger,
-                threadPool,
-                initialDelay,
-                TimeValue.timeValueSeconds(5),
-                TimeValue.timeValueMillis(Long.MAX_VALUE),
-                listener,
-                threadPool.executor(Stateless.SHARD_WRITE_THREAD_POOL)
-            );
-            this.shardCommitState = shardCommitState;
-            this.virtualBcc = virtualBcc;
-            this.shardId = virtualBcc.getShardId();
-            this.generation = virtualBcc.getPrimaryTermAndGeneration().generation();
-            this.startNanos = threadPool.relativeTimeInNanos();
-            assert virtualBcc.isFrozen();
-            final Map<String, Object> attributes = Map.of("index_name", shardId.getIndexName(), "shard_id", shardId.id());
-            bccSizeInBytesHistogram.record(virtualBcc.getTotalSizeInBytes(), attributes);
-            bccNumberCommitsHistogram.record(virtualBcc.size(), attributes);
-            bccAgeHistogram.record(threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis(), attributes);
-        }
-
-        @Override
-        public void tryAction(ActionListener<BatchedCompoundCommit> listener) {
-            ++uploadTryNumber;
-
-            // When a shard is in the process of relocating, we mark a max generation to attempt to upload. If this generation is greater
-            // then we fail this upload attempt. If the relocation hand-off fails then the state will be set back to RUNNING and the next
-            // upload attempt will be allowed through. If the state is transition to CLOSED then we still don't upload and the
-            // upload task will not be retried again. We rely on and accept the max retry delay of 5s, i.e., in case of hand-off abort,
-            // this upload could be delayed for up to 5 additional seconds.
-            if (shardCommitState.state != ShardCommitState.State.RUNNING && generation > shardCommitState.maxGenerationToUpload) {
-                logger.trace(() -> format("%s skipped upload [%s] to object because of active relocation handoff", shardId, generation));
-                listener.onFailure(new IllegalStateException("Upload paused because of relocation handoff"));
-            } else {
-                executeUpload(listener.delegateResponse((l, e) -> {
-                    logUploadAttemptFailure(e);
-                    l.onFailure(e);
-                }));
-            }
-
-        }
-
-        private void logUploadAttemptFailure(Exception e) {
-            if (e instanceof AlreadyClosedException) {
-                logger.trace(
-                    () -> format("%s failed attempt to upload commit [%s] to object store because shard closed", shardId, generation),
-                    e
-                );
-            } else {
-                org.apache.logging.log4j.util.Supplier<Object> messageSupplier = () -> format(
-                    "%s failed attempt [%s] to upload commit [%s] to object store, will retry",
-                    shardId,
-                    uploadTryNumber,
-                    generation
-                );
-                if (uploadTryNumber == 5) {
-                    logger.warn(messageSupplier, e);
-                } else {
-                    logger.info(messageSupplier, e);
-                }
-            }
-        }
-
-        private void executeUpload(ActionListener<BatchedCompoundCommit> listener) {
-            try {
-                ActionListener<Void> uploadReadyListener = listener.delegateFailure((l, v) -> uploadBatchedCompoundCommitFile(l));
-                checkReadyToUpload(uploadReadyListener, listener);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        }
-
-        private void checkReadyToUpload(ActionListener<Void> readyListener, ActionListener<BatchedCompoundCommit> notReadyListener) {
-            Optional<VirtualBatchedCompoundCommit> missing = shardCommitState.getMaxPendingUploadBccBeforeGeneration(generation);
-            if (missing.isPresent()) {
-                long missingGeneration = missing.get().getPrimaryTermAndGeneration().generation();
-                logger.trace("{} waiting for commit [{}] to finish before uploading commit [{}]", shardId, missingGeneration, generation);
-                shardCommitState.addListenerForUploadedGeneration(missingGeneration, notReadyListener.delegateFailure((l, unused) -> {
-                    assert shardCommitState.pendingUploadBccGenerations.containsKey(missingGeneration) == false
-                        : "missingGeneration [" + missingGeneration + "] still in " + shardCommitState.pendingUploadBccGenerations.keySet();
-                    executeUpload(notReadyListener);
-                }));
-            } else {
-                readyListener.onResponse(null);
-            }
-        }
-
-        private void uploadBatchedCompoundCommitFile(ActionListener<BatchedCompoundCommit> listener) {
-            try (RefCountingListener refCountingListener = new RefCountingListener(listener.delegateFailureAndWrap((l, unused) -> {
-                BatchedCompoundCommit uploadedBcc = virtualBcc.getFrozenBatchedCompoundCommit();
-                assert uploadedBcc.last() != null;
-                shardCommitState.markBccUploaded(uploadedBcc);
-                l.onResponse(uploadedBcc);
-            }))) {
-                if (cacheWarmedAttempted.compareAndSet(false, true)) {
-                    cacheWarmingService.warmCacheBeforeUpload(virtualBcc, refCountingListener.acquire().delegateResponse((l, e) -> {
-                        logger.warn(format("%s unexpected error warming cache for commit upload", shardId), e);
-                        // A warm failure should not fail the upload
-                        l.onResponse(null);
-                    }));
-                }
-                objectStoreService.uploadBatchedCompoundCommitFile(
-                    virtualBcc.getPrimaryTermAndGeneration().primaryTerm(),
-                    // TODO: The Directory is used to get the blobContainer which can be obtained by using
-                    // objectStoreService, shardId and primary term. So there is no need to depend on StatelessCommitRef which gets
-                    // awkward when there are multiple of them.
-                    // For now we sill use StatelessCommitRef since VBCC can only have a single CC
-                    virtualBcc.getPendingCompoundCommits().get(0).getCommitReference().getDirectory(),
-                    startNanos,
-                    virtualBcc,
-                    refCountingListener.acquire().delegateFailure((l, uploadedBcc) -> {
-                        logger.debug(() -> {
-                            final long end = threadPool.relativeTimeInNanos();
-                            int uploadedFileCount = 0;
-                            long uploadedFileBytes = 0;
-                            for (Map.Entry<String, BlobLocation> entry : virtualBcc.getInternalLocations().entrySet()) {
-                                uploadedFileCount++;
-                                uploadedFileBytes += entry.getValue().fileLength();
-                            }
-                            return format(
-                                "%s commit [%s] uploaded in [%s] ms (%s files, %s total bytes)",
-                                shardId,
-                                virtualBcc.primaryTermAndGeneration(),
-                                TimeValue.nsecToMSec(end - startNanos),
-                                uploadedFileCount,
-                                uploadedFileBytes
-                            );
-                        });
-                        l.onResponse(null);
-                    })
-                );
-            }
-        }
-
-        @Override
-        public boolean shouldRetry(Exception e) {
-            return shardCommitState.isClosed() == false;
         }
     }
 
@@ -867,7 +728,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
         private static final long EMPTY_GENERATION_NOTIFIED_SENTINEL = -1;
 
-        private enum State {
+        enum State {
             RUNNING,
             RELOCATING,
             CLOSED
@@ -928,7 +789,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             this.inititalizingNoSearchSupplier = inititalizingNoSearchSupplier;
         }
 
-        private boolean isClosed() {
+        /**
+         * Returns whether to attempt to upload a file with the specified generation.
+         *
+         * When a shard is in the process of relocating, we change the state to {@link State#RELOCATING} and set a max
+         * generation to attempt to upload: we won't do further writes beyond that max point.
+         */
+        boolean uploadIfRunningOrNotGreaterThanMaxGenerationToUpload(long uploadGeneration) {
+            return state == StatelessCommitService.ShardCommitState.State.RUNNING || uploadGeneration <= maxGenerationToUpload;
+        }
+
+        /**
+         * Returns an unmodifiable map for safety when exposed externally. Not as performant.
+         */
+        Map<Long, VirtualBatchedCompoundCommit> getPendingUploadBccGenerations() {
+            return Collections.unmodifiableMap(pendingUploadBccGenerations);
+        }
+
+        boolean isClosed() {
             return state == State.CLOSED;
         }
 
@@ -1163,7 +1041,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .max(Comparator.comparing(VirtualBatchedCompoundCommit::getPrimaryTermAndGeneration));
         }
 
-        private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccBeforeGeneration(long generation) {
+        Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccBeforeGeneration(long generation) {
             return pendingUploadBccGenerations.values()
                 .stream()
                 .filter(vbcc -> vbcc.getPrimaryTermAndGeneration().generation() < generation)
@@ -1862,7 +1740,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * @param generation the commit generation
          * @param listener the listener
          */
-        private void addListenerForUploadedGeneration(long generation, ActionListener<Void> listener) {
+        void addListenerForUploadedGeneration(long generation, ActionListener<Void> listener) {
             boolean completeListenerSuccess = false;
             boolean completeListenerClosed = false;
             synchronized (this) {

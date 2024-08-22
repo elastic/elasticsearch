@@ -949,6 +949,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return b;
     }
 
+    /**
+     * Cast string literals in ScalarFunction, EsqlArithmeticOperation, BinaryComparison and In to desired data types.
+     * For example, the string literals in the following expressions will be cast implicitly to the field data type on the left hand side.
+     * date > "2024-08-21"
+     * date in ("2024-08-21", "2024-08-22", "2024-08-23")
+     * date = "2024-08-21" + 3 days
+     * ip == "127.0.0.1"
+     * version != "1.0"
+     *
+     * If the inputs to Coalesce are mixed numeric types, cast the rest of the numeric field or value to the first numeric data type if
+     * applicable. For example, implicit casting converts:
+     * Coalesce(Long, Int) to Coalesce(Long, Long)
+     * Coalesce(null, Long, Int) to Coalesce(null, Long, Long)
+     * Coalesce(Double, Long, Int) to Coalesce(Double, Double, Double)
+     * Coalesce(null, Double, Long, Int) to Coalesce(null, Double, Double, Double)
+     *
+     * Coalesce(Int, Long) will NOT be converted to Coalesce(Long, Long) or Coalesce(Int, Int).
+     */
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
@@ -982,25 +1000,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             boolean castNumericArgs = false;
             for (int i = 0; i < args.size(); i++) {
                 arg = args.get(i);
-                if (arg.resolved() && arg.dataType() == KEYWORD && arg.foldable() && ((arg instanceof EsqlScalarFunction) == false)) {
-                    if (i < targetDataTypes.size()) {
-                        targetDataType = targetDataTypes.get(i);
-                    }
-                    if (targetDataType != DataType.NULL && targetDataType != DataType.UNSUPPORTED) {
-                        Expression e = castStringLiteral(arg, targetDataType);
-                        childrenChanged = true;
-                        newChildren.add(e);
-                        continue;
-                    }
-                }
-                if (canCastMixedNumericTypes(f) && arg.resolved() && arg.dataType().isNumeric()) {
-                    if (targetNumericType.isNumeric() == false) {
-                        targetNumericType = arg.dataType();  // target data type is the first numeric data type
-                    } else if (arg.dataType() != targetNumericType) {
-                        if (canCastNumeric(arg.dataType(), targetNumericType)) {
-                            castNumericArgs = true;
-                        } else {
-                            castNumericArgs = false;
+                if (arg.resolved()) {
+                    var dataType = arg.dataType();
+                    if (dataType == KEYWORD) {
+                        if (arg.foldable() && ((arg instanceof EsqlScalarFunction) == false)) {
+                            if (i < targetDataTypes.size()) {
+                                targetDataType = targetDataTypes.get(i);
+                            }
+                            if (targetDataType != DataType.NULL && targetDataType != DataType.UNSUPPORTED) {
+                                Expression e = castStringLiteral(arg, targetDataType);
+                                childrenChanged = true;
+                                newChildren.add(e);
+                                continue;
+                            }
+                        }
+                    } else if (dataType.isNumeric() && canCastMixedNumericTypes(f)) {
+                        if (targetNumericType.isNumeric() == false) {
+                            targetNumericType = dataType;  // target data type is the first numeric data type
+                        } else if (dataType != targetNumericType) {
+                            castNumericArgs = canCastNumeric(dataType, targetNumericType);
                         }
                     }
                 }

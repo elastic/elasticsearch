@@ -858,7 +858,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // query `employees2`
         for (String index : List.of("*:employees2", "*:employee*")) {
             Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
-            System.out.println("FROM " + index);
             Response response = performRequestWithRemoteSearchUser(request);
             assertOK(response);
             Map<String, Object> responseAsMap = entityAsMap(response);

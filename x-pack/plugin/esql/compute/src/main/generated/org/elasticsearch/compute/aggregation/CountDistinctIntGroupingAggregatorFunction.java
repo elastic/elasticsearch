@@ -93,7 +93,7 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
 
   private void addRawInput(int positionOffset, IntVector groups, IntBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
@@ -107,7 +107,7 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
 
   private void addRawInput(int positionOffset, IntVector groups, IntVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       CountDistinctIntAggregator.combine(state, groupId, values.getInt(groupPosition + positionOffset));
     }
   }
@@ -120,7 +120,7 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         if (values.isNull(groupPosition + positionOffset)) {
           continue;
         }
@@ -141,7 +141,7 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         CountDistinctIntAggregator.combine(state, groupId, values.getInt(groupPosition + positionOffset));
       }
     }
@@ -158,7 +158,7 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       CountDistinctIntAggregator.combineIntermediate(state, groupId, hll.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }

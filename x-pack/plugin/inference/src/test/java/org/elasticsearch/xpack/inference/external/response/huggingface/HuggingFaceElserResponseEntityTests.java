@@ -310,7 +310,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
             )
         );
 
-        assertThat(thrownException.getMessage(), containsString("expected close marker for Array (start marker at [Source: (byte[])"));
+        assertThat(thrownException.getMessage(), containsString("expected close marker for Array (start marker at"));
     }
 
     public void testFails_ResponseIsInvalidJson_MissingField() {

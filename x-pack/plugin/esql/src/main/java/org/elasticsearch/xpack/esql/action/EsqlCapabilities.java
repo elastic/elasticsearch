@@ -93,6 +93,11 @@ public class EsqlCapabilities {
         ST_DISTANCE,
 
         /**
+         * Fix determination of CRS types in spatial functions when folding.
+         */
+        SPATIAL_FUNCTIONS_FIX_CRSTYPE_FOLDING,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */

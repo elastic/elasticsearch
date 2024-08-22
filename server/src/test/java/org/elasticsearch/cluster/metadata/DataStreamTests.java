@@ -2204,6 +2204,17 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(failureStoreDataStreamWithEmptyFailureIndices.isFailureStoreIndex(randomAlphaOfLength(10)), is(false));
     }
 
+    public void testInternalDataStream() {
+        var nonInternalDataStream = createTestInstance().copy().setSystem(false).setName(randomAlphaOfLength(10)).build();
+        assertThat(nonInternalDataStream.isInternal(), is(false));
+
+        var systemDataStream = nonInternalDataStream.copy().setSystem(true).setHidden(true).setName(randomAlphaOfLength(10)).build();
+        assertThat(systemDataStream.isInternal(), is(true));
+
+        var dotPrefixedDataStream = nonInternalDataStream.copy().setSystem(false).setName("." + randomAlphaOfLength(10)).build();
+        assertThat(dotPrefixedDataStream.isInternal(), is(true));
+    }
+
     private record DataStreamMetadata(Long creationTimeInMillis, Long rolloverTimeInMillis, Long originationTimeInMillis) {
         public static DataStreamMetadata dataStreamMetadata(Long creationTimeInMillis, Long rolloverTimeInMillis) {
             return new DataStreamMetadata(creationTimeInMillis, rolloverTimeInMillis, null);

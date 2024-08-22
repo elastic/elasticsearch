@@ -24,9 +24,14 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 
 public class ToDateNanos extends AbstractConvertFunction {
@@ -37,8 +42,13 @@ public class ToDateNanos extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(DATETIME, ToDateNanosFromDatetimeEvaluator.Factory::new),
+        Map.entry(DATE_NANOS, (field, source) -> field),
         Map.entry(LONG, (field, source) -> field),
-        Map.entry(KEYWORD, ToDateNanosFromStringEvaluator.Factory::new)
+        Map.entry(KEYWORD, ToDateNanosFromStringEvaluator.Factory::new),
+        Map.entry(TEXT, ToDateNanosFromStringEvaluator.Factory::new),
+        Map.entry(DOUBLE, ToLongFromDoubleEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new)
     );
 
     @FunctionInfo(returnType = "date_nanos")
@@ -86,6 +96,16 @@ public class ToDateNanos extends AbstractConvertFunction {
     static long fromKeyword(BytesRef in) {
         Instant parsed = DateFormatters.from(DEFAULT_DATE_NANOS_FORMATTER.parse(in.utf8ToString())).toInstant();
         return parsed.getEpochSecond() * 1_000_000_000 + parsed.getNano();
+    }
+
+    @ConvertEvaluator(extraName = "FromDatetime", warnExceptions = { IllegalArgumentException.class })
+    static long fromDatetime(long in) {
+        try {
+            return Math.multiplyExact(in, 1_000_000L);
+        } catch (ArithmeticException e) {
+            // This seems like a more useful error message than "Long Overflow"
+            throw new IllegalArgumentException("cannot create nanosecond dates after 2262-04-11T23:47:16.854775807Z");
+        }
     }
 
 }

@@ -808,12 +808,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     ) {
         if (lifecycle == null
             || lifecycle.isEnabled() == false
-            || lifecycle.getEffectiveDataRetention(isSystem() ? null : globalRetention) == null) {
+            || lifecycle.getEffectiveDataRetention(globalRetention, isInternal()) == null) {
             return List.of();
         }
 
         List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            lifecycle.getEffectiveDataRetention(isSystem() ? null : globalRetention),
+            lifecycle.getEffectiveDataRetention(globalRetention, isInternal()),
             indexMetadataSupplier,
             this::isIndexManagedByDataStreamLifecycle,
             nowSupplier
@@ -1214,7 +1214,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         if (lifecycle != null) {
             builder.field(LIFECYCLE.getPreferredName());
-            lifecycle.toXContent(builder, params, rolloverConfiguration, isSystem() ? null : globalRetention);
+            lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention, isInternal());
         }
         builder.field(ROLLOVER_ON_WRITE_FIELD.getPreferredName(), backingIndices.rolloverOnWrite);
         if (backingIndices.autoShardingEvent != null) {

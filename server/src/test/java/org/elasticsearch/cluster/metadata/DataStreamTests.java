@@ -1893,14 +1893,15 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStream.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention))
-                .getConditions()
-                .keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(
+                lifecycle.getEffectiveDataRetention(globalRetention, dataStream.isInternal())
+            ).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }
             // We check that even if there was no retention provided by the user, the global retention applies
             assertThat(serialized, not(containsString("data_retention")));
-            if (dataStream.isSystem() == false && (globalRetention.defaultRetention() != null || globalRetention.maxRetention() != null)) {
+            if (dataStream.isInternal() == false
+                && (globalRetention.defaultRetention() != null || globalRetention.maxRetention() != null)) {
                 assertThat(serialized, containsString("effective_retention"));
             } else {
                 assertThat(serialized, not(containsString("effective_retention")));

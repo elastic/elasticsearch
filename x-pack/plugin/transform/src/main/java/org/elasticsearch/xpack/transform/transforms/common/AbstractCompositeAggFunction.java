@@ -197,10 +197,11 @@ public abstract class AbstractCompositeAggFunction implements Function {
 
             if (scriptConfig != null) {
 
-                logger.info("---------------------------HERE---------------------------------- ");
+                System.out.println("--------------------------- ON-WEEK HACK ---------------------------------- ");
                 System.out.println("docID " + docId);
                 System.out.println("doc " + doc);
 
+                // Query the current document by id (it should be done in batches for performance)
                 SearchRequest request = new SearchRequest().indices(destinationIndex)
                     .source(new SearchSourceBuilder().query(QueryBuilders.termQuery("_id", docId)));
                 SearchResponse response = null;
@@ -210,13 +211,10 @@ public abstract class AbstractCompositeAggFunction implements Function {
                     throw new RuntimeException(e);
                 }
 
-                System.out.println(request.toString());
-                System.out.println(response.toString());
-
                 SearchHit[] hits = response.getHits().getHits();
+                Map<String, Object> oldDoc = hits.length > 0 ? hits[0].getSourceAsMap() : Collections.emptyMap();
 
-                Map<String, Object> oldDoc = hits.length > 0 ? hits[0].getSourceAsMap() : Collections.<String, Object>emptyMap();
-
+                // Get painless script from config and compile
                 Script script = new Script(
                     ScriptType.INLINE,
                     Script.DEFAULT_SCRIPT_LANG,
@@ -229,12 +227,14 @@ public abstract class AbstractCompositeAggFunction implements Function {
                     ScriptedMetricAggContexts.ReduceScript.CONTEXT
                 );
 
+                // Add olds and new docs to script params
                 Map<String, Object> params = new HashMap<>();
                 params.put("oldDoc", oldDoc);
                 params.put("newDoc", doc);
 
                 ScriptedMetricAggContexts.ReduceScript executableScript = factory.newInstance(params, List.of(doc));
 
+                // Execute script
                 Object painlessResult = executableScript.execute();
                 System.out.println("painless result " + painlessResult);
                 result = painlessResult;

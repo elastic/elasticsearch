@@ -91,7 +91,6 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
                 for (int j = 0; j < values.length; j++) {
                     values[j] = "\"" + WellKnownText.toWKT(getIndexGeometry()) + "\"";
                 }
-                System.out.println("[" + i + "] " + Arrays.toString(values));
                 if (values.length == 1) {
                     countSingleValues++;
                 }
@@ -103,23 +102,19 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
                 index("not-indexed", i + "", "{\"location\" : \"" + value + "\" }");
             }
         }
-        System.out.println("Single value count = " + countSingleValues);
 
         refresh("indexed", "not-indexed");
 
         String smallRectangleCW = "POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))";
-        System.out.println("Querying with " + smallRectangleCW);
         assertFunction("ST_WITHIN", smallRectangleCW);
         String smallRectangleCCW = "POLYGON ((-10 -10, 10 -10, 10 10, -10 10, -10 -10))";
-        System.out.println("Querying with " + smallRectangleCCW);
         assertFunction("ST_WITHIN", smallRectangleCCW);
         for (int i = 0; i < 10; i++) {
             final Geometry geometry = getQueryGeometry();
             final String wkt = WellKnownText.toWKT(geometry);
-            System.out.println("Querying with " + wkt);
-            // assertFunction("ST_INTERSECTS", wkt);
-            // assertFunction("ST_DISJOINT", wkt);
-            // assertFunction("ST_CONTAINS", wkt);
+            assertFunction("ST_INTERSECTS", wkt);
+            assertFunction("ST_DISJOINT", wkt);
+            assertFunction("ST_CONTAINS", wkt);
             // within and lines are not globally supported so we avoid it here
             if (containsLine(geometry) == false) {
                 assertFunction("ST_WITHIN", wkt);
@@ -140,7 +135,6 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
         ) {
             Object indexedResult = response1.response().column(0).iterator().next();
             Object notIndexedResult = response2.response().column(0).iterator().next();
-            System.out.println("[" + spatialFunction + "]:\t" + indexedResult + "\t" + notIndexedResult);
             assertEquals(spatialFunction, indexedResult, notIndexedResult);
         }
     }

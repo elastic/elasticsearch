@@ -73,7 +73,6 @@ public abstract class SpatialPushDownPointsTestCase extends SpatialPushDownTestC
         for (String polygon : new String[] {
             "POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))",
             "POLYGON ((-10 -10, 10 -10, 10 10, -10 10, -10 -10))" }) {
-            System.out.println("Querying with " + polygon);
             assertFunction("ST_WITHIN", polygon, expectedWithin);
             assertFunction("ST_INTERSECTS", polygon, expectedIntersects);
             assertFunction("ST_DISJOINT", polygon, expectedDisjoint);
@@ -93,7 +92,6 @@ public abstract class SpatialPushDownPointsTestCase extends SpatialPushDownTestC
         ) {
             Object indexedResult = response1.response().column(0).iterator().next();
             Object notIndexedResult = response2.response().column(0).iterator().next();
-            System.out.println("[" + spatialFunction + "]:\t" + indexedResult + "\t" + notIndexedResult);
             assertEquals(spatialFunction + "[expected=" + expected + "]", expected, indexedResult);
             assertEquals(spatialFunction + "[expected=" + expected + "]", indexedResult, notIndexedResult);
         }

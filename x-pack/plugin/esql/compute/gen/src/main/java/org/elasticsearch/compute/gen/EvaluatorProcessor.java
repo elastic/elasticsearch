@@ -13,6 +13,7 @@ import org.elasticsearch.compute.ann.MvEvaluator;
 
 import java.util.List;
 import java.util.Set;
+
 import javax.annotation.processing.Completion;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.Processor;
@@ -73,11 +74,7 @@ public class EvaluatorProcessor implements Processor {
                 Evaluator evaluatorAnn = evaluatorMethod.getAnnotation(Evaluator.class);
                 if (evaluatorAnn != null) {
                     try {
-                        var mvCombinerType = Annotations.getClassAttributeValue(
-                            evaluatorMethod,
-                            Set.of(Evaluator.class),
-                            "mvCombiner"
-                        );
+                        var mvCombinerType = Annotations.getClassAttributeValue(evaluatorMethod, Set.of(Evaluator.class), "mvCombiner");
                         AggregatorProcessor.write(
                             evaluatorMethod,
                             "evaluator",

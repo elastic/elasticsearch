@@ -12,6 +12,7 @@ import com.squareup.javapoet.TypeName;
 
 import java.util.Arrays;
 import java.util.function.Predicate;
+
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;

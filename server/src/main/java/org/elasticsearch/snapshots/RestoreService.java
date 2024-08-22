@@ -270,7 +270,7 @@ public final class RestoreService implements ClusterStateApplier {
             .andThenAccept(repositoryDataRef::set)
             .andThen(repositoryUuidRefreshStep::addListener)
 
-            .<SnapshotInfo>andThen(snapshotInfoListener -> {
+            .<RestoreCompletionResponse>andThen(responseListener -> {
                 final String snapshotName = request.snapshot();
                 final SnapshotId snapshotId = repositoryDataRef.get()
                     .getSnapshotIds()
@@ -287,12 +287,22 @@ public final class RestoreService implements ClusterStateApplier {
                     );
                 }
 
-                repositoryRef.get().getSnapshotInfo(snapshotId, snapshotInfoListener);
+                repositoryRef.get()
+                    .getSnapshotInfo(
+                        snapshotId,
+                        responseListener.delegateFailureAndWrap(
+                            // call startRestore inline, rather than using another andThen, so that it always runs on SNAPSHOT_META
+                            (l, snapshotInfo) -> startRestore(
+                                snapshotInfo,
+                                repositoryRef.get(),
+                                request,
+                                repositoryDataRef.get(),
+                                updater,
+                                l
+                            )
+                        )
+                    );
             })
-
-            .<RestoreCompletionResponse>andThen(
-                (l, snapshotInfo) -> startRestore(snapshotInfo, repositoryRef.get(), request, repositoryDataRef.get(), updater, l)
-            )
 
             .addListener(listener.delegateResponse((delegate, e) -> {
                 logger.warn(() -> "[" + request.repository() + ":" + request.snapshot() + "] failed to restore snapshot", e);

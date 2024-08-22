@@ -53,7 +53,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         List<String> patterns = new ArrayList<>(ctx.size());
         ctx.forEach(c -> {
             String indexPattern = visitIndexString(c.indexString());
-            validateIndexPattern(indexPattern, c);
+            //validateIndexPattern(indexPattern, c);
             patterns.add(
                 c.clusterString() != null ? c.clusterString().getText() + REMOTE_CLUSTER_INDEX_SEPARATOR + indexPattern : indexPattern
             );
@@ -68,9 +68,10 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                 if (index.strip().isEmpty()) {
                     continue;
                 }
-                if (index.startsWith("<") && index.endsWith(">")) {
-                    index = IndexNameExpressionResolver.resolveDateMathExpression(index);
+                if (index.charAt(0) == '-') {
+                    index = index.substring(1);
                 }
+                index = IndexNameExpressionResolver.resolveDateMathExpression(index);
                 MetadataCreateIndexService.validateIndexOrAliasName(index.strip(), InvalidIndexNameException::new);
             }
         } catch (InvalidIndexNameException | ElasticsearchParseException e) {

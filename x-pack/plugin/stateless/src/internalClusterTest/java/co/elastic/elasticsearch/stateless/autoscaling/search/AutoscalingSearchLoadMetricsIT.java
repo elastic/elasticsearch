@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
+import co.elastic.elasticsearch.serverless.autoscaling.ServerlessAutoscalingPlugin;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
@@ -29,15 +30,24 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
+import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.BrokenBarrierException;
@@ -46,17 +56,25 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.AutoscalingIndexingMetricsIT.longAwait;
 import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.SHARD_READ_EXECUTOR;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCase {
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.concatLists(List.of(ShutdownPlugin.class, ServerlessAutoscalingPlugin.class), super.nodePlugins());
+    }
+
     public void testSearchMetricsArePublishedEventually() throws Exception {
         startMasterAndIndexNode();
         startSearchNode(
@@ -478,6 +496,59 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
         });
     }
 
+    public void testRemoveSearchLoadWhenNodeRemoved() throws Exception {
+        startMasterAndIndexNode();
+        final int numSearchNodes = between(2, 5);
+        final int totalNodes = numSearchNodes + 1;
+        List<String> searchNodes = new ArrayList<>();
+        IntStream.range(0, numSearchNodes).forEach(i -> {
+            searchNodes.add(
+                startSearchNode(
+                    Settings.builder()
+                        .put(SearchLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueMillis(10))
+                        .build()
+                )
+            );
+        });
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+
+        assertBusy(() -> {
+            final List<NodeSearchLoadSnapshot> nodeSearchLoad = getNodeSearchLoad();
+            assertThat(nodeSearchLoad, hasSize(numSearchNodes));
+            assertTrue(nodeSearchLoad.stream().allMatch(searchLoad -> searchLoad.metricQuality() == MetricQuality.EXACT));
+        });
+
+        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final List<DiscoveryNode> shuttingDownNodes = randomNonEmptySubsetOf(
+            clusterService.state().nodes().getDataNodes().values().stream().filter(node -> searchNodes.contains(node.getName())).toList()
+        );
+        logger.info("--> Marking nodes {} for removal", shuttingDownNodes);
+        markNodesForShutdown(
+            shuttingDownNodes,
+            Arrays.stream(SingleNodeShutdownMetadata.Type.values()).filter(SingleNodeShutdownMetadata.Type::isRemovalType).toList()
+        );
+
+        // all nodes, even if marked for removal, should still be reporting search load
+        final List<NodeSearchLoadSnapshot> nodeSearchLoad = getNodeSearchLoad();
+        assertThat(nodeSearchLoad, hasSize(numSearchNodes));
+        assertTrue(nodeSearchLoad.stream().allMatch(searchLoad -> searchLoad.metricQuality() == MetricQuality.EXACT));
+
+        for (var node : shuttingDownNodes) {
+            logger.info("--> stopping node {}", node.getName());
+            internalCluster().stopNode(node.getName());
+        }
+        ensureStableCluster(totalNodes - shuttingDownNodes.size());
+
+        assertBusy(() -> {
+            final List<NodeSearchLoadSnapshot> searchLoadWithoutShutDownNodes = getNodeSearchLoad();
+            assertThat(searchLoadWithoutShutDownNodes, hasSize(numSearchNodes - shuttingDownNodes.size()));
+            assertTrue(searchLoadWithoutShutDownNodes.stream().allMatch(searchLoad -> searchLoad.metricQuality() == MetricQuality.EXACT));
+        });
+    }
+
     private String startMasterNode() {
         return internalCluster().startMasterOnlyNode(
             nodeSettings().put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
@@ -490,5 +561,26 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
         var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
         var loadsAfterSearch = searchMetricsService.getSearchTierMetrics().getNodesLoad();
         return loadsAfterSearch;
+    }
+
+    private static void markNodesForShutdown(List<DiscoveryNode> shuttingDownNodes, List<SingleNodeShutdownMetadata.Type> shutdownTypes) {
+        shuttingDownNodes.forEach(node -> {
+            final var type = randomFrom(shutdownTypes);
+            assertAcked(
+                client().execute(
+                    PutShutdownNodeAction.INSTANCE,
+                    new PutShutdownNodeAction.Request(
+                        TEST_REQUEST_TIMEOUT,
+                        TEST_REQUEST_TIMEOUT,
+                        node.getId(),
+                        type,
+                        "Shutdown for test",
+                        null,
+                        type.equals(SingleNodeShutdownMetadata.Type.REPLACE) ? randomIdentifier() : null,
+                        type.equals(SingleNodeShutdownMetadata.Type.SIGTERM) ? TimeValue.timeValueMinutes(randomIntBetween(1, 5)) : null
+                    )
+                )
+            );
+        });
     }
 }

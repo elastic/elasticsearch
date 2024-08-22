@@ -286,6 +286,8 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
         var clientCounts = new TreeMap<>(Map.of("kibana", 40L, "other", 500L));
         var perClusterCCSTelemetries = new TreeMap<>(
             Map.of(
+                "",
+                new PerClusterCCSTelemetry(12, 0, manyValuesHistogram(2000)),
                 "remote1",
                 new PerClusterCCSTelemetry(100, 22, manyValuesHistogram(2000)),
                 "remote2",

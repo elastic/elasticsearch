@@ -34,8 +34,17 @@
       "kibana" : 40,
       "other" : 500
     },
-    "remote_clusters" : {
-      "count" : 2,
+    "clusters" : {
+      "count" : 3,
+      "(local)" : {
+        "total" : 12,
+        "skipped" : 0,
+        "took" : {
+          "max" : 3983,
+          "avg" : 2992,
+          "p90" : 3791
+        }
+      },
       "remote1" : {
         "total" : 100,
         "skipped" : 22,

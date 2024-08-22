@@ -9,10 +9,12 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.action.admin.cluster.stats.LongMetric.LongMetricValue;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -337,11 +339,15 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
             builder.field("failure_reasons", failureReasons);
             builder.field("features", featureCounts);
             builder.field("clients", clientCounts);
-            builder.startObject("remote_clusters");
+            builder.startObject("clusters");
             {
                 builder.field("count", byRemoteCluster.size());
                 for (var entry : byRemoteCluster.entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
+                    String remoteName = entry.getKey();
+                    if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(remoteName)) {
+                        remoteName = SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION;
+                    }
+                    builder.field(remoteName, entry.getValue());
                 }
             }
             builder.endObject();

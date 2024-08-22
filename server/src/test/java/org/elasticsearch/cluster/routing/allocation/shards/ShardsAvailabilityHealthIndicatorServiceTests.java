@@ -2567,8 +2567,4 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         });
         return new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices);
     }
-
-    private static Clock clock(long millis) {
-        return Clock.fixed(Instant.ofEpochMilli(millis), ZoneId.systemDefault());
-    }
 }

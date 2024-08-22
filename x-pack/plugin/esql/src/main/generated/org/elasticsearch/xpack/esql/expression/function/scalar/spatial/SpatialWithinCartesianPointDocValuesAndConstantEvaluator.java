@@ -4,10 +4,12 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
+import java.lang.Boolean;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.geo.Component2D;
+import org.elasticsearch.compute.ann.MvCombiner;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -31,6 +33,8 @@ public final class SpatialWithinCartesianPointDocValuesAndConstantEvaluator impl
   private final Component2D rightValue;
 
   private final DriverContext driverContext;
+
+  private final MvCombiner<Boolean> multiValuesCombiner = new AllCombiner();
 
   public SpatialWithinCartesianPointDocValuesAndConstantEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, Component2D rightValue,
@@ -66,9 +70,9 @@ public final class SpatialWithinCartesianPointDocValuesAndConstantEvaluator impl
         }
         int leftValueBlockFirst = leftValueBlock.getFirstValueIndex(p);
         try {
-          boolean mvResult = true;
+          Boolean mvResult = multiValuesCombiner.initial();
           for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
-            mvResult &= SpatialWithin.processCartesianPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), this.rightValue);
+            mvResult = multiValuesCombiner.combine(mvResult, SpatialWithin.processCartesianPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), this.rightValue));
           }
           result.appendBoolean(mvResult);
         } catch (IllegalArgumentException e) {

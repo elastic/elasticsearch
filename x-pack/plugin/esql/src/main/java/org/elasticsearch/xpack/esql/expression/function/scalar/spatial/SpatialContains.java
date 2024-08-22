@@ -273,7 +273,7 @@ public class SpatialContains extends SpatialRelatesFunction {
     @Evaluator(
         extraName = "GeoSourceAndConstant",
         warnExceptions = { IllegalArgumentException.class, IOException.class },
-        multiValued = Evaluator.MultiValueCombinerMode.ANY
+        mvCombiner = AnyCombiner.class
     )
     static boolean processGeoSourceAndConstant(BytesRef leftValue, @Fixed Component2D[] rightValue) throws IOException {
         return GEO.geometryRelatesGeometries(leftValue, rightValue);
@@ -282,7 +282,7 @@ public class SpatialContains extends SpatialRelatesFunction {
     @Evaluator(
         extraName = "GeoSourceAndSource",
         warnExceptions = { IllegalArgumentException.class, IOException.class },
-        multiValued = Evaluator.MultiValueCombinerMode.ANY
+        mvCombiner = AnyCombiner.class
     )
     static boolean processGeoSourceAndSource(BytesRef leftValue, BytesRef rightValue) throws IOException {
         return GEO.geometryRelatesGeometry(leftValue, rightValue);
@@ -291,7 +291,7 @@ public class SpatialContains extends SpatialRelatesFunction {
     @Evaluator(
         extraName = "GeoPointDocValuesAndConstant",
         warnExceptions = { IllegalArgumentException.class },
-        multiValued = Evaluator.MultiValueCombinerMode.ANY
+        mvCombiner = AnyCombiner.class
     )
     static boolean processGeoPointDocValuesAndConstant(long leftValue, @Fixed Component2D[] rightValue) {
         return GEO.pointRelatesGeometries(leftValue, rightValue);
@@ -300,7 +300,7 @@ public class SpatialContains extends SpatialRelatesFunction {
     @Evaluator(
         extraName = "GeoPointDocValuesAndSource",
         warnExceptions = { IllegalArgumentException.class },
-        multiValued = Evaluator.MultiValueCombinerMode.ANY
+        mvCombiner = AnyCombiner.class
     )
     static boolean processGeoPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
         Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
@@ -310,7 +310,7 @@ public class SpatialContains extends SpatialRelatesFunction {
     @Evaluator(
         extraName = "CartesianSourceAndConstant",
         warnExceptions = { IllegalArgumentException.class, IOException.class },
-        multiValued = Evaluator.MultiValueCombinerMode.ANY
+        mvCombiner = AnyCombiner.class
     )
     static boolean processCartesianSourceAndConstant(BytesRef leftValue, @Fixed Component2D[] rightValue) throws IOException {
         return CARTESIAN.geometryRelatesGeometries(leftValue, rightValue);
@@ -319,7 +319,7 @@ public class SpatialContains extends SpatialRelatesFunction {
     @Evaluator(
         extraName = "CartesianSourceAndSource",
         warnExceptions = { IllegalArgumentException.class, IOException.class },
-        multiValued = Evaluator.MultiValueCombinerMode.ANY
+        mvCombiner = AnyCombiner.class
     )
     static boolean processCartesianSourceAndSource(BytesRef leftValue, BytesRef rightValue) throws IOException {
         return CARTESIAN.geometryRelatesGeometry(leftValue, rightValue);
@@ -328,13 +328,13 @@ public class SpatialContains extends SpatialRelatesFunction {
     @Evaluator(
         extraName = "CartesianPointDocValuesAndConstant",
         warnExceptions = { IllegalArgumentException.class },
-        multiValued = Evaluator.MultiValueCombinerMode.ANY
+        mvCombiner = AnyCombiner.class
     )
     static boolean processCartesianPointDocValuesAndConstant(long leftValue, @Fixed Component2D[] rightValue) {
         return CARTESIAN.pointRelatesGeometries(leftValue, rightValue);
     }
 
-    @Evaluator(extraName = "CartesianPointDocValuesAndSource", multiValued = Evaluator.MultiValueCombinerMode.ANY)
+    @Evaluator(extraName = "CartesianPointDocValuesAndSource", mvCombiner = AnyCombiner.class)
     static boolean processCartesianPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
         Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
         return CARTESIAN.pointRelatesGeometry(leftValue, geometry);

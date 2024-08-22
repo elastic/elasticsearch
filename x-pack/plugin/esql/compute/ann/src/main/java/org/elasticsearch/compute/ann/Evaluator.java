@@ -44,25 +44,7 @@ public @interface Evaluator {
     Class<? extends Exception>[] warnExceptions() default {};
 
     /**
-     * Whether or not this method can be used for multi-valued fields.
+     * Class to use for combining the results of multivalued fields, or MvUnsupported.class if multivalued fields are not supported.
      */
-    MultiValueCombinerMode multiValued() default MultiValueCombinerMode.UNSUPPORTED;
-
-    /**
-     * When processing multi-valued fields, how to combine the values.
-     */
-    enum MultiValueCombinerMode {
-        /**
-         * Multi-values are unsupported, return null
-         */
-        UNSUPPORTED,
-        /**
-         * True if any value in the multi-value is true
-         */
-        ANY,
-        /**
-         * True if all values in the multi-value are true
-         */
-        ALL
-    }
+    Class<? extends MvCombiner<?>> mvCombiner() default MvCombiner.MvUnsupported.class;
 }

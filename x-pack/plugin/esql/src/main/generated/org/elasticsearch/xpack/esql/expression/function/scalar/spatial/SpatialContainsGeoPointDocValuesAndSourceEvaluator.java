@@ -4,10 +4,12 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
+import java.lang.Boolean;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.ann.MvCombiner;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -33,6 +35,8 @@ public final class SpatialContainsGeoPointDocValuesAndSourceEvaluator implements
   private final EvalOperator.ExpressionEvaluator rightValue;
 
   private final DriverContext driverContext;
+
+  private final MvCombiner<Boolean> multiValuesCombiner = new AnyCombiner();
 
   public SpatialContainsGeoPointDocValuesAndSourceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
@@ -86,10 +90,10 @@ public final class SpatialContainsGeoPointDocValuesAndSourceEvaluator implements
         }
         int rightValueBlockFirst = rightValueBlock.getFirstValueIndex(p);
         try {
-          boolean mvResult = false;
+          Boolean mvResult = multiValuesCombiner.initial();
           for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
             for (int rightValueBlockIndex = rightValueBlockFirst; rightValueBlockIndex < rightValueBlockFirst + rightValueBlockCount; rightValueBlockIndex++) {
-              mvResult |= SpatialContains.processGeoPointDocValuesAndSource(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlockIndex, rightValueScratch));
+              mvResult = multiValuesCombiner.combine(mvResult, SpatialContains.processGeoPointDocValuesAndSource(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlockIndex, rightValueScratch)));
             }
           }
           result.appendBoolean(mvResult);

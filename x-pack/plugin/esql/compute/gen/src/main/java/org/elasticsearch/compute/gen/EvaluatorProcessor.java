@@ -73,6 +73,11 @@ public class EvaluatorProcessor implements Processor {
                 Evaluator evaluatorAnn = evaluatorMethod.getAnnotation(Evaluator.class);
                 if (evaluatorAnn != null) {
                     try {
+                        var mvCombinerType = Annotations.getClassAttributeValue(
+                            evaluatorMethod,
+                            Set.of(Evaluator.class),
+                            "mvCombiner"
+                        );
                         AggregatorProcessor.write(
                             evaluatorMethod,
                             "evaluator",
@@ -82,7 +87,7 @@ public class EvaluatorProcessor implements Processor {
                                 (ExecutableElement) evaluatorMethod,
                                 evaluatorAnn.extraName(),
                                 warnExceptionsTypes,
-                                evaluatorAnn.multiValued()
+                                mvCombinerType
                             ).sourceFile(),
                             env
                         );

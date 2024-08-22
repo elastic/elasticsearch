@@ -9,13 +9,13 @@ package org.elasticsearch.compute.gen;
 
 import com.squareup.javapoet.ArrayTypeName;
 import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
-import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 
 import java.util.ArrayList;
@@ -35,6 +35,8 @@ import javax.lang.model.util.Elements;
 import static org.elasticsearch.compute.gen.Methods.appendMethod;
 import static org.elasticsearch.compute.gen.Methods.buildFromFactory;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
+import static org.elasticsearch.compute.gen.Methods.mvInitType;
+import static org.elasticsearch.compute.gen.Methods.mvInitTypeString;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
@@ -58,7 +60,8 @@ import static org.elasticsearch.compute.gen.Types.vectorType;
 
 public class EvaluatorImplementer {
     private final TypeElement declarationType;
-    private final Evaluator.MultiValueCombinerMode predicateMultiValueMode;
+    private final TypeMirror multiValuesCombiner;
+    private final boolean multiValuesSupported;
     private final ProcessFunction processFunction;
     private final ClassName implementation;
     private final boolean processOutputsMultivalued;
@@ -69,10 +72,11 @@ public class EvaluatorImplementer {
         ExecutableElement processFunction,
         String extraName,
         List<TypeMirror> warnExceptions,
-        Evaluator.MultiValueCombinerMode predicateMultiValueMode
+        TypeMirror multiValuesCombiner
     ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
-        this.predicateMultiValueMode = predicateMultiValueMode;
+        this.multiValuesCombiner = multiValuesCombiner;
+        this.multiValuesSupported = multiValuesCombiner != null && (multiValuesCombiner.toString().contains("MvUnsupported") == false);
         this.processFunction = new ProcessFunction(elements, types, processFunction, warnExceptions);
 
         this.implementation = ClassName.get(
@@ -103,7 +107,17 @@ public class EvaluatorImplementer {
         builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         processFunction.args.stream().forEach(a -> a.declareField(builder));
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
-
+        if (multiValuesSupported) {
+            ClassName mvCombinerClassName = ClassName.get("org.elasticsearch.compute.ann", "MvCombiner");
+            ParameterizedTypeName mvCombinerParameterized = ParameterizedTypeName.get(
+                mvCombinerClassName,
+                mvInitType(processFunction.resultDataType(true))
+            );
+            FieldSpec fieldSpec = FieldSpec.builder(mvCombinerParameterized, "multiValuesCombiner", Modifier.PRIVATE, Modifier.FINAL)
+                .initializer("new $T()", multiValuesCombiner)
+                .build();
+            builder.addField(fieldSpec);
+        }
         builder.addMethod(ctor());
         builder.addMethod(eval());
 
@@ -195,7 +209,7 @@ public class EvaluatorImplementer {
 
             builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
             {
-                boolean supportMultiValued = this.predicateMultiValueMode != Evaluator.MultiValueCombinerMode.UNSUPPORTED && blockStyle;
+                boolean supportMultiValued = multiValuesSupported && blockStyle;
                 if (blockStyle) {
                     if (processOutputsMultivalued == false) {
                         processFunction.args.stream().forEach(a -> a.skipNull(builder, supportMultiValued == false));
@@ -240,8 +254,7 @@ public class EvaluatorImplementer {
                 if (processFunction.builderArg != null) {
                     builtPattern = pattern.toString();
                 } else if (supportMultiValued) {
-                    String combiner = this.predicateMultiValueMode == Evaluator.MultiValueCombinerMode.ANY ? "|=" : "&=";
-                    builtPattern = "mvResult " + combiner + " " + pattern;
+                    builtPattern = "mvResult = multiValuesCombiner.combine(mvResult, " + pattern + ")";
                 } else {
                     builtPattern = vectorize ? "result.$L(p, " + pattern + ")" : "result.$L(" + pattern + ")";
                     args.add(0, appendMethod(resultDataType));
@@ -250,10 +263,8 @@ public class EvaluatorImplementer {
                     builder.beginControlFlow("try");
                 }
                 if (supportMultiValued) {
-                    String booleanInitial = this.predicateMultiValueMode == Evaluator.MultiValueCombinerMode.ANY ? "false" : "true";
-                    builder.addStatement("boolean mvResult = " + booleanInitial);
+                    builder.addStatement(mvInitTypeString(resultDataType) + " mvResult = multiValuesCombiner.initial()");
                     List<ProcessFunctionArg> mvParams = processFunction.args.stream().filter(a -> a.paramName(blockStyle) != null).toList();
-                    // mvParams.forEach(a -> initMultiValued(builder, a.paramName(blockStyle)));
                     mvParams.forEach(a -> {
                         String paramName = a.paramName(blockStyle);
                         String index = paramName + "Index";

@@ -225,7 +225,7 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
     @Evaluator(
         extraName = "GeoSourceAndConstant",
         warnExceptions = { IllegalArgumentException.class, IOException.class },
-        multiValued = Evaluator.MultiValueCombinerMode.ALL
+        mvCombiner = AllCombiner.class
     )
     static boolean processGeoSourceAndConstant(BytesRef leftValue, @Fixed Component2D rightValue) throws IOException {
         return GEO.geometryRelatesGeometry(leftValue, rightValue);
@@ -234,7 +234,7 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
     @Evaluator(
         extraName = "GeoSourceAndSource",
         warnExceptions = { IllegalArgumentException.class, IOException.class },
-        multiValued = Evaluator.MultiValueCombinerMode.ALL
+        mvCombiner = AllCombiner.class
     )
     static boolean processGeoSourceAndSource(BytesRef leftValue, BytesRef rightValue) throws IOException {
         return GEO.geometryRelatesGeometry(leftValue, rightValue);
@@ -243,7 +243,7 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
     @Evaluator(
         extraName = "GeoPointDocValuesAndConstant",
         warnExceptions = { IllegalArgumentException.class },
-        multiValued = Evaluator.MultiValueCombinerMode.ALL
+        mvCombiner = AllCombiner.class
     )
     static boolean processGeoPointDocValuesAndConstant(long leftValue, @Fixed Component2D rightValue) {
         return GEO.pointRelatesGeometry(leftValue, rightValue);
@@ -252,7 +252,7 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
     @Evaluator(
         extraName = "GeoPointDocValuesAndSource",
         warnExceptions = { IllegalArgumentException.class },
-        multiValued = Evaluator.MultiValueCombinerMode.ALL
+        mvCombiner = AllCombiner.class
     )
     static boolean processGeoPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
         Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
@@ -262,7 +262,7 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
     @Evaluator(
         extraName = "CartesianSourceAndConstant",
         warnExceptions = { IllegalArgumentException.class, IOException.class },
-        multiValued = Evaluator.MultiValueCombinerMode.ALL
+        mvCombiner = AllCombiner.class
     )
     static boolean processCartesianSourceAndConstant(BytesRef leftValue, @Fixed Component2D rightValue) throws IOException {
         return CARTESIAN.geometryRelatesGeometry(leftValue, rightValue);
@@ -271,7 +271,7 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
     @Evaluator(
         extraName = "CartesianSourceAndSource",
         warnExceptions = { IllegalArgumentException.class, IOException.class },
-        multiValued = Evaluator.MultiValueCombinerMode.ALL
+        mvCombiner = AllCombiner.class
     )
     static boolean processCartesianSourceAndSource(BytesRef leftValue, BytesRef rightValue) throws IOException {
         return CARTESIAN.geometryRelatesGeometry(leftValue, rightValue);
@@ -280,13 +280,13 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
     @Evaluator(
         extraName = "CartesianPointDocValuesAndConstant",
         warnExceptions = { IllegalArgumentException.class },
-        multiValued = Evaluator.MultiValueCombinerMode.ALL
+        mvCombiner = AllCombiner.class
     )
     static boolean processCartesianPointDocValuesAndConstant(long leftValue, @Fixed Component2D rightValue) {
         return CARTESIAN.pointRelatesGeometry(leftValue, rightValue);
     }
 
-    @Evaluator(extraName = "CartesianPointDocValuesAndSource", multiValued = Evaluator.MultiValueCombinerMode.ALL)
+    @Evaluator(extraName = "CartesianPointDocValuesAndSource", mvCombiner = AllCombiner.class)
     static boolean processCartesianPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
         Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
         return CARTESIAN.pointRelatesGeometry(leftValue, geometry);

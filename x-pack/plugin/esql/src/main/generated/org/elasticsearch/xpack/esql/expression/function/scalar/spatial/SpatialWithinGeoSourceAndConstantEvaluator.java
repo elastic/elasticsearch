@@ -5,11 +5,13 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import java.io.IOException;
+import java.lang.Boolean;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.ann.MvCombiner;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -33,6 +35,8 @@ public final class SpatialWithinGeoSourceAndConstantEvaluator implements EvalOpe
   private final Component2D rightValue;
 
   private final DriverContext driverContext;
+
+  private final MvCombiner<Boolean> multiValuesCombiner = new AllCombiner();
 
   public SpatialWithinGeoSourceAndConstantEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, Component2D rightValue,
@@ -69,9 +73,9 @@ public final class SpatialWithinGeoSourceAndConstantEvaluator implements EvalOpe
         }
         int leftValueBlockFirst = leftValueBlock.getFirstValueIndex(p);
         try {
-          boolean mvResult = true;
+          Boolean mvResult = multiValuesCombiner.initial();
           for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
-            mvResult &= SpatialWithin.processGeoSourceAndConstant(leftValueBlock.getBytesRef(leftValueBlockIndex, leftValueScratch), this.rightValue);
+            mvResult = multiValuesCombiner.combine(mvResult, SpatialWithin.processGeoSourceAndConstant(leftValueBlock.getBytesRef(leftValueBlockIndex, leftValueScratch), this.rightValue));
           }
           result.appendBoolean(mvResult);
         } catch (IllegalArgumentException | IOException e) {

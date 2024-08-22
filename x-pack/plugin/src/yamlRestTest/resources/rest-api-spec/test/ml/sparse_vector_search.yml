@@ -381,3 +381,89 @@ setup:
 
   - match: { hits.total.value: 1 }
 
+---
+"Search on a nested sparse_vector field with dots in the field names and conflicting child fields":
+
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: dots in field names allowed starting in in 8.16.0
+
+  - do:
+      indices.create:
+        index: index-with-sparse-vector3
+        body:
+          mappings:
+            properties:
+              parent:
+                type: object
+                subobjects: false
+                properties:
+                  foo:
+                    type: sparse_vector
+                  foo.bar:
+                    type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      bulk:
+        index: index-with-sparse-vector3
+        refresh: true
+        body: |
+          {"index": { "_id": "parent-foo" }}
+          {"parent.foo": { "bar.baz": 1.0 }}
+          {"index": { "_id": "parent-foo-bar" }}
+          {"parent.foo.bar": { "baz": 2.0 }}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      get:
+        index: index-with-sparse-vector3
+        id: "parent-foo"
+
+  - match:
+      _source:
+        parent.foo:
+          bar.baz: 1.0
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      get:
+        index: index-with-sparse-vector3
+        id: "parent-foo-bar"
+
+  - match:
+      _source:
+        parent.foo.bar:
+          baz: 2.0
+
+  - do:
+      search:
+        index: index-with-sparse-vector3
+        body:
+          query:
+            sparse_vector:
+              field: parent.foo
+              query_vector:
+                bar.baz: 1.0
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "parent-foo" }
+
+  - do:
+      search:
+        index: index-with-sparse-vector3
+        body:
+          query:
+            sparse_vector:
+              field: parent.foo.bar
+              query_vector:
+                baz: 2.0
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "parent-foo-bar" }

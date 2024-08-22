@@ -171,16 +171,7 @@ final class SystemJvmOptions {
         } else {
             arch = "unsupported_arch[" + archname + "]";
         }
-
-        StringBuilder newPath = new StringBuilder();
-        String esPlatformDir = platformDir.resolve(os + "-" + arch).toAbsolutePath().toString();
-        newPath.append('"').append(esPlatformDir).append('"');
-        // we need the individual paths to requote them in case there are spaces
-        for (String path : existingPath.split(getPathSeparator())) {
-            newPath.append(getPathSeparator());
-            newPath.append('"').append(path).append('"');
-        }
-        return newPath.toString();
+        return platformDir.resolve(os + "-" + arch).toAbsolutePath() + getPathSeparator() + existingPath;
     }
 
     @SuppressForbidden(reason = "no way to get path separator with nio")

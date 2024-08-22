@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
@@ -24,10 +23,12 @@ public interface PlanStreamOutput {
      */
     boolean writeAttributeCacheHeader(Attribute attribute) throws IOException;
 
-    static void writeEsField(StreamOutput output, EsField field) throws IOException {
-        ((PlanStreamOutput) output).writeEsField(field);
-    }
-
-    void writeEsField(EsField field) throws IOException;
-
+    /**
+     * Writes a cache header for an {@link org.elasticsearch.xpack.esql.core.type.EsField} and caches it if it is not already in the cache.
+     * In that case, the field will have to serialize itself into this stream immediately after this method call.
+     * @param field The EsField to serialize
+     * @return true if the attribute needs to serialize itself, false otherwise (ie. if already cached)
+     * @throws IOException
+     */
+    boolean writeEsFieldCacheHeader(EsField field) throws IOException;
 }

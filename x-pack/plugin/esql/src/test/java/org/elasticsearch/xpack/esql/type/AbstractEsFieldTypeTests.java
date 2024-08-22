@@ -50,13 +50,13 @@ public abstract class AbstractEsFieldTypeTests<T extends EsField> extends Abstra
             var pso = new PlanStreamOutput(output, new PlanNameRegistry(), EsqlTestUtils.TEST_CFG)
         ) {
             pso.setTransportVersion(version);
-            pso.writeEsField(instance);
+            instance.writeTo(pso);
             try (
                 StreamInput in1 = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry);
                 var psi = new PlanStreamInput(in1, new PlanNameRegistry(), in1.namedWriteableRegistry(), EsqlTestUtils.TEST_CFG)
             ) {
                 psi.setTransportVersion(version);
-                return psi.readEsField();
+                return EsField.readFrom(psi);
             }
         }
     }

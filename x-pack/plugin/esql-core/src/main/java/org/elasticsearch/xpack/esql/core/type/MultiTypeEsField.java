@@ -40,7 +40,7 @@ public class MultiTypeEsField extends EsField {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void writeContent(StreamOutput out) throws IOException {
         out.writeString(getName());
         out.writeString(getDataType().typeName());
         out.writeBoolean(isAggregatable());

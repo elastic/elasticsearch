@@ -274,20 +274,20 @@ public class PlanStreamOutputTests extends ESTestCase {
             // send all the EsFields, three times
             for (int i = 0; i < 3; i++) {
                 for (EsField attr : fields) {
-                    planStream.writeEsField(attr);
+                    attr.writeTo(planStream);
                 }
             }
 
             try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)) {
                 List<EsField> readFields = new ArrayList<>();
                 for (int i = 0; i < occurrences; i++) {
-                    readFields.add(in.readEsField());
+                    readFields.add(EsField.readFrom(in));
                     assertThat(readFields.get(i), equalTo(fields.get(i)));
                 }
                 // two more times
                 for (int i = 0; i < 2; i++) {
                     for (int j = 0; j < occurrences; j++) {
-                        EsField attr = in.readEsField();
+                        EsField attr = EsField.readFrom(in);
                         assertThat(attr, sameInstance(readFields.get(j)));
                     }
                 }

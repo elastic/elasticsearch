@@ -69,7 +69,7 @@ public class EsField implements Writeable {
     protected EsField(StreamInput in) throws IOException {
         this.name = in.readString();
         this.esDataType = readDataType(in);
-        this.properties = in.readImmutableMap(i -> ((PlanStreamInput) i).readEsField());
+        this.properties = in.readImmutableMap(EsField::readFrom);
         this.aggregatable = in.readBoolean();
         this.isAlias = in.readBoolean();
     }
@@ -90,11 +90,21 @@ public class EsField implements Writeable {
         return DataType.readFrom(name);
     }
 
+    public static <A extends EsField> A readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readEsFieldWithCache();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (((PlanStreamOutput) out).writeEsFieldCacheHeader(this)) {
+            writeContent(out);
+        }
+    }
+
+    protected void writeContent(StreamOutput out) throws IOException {
         out.writeString(name);
         esDataType.writeTo(out);
-        out.writeMap(properties, (o, x) -> PlanStreamOutput.writeEsField(out, x));
+        out.writeMap(properties, (o, x) -> x.writeTo(out));
         out.writeBoolean(aggregatable);
         out.writeBoolean(isAlias);
     }

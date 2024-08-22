@@ -104,10 +104,10 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
         return copyInstance(
             instance,
             getNamedWriteableRegistry(),
-            (out, v) -> new PlanStreamOutput(out, new PlanNameRegistry(), config).writeEsField(v),
+            (out, v) -> v.writeTo(new PlanStreamOutput(out, new PlanNameRegistry(), config)),
             in -> {
                 PlanStreamInput pin = new PlanStreamInput(in, new PlanNameRegistry(), in.namedWriteableRegistry(), config);
-                return pin.readEsField();
+                return EsField.readFrom(pin);
             },
             version
         );

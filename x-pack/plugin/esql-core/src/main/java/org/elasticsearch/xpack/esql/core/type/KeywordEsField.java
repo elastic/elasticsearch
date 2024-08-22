@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.esql.core.type;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -63,7 +61,7 @@ public class KeywordEsField extends EsField {
         this(
             in.readString(),
             KEYWORD,
-            in.readImmutableMap(i -> ((PlanStreamInput) i).readEsField()),
+            in.readImmutableMap(EsField::readFrom),
             in.readBoolean(),
             in.readInt(),
             in.readBoolean(),
@@ -72,14 +70,13 @@ public class KeywordEsField extends EsField {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void writeContent(StreamOutput out) throws IOException {
         out.writeString(getName());
-        out.writeMap(getProperties(), (o, x) -> PlanStreamOutput.writeEsField(out, x));
+        out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());
         out.writeInt(precision);
         out.writeBoolean(normalized);
         out.writeBoolean(isAlias());
-
     }
 
     public int getPrecision() {

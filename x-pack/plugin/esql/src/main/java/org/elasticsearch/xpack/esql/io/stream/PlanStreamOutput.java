@@ -212,19 +212,19 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
     }
 
     @Override
-    public void writeEsField(EsField field) throws IOException {
+    public boolean writeEsFieldCacheHeader(EsField field) throws IOException {
         if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)) {
             Integer cacheId = esFieldIdFromCache(field);
             if (cacheId != null) {
                 writeZLong(cacheId);
-                return;
+                return false;
             }
 
             cacheId = cacheEsField(field);
             writeZLong(-1 - cacheId);
         }
         writeString(field.getWriteableName());
-        field.writeTo(this);
+        return true;
     }
 
     private Integer esFieldIdFromCache(EsField field) {

@@ -10,8 +10,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -34,13 +32,13 @@ public class TextEsField extends EsField {
     }
 
     protected TextEsField(StreamInput in) throws IOException {
-        this(in.readString(), in.readImmutableMap(i -> ((PlanStreamInput) i).readEsField()), in.readBoolean(), in.readBoolean());
+        this(in.readString(), in.readImmutableMap(EsField::readFrom), in.readBoolean(), in.readBoolean());
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void writeContent(StreamOutput out) throws IOException {
         out.writeString(getName());
-        out.writeMap(getProperties(), (o, x) -> PlanStreamOutput.writeEsField(out, x));
+        out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());
         out.writeBoolean(isAlias());
     }

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -77,7 +78,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
             Source.readFrom((PlanStreamInput) in),
             in.readString(),
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
-                ? ((PlanStreamInput) in).readEsField()
+                ? EsField.readFrom(in)
                 : new UnsupportedEsField(in),
             in.readOptionalString(),
             NameId.readFrom((PlanStreamInput) in)
@@ -90,9 +91,9 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
             Source.EMPTY.writeTo(out);
             out.writeString(name());
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)) {
-                ((PlanStreamOutput) out).writeEsField(field());
-            } else {
                 field().writeTo(out);
+            } else {
+                field().writeContent(out);
             }
             out.writeOptionalString(hasCustomMessage ? message : null);
             id().writeTo(out);

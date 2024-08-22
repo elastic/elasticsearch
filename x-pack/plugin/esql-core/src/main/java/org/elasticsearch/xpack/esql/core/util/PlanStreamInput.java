@@ -46,5 +46,5 @@ public interface PlanStreamInput {
      */
     <A extends Attribute> A readAttributeWithCache(CheckedFunction<StreamInput, A, IOException> constructor) throws IOException;
 
-    <A extends EsField> A readEsField() throws IOException;
+    <A extends EsField> A readEsFieldWithCache() throws IOException;
 }

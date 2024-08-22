@@ -256,7 +256,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     }
 
     @SuppressWarnings("unchecked")
-    public <A extends EsField> A readEsField() throws IOException {
+    public <A extends EsField> A readEsFieldWithCache() throws IOException {
         if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)) {
             // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
             int cacheId = Math.toIntExact(readZLong());

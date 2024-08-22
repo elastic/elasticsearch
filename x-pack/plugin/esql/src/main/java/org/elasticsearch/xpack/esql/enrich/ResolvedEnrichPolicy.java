@@ -11,8 +11,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,7 +29,7 @@ public record ResolvedEnrichPolicy(
             in.readString(),
             in.readStringCollectionAsList(),
             in.readMap(StreamInput::readString),
-            in.readMap(i -> ((PlanStreamInput) i).readEsField())
+            in.readMap(EsField::readFrom)
         );
     }
 
@@ -47,9 +45,7 @@ public record ResolvedEnrichPolicy(
              * There are lots of subtypes of ESField, but we always write the field
              * as though it were the base class.
              */
-            (o, v) -> ((PlanStreamOutput) o).writeEsField(
-                new EsField(v.getName(), v.getDataType(), v.getProperties(), v.isAggregatable(), v.isAlias())
-            )
+            (o, v) -> new EsField(v.getName(), v.getDataType(), v.getProperties(), v.isAggregatable(), v.isAlias()).writeTo(o)
         );
     }
 }

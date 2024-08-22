@@ -296,12 +296,15 @@ public class EsqlQueryRequestTests extends ESTestCase {
             """;
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        request.allowedSnapshotFeatures(true);
+        request.onSnapshotBuild(true);
         assertNull(request.validate());
 
-        request.allowedSnapshotFeatures(false);
+        request.onSnapshotBuild(false);
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("[pragma] only allowed in snapshot builds"));
+
+        request.acceptedPragmaRisks(true);
+        assertNull(request.validate());
     }
 
     public void testTablesKeyword() throws IOException {
@@ -456,10 +459,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     private void assertTablesOnlyValidOnSnapshot(EsqlQueryRequest request) {
-        request.allowedSnapshotFeatures(true);
+        request.onSnapshotBuild(true);
         assertNull(request.validate());
 
-        request.allowedSnapshotFeatures(false);
+        request.onSnapshotBuild(false);
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("[tables] only allowed in snapshot builds"));
     }

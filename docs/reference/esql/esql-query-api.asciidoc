@@ -57,11 +57,12 @@ You can also specify a format using the `Accept` HTTP header. If you specify
 both this parameter and the `Accept` HTTP header, this parameter takes
 precedence.
 
-`enable_dangerous_snapshot_features`::
-(Optional, boolean) Do not enable snapshot features unless you fully
-understand the risks. Snapshot features are unstable, can be removed without
-notice, and may break your cluster or cause data loss. This parameter may also
-be removed at any time.
+`pragma`::
+(Optional, object) Do not use the pragma parameter unless you fully understand
+the risks. The query pragma can break your cluster and can be removed without notice.
+To ensure that these implications are well-understood, this parameter requires
+the parameter `accept_pragma_risks` to be explicitly set to `true`.
+
 
 [discrete]
 [role="child_attributes"]

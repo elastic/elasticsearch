@@ -49,7 +49,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;
-    private boolean allowedSnapshotFeatures = Build.current().isSnapshot();
+    private boolean onSnapshotBuild = Build.current().isSnapshot();
+    private boolean acceptedPragmaRisks = false;
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
@@ -78,13 +79,15 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         if (Strings.hasText(query) == false) {
             validationException = addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", validationException);
         }
-        if (allowedSnapshotFeatures == false) {
-            if (pragmas.isEmpty() == false) {
+        if (pragmas.isEmpty() == false) {
+            if (onSnapshotBuild == false && acceptedPragmaRisks == false) {
                 validationException = addValidationError(
                     "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
                     validationException
                 );
             }
+        }
+        if (onSnapshotBuild == false) {
             if (tables.isEmpty() == false) {
                 validationException = addValidationError(
                     "[" + RequestXContent.TABLES_FIELD + "] only allowed in snapshot builds",
@@ -190,10 +193,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.keepOnCompletion = keepOnCompletion;
     }
 
-    public void allowedSnapshotFeatures(boolean allowedSnapshotFeatures) {
-        this.allowedSnapshotFeatures = allowedSnapshotFeatures;
-    }
-
     /**
      * Add a "table" to the request for use with things like {@code LOOKUP}.
      */
@@ -228,5 +227,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         // Pass the query as the description
         return new CancellableTask(id, type, action, query, parentTaskId, headers);
+    }
+
+    // Setter for tests
+    void onSnapshotBuild(boolean onSnapshotBuild) {
+        this.onSnapshotBuild = onSnapshotBuild;
+    }
+
+    void acceptedPragmaRisks(boolean accepted) {
+        this.acceptedPragmaRisks = accepted;
     }
 }

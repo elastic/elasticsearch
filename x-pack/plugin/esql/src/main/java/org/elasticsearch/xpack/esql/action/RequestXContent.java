@@ -69,7 +69,7 @@ final class RequestXContent {
     private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
     private static final ParseField PROFILE_FIELD = new ParseField("profile");
-    private static final ParseField ENABLE_SNAPSHOT_FEATURES_FIELD = new ParseField("enable_dangerous_snapshot_features");
+    private static final ParseField ACCEPT_PRAGMA_RISKS = new ParseField("accept_pragma_risks");
     static final ParseField TABLES_FIELD = new ParseField("tables");
 
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
@@ -93,7 +93,7 @@ final class RequestXContent {
         parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
         parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
         parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
-        parser.declareBoolean(EsqlQueryRequest::allowedSnapshotFeatures, ENABLE_SNAPSHOT_FEATURES_FIELD);
+        parser.declareBoolean(EsqlQueryRequest::acceptedPragmaRisks, ACCEPT_PRAGMA_RISKS);
         parser.declareObject(
             EsqlQueryRequest::pragmas,
             (p, c) -> new QueryPragmas(Settings.builder().loadFromMap(p.map()).build()),

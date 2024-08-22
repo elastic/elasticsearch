@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.CachePopulationSource;
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
@@ -44,18 +45,28 @@ import java.util.Map;
 import java.util.Objects;
 
 import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class BlobCacheMetricsIT extends AbstractStatelessIntegTestCase {
 
+    private static final ByteSizeValue CACHE_REGION_SIZE = ByteSizeValue.ofBytes(8L * SharedBytes.PAGE_SIZE);
+
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            // keep region small, so we don't need a massive cache
+            .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), CACHE_REGION_SIZE)
+            .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), CACHE_REGION_SIZE)
             // prevent automatic uploading
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
-            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1));
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+            // ensure we have a cache large enough to allow warming
+            .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(10L));
     }
 
     @Override
@@ -107,15 +118,15 @@ public class BlobCacheMetricsIT extends AbstractStatelessIntegTestCase {
         getTestTelemetryPlugin(searchNode).resetMeter();
 
         // evict everything from the cache
-        evictShardCache(findSearchShard(notFlushedIndex));
-        evictShardCache(findSearchShard(flushedIndex));
+        clearShardCache(findSearchShard(notFlushedIndex));
+        clearShardCache(findSearchShard(flushedIndex));
 
         // assert appropriate cache-miss metrics are published when searching
         executeSearchAndAssertCacheMissMetrics(searchNode, notFlushedIndex, CachePopulationSource.Peer);
         executeSearchAndAssertCacheMissMetrics(searchNode, flushedIndex, CachePopulationSource.BlobStore);
     }
 
-    private void evictShardCache(IndexShard indexShard) {
+    private void clearShardCache(IndexShard indexShard) {
         BlobStoreCacheDirectory indexShardBlobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
         getCacheService(indexShardBlobStoreCacheDirectory).forceEvict((key) -> true);
     }
@@ -183,10 +194,14 @@ public class BlobCacheMetricsIT extends AbstractStatelessIntegTestCase {
 
     private void populateIndex(String indexName) {
         final int iters = randomIntBetween(1, 3);
+        int docsCounter = 0;
         for (int i = 0; i < iters; i++) {
-            indexDocs(indexName, randomIntBetween(100, 1_000));
+            int numDocs = randomIntBetween(100, 1_000);
+            indexDocs(indexName, numDocs);
             refresh(indexName);
+            docsCounter += numDocs;
         }
+        logger.info("--> Wrote {} documents in {} segments to index {}", docsCounter, iters, indexName);
     }
 
     private static void assertMetricsArePresent(

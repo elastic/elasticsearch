@@ -79,15 +79,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         if (Strings.hasText(query) == false) {
             validationException = addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", validationException);
         }
-        if (pragmas.isEmpty() == false) {
-            if (onSnapshotBuild == false && acceptedPragmaRisks == false) {
+
+        if (onSnapshotBuild == false) {
+            if (pragmas.isEmpty() == false && acceptedPragmaRisks == false) {
                 validationException = addValidationError(
                     "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
                     validationException
                 );
             }
-        }
-        if (onSnapshotBuild == false) {
             if (tables.isEmpty() == false) {
                 validationException = addValidationError(
                     "[" + RequestXContent.TABLES_FIELD + "] only allowed in snapshot builds",

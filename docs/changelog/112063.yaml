@@ -1,5 +1,5 @@
 pr: 112063
-summary: Spatial
+summary: Spatial search functions support multi-valued fields in compute engine
 area: "ES|QL"
 type: bug
 issues:

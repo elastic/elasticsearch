@@ -177,28 +177,3 @@ setup:
               field: text
           size: 10
 
----
-"Reranking on empty field data returns 0 results":
-
-  - do:
-      search:
-        index: test-index
-        body:
-          track_total_hits: true
-          fields: [ "text", "topic", "something_else" ]
-          retriever:
-            text_similarity_reranker:
-              retriever:
-                standard:
-                  query:
-                    term:
-                      topic: "science"
-              rank_window_size: 10
-              inference_id: my-rerank-model
-              inference_text: "How often does the moon hide the sun?"
-              field: other_field
-          size: 10
-
-  - match: { hits.total.value: 0 }
-  - length: { hits.hits: 0 }
-

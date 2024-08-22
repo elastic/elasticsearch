@@ -377,11 +377,6 @@ setup:
             sparse_vector:
               field: ml.tokens
               query_vector:
-                running: 2.4097164
-                good: 2.170997
-                run: 2.052153
-                race: 1.4575411
-                for: 1.1908325
                 5.0k: 2.489943
 
   - match: { hits.total.value: 1 }

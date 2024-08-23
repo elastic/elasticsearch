@@ -77,8 +77,16 @@ public class IndexNameExpressionResolver {
      * are encapsulated in the specified request.
      */
     public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
+        return concreteIndexNames(state.metadata().getProject(), request);
+    }
+
+    /**
+     * Same as {@link #concreteIndexNames(ClusterState, IndicesOptions, String...)}, but the index expressions and options
+     * are encapsulated in the specified request.
+     */
+    public String[] concreteIndexNames(ProjectMetadata project, IndicesRequest request) {
         Context context = new Context(
-            state,
+            project,
             request.indicesOptions(),
             false,
             false,
@@ -95,7 +103,7 @@ public class IndexNameExpressionResolver {
      */
     public String[] concreteIndexNamesWithSystemIndexAccess(ClusterState state, IndicesRequest request) {
         Context context = new Context(
-            state,
+            state.metadata().getProject(),
             request.indicesOptions(),
             false,
             false,
@@ -113,7 +121,7 @@ public class IndexNameExpressionResolver {
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
         Context context = new Context(
-            state,
+            state.metadata().getProject(),
             request.indicesOptions(),
             false,
             false,
@@ -139,8 +147,25 @@ public class IndexNameExpressionResolver {
      * indices options in the context don't allow such a case; if a remote index is requested.
      */
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
+        return concreteIndexNames(state.metadata().getProject(), options, indexExpressions);
+    }
+
+    /**
+     * Translates the provided index expression into actual concrete indices, properly deduplicated.
+     *
+     * @param project          the project metadata containing all the data to resolve to expressions to concrete indices
+     * @param options          defines how the aliases or indices need to be resolved to concrete indices
+     * @param indexExpressions expressions that can be resolved to alias or index names.
+     * @return the resolved concrete indices based on the cluster state, indices options and index expressions
+     * @throws IndexNotFoundException   if one of the index expressions is pointing to a missing index or alias and the
+     *  provided indices options in the context don't allow such a case, or if the final result of the indices resolution
+     *  contains no indices and the indices options in the context don't allow such a case.
+     * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
+     *   indices options in the context don't allow such a case; if a remote index is requested.
+     */
+    public String[] concreteIndexNames(ProjectMetadata project, IndicesOptions options, String... indexExpressions) {
         Context context = new Context(
-            state,
+            project,
             options,
             getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(),
@@ -150,8 +175,17 @@ public class IndexNameExpressionResolver {
     }
 
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, boolean includeDataStreams, String... indexExpressions) {
+        return concreteIndexNames(state.metadata().getProject(), options, includeDataStreams, indexExpressions);
+    }
+
+    public String[] concreteIndexNames(
+        ProjectMetadata project,
+        IndicesOptions options,
+        boolean includeDataStreams,
+        String... indexExpressions
+    ) {
         Context context = new Context(
-            state,
+            project,
             options,
             false,
             false,
@@ -164,8 +198,12 @@ public class IndexNameExpressionResolver {
     }
 
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, IndicesRequest request) {
+        return concreteIndexNames(state.metadata().getProject(), options, request);
+    }
+
+    public String[] concreteIndexNames(ProjectMetadata project, IndicesOptions options, IndicesRequest request) {
         Context context = new Context(
-            state,
+            project,
             options,
             false,
             false,
@@ -179,7 +217,7 @@ public class IndexNameExpressionResolver {
 
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
         Context context = new Context(
-            state,
+            state.metadata().getProject(),
             options,
             false,
             false,
@@ -209,7 +247,7 @@ public class IndexNameExpressionResolver {
     public IndexAbstraction resolveWriteIndexAbstraction(ClusterState state, DocWriteRequest<?> request) {
         boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE && request.includeDataStreams();
         Context context = new Context(
-            state,
+            state.metadata().getProject(),
             request.indicesOptions(),
             false,
             false,
@@ -287,7 +325,7 @@ public class IndexNameExpressionResolver {
 
     public Index[] concreteIndices(ClusterState state, IndicesOptions options, boolean includeDataStreams, String... indexExpressions) {
         Context context = new Context(
-            state,
+            state.metadata().getProject(),
             options,
             false,
             false,
@@ -313,7 +351,7 @@ public class IndexNameExpressionResolver {
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request, long startTime) {
         Context context = new Context(
-            state,
+            state.metadata().getProject(),
             request.indicesOptions(),
             startTime,
             false,
@@ -340,7 +378,7 @@ public class IndexNameExpressionResolver {
         final Collection<String> expressions = resolveExpressions(context, indexExpressions);
 
         final Set<Index> concreteIndicesResult = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
-        final Map<String, IndexAbstraction> indicesLookup = context.getState().metadata().getProject().getIndicesLookup();
+        final Map<String, IndexAbstraction> indicesLookup = context.getProject().getIndicesLookup();
         for (String expression : expressions) {
             final IndexAbstraction indexAbstraction = indicesLookup.get(expression);
             assert indexAbstraction != null;
@@ -485,14 +523,14 @@ public class IndexNameExpressionResolver {
     }
 
     private void doCheckSystemIndexAccess(Context context, Set<Index> concreteIndices, Predicate<String> systemIndexAccessPredicate) {
-        final Metadata metadata = context.getState().metadata();
+        final ProjectMetadata project = context.getProject();
         final List<String> resolvedSystemIndices = new ArrayList<>();
         final List<String> resolvedNetNewSystemIndices = new ArrayList<>();
         final Set<String> resolvedSystemDataStreams = new HashSet<>();
-        final SortedMap<String, IndexAbstraction> indicesLookup = metadata.getProject().getIndicesLookup();
+        final SortedMap<String, IndexAbstraction> indicesLookup = project.getIndicesLookup();
         boolean matchedIndex = false;
         for (Index concreteIndex : concreteIndices) {
-            IndexMetadata idxMetadata = metadata.getProject().index(concreteIndex);
+            IndexMetadata idxMetadata = project.index(concreteIndex);
             String name = concreteIndex.getName();
             if (idxMetadata.isSystem() && systemIndexAccessPredicate.test(name) == false) {
                 matchedIndex = true;
@@ -568,7 +606,7 @@ public class IndexNameExpressionResolver {
             return false;
         }
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            IndexAbstraction indexAbstraction = context.getState().metadata().getProject().getIndicesLookup().get(index.getName());
+            IndexAbstraction indexAbstraction = context.getProject().getIndicesLookup().get(index.getName());
             if (context.options.allowFailureIndices() == false) {
                 DataStream parentDataStream = indexAbstraction.getParentDataStream();
                 if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
@@ -582,7 +620,7 @@ public class IndexNameExpressionResolver {
                 }
             }
         }
-        final IndexMetadata imd = context.state.metadata().getProject().index(index);
+        final IndexMetadata imd = context.project.index(index);
         if (imd.getState() == IndexMetadata.State.CLOSE) {
             if (options.forbidClosedIndices() && options.ignoreUnavailable() == false) {
                 throw new IndexClosedException(index);
@@ -603,7 +641,7 @@ public class IndexNameExpressionResolver {
         // type of index to use the `search_throttled` threadpool at that time.
         // NOTE: We can't reference the Setting object, which is only defined and registered in x-pack.
         if (context.options.ignoreThrottled()) {
-            imd = imd != null ? imd : context.state.metadata().getProject().index(index);
+            imd = imd != null ? imd : context.project.index(index);
             return imd.getSettings().getAsBoolean("index.frozen", false) == false;
         } else {
             return true;
@@ -687,7 +725,7 @@ public class IndexNameExpressionResolver {
         );
 
         Context context = new Context(
-            state,
+            state.metadata().getProject(),
             combinedOptions,
             false,
             true,
@@ -751,7 +789,7 @@ public class IndexNameExpressionResolver {
         String... expressions
     ) {
         Context context = new Context(
-            state,
+            state.metadata().getProject(),
             indicesOptions,
             true,
             false,
@@ -901,7 +939,7 @@ public class IndexNameExpressionResolver {
      */
     public Map<String, Set<String>> resolveSearchRouting(ClusterState state, @Nullable String routing, String... expressions) {
         Context context = new Context(
-            state,
+            state.metadata().getProject(),
             IndicesOptions.lenientExpandOpen(),
             false,
             false,
@@ -1069,7 +1107,7 @@ public class IndexNameExpressionResolver {
 
     public static class Context {
 
-        private final ClusterState state;
+        private final ProjectMetadata project;
         private final IndicesOptions options;
         private final long startTime;
         private final boolean preserveAliases;
@@ -1080,19 +1118,24 @@ public class IndexNameExpressionResolver {
         private final Predicate<String> systemIndexAccessPredicate;
         private final Predicate<String> netNewSystemIndexPredicate;
 
+        @Deprecated
         Context(ClusterState state, IndicesOptions options, SystemIndexAccessLevel systemIndexAccessLevel) {
-            this(state, options, systemIndexAccessLevel, Predicates.always(), Predicates.never());
+            this(state.metadata().getProject(), options, systemIndexAccessLevel);
+        }
+
+        Context(ProjectMetadata project, IndicesOptions options, SystemIndexAccessLevel systemIndexAccessLevel) {
+            this(project, options, systemIndexAccessLevel, Predicates.always(), Predicates.never());
         }
 
         Context(
-            ClusterState state,
+            ProjectMetadata project,
             IndicesOptions options,
             SystemIndexAccessLevel systemIndexAccessLevel,
             Predicate<String> systemIndexAccessPredicate,
             Predicate<String> netNewSystemIndexPredicate
         ) {
             this(
-                state,
+                project,
                 options,
                 System.currentTimeMillis(),
                 systemIndexAccessLevel,
@@ -1102,7 +1145,7 @@ public class IndexNameExpressionResolver {
         }
 
         Context(
-            ClusterState state,
+            ProjectMetadata project,
             IndicesOptions options,
             boolean preserveAliases,
             boolean resolveToWriteIndex,
@@ -1112,7 +1155,7 @@ public class IndexNameExpressionResolver {
             Predicate<String> netNewSystemIndexPredicate
         ) {
             this(
-                state,
+                project,
                 options,
                 System.currentTimeMillis(),
                 preserveAliases,
@@ -1126,7 +1169,7 @@ public class IndexNameExpressionResolver {
         }
 
         Context(
-            ClusterState state,
+            ProjectMetadata project,
             IndicesOptions options,
             boolean preserveAliases,
             boolean resolveToWriteIndex,
@@ -1137,7 +1180,7 @@ public class IndexNameExpressionResolver {
             Predicate<String> netNewSystemIndexPredicate
         ) {
             this(
-                state,
+                project,
                 options,
                 System.currentTimeMillis(),
                 preserveAliases,
@@ -1151,7 +1194,7 @@ public class IndexNameExpressionResolver {
         }
 
         Context(
-            ClusterState state,
+            ProjectMetadata project,
             IndicesOptions options,
             long startTime,
             SystemIndexAccessLevel systemIndexAccessLevel,
@@ -1159,7 +1202,7 @@ public class IndexNameExpressionResolver {
             Predicate<String> netNewSystemIndexPredicate
         ) {
             this(
-                state,
+                project,
                 options,
                 startTime,
                 false,
@@ -1173,7 +1216,7 @@ public class IndexNameExpressionResolver {
         }
 
         protected Context(
-            ClusterState state,
+            ProjectMetadata project,
             IndicesOptions options,
             long startTime,
             boolean preserveAliases,
@@ -1184,7 +1227,7 @@ public class IndexNameExpressionResolver {
             Predicate<String> systemIndexAccessPredicate,
             Predicate<String> netNewSystemIndexPredicate
         ) {
-            this.state = state;
+            this.project = project;
             this.options = options;
             this.startTime = startTime;
             this.preserveAliases = preserveAliases;
@@ -1196,8 +1239,8 @@ public class IndexNameExpressionResolver {
             this.netNewSystemIndexPredicate = netNewSystemIndexPredicate;
         }
 
-        public ClusterState getState() {
-            return state;
+        public ProjectMetadata getProject() {
+            return project;
         }
 
         public IndicesOptions getOptions() {
@@ -1261,9 +1304,7 @@ public class IndexNameExpressionResolver {
                 return concreteIndices;
             }
 
-            Stream<IndexAbstraction> ias = context.getState()
-                .metadata()
-                .getProject()
+            Stream<IndexAbstraction> ias = context.getProject()
                 .getIndicesLookup()
                 .values()
                 .stream()
@@ -1359,7 +1400,7 @@ public class IndexNameExpressionResolver {
          */
         private static Stream<IndexAbstraction> matchResourcesToWildcard(Context context, String wildcardExpression) {
             assert isWildcard(wildcardExpression);
-            final SortedMap<String, IndexAbstraction> indicesLookup = context.getState().getMetadata().getProject().getIndicesLookup();
+            final SortedMap<String, IndexAbstraction> indicesLookup = context.getProject().getIndicesLookup();
             Stream<IndexAbstraction> matchesStream;
             if (Regex.isSuffixMatchPattern(wildcardExpression)) {
                 // this is an initial pre-filtering in the case where the expression is a common suffix wildcard, eg "test*"
@@ -1428,13 +1469,13 @@ public class IndexNameExpressionResolver {
                 } else {
                     Stream<IndexMetadata> indicesStateStream = Stream.of();
                     if (shouldIncludeRegularIndices(context.getOptions())) {
-                        indicesStateStream = indexAbstraction.getIndices().stream().map(context.state.metadata().getProject()::index);
+                        indicesStateStream = indexAbstraction.getIndices().stream().map(context.project::index);
                     }
                     if (indexAbstraction.getType() == Type.DATA_STREAM && shouldIncludeFailureIndices(context.getOptions())) {
                         DataStream dataStream = (DataStream) indexAbstraction;
                         indicesStateStream = Stream.concat(
                             indicesStateStream,
-                            dataStream.getFailureIndices().getIndices().stream().map(context.state.metadata().getProject()::index)
+                            dataStream.getFailureIndices().getIndices().stream().map(context.project::index)
                         );
                     }
                     if (excludeState != null) {
@@ -1446,7 +1487,7 @@ public class IndexNameExpressionResolver {
         }
 
         private static List<String> resolveEmptyOrTrivialWildcard(Context context) {
-            final String[] allIndices = resolveEmptyOrTrivialWildcardToAllIndices(context.getOptions(), context.getState().metadata());
+            final String[] allIndices = resolveEmptyOrTrivialWildcardToAllIndices(context.getOptions(), context.getProject());
             if (context.systemIndexAccessLevel == SystemIndexAccessLevel.ALL) {
                 return List.of(allIndices);
             } else {
@@ -1457,7 +1498,7 @@ public class IndexNameExpressionResolver {
         private static List<String> resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(Context context, String[] allIndices) {
             return Arrays.stream(allIndices).filter(name -> {
                 if (name.startsWith(".")) {
-                    IndexAbstraction abstraction = context.state.metadata().getProject().getIndicesLookup().get(name);
+                    IndexAbstraction abstraction = context.project.getIndicesLookup().get(name);
                     assert abstraction != null : "null abstraction for " + name + " but was in array of all indices";
                     if (abstraction.isSystem()) {
                         if (context.netNewSystemIndexPredicate.test(name)) {
@@ -1477,22 +1518,22 @@ public class IndexNameExpressionResolver {
             }).toList();
         }
 
-        private static String[] resolveEmptyOrTrivialWildcardToAllIndices(IndicesOptions options, Metadata metadata) {
+        private static String[] resolveEmptyOrTrivialWildcardToAllIndices(IndicesOptions options, ProjectMetadata project) {
             if (shouldIncludeRegularIndices(options) == false) {
                 return Strings.EMPTY_ARRAY;
             }
             if (options.expandWildcardsOpen() && options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
-                return metadata.getProject().getConcreteAllIndices();
+                return project.getConcreteAllIndices();
             } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
-                return metadata.getProject().getConcreteVisibleIndices();
+                return project.getConcreteVisibleIndices();
             } else if (options.expandWildcardsOpen() && options.expandWildcardsHidden()) {
-                return metadata.getProject().getConcreteAllOpenIndices();
+                return project.getConcreteAllOpenIndices();
             } else if (options.expandWildcardsOpen()) {
-                return metadata.getProject().getConcreteVisibleOpenIndices();
+                return project.getConcreteVisibleOpenIndices();
             } else if (options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
-                return metadata.getProject().getConcreteAllClosedIndices();
+                return project.getConcreteAllClosedIndices();
             } else if (options.expandWildcardsClosed()) {
-                return metadata.getProject().getConcreteVisibleClosedIndices();
+                return project.getConcreteVisibleClosedIndices();
             } else {
                 return Strings.EMPTY_ARRAY;
             }
@@ -1713,7 +1754,7 @@ public class IndexNameExpressionResolver {
         @Nullable
         private static boolean ensureAliasOrIndexExists(Context context, String name) {
             boolean ignoreUnavailable = context.getOptions().ignoreUnavailable();
-            IndexAbstraction indexAbstraction = context.getState().getMetadata().getProject().getIndicesLookup().get(name);
+            IndexAbstraction indexAbstraction = context.getProject().getIndicesLookup().get(name);
             if (indexAbstraction == null) {
                 if (ignoreUnavailable) {
                     return false;
@@ -1844,7 +1885,7 @@ public class IndexNameExpressionResolver {
         }
 
         @Override
-        public ClusterState getState() {
+        public ProjectMetadata getProject() {
             throw new UnsupportedOperationException("should never be called");
         }
 

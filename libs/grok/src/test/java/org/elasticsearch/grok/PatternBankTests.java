@@ -98,6 +98,15 @@ public class PatternBankTests extends ESTestCase {
         });
         assertEquals("circular reference detected: NAME2->NAME3->NAME2", e.getMessage());
 
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new LinkedHashMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!");
+            bank.put("NAME2", "!!!%{NAME2}!!%{NAME3}!");
+            bank.put("NAME3", "!!!%{NAME1}!!!");
+            PatternBank.forbidCircularReferences(bank);
+        });
+        assertEquals("circular reference detected: NAME1->NAME2->NAME3->NAME1", e.getMessage());
+
         {
             Map<String, String> bank = new HashMap<>();
             bank.put("NAME1", "!!!%{NAME2}!!!%{NAME3}%{NAME4}");
@@ -176,7 +185,7 @@ public class PatternBankTests extends ESTestCase {
 
     public void testDeepGraphOfPatterns() {
         Map<String, String> patternBankMap = randomBoolean() ? new HashMap<>() : new LinkedHashMap<>();
-        final int nodeCount = 20000;
+        final int nodeCount = 20_000;
         for (int i = 0; i < nodeCount - 1; i++) {
             patternBankMap.put("FOO" + i, "%{FOO" + (i + 1) + "}");
         }

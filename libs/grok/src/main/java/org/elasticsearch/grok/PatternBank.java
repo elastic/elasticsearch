@@ -79,21 +79,36 @@ public class PatternBank {
                 continue;
             }
             Set<String> visitedFromThisStartNode = new LinkedHashSet<>();
-            Deque<String> toBeVisited = new ArrayDeque<>();
-            toBeVisited.push(traversalStartNode);
-            Deque<NodeAndNeighborCount> currentPath = new ArrayDeque<>();
-            while (toBeVisited.isEmpty() == false) {
-                String node = toBeVisited.pop();
-                if (visitedFromThisStartNode.isEmpty() == false && traversalStartNode.equals(node)) {
-                    /*
-                     * Since currentPath is a Deque, its iterator gives us the elements in the reverse order that we'd like to print them.
-                     * So here we just reverse it
-                     */
+            /*
+             * This stack records where we are in the graph. Each String[] in the stack represents a collection of neighbors to the first
+             * non-null node in the layer below it. Null means that the path from that location has been fully traversed. Once all nodes
+             * at a layer have been set to null, the layer is popped. So for example say we have the graph
+             * ( 1 -> (2 -> (4, 5, 8), 3 -> (6, 7))) then when we are at 6 via 1 -> 3 -> 6, the stack looks like this:
+             * [6, 7]
+             * [null, 3]
+             * [1]
+             */
+            Deque<String[]> stack = new ArrayDeque<>();
+            stack.push(new String[] { traversalStartNode });
+            /*
+             * This is used to record the parent of the current stack frame, if any. This way if we get back to that node we know not to
+             * get its neighbors again.
+             */
+            String lastParent = null;
+            while (stack.isEmpty() == false) {
+                String[] currentLevel = stack.peek();
+                int firstNonNullIndex = findFirstNonNull(currentLevel);
+                String node = currentLevel[firstNonNullIndex];
+                boolean endOfThisPath = false;
+                if (traversalStartNode.equals(node) && stack.size() > 1) {
                     Deque<String> reversedPath = new ArrayDeque<>();
-                    for (NodeAndNeighborCount nodeAndNeighborCount : currentPath) {
-                        reversedPath.push(nodeAndNeighborCount.nodeName);
+                    for (String[] level : stack) {
+                        reversedPath.push(level[findFirstNonNull(level)]);
                     }
-                    throw new IllegalArgumentException("circular reference detected: " + String.join("->", reversedPath) + "->" + node);
+                    throw new IllegalArgumentException("circular reference detected: " + String.join("->", reversedPath));
+                } else if (node.equals(lastParent)) {
+                    // We have completed all of this node's neighbors and have popped back to the node
+                    endOfThisPath = true;
                 } else if (visitedFromThisStartNode.contains(node)) {
                     /*
                      * We are only looking for a cycle starting and ending at traversalStartNode right now. But this node has been
@@ -102,28 +117,27 @@ public class PatternBank {
                      * to check the path rooted at this node later.
                      */
                     nodesVisitedMoreThanOnceInAPath.add(node);
-                    continue;
-                }
-                visitedFromThisStartNode.add(node);
-                List<String> neighbors = getPatternNamesForPattern(bank, node);
-                if (neighbors.isEmpty()) {
-                    /*
-                     * We have just completed processing a leaf on this path, so now we need to work our way back up the path until we find
-                     * a node that still has more than one neighbor to process:
-                     */
-                    while (currentPath.peek() != null && currentPath.peek().unprocessedNeighborCount == 1) {
-                        currentPath.pop();
-                    }
-                    if (currentPath.isEmpty() == false) {
-                        NodeAndNeighborCount nodeAndNeighborCount = currentPath.pop();
-                        currentPath.push(
-                            new NodeAndNeighborCount(nodeAndNeighborCount.nodeName, nodeAndNeighborCount.unprocessedNeighborCount - 1)
-                        );
-                    }
+                    endOfThisPath = true;
                 } else {
-                    currentPath.push(new NodeAndNeighborCount(node, neighbors.size()));
-                    for (String neighbor : neighbors) {
-                        toBeVisited.push(neighbor);
+                    visitedFromThisStartNode.add(node);
+                    String[] neighbors = getPatternNamesForPattern(bank, node);
+                    if (neighbors.length == 0) {
+                        endOfThisPath = true;
+                    } else {
+                        stack.push(neighbors);
+                    }
+                }
+                if (endOfThisPath) {
+                    currentLevel[firstNonNullIndex] = null;
+                    if (firstNonNullIndex == currentLevel.length - 1) {
+                        // We have handled all of the neighbors at this level -- there are no more non-null ones
+                        stack.pop();
+                        if (stack.isEmpty() == false) {
+                            String[] previousLevel = stack.peek();
+                            lastParent = previousLevel[findFirstNonNull(previousLevel)];
+                        } else {
+                            lastParent = null;
+                        }
                     }
                 }
             }
@@ -131,14 +145,21 @@ public class PatternBank {
         }
     }
 
-    private record NodeAndNeighborCount(String nodeName, Integer unprocessedNeighborCount) {}
+    private static int findFirstNonNull(String[] level) {
+        for (int i = 0; i < level.length; i++) {
+            if (level[i] != null) {
+                return i;
+            }
+        }
+        return -1;
+    }
 
     /**
-     * This method returns the list of pattern names (if any) found in the bank for the pattern named patternName. If no pattern names
-     * are found, and empty list is returned. If any of the list of pattern names to be returned does not exist in the bank, an exception
+     * This method returns the array of pattern names (if any) found in the bank for the pattern named patternName. If no pattern names
+     * are found, an empty array is returned. If any of the list of pattern names to be returned does not exist in the bank, an exception
      * is thrown.
      */
-    private static List<String> getPatternNamesForPattern(Map<String, String> bank, String patternName) {
+    private static String[] getPatternNamesForPattern(Map<String, String> bank, String patternName) {
         String pattern = bank.get(patternName);
         List<String> patternReferences = new ArrayList<>();
         for (int i = pattern.indexOf("%{"); i != -1; i = pattern.indexOf("%{", i + 1)) {
@@ -166,6 +187,6 @@ public class PatternBank {
                 }
             }
         }
-        return patternReferences;
+        return patternReferences.toArray(new String[0]);
     }
 }

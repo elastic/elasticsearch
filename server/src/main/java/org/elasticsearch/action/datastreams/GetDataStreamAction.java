@@ -550,10 +550,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             return globalRetention;
         }
 
-        public boolean includeGlobalRetention() {
-            return includeGlobalRetention;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreams);

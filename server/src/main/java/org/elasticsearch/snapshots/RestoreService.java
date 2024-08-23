@@ -273,6 +273,7 @@ public final class RestoreService implements ClusterStateApplier {
             .andThen(repositoryUuidRefreshStep::addListener)
 
             .<SnapshotInfo>andThen(snapshotInfoListener -> {
+                assert Repository.assertSnapshotMetaThread();
                 final String snapshotName = request.snapshot();
                 final SnapshotId snapshotId = repositoryDataRef.get()
                     .getSnapshotIds()

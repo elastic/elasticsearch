@@ -49,8 +49,8 @@ keyword:
 ---
 keyword with normalizer:
   - requires:
-      cluster_features: [ "gte_v8.4.0" ]
-      reason: introduced in 8.4.0
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
   - do:
       indices.create:
         index: test-keyword-with-normalizer

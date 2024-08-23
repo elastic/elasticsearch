@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
@@ -20,6 +21,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -101,5 +103,10 @@ public class RestHealthAction extends AbstractCatAction {
         t.addCell(String.format(Locale.ROOT, "%1.1f%%", health.getActiveShardsPercent()));
         t.endRow();
         return t;
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Sets.union(Set.of("unassigned_pri_shard_count"), super.supportedCapabilities());
     }
 }

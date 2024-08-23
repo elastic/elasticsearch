@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -36,28 +37,7 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.INTERNAL)
 public class RestClusterHealthAction extends BaseRestHandler {
 
-    @Override
-    public List<Route> routes() {
-        return List.of(new Route(GET, "/_cluster/health"), new Route(GET, "/_cluster/health/{index}"));
-    }
-
-    @Override
-    public String getName() {
-        return "cluster_health_action";
-    }
-
-    @Override
-    public boolean allowSystemIndexAccessByDefault() {
-        return true;
-    }
-
-    @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final ClusterHealthRequest clusterHealthRequest = fromRequest(request);
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
-            .cluster()
-            .health(clusterHealthRequest, new RestToXContentListener<>(channel, ClusterHealthResponse::status));
-    }
+    private static final Set<String> RESPONSE_PARAMS = Collections.singleton("level");
 
     public static ClusterHealthRequest fromRequest(final RestRequest request) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
@@ -99,7 +79,28 @@ public class RestClusterHealthAction extends BaseRestHandler {
         return clusterHealthRequest;
     }
 
-    private static final Set<String> RESPONSE_PARAMS = Collections.singleton("level");
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_cluster/health"), new Route(GET, "/_cluster/health/{index}"));
+    }
+
+    @Override
+    public String getName() {
+        return "cluster_health_action";
+    }
+
+    @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        return true;
+    }
+
+    @Override
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final ClusterHealthRequest clusterHealthRequest = fromRequest(request);
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .cluster()
+            .health(clusterHealthRequest, new RestToXContentListener<>(channel, ClusterHealthResponse::status));
+    }
 
     @Override
     protected Set<String> responseParams() {
@@ -111,4 +112,8 @@ public class RestClusterHealthAction extends BaseRestHandler {
         return false;
     }
 
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Sets.union(Set.of("unassigned_pri_shard_count"), super.supportedCapabilities());
+    }
 }

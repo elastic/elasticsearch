@@ -46,7 +46,6 @@ keyword:
       docs.1._source:
         kwd: bar
 
-# doesn't support synthetic source because it declares a normalizer
 ---
 keyword with normalizer:
   - requires:

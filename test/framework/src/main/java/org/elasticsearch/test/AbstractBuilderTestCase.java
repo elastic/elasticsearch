@@ -629,7 +629,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 () -> true,
                 scriptService,
                 createMockResolvedIndices(),
-                null
+                null,
+                null // TODO: Create real query builder service here
             );
         }
 

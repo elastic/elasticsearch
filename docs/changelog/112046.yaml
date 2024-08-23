@@ -1,0 +1,5 @@
+pr: 112046
+summary: Fix calculation of parent offset for ignored source in some cases
+area: Mapping
+type: bug
+issues: []

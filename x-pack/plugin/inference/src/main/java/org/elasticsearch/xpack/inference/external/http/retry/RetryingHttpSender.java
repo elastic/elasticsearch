@@ -189,12 +189,18 @@ public class RetryingHttpSender implements RequestSender {
     public void send(
         Logger logger,
         Request request,
-        HttpClientContext context,
         Supplier<Boolean> hasRequestTimedOutFunction,
         ResponseHandler responseHandler,
         ActionListener<InferenceServiceResults> listener
     ) {
-        InternalRetrier retrier = new InternalRetrier(logger, request, context, hasRequestTimedOutFunction, responseHandler, listener);
+        var retrier = new InternalRetrier(
+            logger,
+            request,
+            HttpClientContext.create(),
+            hasRequestTimedOutFunction,
+            responseHandler,
+            listener
+        );
         retrier.run();
     }
 

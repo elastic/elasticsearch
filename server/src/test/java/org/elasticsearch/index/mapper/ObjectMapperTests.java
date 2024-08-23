@@ -800,15 +800,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }
 
-    public void testFlattenSubobjectsAuto() {
-        MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.AUTO)).add(
-            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
-        ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
-        List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext, true).stream().map(FieldMapper::fullPath).toList();
-        assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
-    }
-
     public void testFlattenSubobjectsFalse() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.DISABLED)).add(
@@ -862,6 +853,23 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertEquals(
             "Object mapper [parent] was found in a context where subobjects is set to false. "
                 + "Auto-flattening [parent] failed because the value of [subobjects] is [true]",
+            exception.getMessage()
+        );
+    }
+
+    public void testFlattenSubobjectsAuto() {
+        MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.AUTO)).add(
+            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
+        ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> objectMapper.asFlattenedFieldMappers(rootContext, true)
+        );
+        assertEquals(
+            "Object mapper [parent] was found in a context where subobjects is set to false. "
+                + "Auto-flattening [parent] failed because the value of [subobjects] is [auto]",
             exception.getMessage()
         );
     }

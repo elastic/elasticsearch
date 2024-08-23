@@ -650,7 +650,7 @@ public class ObjectMapper extends Mapper {
                     }
                 } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
                     assert subobjects.isEmpty() || subobjects.get() != Subobjects.DISABLED
-                        : "existing object mappers are supposed to be flattened if subobjects is false";
+                        : "existing object mappers are supposed to be flattened if subobjects is false or auto";
                     putMergedMapper(mergedMappers, objectMapper.merge(mergeWithMapper, objectMergeContext));
                 } else {
                     assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
@@ -764,8 +764,8 @@ public class ObjectMapper extends Mapper {
         if (isEnabled() == false) {
             return Optional.of("the value of [enabled] is [false]");
         }
-        if (subobjects.isPresent() && subobjects.get() == Subobjects.ENABLED) {
-            return Optional.of("the value of [subobjects] is [true]");
+        if (subobjects.isPresent() && subobjects.get() != Subobjects.DISABLED) {
+            return Optional.of("the value of [subobjects] is [" + subobjects().printedValue + "]");
         }
         return Optional.empty();
     }

@@ -294,6 +294,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
         for (Map<String, Object> p : profiles) {
+            fixTypesOnProfile(p);
             assertThat(p, commonProfile());
             List<String> sig = new ArrayList<>();
             @SuppressWarnings("unchecked")
@@ -353,6 +354,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
         for (Map<String, Object> p : profiles) {
+            fixTypesOnProfile(p);
             assertThat(p, commonProfile());
             List<String> sig = new ArrayList<>();
             @SuppressWarnings("unchecked")
@@ -457,6 +459,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
 
         for (Map<String, Object> p : profiles) {
+            fixTypesOnProfile(p);
             assertMap(p, commonProfile());
             @SuppressWarnings("unchecked")
             Map<String, Object> sleeps = (Map<String, Object>) p.get("sleeps");
@@ -497,11 +500,22 @@ public class RestEsqlIT extends RestEsqlTestCase {
     private MapMatcher commonProfile() {
         return matchesMap().entry("start_millis", greaterThan(0L))
             .entry("stop_millis", greaterThan(0L))
-            .entry("iterations", greaterThan(0))
-            .entry("cpu_nanos", greaterThan(0))
-            .entry("took_nanos", greaterThan(0))
+            .entry("iterations", greaterThan(0L))
+            .entry("cpu_nanos", greaterThan(0L))
+            .entry("took_nanos", greaterThan(0L))
             .entry("operators", instanceOf(List.class))
             .entry("sleeps", matchesMap().extraOk());
+    }
+
+    /**
+     * Fix some of the types on the profile results. Sometimes they
+     * come back as integers and sometimes longs. This just promotes
+     * them to long every time.
+     */
+    private void fixTypesOnProfile(Map<String, Object> profile) {
+        profile.put("iterations", ((Number) profile.get("iterations")).longValue());
+        profile.put("cpu_nanos", ((Number) profile.get("cpu_nanos")).longValue());
+        profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
     }
 
     private String checkOperatorProfile(Map<String, Object> o) {

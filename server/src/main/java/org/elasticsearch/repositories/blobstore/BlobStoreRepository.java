@@ -3943,4 +3943,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS
         );
     }
+
+    public static final String READ_ONLY_USAGE_STATS_NAME = "read_only";
+    public static final String READ_WRITE_USAGE_STATS_NAME = "read_write";
+
+    @Override
+    public final Set<String> getUsageFeatures() {
+        final var extraUsageFeatures = getExtraUsageFeatures();
+        assert extraUsageFeatures.contains(READ_ONLY_USAGE_STATS_NAME) == false : extraUsageFeatures;
+        assert extraUsageFeatures.contains(READ_WRITE_USAGE_STATS_NAME) == false : extraUsageFeatures;
+        return Set.copyOf(
+            Stream.concat(Stream.of(isReadOnly() ? READ_ONLY_USAGE_STATS_NAME : READ_WRITE_USAGE_STATS_NAME), extraUsageFeatures.stream())
+                .toList()
+        );
+    }
+
+    protected Set<String> getExtraUsageFeatures() {
+        return Set.of();
+    }
 }

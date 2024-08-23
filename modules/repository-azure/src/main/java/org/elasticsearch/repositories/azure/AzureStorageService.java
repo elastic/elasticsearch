@@ -24,6 +24,7 @@ import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URL;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
@@ -164,5 +165,13 @@ public class AzureStorageService {
     public void refreshSettings(Map<String, AzureStorageSettings> clientsSettings) {
         this.storageSettings = Map.copyOf(clientsSettings);
         // clients are built lazily by {@link client(String, LocationMode)}
+    }
+
+    public Set<String> getExtraUsageFeatures(String clientName) {
+        try {
+            return getClientSettings(clientName).usageFeatures();
+        } catch (Exception e) {
+            return Set.of();
+        }
     }
 }

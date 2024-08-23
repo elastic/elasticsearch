@@ -428,6 +428,7 @@ module org.elasticsearch.server {
             org.elasticsearch.cluster.metadata.MetadataFeatures,
             org.elasticsearch.rest.RestFeatures,
             org.elasticsearch.indices.IndicesFeatures,
+            org.elasticsearch.repositories.RepositoriesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
             org.elasticsearch.ingest.IngestGeoIpFeatures,

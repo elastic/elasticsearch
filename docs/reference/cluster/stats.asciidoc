@@ -1579,6 +1579,9 @@ The API returns the following response:
    },
    "snapshots": {
      ...
+   },
+   "repositories": {
+     ...
    }
 }
 --------------------------------------------------
@@ -1589,6 +1592,7 @@ The API returns the following response:
 // TESTRESPONSE[s/"count": \{[^\}]*\}/"count": $body.$_path/]
 // TESTRESPONSE[s/"packaging_types": \[[^\]]*\]/"packaging_types": $body.$_path/]
 // TESTRESPONSE[s/"snapshots": \{[^\}]*\}/"snapshots": $body.$_path/]
+// TESTRESPONSE[s/"repositories": \{[^\}]*\}/"repositories": $body.$_path/]
 // TESTRESPONSE[s/"field_types": \[[^\]]*\]/"field_types": $body.$_path/]
 // TESTRESPONSE[s/"runtime_field_types": \[[^\]]*\]/"runtime_field_types": $body.$_path/]
 // TESTRESPONSE[s/"search": \{[^\}]*\}/"search": $body.$_path/]
@@ -1600,7 +1604,7 @@ The API returns the following response:
 //    the plugins that will be in it. And because we figure folks don't need to
 //    see an exhaustive list anyway.
 // 2. Similarly, ignore the contents of `network_types`, `discovery_types`,
-//    `packaging_types` and `snapshots`.
+//    `packaging_types`, `snapshots` and `repositories`.
 // 3. Ignore the contents of the (nodes) count object, as what's shown here
 //    depends on the license. Voting-only nodes are e.g. only shown when this
 //    test runs with a basic license.

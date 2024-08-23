@@ -223,7 +223,8 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         return new GetDataStreamAction.Response(
             dataStreamInfos,
             request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
-            globalRetentionSettings.get()
+            globalRetentionSettings.get(),
+            request.includeDefaults()
         );
     }
 

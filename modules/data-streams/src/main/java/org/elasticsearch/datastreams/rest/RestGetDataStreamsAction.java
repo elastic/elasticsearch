@@ -55,6 +55,6 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY);
+        return Set.of(DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY, "data_stream_global_retention");
     }
 }

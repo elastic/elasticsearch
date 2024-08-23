@@ -1151,10 +1151,52 @@ setup:
   - is_true: acknowledged
 
 ---
+"Get data stream api check the exposure of global retention":
+  - requires:
+      reason: "Global retention was exposed in 8.16+"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_data_stream/{index}
+          capabilities: [ 'data_stream_global_retention' ]
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+        include_defaults: true
+  - match: { global_retention: { } }
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            data_streams.lifecycle.retention.default: "7d"
+            data_streams.lifecycle.retention.max: "90d"
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+        include_defaults: true
+  - match: { global_retention.default_retention: "7d" }
+  - match: { global_retention.max_retention: "90d" }
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - is_false: global_retention
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            data_streams.lifecycle.retention.max: null
+            data_streams.lifecycle.retention.default: null
+
+---
 "Create data stream with match all template":
   - requires:
       cluster_features: ["gte_v8.16.0"]
-      reason: "data streams supoprt for match all templates only supported in 8.16"
+      reason: "data streams support for match all templates only supported in 8.16"
 
   - do:
       allowed_warnings:

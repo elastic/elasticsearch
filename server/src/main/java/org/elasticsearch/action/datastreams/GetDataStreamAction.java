@@ -499,29 +499,41 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         private final RolloverConfiguration rolloverConfiguration;
         @Nullable
         private final DataStreamGlobalRetention globalRetention;
+        private final boolean includeGlobalRetention;
 
         public Response(List<DataStreamInfo> dataStreams) {
-            this(dataStreams, null, null);
+            this(dataStreams, null, null, false);
         }
 
         public Response(
             List<DataStreamInfo> dataStreams,
             @Nullable RolloverConfiguration rolloverConfiguration,
-            @Nullable DataStreamGlobalRetention globalRetention
+            @Nullable DataStreamGlobalRetention globalRetention,
+            boolean includeGlobalRetention
         ) {
             this.dataStreams = dataStreams;
             this.rolloverConfiguration = rolloverConfiguration;
             this.globalRetention = globalRetention;
+            this.includeGlobalRetention = includeGlobalRetention;
         }
 
         public Response(StreamInput in) throws IOException {
-            this(
-                in.readCollectionAsList(DataStreamInfo::new),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(RolloverConfiguration::new) : null,
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
-                    ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
-                    : null
-            );
+            this.dataStreams = in.readCollectionAsList(DataStreamInfo::new);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                this.rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
+            } else {
+                this.rolloverConfiguration = null;
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+                this.globalRetention = in.readOptionalWriteable(DataStreamGlobalRetention::read);
+            } else {
+                this.globalRetention = null;
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.EXPOSE_DATA_STREAM_GLOBAL_RETENTION)) {
+                this.includeGlobalRetention = in.readBoolean();
+            } else {
+                this.includeGlobalRetention = rolloverConfiguration != null;
+            }
         }
 
         public List<DataStreamInfo> getDataStreams() {
@@ -538,6 +550,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             return globalRetention;
         }
 
+        public boolean includeGlobalRetention() {
+            return includeGlobalRetention;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreams);
@@ -547,11 +563,26 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalWriteable(globalRetention);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.EXPOSE_DATA_STREAM_GLOBAL_RETENTION)) {
+                out.writeBoolean(includeGlobalRetention);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            if (includeGlobalRetention) {
+                builder.startObject("global_retention");
+                if (globalRetention != null) {
+                    if (globalRetention.maxRetention() != null) {
+                        builder.field("max_retention", globalRetention.maxRetention().getStringRep());
+                    }
+                    if (globalRetention.defaultRetention() != null) {
+                        builder.field("default_retention", globalRetention.defaultRetention().getStringRep());
+                    }
+                }
+                builder.endObject();
+            }
             builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
             for (DataStreamInfo dataStream : dataStreams) {
                 dataStream.toXContent(
@@ -573,12 +604,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             Response response = (Response) o;
             return dataStreams.equals(response.dataStreams)
                 && Objects.equals(rolloverConfiguration, response.rolloverConfiguration)
-                && Objects.equals(globalRetention, response.globalRetention);
+                && Objects.equals(globalRetention, response.globalRetention)
+                && includeGlobalRetention == response.includeGlobalRetention;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(dataStreams, rolloverConfiguration, globalRetention);
+            return Objects.hash(dataStreams, rolloverConfiguration, globalRetention, includeGlobalRetention);
         }
     }
 

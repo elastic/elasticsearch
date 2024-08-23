@@ -275,7 +275,7 @@ public final class DocumentParser {
                 context.addIgnoredField(
                     new IgnoredSourceFieldMapper.NameValue(
                         context.parent().fullPath(),
-                        context.parent().fullPath().indexOf(currentFieldName),
+                        context.parent().fullPath().lastIndexOf(currentFieldName),
                         XContentDataHelper.encodeToken(parser),
                         context.doc()
                     )
@@ -302,7 +302,7 @@ public final class DocumentParser {
                 context.addIgnoredField(
                     new IgnoredSourceFieldMapper.NameValue(
                         context.parent().fullPath(),
-                        context.parent().fullPath().indexOf(context.parent().leafName()),
+                        context.parent().fullPath().lastIndexOf(context.parent().leafName()),
                         XContentDataHelper.encodeXContentBuilder(tuple.v2()),
                         context.doc()
                     )
@@ -564,7 +564,7 @@ public final class DocumentParser {
             } else {
                 dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
             }
-            if (context.parent().subobjects() != ObjectMapper.Subobjects.ENABLED) {
+            if (context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED) {
                 if (dynamicObjectMapper instanceof NestedObjectMapper) {
                     throw new DocumentParsingException(
                         context.parser().getTokenLocation(),

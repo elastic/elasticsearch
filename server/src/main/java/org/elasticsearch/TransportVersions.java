@@ -194,7 +194,7 @@ public class TransportVersions {
     public static final TransportVersion RANDOM_RERANKER_RETRIEVER = def(8_724_00_0);
     public static final TransportVersion ESQL_PROFILE_SLEEPS = def(8_725_00_0);
     public static final TransportVersion ZDT_NANOS_SUPPORT = def(8_726_00_0);
-
+    public static final TransportVersion LTR_SERVERLESS_RELEASE = def(8_727_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

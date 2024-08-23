@@ -1509,7 +1509,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNoSubobjects(mapperService);
     }
 
-    public void testSubobjectAutoDynamicNestedNotAllowed() throws IOException {
+    public void testSubobjectAutoDynamicNested() throws IOException {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startArray("dynamic_templates");
             {
@@ -1532,17 +1532,22 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        DocumentParsingException err = expectThrows(DocumentParsingException.class, () -> mapper.parse(source("""
+        ParsedDocument doc = mapper.parse(source("""
             {
-              "metrics.object" : [
-                {}
-              ]
+              "metrics.object" : {
+                "foo" : "bar"
+              }
             }
-            """)));
-        assertEquals("[3:5] Tried to add nested object [object] to object [metrics] which does not support subobjects", err.getMessage());
+            """));
+
+        assertNotNull(doc.docs().get(0).get("metrics.object.foo"));
+        assertThat(
+            ((ObjectMapper) doc.dynamicMappingsUpdate().getRoot().getMapper("metrics")).getMapper("object"),
+            instanceOf(NestedObjectMapper.class)
+        );
     }
 
-    public void testRootSubobjectAutoDynamicNestedNotAllowed() throws IOException {
+    public void testRootSubobjectAutoDynamicNested() throws IOException {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startArray("dynamic_templates");
             {
@@ -1563,14 +1568,16 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.field("subobjects", "auto");
         }));
 
-        DocumentParsingException err = expectThrows(DocumentParsingException.class, () -> mapper.parse(source("""
+        ParsedDocument doc = mapper.parse(source("""
             {
-              "object" : [
-                {}
-              ]
+              "object" : {
+                "foo" : "bar"
+              }
             }
-            """)));
-        assertEquals("[3:5] Tried to add nested object [object] to object [_doc] which does not support subobjects", err.getMessage());
+            """));
+
+        assertNotNull(doc.docs().get(0).get("object.foo"));
+        assertThat(doc.dynamicMappingsUpdate().getRoot().getMapper("object"), instanceOf(NestedObjectMapper.class));
     }
 
     public void testDynamicSubobjectsAutoDynamicFalse() throws Exception {

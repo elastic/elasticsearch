@@ -17,8 +17,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -182,6 +180,7 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
             "hits.hits._explanation",
             responseAsMap(response)
         );
+
         assertThat(explainValues.size(), equalTo(3));
         for (Map<String, Object> hit : explainValues) {
             assertThat(hit.get("description"), equalTo("rescored using LTR model ltr-model"));

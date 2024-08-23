@@ -26,9 +26,6 @@ template:
     index:
       default_pipeline: metrics-apm.transaction@default-pipeline
       final_pipeline: metrics-apm@pipeline
-      lifecycle:
-        name: metrics-apm.transaction_1m_metrics-default_policy
-        prefer_ilm: false
   mappings:
     properties:
       metricset.interval:

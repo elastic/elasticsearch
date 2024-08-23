@@ -296,13 +296,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
-        if (event.getJobName().equals(LIFECYCLE_JOB_NAME)) {
+        if (event.jobName().equals(LIFECYCLE_JOB_NAME)) {
             if (this.isMaster) {
                 logger.trace(
                     "Data stream lifecycle job triggered: {}, {}, {}",
-                    event.getJobName(),
-                    event.getScheduledTime(),
-                    event.getTriggeredTime()
+                    event.jobName(),
+                    event.scheduledTime(),
+                    event.triggeredTime()
                 );
                 run(clusterService.state());
                 dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {

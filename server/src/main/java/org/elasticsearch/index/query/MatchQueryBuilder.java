@@ -13,6 +13,9 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ResolvedIndices;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +32,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Objects;
 
 /**
@@ -366,6 +370,45 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
+    }
+
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder rewritten = super.doRewrite(queryRewriteContext);
+
+        if (rewritten == this && queryRewriteContext.getClass() == QueryRewriteContext.class) {
+            ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
+            if (resolvedIndices != null) {
+                Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
+
+                boolean foundNonInferenceField = false;
+                String inferenceFieldQueryName = null;
+                for (IndexMetadata indexMetadata : indexMetadataCollection) {
+                    InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(fieldName);
+                    if (inferenceFieldMetadata != null) {
+                        if (inferenceFieldQueryName != null
+                            && inferenceFieldMetadata.getQueryName().equals(inferenceFieldQueryName) == false) {
+                            throw new IllegalArgumentException("Detected incompatible inference field queries");
+                        }
+
+                        inferenceFieldQueryName = inferenceFieldMetadata.getQueryName();
+                    } else {
+                        foundNonInferenceField = true;
+                    }
+                }
+
+                if (foundNonInferenceField && inferenceFieldQueryName != null) {
+                    throw new IllegalArgumentException("Cannot query inference fields and non-inference fields at the same time");
+                }
+
+                if (inferenceFieldQueryName != null) {
+                    rewritten = queryRewriteContext.getQueryBuilderService()
+                        .getQueryBuilder(inferenceFieldQueryName, fieldName, value.toString());
+                }
+            }
+        }
+
+        return rewritten;
     }
 
     @Override

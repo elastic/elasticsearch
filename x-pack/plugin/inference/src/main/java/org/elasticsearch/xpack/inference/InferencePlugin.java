@@ -23,6 +23,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -98,6 +99,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -334,6 +336,11 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     public List<QuerySpec<?>> getQueries() {
         return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
+    }
+
+    @Override
+    public Map<String, BiFunction<String, String, AbstractQueryBuilder<?>>> getQueryBuilders() {
+        return Map.of(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new);
     }
 
     @Override

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.Strings;
+
 import java.util.Objects;
 import java.util.function.DoubleConsumer;
 
@@ -108,7 +110,7 @@ public class StatsAccumulator implements DoubleConsumer {
 
     @Override
     public String toString() {
-        return String.format(
+        return Strings.format(
             "%s{count=%d, sum=%f, min=%f, average=%f, max=%f}",
             this.getClass().getSimpleName(),
             getCount(),

@@ -68,21 +68,21 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
-        logger.debug("snapshot lifecycle policy task triggered from job [{}]", event.getJobName());
+        logger.debug("snapshot lifecycle policy task triggered from job [{}]", event.jobName());
 
-        final Optional<String> snapshotName = maybeTakeSnapshot(event.getJobName(), client, clusterService, historyStore);
+        final Optional<String> snapshotName = maybeTakeSnapshot(event.jobName(), client, clusterService, historyStore);
 
         // Would be cleaner if we could use Optional#ifPresentOrElse
         snapshotName.ifPresent(
             name -> logger.info(
                 "snapshot lifecycle policy job [{}] issued new snapshot creation for [{}] successfully",
-                event.getJobName(),
+                event.jobName(),
                 name
             )
         );
 
         if (snapshotName.isPresent() == false) {
-            logger.warn("snapshot lifecycle policy for job [{}] no longer exists, snapshot not created", event.getJobName());
+            logger.warn("snapshot lifecycle policy for job [{}] no longer exists, snapshot not created", event.jobName());
         }
     }
 

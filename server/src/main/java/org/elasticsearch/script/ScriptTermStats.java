@@ -53,7 +53,7 @@ public class ScriptTermStats {
      *
      * @return the number of unique terms
      */
-    public long uniqueTermsCount() {
+    public int uniqueTermsCount() {
         return terms.length;
     }
 
@@ -62,7 +62,7 @@ public class ScriptTermStats {
      *
      * @return the number of matched terms
      */
-    public long matchedTermsCount() {
+    public int matchedTermsCount() {
         final int docId = docIdSupplier.get();
         int matchedTerms = 0;
 

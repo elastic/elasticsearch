@@ -22,8 +22,8 @@ class org.elasticsearch.script.StatsAccumulator {
 }
 
 class org.elasticsearch.script.ScriptTermStats {
-    long uniqueTermsCount()
-    long matchedTermsCount()
+    int uniqueTermsCount()
+    int matchedTermsCount()
     StatsAccumulator docFreq()
     StatsAccumulator totalTermFreq()
     StatsAccumulator termFreq()

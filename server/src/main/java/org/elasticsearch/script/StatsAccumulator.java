@@ -24,6 +24,15 @@ public class StatsAccumulator implements DoubleConsumer {
     private Double min;
     private Double max;
 
+    public StatsAccumulator() {}
+
+    StatsAccumulator(long count, double sum, double min, double max) {
+        this.count = count;
+        this.sum = sum;
+        this.min = min;
+        this.max = max;
+    }
+
     @Override
     public void accept(double value) {
         count++;
@@ -95,5 +104,18 @@ public class StatsAccumulator implements DoubleConsumer {
             && Objects.equals(sum, other.sum)
             && Objects.equals(min, other.min)
             && Objects.equals(max, other.max);
+    }
+
+    @Override
+    public String toString() {
+        return String.format(
+            "%s{count=%d, sum=%f, min=%f, average=%f, max=%f}",
+            this.getClass().getSimpleName(),
+            getCount(),
+            getSum(),
+            getMin(),
+            getAverage(),
+            getMax()
+        );
     }
 }

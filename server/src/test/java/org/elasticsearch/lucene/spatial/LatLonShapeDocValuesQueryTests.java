@@ -20,6 +20,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.NoMergeScheduler;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -54,6 +55,35 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         Rectangle rectangle = GeoTestUtil.nextBox();
         Query q4 = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, rectangle);
         QueryUtils.checkUnequal(q1, q4);
+    }
+
+    public void testEmptySegment() throws Exception {
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        // No merges
+        iwc.setMergeScheduler(NoMergeScheduler.INSTANCE);
+        Directory dir = newDirectory();
+        // RandomIndexWriter is too slow here:
+        IndexWriter w = new IndexWriter(dir, iwc);
+        final int numDocs = randomIntBetween(10, 1000);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, FIELD_NAME);
+        Document document = new Document();
+        BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO);
+        Geometry geometry = new org.elasticsearch.geometry.Point(0, 0);
+        docVal.add(indexer.indexShape(geometry), geometry);
+        document.add(docVal);
+        w.addDocument(document);
+        w.flush();
+        // add empty segment
+        w.addDocument(new Document());
+        w.flush();
+        final IndexReader r = DirectoryReader.open(w);
+        w.close();
+
+        IndexSearcher s = newSearcher(r);
+        Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.DISJOINT, new Point(0, 0));
+        Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.DISJOINT, new Point(0, 0));
+        assertQueries(s, indexQuery, docValQuery, numDocs);
+        IOUtils.close(r, dir);
     }
 
     public void testIndexSimpleShapes() throws Exception {

@@ -792,14 +792,15 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          * Optimistically try to read from the region
          * @return true if successful, i.e., not evicted and data available, false if evicted
          */
-        boolean tryRead(ByteBuffer buf, long offset) throws IOException {
-            SharedBytes.IO ioRef = this.io;
-            if (ioRef != null) {
-                int readBytes = ioRef.read(buf, getRegionRelativePosition(offset));
+        boolean tryRead(ByteBuffer buf, long offset, SharedBytes.IO tryIO) throws IOException {
+            if (tryIO != null) {
+                var assertIO = Assertions.ENABLED ? this.io : null;
+                int readBytes = tryIO.read(buf, getRegionRelativePosition(offset));
                 if (isEvicted()) {
                     buf.position(buf.position() - readBytes);
                     return false;
                 }
+                assert assertIO == tryIO : assertIO + " != " + tryIO;
                 return true;
             } else {
                 // taken by someone else
@@ -947,6 +948,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         private final long length;
 
         private CacheEntry<CacheFileRegion> lastAccessedRegion;
+        private SharedBytes.IO lastAccessedIO;
 
         private CacheFile(KeyType cacheKey, long length) {
             this.cacheKey = cacheKey;
@@ -974,19 +976,21 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 return false;
             }
             var fileRegion = lastAccessedRegion;
+            var io = lastAccessedIO;
             if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
                 // existing item, check if we need to promote item
                 fileRegion.touch();
-
             } else {
                 fileRegion = cache.get(cacheKey, length, startRegion);
+                io = fileRegion.chunk.io;
             }
             final var region = fileRegion.chunk;
             if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
                 return false;
             }
-            boolean res = region.tryRead(buf, offset);
+            boolean res = region.tryRead(buf, offset, io);
             lastAccessedRegion = res ? fileRegion : null;
+            lastAccessedIO = res ? io : null;
             return res;
         }
 

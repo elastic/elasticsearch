@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -293,7 +294,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
             new ActionFilters(new HashSet<>()),
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE) {
                 @Override
-                public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
+                public String[] concreteIndexNames(ProjectMetadata project, IndicesRequest request) {
                     return request.indices();
                 }
             }

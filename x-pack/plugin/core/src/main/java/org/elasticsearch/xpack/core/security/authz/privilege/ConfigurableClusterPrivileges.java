@@ -657,6 +657,7 @@ public final class ConfigurableClusterPrivileges {
         private static boolean hasNonIndexPrivileges(RoleDescriptor roleDescriptor) {
             return roleDescriptor.hasApplicationPrivileges()
                 || roleDescriptor.hasClusterPrivileges()
+                || roleDescriptor.hasConfigurableClusterPrivileges()
                 || roleDescriptor.hasRemoteIndicesPrivileges()
                 || roleDescriptor.hasRemoteClusterPermissions()
                 || roleDescriptor.hasRunAs()

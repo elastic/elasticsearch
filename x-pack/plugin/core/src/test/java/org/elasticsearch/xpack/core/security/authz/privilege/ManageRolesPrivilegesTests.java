@@ -214,7 +214,7 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
 
         final PutRoleRequest putRoleRequest = new PutRoleRequest();
 
-        switch (randomIntBetween(0, 4)) {
+        switch (randomIntBetween(0, 5)) {
             case 0:
                 putRoleRequest.cluster("all");
                 break;
@@ -239,6 +239,15 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
                 putRoleRequest.putRemoteCluster(
                     new RemoteClusterPermissions().addGroup(
                         new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "test" })
+                    )
+                );
+                break;
+            case 5:
+                putRoleRequest.conditionalCluster(
+                    new ConfigurableClusterPrivileges.ManageRolesPrivilege(
+                        List.of(
+                            new ManageRolesPrivilege.ManageRolesIndexPermissionGroup(new String[] { "test-*" }, new String[] { "read" })
+                        )
                     )
                 );
                 break;

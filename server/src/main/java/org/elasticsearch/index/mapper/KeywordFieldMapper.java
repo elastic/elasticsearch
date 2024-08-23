@@ -1051,7 +1051,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
         }
 
-        if (fieldType.stored() || (fieldType().isSyntheticSource) && hasNormalizer()) {
+        if (fieldType.stored() || (fieldType().isSyntheticSource && hasNormalizer())) {
             final String extraStoredName = fieldType().isSyntheticSource && hasNormalizer() ? originalName()
                 : fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null
                 : originalName();

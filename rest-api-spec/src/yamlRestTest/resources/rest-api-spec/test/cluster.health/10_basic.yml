@@ -5,14 +5,15 @@
 
   - is_true:   cluster_name
   - is_false:  timed_out
-  - gte:       { number_of_nodes:         1 }
-  - gte:       { number_of_data_nodes:    1 }
-  - match:     { active_primary_shards:   0 }
-  - match:     { active_shards:           0 }
-  - match:     { relocating_shards:       0 }
-  - match:     { initializing_shards:     0 }
-  - match:     { unassigned_shards:       0 }
-  - gte:       { number_of_pending_tasks: 0 }
+  - gte:       { number_of_nodes:           1 }
+  - gte:       { number_of_data_nodes:      1 }
+  - match:     { active_primary_shards:     0 }
+  - match:     { active_shards:             0 }
+  - match:     { relocating_shards:         0 }
+  - match:     { initializing_shards:       0 }
+  - match:     { unassigned_shards:         0 }
+  - match:     { unassigned_primary_shards: 0 }
+  - gte:       { number_of_pending_tasks:   0 }
 
 ---
 "cluster health basic test, one index":
@@ -31,14 +32,15 @@
 
   - is_true:   cluster_name
   - is_false:  timed_out
-  - gte:       { number_of_nodes:         1 }
-  - gte:       { number_of_data_nodes:    1 }
-  - gt:        { active_primary_shards:   0 }
-  - gt:        { active_shards:           0 }
-  - gte:       { relocating_shards:       0 }
-  - match:     { initializing_shards:     0 }
-  - match:     { unassigned_shards:       0 }
-  - gte:       { number_of_pending_tasks: 0 }
+  - gte:       { number_of_nodes:           1 }
+  - gte:       { number_of_data_nodes:      1 }
+  - gt:        { active_primary_shards:     0 }
+  - gt:        { active_shards:             0 }
+  - gte:       { relocating_shards:         0 }
+  - match:     { initializing_shards:       0 }
+  - match:     { unassigned_shards:         0 }
+  - match:     { unassigned_primary_shards: 0 }
+  - gte:       { number_of_pending_tasks:   0 }
 
 ---
 "cluster health basic test, one index with wait for active shards":
@@ -57,14 +59,15 @@
 
   - is_true:   cluster_name
   - is_false:  timed_out
-  - gte:       { number_of_nodes:         1 }
-  - gte:       { number_of_data_nodes:    1 }
-  - gt:        { active_primary_shards:   0 }
-  - gt:        { active_shards:           0 }
-  - gte:       { relocating_shards:       0 }
-  - match:     { initializing_shards:     0 }
-  - match:     { unassigned_shards:       0 }
-  - gte:       { number_of_pending_tasks: 0 }
+  - gte:       { number_of_nodes:           1 }
+  - gte:       { number_of_data_nodes:      1 }
+  - gt:        { active_primary_shards:     0 }
+  - gt:        { active_shards:             0 }
+  - gte:       { relocating_shards:         0 }
+  - match:     { initializing_shards:       0 }
+  - match:     { unassigned_shards:         0 }
+  - match:     { unassigned_primary_shards: 0 }
+  - gte:       { number_of_pending_tasks:   0 }
 
 ---
 "cluster health basic test, one index with wait for all active shards":
@@ -83,14 +86,15 @@
 
   - is_true:   cluster_name
   - is_false:  timed_out
-  - gte:       { number_of_nodes:         1 }
-  - gte:       { number_of_data_nodes:    1 }
-  - gt:        { active_primary_shards:   0 }
-  - gt:        { active_shards:           0 }
-  - gte:       { relocating_shards:       0 }
-  - match:     { initializing_shards:     0 }
-  - match:     { unassigned_shards:       0 }
-  - gte:       { number_of_pending_tasks: 0 }
+  - gte:       { number_of_nodes:           1 }
+  - gte:       { number_of_data_nodes:      1 }
+  - gt:        { active_primary_shards:     0 }
+  - gt:        { active_shards:             0 }
+  - gte:       { relocating_shards:         0 }
+  - match:     { initializing_shards:       0 }
+  - match:     { unassigned_shards:         0 }
+  - match:     { unassigned_primary_shards: 0 }
+  - gte:       { number_of_pending_tasks:   0 }
 
 ---
 "cluster health basic test, one index with wait for no initializing shards":

@@ -4,7 +4,7 @@
 <titleabbrev>Cluster allocation explain</titleabbrev>
 ++++
 
-Provides an explanation for a shard's current allocation.
+Provides an explanation for a shard's current <<index-modules-allocation,allocation>>.
 
 [source,console]
 ----
@@ -81,6 +81,7 @@ you might expect otherwise.
 
 ===== Unassigned primary shard
 
+====== Conflicting settings
 The following request gets an allocation explanation for an unassigned primary
 shard.
 
@@ -158,6 +159,56 @@ node.
 <5> The decider which led to the `no` decision for the node.
 <6> An explanation as to why the decider returned a `no` decision, with a helpful hint pointing to the setting that led to the decision. In this example, a newly created index has <<indices-get-settings,an index setting>> that requires that it only be allocated to a node named `nonexistent_node`, which does not exist, so the index is unable to allocate.
 
+====== Maximum number of retries exceeded
+
+The following response contains an allocation explanation for an unassigned
+primary shard that has reached the maximum number of allocation retry attempts. 
+
+[source,js]
+----
+{
+  "index" : "my-index-000001",
+  "shard" : 0,
+  "primary" : true,
+  "current_state" : "unassigned",
+  "unassigned_info" : {
+    "at" : "2017-01-04T18:03:28.464Z",
+    "failed shard on node [mEKjwwzLT1yJVb8UxT6anw]: failed recovery, failure RecoveryFailedException",
+    "reason": "ALLOCATION_FAILED",
+    "failed_allocation_attempts": 5,
+    "last_allocation_status": "no",
+  },
+  "can_allocate": "no",
+  "allocate_explanation": "cannot allocate because allocation is not permitted to any of the nodes",
+  "node_allocation_decisions" : [
+    {
+      "node_id" : "3sULLVJrRneSg0EfBB-2Ew",
+      "node_name" : "node_t0",
+      "transport_address" : "127.0.0.1:9400",
+      "roles" : ["data_content", "data_hot"],
+      "node_decision" : "no",
+      "store" : {
+        "matching_size" : "4.2kb",
+        "matching_size_in_bytes" : 4325
+      },
+      "deciders" : [
+        {
+          "decider": "max_retry",
+          "decision" : "NO",
+          "explanation": "shard has exceeded the maximum number of retries [5] on failed allocation attempts - manually call [/_cluster/reroute?retry_failed=true] to retry, [unassigned_info[[reason=ALLOCATION_FAILED], at[2024-07-30T21:04:12.166Z], failed_attempts[5], failed_nodes[[mEKjwwzLT1yJVb8UxT6anw]], delayed=false, details[failed shard on node [mEKjwwzLT1yJVb8UxT6anw]: failed recovery, failure RecoveryFailedException], allocation_status[deciders_no]]]"
+        }
+      ]
+    }
+  ]
+}
+----
+// NOTCONSOLE
+
+If decider message indicates a transient allocation issue, use 
+<<cluster-reroute,the cluster reroute API>> to retry allocation. 
+
+====== No valid shard copy
+
 The following response contains an allocation explanation for an unassigned
 primary shard that was previously allocated.
 
@@ -183,6 +234,8 @@ primary shard that was previously allocated.
 TIP: If a shard is unassigned with an allocation status of `no_valid_shard_copy`, then you should <<fix-cluster-status-recover-nodes,make sure that all nodes are in the cluster>>. If all the nodes containing in-sync copies of a shard are lost, then you can <<fix-cluster-status-restore,recover the data for the shard>>.
 
 ===== Unassigned replica shard
+
+====== Allocation delayed
 
 The following response contains an allocation explanation for a replica that's
 unassigned due to <<delayed-allocation,delayed allocation>>.
@@ -241,7 +294,51 @@ unassigned due to <<delayed-allocation,delayed allocation>>.
 <2> The remaining delay before allocating the replica shard.
 <3> Information about the shard data found on a node.
 
+====== Allocation throttled
+
+The following response contains an allocation explanation for a replica that's
+queued to allocate but currently waiting on other queued shards.
+
+[source,js]
+----
+{
+  "index" : "my-index-000001",
+  "shard" : 0,
+  "primary" : false,
+  "current_state" : "unassigned",
+  "unassigned_info" : {
+    "reason" : "NODE_LEFT",
+    "at" : "2017-01-04T18:53:59.498Z",
+    "details" : "node_left[G92ZwuuaRY-9n8_tc-IzEg]",
+    "last_allocation_status" : "no_attempt"
+  },
+  "can_allocate": "throttled",
+  "allocate_explanation": "Elasticsearch is currently busy with other activities. It expects to be able to allocate this shard when those activities finish. Please wait.",
+  "node_allocation_decisions" : [
+    {
+      "node_id" : "3sULLVJrRneSg0EfBB-2Ew",
+      "node_name" : "node_t0",
+      "transport_address" : "127.0.0.1:9400",
+      "roles" : ["data_content", "data_hot"],
+      "node_decision" : "no",
+      "deciders" : [
+        {
+          "decider": "throttling",
+          "decision": "THROTTLE",
+          "explanation": "reached the limit of incoming shard recoveries [2], cluster setting [cluster.routing.allocation.node_concurrent_incoming_recoveries=2] (can also be set via [cluster.routing.allocation.node_concurrent_recoveries])"
+        }
+      ]
+    }
+  ]
+}
+----
+// NOTCONSOLE
+
+This is a transient message that might appear when a large amount of shards are allocating. 
+
 ===== Assigned shard
+
+====== Cannot remain on current node
 
 The following response contains an allocation explanation for an assigned shard.
 The response indicates the shard is not allowed to remain on its current node
@@ -295,6 +392,8 @@ and must be reallocated.
 <2> The deciders that factored into the decision of why the shard is not allowed to remain on its current node.
 <3> Whether the shard is allowed to be allocated to another node.
 
+====== Must remain on current node
+
 The following response contains an allocation explanation for a shard that must
 remain on its current node. Moving the shard to another node would not improve
 cluster balance.
@@ -338,7 +437,7 @@ cluster balance.
 ===== No arguments
 
 If you call the API with no arguments, {es} retrieves an allocation explanation
-for an arbitrary unassigned primary or replica shard.
+for an arbitrary unassigned primary or replica shard, returning any unassigned primary shards first. 
 
 [source,console]
 ----

@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -49,7 +50,7 @@ public class NestedObjectMapper extends ObjectMapper {
         private final Function<Query, BitSetProducer> bitSetProducer;
 
         public Builder(String name, IndexVersion indexCreatedVersion, Function<Query, BitSetProducer> bitSetProducer) {
-            super(name, Explicit.IMPLICIT_TRUE);
+            super(name, Optional.empty());
             this.indexCreatedVersion = indexCreatedVersion;
             this.bitSetProducer = bitSetProducer;
         }
@@ -121,7 +122,7 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
-            if (parseSubobjects(node).explicit()) {
+            if (parseSubobjects(node).isPresent()) {
                 throw new MapperParsingException("Nested type [" + name + "] does not support [subobjects] parameter");
             }
             NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(
@@ -209,7 +210,7 @@ public class NestedObjectMapper extends ObjectMapper {
         Query nestedTypeFilter,
         Function<Query, BitSetProducer> bitsetProducer
     ) {
-        super(name, fullPath, enabled, Explicit.IMPLICIT_TRUE, storeArraySource, dynamic, mappers);
+        super(name, fullPath, enabled, Optional.empty(), storeArraySource, dynamic, mappers);
         this.parentTypeFilter = parentTypeFilter;
         this.nestedTypePath = nestedTypePath;
         this.nestedTypeFilter = nestedTypeFilter;
@@ -440,8 +441,8 @@ public class NestedObjectMapper extends ObjectMapper {
         }
 
         private List<Integer> collectChildren(int parentDoc, BitSet parentDocs, DocIdSetIterator childIt) throws IOException {
-            assert parentDocs.get(parentDoc) : "wrong context, doc " + parentDoc + " is not a parent of " + nestedTypePath;
-            final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
+            assert parentDoc < 0 || parentDocs.get(parentDoc) : "wrong context, doc " + parentDoc + " is not a parent of " + nestedTypePath;
+            final int prevParentDoc = parentDoc > 0 ? parentDocs.prevSetBit(parentDoc - 1) : -1;
             int childDocId = childIt.docID();
             if (childDocId <= prevParentDoc) {
                 childDocId = childIt.advance(prevParentDoc + 1);
@@ -463,17 +464,14 @@ public class NestedObjectMapper extends ObjectMapper {
         public void write(XContentBuilder b) throws IOException {
             assert (children != null && children.size() > 0);
             if (children.size() == 1) {
-                b.startObject(leafName());
+                b.field(leafName());
                 leafStoredFieldLoader.advanceTo(children.get(0));
                 leafSourceLoader.write(leafStoredFieldLoader, children.get(0), b);
-                b.endObject();
             } else {
                 b.startArray(leafName());
                 for (int childId : children) {
-                    b.startObject();
                     leafStoredFieldLoader.advanceTo(childId);
                     leafSourceLoader.write(leafStoredFieldLoader, childId, b);
-                    b.endObject();
                 }
                 b.endArray();
             }

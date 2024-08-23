@@ -1377,6 +1377,25 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
+     * Resolve the index abstraction to a data stream. This handles alias resolution as well as data stream resolution. This does <b>NOT</b>
+     * resolve a data stream by providing a concrete backing index.
+     */
+    public static DataStream resolveDataStream(IndexAbstraction indexAbstraction, Metadata metadata) {
+        // We do not consider concrete indices - only data streams and data stream aliases.
+        if (indexAbstraction == null || indexAbstraction.isDataStreamRelated() == false) {
+            return null;
+        }
+
+        // Locate the write index for the abstraction, and check if it has a data stream associated with it.
+        Index writeIndex = indexAbstraction.getWriteIndex();
+        if (writeIndex == null) {
+            return null;
+        }
+        IndexAbstraction writeAbstraction = metadata.getIndicesLookup().get(writeIndex.getName());
+        return writeAbstraction.getParentDataStream();
+    }
+
+    /**
      * Modifies the passed Instant object to be used as a bound for a timestamp field in TimeSeries. It needs to be called in both backing
      * index construction (rollover) and index selection for doc insertion. Failure to do so may lead to errors due to document timestamps
      * exceeding the end time of the selected backing index for insertion.

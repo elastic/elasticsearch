@@ -5,7 +5,7 @@
 <titleabbrev>Promote data stream</titleabbrev>
 ++++
 
-The purpose of the promote data stream api is to turn
+The purpose of the promote <<data-streams,data stream>> API is to turn
 a data stream that is replicated by CCR into a regular
 data stream.
 

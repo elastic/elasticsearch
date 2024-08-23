@@ -8,50 +8,272 @@ package org.elasticsearch.xpack.spatial.index.query;
 
 import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.document.XYPointField;
+import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.XYGeometry;
+import org.apache.lucene.geo.XYPoint;
+import org.apache.lucene.geo.XYRectangle;
+import org.apache.lucene.index.PointValues;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.ShapeType;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 
-import java.util.function.Consumer;
+import java.util.Arrays;
 
+/** Generates a lucene query for a spatial query over a point field.
+ *
+ * Note that lucene only supports intersects spatial relation so we build other relations
+ * using just that one.
+ * */
 public class ShapeQueryPointProcessor {
 
-    public Query shapeQuery(Geometry geometry, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
-        final boolean hasDocValues = validateIsPointFieldType(fieldName, context);
-        // only the intersects relation is supported for indexed cartesian point types
-        if (relation != ShapeRelation.INTERSECTS) {
-            throw new QueryShardException(context, relation + " query relation not supported for Field [" + fieldName + "].");
-        }
-        final Consumer<ShapeType> checker = t -> {
-            if (t == ShapeType.POINT || t == ShapeType.MULTIPOINT || t == ShapeType.LINESTRING || t == ShapeType.MULTILINESTRING) {
-                throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + t + " queries");
-            }
+    public Query shapeQuery(Geometry geometry, String fieldName, ShapeRelation relation, boolean isIndexed, boolean hasDocValues) {
+        assert isIndexed || hasDocValues;
+        final XYGeometry[] luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
+        // XYPointField only supports intersects query so we build all the relationships using that logic.
+        // it is not very efficient but it works.
+        return switch (relation) {
+            case INTERSECTS -> buildIntersectsQuery(fieldName, isIndexed, hasDocValues, luceneGeometries);
+            case DISJOINT -> buildDisjointQuery(fieldName, isIndexed, hasDocValues, luceneGeometries);
+            case CONTAINS -> buildContainsQuery(fieldName, isIndexed, hasDocValues, luceneGeometries);
+            case WITHIN -> buildWithinQuery(fieldName, isIndexed, hasDocValues, luceneGeometries);
         };
-        final XYGeometry[] luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, checker);
-        Query query = XYPointField.newGeometryQuery(fieldName, luceneGeometries);
-        if (hasDocValues) {
-            final Query queryDocValues = XYDocValuesField.newSlowGeometryQuery(fieldName, luceneGeometries);
-            query = new IndexOrDocValuesQuery(query, queryDocValues);
+    }
+
+    private static Query buildIntersectsQuery(String fieldName, boolean isIndexed, boolean hasDocValues, XYGeometry... luceneGeometries) {
+        // This is supported natively in lucene
+        Query query;
+        if (isIndexed) {
+            query = XYPointField.newGeometryQuery(fieldName, luceneGeometries);
+            if (hasDocValues) {
+                final Query queryDocValues = XYDocValuesField.newSlowGeometryQuery(fieldName, luceneGeometries);
+                query = new IndexOrDocValuesQuery(query, queryDocValues);
+            }
+        } else {
+            query = XYDocValuesField.newSlowGeometryQuery(fieldName, luceneGeometries);
         }
         return query;
     }
 
-    private boolean validateIsPointFieldType(String fieldName, SearchExecutionContext context) {
-        MappedFieldType fieldType = context.getFieldType(fieldName);
-        if (fieldType instanceof PointFieldMapper.PointFieldType == false) {
-            throw new QueryShardException(
-                context,
-                "Expected " + PointFieldMapper.CONTENT_TYPE + " field type for Field [" + fieldName + "] but found " + fieldType.typeName()
+    private static Query buildDisjointQuery(String fieldName, boolean isIndexed, boolean hasDocValues, XYGeometry... luceneGeometries) {
+        // first collect all the documents that contain a shape
+        final BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        if (hasDocValues) {
+            builder.add(new FieldExistsQuery(fieldName), BooleanClause.Occur.FILTER);
+        } else {
+            builder.add(
+                buildIntersectsQuery(
+                    fieldName,
+                    isIndexed,
+                    hasDocValues,
+                    new XYRectangle(-Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE, Float.MAX_VALUE)
+                ),
+                BooleanClause.Occur.FILTER
             );
         }
-        return fieldType.hasDocValues();
+        // then remove all intersecting documents
+        builder.add(buildIntersectsQuery(fieldName, isIndexed, hasDocValues, luceneGeometries), BooleanClause.Occur.MUST_NOT);
+        return builder.build();
+    }
+
+    private static Query buildContainsQuery(String fieldName, boolean isIndexed, boolean hasDocValues, XYGeometry... luceneGeometries) {
+        // for non-point data the result is always false
+        if (allPoints(luceneGeometries) == false) {
+            return new MatchNoDocsQuery();
+        }
+        // for a unique point, it behaves like intersect
+        if (luceneGeometries.length == 1) {
+            return buildIntersectsQuery(fieldName, isIndexed, hasDocValues, luceneGeometries);
+        }
+        // for a multi point, all points needs to be in the document
+        final BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        for (XYGeometry geometry : luceneGeometries) {
+            builder.add(buildIntersectsQuery(fieldName, isIndexed, hasDocValues, geometry), BooleanClause.Occur.FILTER);
+        }
+        return builder.build();
+    }
+
+    private static Query buildWithinQuery(String fieldName, boolean isIndexed, boolean hasDocValues, XYGeometry... luceneGeometries) {
+        final BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        // collect all the intersecting documents
+        builder.add(buildIntersectsQuery(fieldName, isIndexed, hasDocValues, luceneGeometries), BooleanClause.Occur.FILTER);
+        // This is the tricky part as we need to remove all documents that they have at least one disjoint point.
+        // In order to do that, we introduce a InverseXYGeometry which return all documents that have at least one disjoint point
+        // with the original geometry.
+        builder.add(
+            buildIntersectsQuery(fieldName, isIndexed, hasDocValues, new InverseXYGeometry(luceneGeometries)),
+            BooleanClause.Occur.MUST_NOT
+        );
+        return builder.build();
+    }
+
+    private static boolean allPoints(XYGeometry[] geometries) {
+        return Arrays.stream(geometries).allMatch(g -> g instanceof XYPoint);
+    }
+
+    private static class InverseXYGeometry extends XYGeometry {
+        private final XYGeometry[] geometries;
+
+        InverseXYGeometry(XYGeometry... geometries) {
+            this.geometries = geometries;
+        }
+
+        @Override
+        protected Component2D toComponent2D() {
+            final Component2D component2D = XYGeometry.create(geometries);
+            return new Component2D() {
+                @Override
+                public double getMinX() {
+                    return -Float.MAX_VALUE;
+                }
+
+                @Override
+                public double getMaxX() {
+                    return Float.MAX_VALUE;
+                }
+
+                @Override
+                public double getMinY() {
+                    return -Float.MAX_VALUE;
+                }
+
+                @Override
+                public double getMaxY() {
+                    return Float.MAX_VALUE;
+                }
+
+                @Override
+                public boolean contains(double x, double y) {
+                    return component2D.contains(x, y) == false;
+                }
+
+                @Override
+                public PointValues.Relation relate(double minX, double maxX, double minY, double maxY) {
+                    PointValues.Relation relation = component2D.relate(minX, maxX, minY, maxY);
+                    return switch (relation) {
+                        case CELL_INSIDE_QUERY -> PointValues.Relation.CELL_OUTSIDE_QUERY;
+                        case CELL_OUTSIDE_QUERY -> PointValues.Relation.CELL_INSIDE_QUERY;
+                        case CELL_CROSSES_QUERY -> PointValues.Relation.CELL_CROSSES_QUERY;
+                    };
+                }
+
+                @Override
+                public boolean intersectsLine(
+                    double minX,
+                    double maxX,
+                    double minY,
+                    double maxY,
+                    double aX,
+                    double aY,
+                    double bX,
+                    double bY
+                ) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean intersectsTriangle(
+                    double minX,
+                    double maxX,
+                    double minY,
+                    double maxY,
+                    double aX,
+                    double aY,
+                    double bX,
+                    double bY,
+                    double cX,
+                    double cY
+                ) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean containsLine(
+                    double minX,
+                    double maxX,
+                    double minY,
+                    double maxY,
+                    double aX,
+                    double aY,
+                    double bX,
+                    double bY
+                ) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean containsTriangle(
+                    double minX,
+                    double maxX,
+                    double minY,
+                    double maxY,
+                    double aX,
+                    double aY,
+                    double bX,
+                    double bY,
+                    double cX,
+                    double cY
+                ) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public WithinRelation withinPoint(double x, double y) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public WithinRelation withinLine(
+                    double minX,
+                    double maxX,
+                    double minY,
+                    double maxY,
+                    double aX,
+                    double aY,
+                    boolean ab,
+                    double bX,
+                    double bY
+                ) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public WithinRelation withinTriangle(
+                    double minX,
+                    double maxX,
+                    double minY,
+                    double maxY,
+                    double aX,
+                    double aY,
+                    boolean ab,
+                    double bX,
+                    double bY,
+                    boolean bc,
+                    double cX,
+                    double cY,
+                    boolean ca
+                ) {
+                    throw new UnsupportedOperationException();
+                }
+            };
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            InverseXYGeometry that = (InverseXYGeometry) o;
+            return Arrays.equals(geometries, that.geometries);
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(geometries);
+        }
     }
 }

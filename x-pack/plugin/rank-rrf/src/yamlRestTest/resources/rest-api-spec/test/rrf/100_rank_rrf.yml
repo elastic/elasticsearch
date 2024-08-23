@@ -33,7 +33,7 @@ setup:
         body:
           text: "term term"
           keyword: "other"
-          vector: [0.0]
+          vector: [ 0.0 ]
 
   - do:
       index:
@@ -42,7 +42,7 @@ setup:
         body:
           text: "other"
           keyword: "other"
-          vector: [1.0]
+          vector: [ 1.0 ]
 
   - do:
       index:
@@ -51,10 +51,10 @@ setup:
         body:
           text: "term"
           keyword: "keyword"
-          vector: [2.0]
+          vector: [ 2.0 ]
 
   - do:
-      indices.refresh: {}
+      indices.refresh: { }
 
 ---
 "Simple rank with bm25 search and kNN search":
@@ -67,7 +67,7 @@ setup:
           fields: [ "text", "keyword" ]
           knn:
             field: vector
-            query_vector: [0.0]
+            query_vector: [ 0.0 ]
             k: 3
             num_candidates: 3
           query:
@@ -125,7 +125,7 @@ setup:
               rank_constant: 1
           size: 10
 
-  - match: { hits.total.value : 2 }
+  - match: { hits.total.value: 2 }
 
   - match: { hits.hits.0._id: "3" }
   - match: { hits.hits.0._rank: 1 }
@@ -173,7 +173,7 @@ setup:
               rank_constant: 1
           size: 10
 
-  - match: { hits.total.value : 3 }
+  - match: { hits.total.value: 3 }
 
   - match: { hits.hits.0._id: "3" }
   - match: { hits.hits.0._rank: 1 }
@@ -226,4 +226,44 @@ setup:
             rrf:
               rank_window_size: 2
               rank_constant: 1
+          size: 10
+
+---
+"RRF rank should fail if rank_constant < 1":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: 'validation fixed in 8.16.0'
+
+  - do:
+      catch: "/\\[rank_constant\\] must be greater or equal to \\[1\\] for \\[rrf\\]/"
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text", "keyword" ]
+          knn:
+            field: vector
+            query_vector: [ 0.0 ]
+            k: 3
+            num_candidates: 3
+          sub_searches: [
+            {
+              "query": {
+                "term": {
+                  "text": "term"
+                }
+              }
+            },
+            {
+              "query": {
+                "match": {
+                  "keyword": "keyword"
+                }
+              }
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 10
+              rank_constant: 0.3
           size: 10

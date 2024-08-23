@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -206,15 +207,17 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         ActionListener<RestoreService.RestoreCompletionResponse> delegatelistener = listener.delegateFailure(
             (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)
         );
+
+        final BiConsumer<ClusterState, Metadata.Builder> updater;
         if (remoteDataStream == null) {
             // If the index we're following is not part of a data stream, start the
             // restoration of the index normally.
-            restoreService.restoreSnapshot(restoreRequest, delegatelistener);
+            updater = (clusterState, mdBuilder) -> {};
         } else {
             String followerIndexName = request.getFollowerIndex();
             // This method is used to update the metadata in the same cluster state
             // update as the snapshot is restored.
-            BiConsumer<ClusterState, Metadata.Builder> updater = (currentState, mdBuilder) -> {
+            updater = (currentState, mdBuilder) -> {
                 final String localDataStreamName;
 
                 // If we have been given a data stream name, use that name for the local
@@ -239,8 +242,9 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 );
                 mdBuilder.put(updatedDataStream);
             };
-            restoreService.restoreSnapshot(restoreRequest, delegatelistener, updater);
         }
+        threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
+            .execute(ActionRunnable.wrap(delegatelistener, l -> restoreService.restoreSnapshot(restoreRequest, l, updater)));
     }
 
     private void afterRestoreStarted(

@@ -16,6 +16,8 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -65,11 +67,25 @@ public class ReindexPluginMetricsTests extends ESIntegTestCase {
         );
         assertHitCount(prepareSearch("source").setSize(0), 4);
 
-        TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin();
-        testTelemetryPlugin.resetMeter();
+        final String dataNodeName = internalCluster().getRandomNodeName();
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+
+        // TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin();
+        // testTelemetryPlugin.resetMeter();
+
         // Copy all the docs
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
         assertThat(copy.get(), matcher().created(4));
+
+        final var tp = internalCluster().getInstance(ThreadPool.class, dataNodeName);
+        final var tps = new ThreadPoolStats[1];
+
+        // wait for all threads to complete so that we get deterministic results
+        waitUntil(() -> (tps[0] = tp.stats()).stats().stream().allMatch(s -> s.active() == 0));
+
         testTelemetryPlugin.collect();
         assertHitCount(prepareSearch("dest").setSize(0), 4);
         List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
@@ -79,24 +95,36 @@ public class ReindexPluginMetricsTests extends ESIntegTestCase {
         createIndex("none");
         copy = reindex().source("source").destination("none").filter(termQuery("foo", "no_match")).refresh(true);
         assertThat(copy.get(), matcher().created(0));
-        assertHitCount(prepareSearch("none").setSize(0), 0);
+
+        // wait for all threads to complete so that we get deterministic results
+        waitUntil(() -> (tps[0] = tp.stats()).stats().stream().allMatch(s -> s.active() == 0));
+
         testTelemetryPlugin.collect();
+        assertHitCount(prepareSearch("none").setSize(0), 0);
         measurements = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
         assertThat(measurements.size(), equalTo(2));
 
         // Now half of them
         copy = reindex().source("source").destination("dest_half").filter(termQuery("foo", "a")).refresh(true);
         assertThat(copy.get(), matcher().created(2));
-        assertHitCount(prepareSearch("dest_half").setSize(0), 2);
+
+        // wait for all threads to complete so that we get deterministic results
+        waitUntil(() -> (tps[0] = tp.stats()).stats().stream().allMatch(s -> s.active() == 0));
+
         testTelemetryPlugin.collect();
+        assertHitCount(prepareSearch("dest_half").setSize(0), 2);
         measurements = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
         assertThat(measurements.size(), equalTo(3));
 
         // Limit with maxDocs
         copy = reindex().source("source").destination("dest_size_one").maxDocs(1).refresh(true);
         assertThat(copy.get(), matcher().created(1));
-        assertHitCount(prepareSearch("dest_size_one").setSize(0), 1);
+
+        // wait for all threads to complete so that we get deterministic results
+        waitUntil(() -> (tps[0] = tp.stats()).stats().stream().allMatch(s -> s.active() == 0));
+
         testTelemetryPlugin.collect();
+        assertHitCount(prepareSearch("dest_size_one").setSize(0), 1);
         measurements = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
         assertThat(measurements.size(), equalTo(4));
     }

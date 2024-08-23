@@ -431,7 +431,7 @@ public final class StringUtils {
             return false;
         }
         // contain only letter, digit or _
-        for (char c : value.trim().toCharArray()) {
+        for (char c : value.toCharArray()) {
             if (isLetterOrDigitOrUnderscore(c) == false) {
                 return false;
             }

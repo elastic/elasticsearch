@@ -140,7 +140,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         QueryBuilder filter = randomQueryBuilder();
 
         String paramsString1 = """
-            "params":[ {"1" : "v1" }, {"1x" : "v1" }, {"@a" : "v1" }, {"@-#" : "v1" }, 1, 2, {"_1" : "v1" }, {"Å" : 0}]""";
+            "params":[ {"1" : "v1" }, {"1x" : "v1" }, {"@a" : "v1" }, {"@-#" : "v1" }, 1, 2, {"_1" : "v1" }, {"Å" : 0}, {"x " : 0}]""";
         String json1 = String.format(Locale.ROOT, """
             {
                 %s
@@ -162,12 +162,13 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertThat(e1.getCause().getMessage(), containsString("[2:47] [@a] is not a valid parameter name"));
         assertThat(e1.getCause().getMessage(), containsString("[2:63] [@-#] is not a valid parameter name"));
         assertThat(e1.getCause().getMessage(), containsString("[2:102] [Å] is not a valid parameter name"));
+        assertThat(e1.getCause().getMessage(), containsString("[2:113] [x ] is not a valid parameter name"));
 
         assertThat(
             e1.getCause().getMessage(),
             containsString(
                 "Params cannot contain both named and unnamed parameters; "
-                    + "got [{1:v1}, {1x:v1}, {@a:v1}, {@-#:v1}, {_1:v1}, {Å:0}] and [{1}, {2}]"
+                    + "got [{1:v1}, {1x:v1}, {@a:v1}, {@-#:v1}, {_1:v1}, {Å:0}, {x :0}] and [{1}, {2}]"
             )
         );
 

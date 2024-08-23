@@ -1023,6 +1023,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             List.of(new QueryParam("n_1", 5, INTEGER), new QueryParam("n_2", 5, INTEGER)),
             "extraneous input '?' expecting <EOF>"
         );
+
+        expectError("from test | where x < ?Å", List.of(new QueryParam("Å", 5, INTEGER)), "line 1:24: token recognition error at: 'Å'");
+
+        expectError("from test | eval x = ?Å", List.of(new QueryParam("Å", 5, INTEGER)), "line 1:23: token recognition error at: 'Å'");
     }
 
     public void testPositionalParams() {
@@ -1642,6 +1646,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 )
             )
         );
+    }
+
+    public void testInvalidAlias() {
+        expectError("row Å = 1", "line 1:5: token recognition error at: 'Å'");
+        expectError("from test | eval Å = 1", "line 1:18: token recognition error at: 'Å'");
+        expectError("from test | where Å == 1", "line 1:19: token recognition error at: 'Å'");
+        expectError("from test | keep Å", "line 1:18: token recognition error at: 'Å'");
+        expectError("from test | drop Å", "line 1:18: token recognition error at: 'Å'");
+        expectError("from test | sort Å", "line 1:18: token recognition error at: 'Å'");
+        expectError("from test | rename Å as A", "line 1:20: token recognition error at: 'Å'");
+        expectError("from test | rename A as Å", "line 1:25: token recognition error at: 'Å'");
+        expectError("from test | rename Å as Å", "line 1:20: token recognition error at: 'Å'");
+        expectError("from test | stats Å = count(*)", "line 1:19: token recognition error at: 'Å'");
+        expectError("from test | stats count(Å)", "line 1:25: token recognition error at: 'Å'");
+        expectError("from test | eval A = coalesce(Å, null)", "line 1:31: token recognition error at: 'Å'");
+        expectError("from test | eval A = coalesce(\"Å\", Å)", "line 1:36: token recognition error at: 'Å'");
     }
 
     private LogicalPlan unresolvedRelation(String index) {

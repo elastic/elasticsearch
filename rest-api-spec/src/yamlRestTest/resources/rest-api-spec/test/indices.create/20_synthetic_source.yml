@@ -1295,6 +1295,13 @@ subobjects auto:
               auto_obj:
                 type: object
                 subobjects: auto
+                properties:
+                  path:
+                    properties:
+                      to:
+                        properties:
+                          id:
+                            type: keyword
 
   - do:
       bulk:
@@ -1308,7 +1315,7 @@ subobjects auto:
           - '{ "create": { } }'
           - '{  "id": 3, "foo": 30, "foo.bar": 300, "nested": [ { "a": 10, "b": 20 }, { "a": 100, "b": 200 } ] }'
           - '{ "create": { } }'
-          - '{  "id": 4, "auto_obj": {  "foo": 40, "foo.bar": 400 } }'
+          - '{  "id": 4, "auto_obj": {  "foo": 40, "foo.bar": 400, "path.to.id": "baz" } }'
 
   - match: { errors: false }
 
@@ -1339,3 +1346,4 @@ subobjects auto:
   - match: { hits.hits.3._source.id: 4  }
   - match: { hits.hits.3._source.auto_obj.foo: 40 }
   - match: { hits.hits.3._source.auto_obj.foo\.bar: 400 }
+  - match: { hits.hits.3._source.auto_obj.path\.to\.id: baz }

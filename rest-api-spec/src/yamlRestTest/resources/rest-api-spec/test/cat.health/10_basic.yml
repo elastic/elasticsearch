@@ -100,7 +100,7 @@
             $/
 
 ---
-"Help - pre unassigned_pri_shard_count":
+"Help - Without unassigned_pri_shard_count":
   - requires:
       test_runner_features: capabilities
   - skip:
@@ -133,7 +133,7 @@
 
 
 ---
-"Empty cluster - pre unassigned_pri_shard_count":
+"Empty cluster - Without unassigned_pri_shard_count":
   - requires:
       test_runner_features: capabilities
   - skip:
@@ -168,7 +168,7 @@
 
 
 ---
-"With ts parameter - pre unassigned_pri_shard_count":
+"With ts parameter - Without unassigned_pri_shard_count":
   - requires:
       test_runner_features: capabilities
   - skip:

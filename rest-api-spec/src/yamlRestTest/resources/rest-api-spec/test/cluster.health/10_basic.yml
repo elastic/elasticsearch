@@ -151,7 +151,6 @@
   - match:     { relocating_shards:         0 }
   - match:     { initializing_shards:       0 }
   - match:     { unassigned_shards:         0 }
-  - match:     { unassigned_primary_shards: 0 }
   - gte:       { number_of_pending_tasks:   0 }
 
 ---
@@ -187,7 +186,6 @@
   - gte:       { relocating_shards:         0 }
   - match:     { initializing_shards:       0 }
   - match:     { unassigned_shards:         0 }
-  - match:     { unassigned_primary_shards: 0 }
   - gte:       { number_of_pending_tasks:   0 }
 
 ---
@@ -223,7 +221,6 @@
   - gte:       { relocating_shards:         0 }
   - match:     { initializing_shards:       0 }
   - match:     { unassigned_shards:         0 }
-  - match:     { unassigned_primary_shards: 0 }
   - gte:       { number_of_pending_tasks:   0 }
 
 ---
@@ -259,7 +256,6 @@
   - gte:       { relocating_shards:         0 }
   - match:     { initializing_shards:       0 }
   - match:     { unassigned_shards:         0 }
-  - match:     { unassigned_primary_shards: 0 }
   - gte:       { number_of_pending_tasks:   0 }
 
 ---

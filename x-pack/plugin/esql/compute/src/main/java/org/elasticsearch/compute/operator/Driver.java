@@ -127,7 +127,17 @@ public class Driver implements Releasable, Describable {
         this.statusNanos = statusInterval.nanos();
         this.releasable = releasable;
         this.status = new AtomicReference<>(
-            new DriverStatus(sessionId, startTime, System.currentTimeMillis(), 0, 0, DriverStatus.Status.QUEUED, List.of(), List.of())
+            new DriverStatus(
+                sessionId,
+                startTime,
+                System.currentTimeMillis(),
+                0,
+                0,
+                DriverStatus.Status.QUEUED,
+                List.of(),
+                List.of(),
+                DriverSleeps.empty()
+            )
         );
     }
 
@@ -170,35 +180,36 @@ public class Driver implements Releasable, Describable {
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
      */
     SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier nowSupplier) {
+        updateStatus(0, 0, DriverStatus.Status.RUNNING, "driver running");
         long maxTimeNanos = maxTime.nanos();
         long startTime = nowSupplier.getAsLong();
         long nextStatus = startTime + statusNanos;
         int iter = 0;
         while (true) {
-            SubscribableListener<Void> fut = runSingleLoopIteration();
+            IsBlockedResult isBlocked = runSingleLoopIteration();
             iter++;
-            if (fut.isDone() == false) {
-                updateStatus(nowSupplier.getAsLong() - startTime, iter, DriverStatus.Status.ASYNC);
-                return fut;
+            if (isBlocked.listener().isDone() == false) {
+                updateStatus(nowSupplier.getAsLong() - startTime, iter, DriverStatus.Status.ASYNC, isBlocked.reason());
+                return isBlocked.listener();
             }
             if (isFinished()) {
                 finishNanos = nowSupplier.getAsLong();
-                updateStatus(finishNanos - startTime, iter, DriverStatus.Status.DONE);
+                updateStatus(finishNanos - startTime, iter, DriverStatus.Status.DONE, "driver done");
                 driverContext.finish();
                 Releasables.close(releasable, driverContext.getSnapshot());
-                return Operator.NOT_BLOCKED;
+                return Operator.NOT_BLOCKED.listener();
             }
             long now = nowSupplier.getAsLong();
             if (iter >= maxIterations) {
-                updateStatus(now - startTime, iter, DriverStatus.Status.WAITING);
-                return Operator.NOT_BLOCKED;
+                updateStatus(now - startTime, iter, DriverStatus.Status.WAITING, "driver iterations");
+                return Operator.NOT_BLOCKED.listener();
             }
             if (now - startTime >= maxTimeNanos) {
-                updateStatus(now - startTime, iter, DriverStatus.Status.WAITING);
-                return Operator.NOT_BLOCKED;
+                updateStatus(now - startTime, iter, DriverStatus.Status.WAITING, "driver time");
+                return Operator.NOT_BLOCKED.listener();
             }
             if (now > nextStatus) {
-                updateStatus(now - startTime, iter, DriverStatus.Status.RUNNING);
+                updateStatus(now - startTime, iter, DriverStatus.Status.RUNNING, "driver running");
                 nextStatus = now + statusNanos;
             }
         }
@@ -230,7 +241,7 @@ public class Driver implements Releasable, Describable {
         }
     }
 
-    private SubscribableListener<Void> runSingleLoopIteration() {
+    private IsBlockedResult runSingleLoopIteration() {
         ensureNotCancelled();
         boolean movedPage = false;
 
@@ -239,7 +250,7 @@ public class Driver implements Releasable, Describable {
             Operator nextOp = activeOperators.get(i + 1);
 
             // skip blocked operator
-            if (op.isBlocked().isDone() == false) {
+            if (op.isBlocked().listener().isDone() == false) {
                 continue;
             }
 
@@ -290,7 +301,10 @@ public class Driver implements Releasable, Describable {
 
         if (movedPage == false) {
             return oneOf(
-                activeOperators.stream().map(Operator::isBlocked).filter(laf -> laf.isDone() == false).collect(Collectors.toList())
+                activeOperators.stream()
+                    .map(Operator::isBlocked)
+                    .filter(laf -> laf.listener().isDone() == false)
+                    .collect(Collectors.toList())
             );
         }
         return Operator.NOT_BLOCKED;
@@ -327,7 +341,7 @@ public class Driver implements Releasable, Describable {
     ) {
         driver.completionListener.addListener(listener);
         if (driver.started.compareAndSet(false, true)) {
-            driver.updateStatus(0, 0, DriverStatus.Status.STARTING);
+            driver.updateStatus(0, 0, DriverStatus.Status.STARTING, "driver starting");
             schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, driver.completionListener);
         }
     }
@@ -394,18 +408,23 @@ public class Driver implements Releasable, Describable {
         });
     }
 
-    private static SubscribableListener<Void> oneOf(List<SubscribableListener<Void>> futures) {
-        if (futures.isEmpty()) {
+    private static IsBlockedResult oneOf(List<IsBlockedResult> results) {
+        if (results.isEmpty()) {
             return Operator.NOT_BLOCKED;
         }
-        if (futures.size() == 1) {
-            return futures.get(0);
+        if (results.size() == 1) {
+            return results.get(0);
         }
         SubscribableListener<Void> oneOf = new SubscribableListener<>();
-        for (SubscribableListener<Void> fut : futures) {
-            fut.addListener(oneOf);
+        StringBuilder reason = new StringBuilder();
+        for (IsBlockedResult r : results) {
+            r.listener().addListener(oneOf);
+            if (reason.isEmpty() == false) {
+                reason.append(" OR ");
+            }
+            reason.append(r.reason());
         }
-        return oneOf;
+        return new IsBlockedResult(oneOf, reason.toString());
     }
 
     @Override
@@ -440,7 +459,15 @@ public class Driver implements Releasable, Describable {
         if (status.status() != DriverStatus.Status.DONE) {
             throw new IllegalStateException("can only get profile from finished driver");
         }
-        return new DriverProfile(finishNanos - startNanos, status.cpuNanos(), status.iterations(), status.completedOperators());
+        return new DriverProfile(
+            status.started(),
+            status.lastUpdated(),
+            finishNanos - startNanos,
+            status.cpuNanos(),
+            status.iterations(),
+            status.completedOperators(),
+            status.sleeps()
+        );
     }
 
     /**
@@ -449,17 +476,44 @@ public class Driver implements Releasable, Describable {
      * @param extraIterations how many iterations to add to the previous status
      * @param status the status of the overall driver request
      */
-    private void updateStatus(long extraCpuNanos, int extraIterations, DriverStatus.Status status) {
+    private void updateStatus(long extraCpuNanos, int extraIterations, DriverStatus.Status status, String reason) {
         this.status.getAndUpdate(prev -> {
+            long now = System.currentTimeMillis();
+            DriverSleeps sleeps = prev.sleeps();
+
+            // Rebuild the sleeps or bail entirely based on the updated status.
+            // Sorry for the complexity here. If anyone has a nice way to refactor this, be my guest.
+            switch (status) {
+                case ASYNC, WAITING -> sleeps = sleeps.sleep(reason, now);
+                case RUNNING -> {
+                    switch (prev.status()) {
+                        case ASYNC, WAITING -> sleeps = sleeps.wake(now);
+                        case STARTING -> {
+                            if (extraIterations == 0) {
+                                /*
+                                 * 0 extraIterations means we haven't started the loop - we're just
+                                 * signaling that we've woken up. We don't need to signal that when
+                                 * the state is already STARTING because we don't have anything
+                                 * interesting to report. And some tests rely on the status staying
+                                 * in the STARTING state until the first status report.
+                                 */
+                                return prev;
+                            }
+                        }
+                    }
+                }
+            }
+
             return new DriverStatus(
                 sessionId,
                 startTime,
-                System.currentTimeMillis(),
+                now,
                 prev.cpuNanos() + extraCpuNanos,
                 prev.iterations() + extraIterations,
                 status,
                 statusOfCompletedOperators,
-                activeOperators.stream().map(op -> new DriverStatus.OperatorStatus(op.toString(), op.status())).toList()
+                activeOperators.stream().map(op -> new DriverStatus.OperatorStatus(op.toString(), op.status())).toList(),
+                sleeps
             );
         });
     }

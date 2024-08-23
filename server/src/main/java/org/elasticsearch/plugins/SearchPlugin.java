@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
@@ -125,6 +126,10 @@ public interface SearchPlugin {
      */
     default List<QuerySpec<?>> getQueries() {
         return emptyList();
+    }
+
+    default Map<String, BiFunction<String, String, AbstractQueryBuilder<?>>> getQueryBuilders() {
+        return Map.of();
     }
 
     /**

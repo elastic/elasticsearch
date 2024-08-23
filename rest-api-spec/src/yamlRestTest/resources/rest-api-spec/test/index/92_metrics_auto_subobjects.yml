@@ -6,20 +6,21 @@
       reason: requires supporting subobjects auto setting
 
   - do:
-      indices.put_template:
+      indices.put_index_template:
         name: test
         body:
           index_patterns: test-*
-          mappings:
-            dynamic_templates:
-              - no_subobjects:
-                  match: metrics
-                  mapping:
-                    type: object
-                    subobjects: auto
-                    properties:
-                      host.name:
-                        type: keyword
+          template:
+            mappings:
+              dynamic_templates:
+                - no_subobjects:
+                    match: metrics
+                    mapping:
+                      type: object
+                      subobjects: auto
+                      properties:
+                        host.name:
+                          type: keyword
 
   - do:
       allowed_warnings_regex:
@@ -70,15 +71,16 @@
       reason: requires supporting subobjects auto setting
 
   - do:
-      indices.put_template:
+      indices.put_index_template:
         name: test
         body:
           index_patterns: test-*
-          mappings:
-            subobjects: auto
-            properties:
-              host.name:
-                type: keyword
+          template:
+            mappings:
+              subobjects: auto
+              properties:
+                host.name:
+                  type: keyword
 
   - do:
       allowed_warnings_regex:
@@ -129,22 +131,23 @@
       reason: added in 8.4.0
 
   - do:
-      indices.put_template:
+      indices.put_index_template:
         name: test
         body:
           index_patterns: test-*
-          mappings:
-            _source:
-              mode: synthetic
-            dynamic_templates:
-              - no_subobjects:
-                  match: metrics
-                  mapping:
-                    type: object
-                    subobjects: auto
-                    properties:
-                      host.name:
-                        type: keyword
+          template:
+            mappings:
+              _source:
+                mode: synthetic
+              dynamic_templates:
+                - no_subobjects:
+                    match: metrics
+                    mapping:
+                      type: object
+                      subobjects: auto
+                      properties:
+                        host.name:
+                          type: keyword
 
   - do:
       allowed_warnings_regex:
@@ -196,17 +199,18 @@
       reason: added in 8.4.0
 
   - do:
-      indices.put_template:
+      indices.put_index_template:
         name: test
         body:
           index_patterns: test-*
-          mappings:
-            _source:
-              mode: synthetic
-            subobjects: auto
-            properties:
-              host.name:
-                type: keyword
+          template:
+            mappings:
+              _source:
+                mode: synthetic
+              subobjects: auto
+              properties:
+                host.name:
+                  type: keyword
 
   - do:
       allowed_warnings_regex:

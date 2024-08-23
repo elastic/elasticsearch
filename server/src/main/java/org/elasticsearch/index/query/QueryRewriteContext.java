@@ -65,6 +65,7 @@ public class QueryRewriteContext {
     protected Predicate<String> allowedFields;
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
+    private final QueryBuilderService queryBuilderService;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -81,7 +82,8 @@ public class QueryRewriteContext {
         final BooleanSupplier allowExpensiveQueries,
         final ScriptCompiler scriptService,
         final ResolvedIndices resolvedIndices,
-        final PointInTimeBuilder pit
+        final PointInTimeBuilder pit,
+        final QueryBuilderService queryBuilderService
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -100,6 +102,7 @@ public class QueryRewriteContext {
         this.scriptService = scriptService;
         this.resolvedIndices = resolvedIndices;
         this.pit = pit;
+        this.queryBuilderService = queryBuilderService;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -118,6 +121,7 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            null,
             null
         );
     }
@@ -127,7 +131,8 @@ public class QueryRewriteContext {
         final Client client,
         final LongSupplier nowInMillis,
         final ResolvedIndices resolvedIndices,
-        final PointInTimeBuilder pit
+        final PointInTimeBuilder pit,
+        final QueryBuilderService queryBuilderService
     ) {
         this(
             parserConfiguration,
@@ -144,7 +149,8 @@ public class QueryRewriteContext {
             null,
             null,
             resolvedIndices,
-            pit
+            pit,
+            queryBuilderService
         );
     }
 
@@ -405,5 +411,9 @@ public class QueryRewriteContext {
     @Nullable
     public PointInTimeBuilder getPointInTimeBuilder() {
         return pit;
+    }
+
+    public QueryBuilderService getQueryBuilderService() {
+        return queryBuilderService;
     }
 }

@@ -65,9 +65,10 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         String[] indices = indexPattern.replace("*", "").split(",");
         try {
             for (String index : indices) {
-                if (index.strip().isEmpty()) {
+                if (index.isBlank()) {
                     continue;
                 }
+                index = index.strip();
                 if (index.charAt(0) == '-') {
                     index = index.substring(1);
                 }

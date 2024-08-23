@@ -58,12 +58,46 @@ public class SchedulerEngine {
         public Job(String id, Schedule schedule) {
             this(id, schedule, null);
         }
+
+        /**
+         * The following getters are redundant with the getters built in by the record.
+         * Unfortunately, getFieldName form getters are expected by serverless.
+         * These getters are being added back until serverless can be updated for the new getters.
+         */
+        public String getId() {
+            return id;
+        }
+
+        public Schedule getSchedule() {
+            return schedule;
+        }
+
+        public Long getFixedStartTime() {
+            return fixedStartTime;
+        }
     }
 
     public record Event(String jobName, long triggeredTime, long scheduledTime) {
         @Override
         public String toString() {
             return "Event[jobName=" + jobName + "," + "triggeredTime=" + triggeredTime + "," + "scheduledTime=" + scheduledTime + "]";
+        }
+
+        /**
+         * The following getters are redundant with the getters built in by the record.
+         * Unfortunately, getFieldName form getters are expected by serverless.
+         * These getters are being added back until serverless can be updated for the new getters.
+         */
+        public String getJobName() {
+            return jobName;
+        }
+
+        public long getTriggeredTime() {
+            return triggeredTime;
+        }
+
+        public long getScheduledTime() {
+            return scheduledTime;
         }
     }
 

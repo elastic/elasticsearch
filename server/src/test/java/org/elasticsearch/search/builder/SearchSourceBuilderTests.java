@@ -174,6 +174,56 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testParseIncludeVectors() throws IOException {
+        {
+            String restContent = """
+                { "_source": {} }
+                """;
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
+                assertNull(searchSourceBuilder.fetchSource().includeVectors());
+            }
+        }
+        {
+            String restContent = """
+                { "_source": { "include_vectors": true } }
+                """;
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
+                assertTrue(searchSourceBuilder.fetchSource().includeVectors());
+            }
+        }
+        {
+            String restContent = """
+                { "_source": { "include_vectors": false } }
+                """;
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
+                assertFalse(searchSourceBuilder.fetchSource().includeVectors());
+            }
+        }
+        {
+            String restContent = """
+                { "_source": { "include_vectors": "true" } }
+                """;
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
+                assertTrue(searchSourceBuilder.fetchSource().includeVectors());
+            }
+        }
+        {
+            String restContent = """
+                { "_source": { "include_vectors": false, "includes": "include", "excludes": "*.field2" } }
+                """;
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
+                assertFalse(searchSourceBuilder.fetchSource().includeVectors());
+                assertArrayEquals(new String[] { "*.field2" }, searchSourceBuilder.fetchSource().excludes());
+                assertArrayEquals(new String[] { "include" }, searchSourceBuilder.fetchSource().includes());
+            }
+        }
+    }
+
     public void testMultipleQueryObjectsAreRejected() throws Exception {
         String restContent = """
             { "query": {

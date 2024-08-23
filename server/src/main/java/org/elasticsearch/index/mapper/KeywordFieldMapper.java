@@ -922,6 +922,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
 
+        if (hasNormalizer() && fieldType().isSyntheticSource) {
+            context.doc().add(new StoredField(originalName(), new BytesRef(value)));
+        }
+
         value = normalizeValue(fieldType().normalizer(), fullPath(), value);
 
         // convert to utf8 only once before feeding postings/dv/stored fields
@@ -1046,18 +1050,12 @@ public final class KeywordFieldMapper extends FieldMapper {
                 "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        if (hasNormalizer()) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
-            );
-        }
 
-        if (fieldType.stored()) {
-            return new StringStoredFieldFieldLoader(
-                fullPath(),
-                simpleName,
-                fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName()
-            ) {
+        if (fieldType.stored() || (fieldType().isSyntheticSource) && hasNormalizer()) {
+            final String extraStoredName = fieldType().isSyntheticSource && hasNormalizer() ? originalName()
+                : fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null
+                : originalName();
+            return new StringStoredFieldFieldLoader(fullPath(), simpleName, extraStoredName) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
                     BytesRef ref = (BytesRef) value;

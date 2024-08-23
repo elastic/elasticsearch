@@ -46,6 +46,62 @@ keyword:
       docs.1._source:
         kwd: bar
 
+# doesn't support synthetic source because it declares a normalizer
+---
+keyword with normalizer:
+  - requires:
+      cluster_features: [ "gte_v8.4.0" ]
+      reason: introduced in 8.4.0
+  - do:
+      indices.create:
+        index: test-keyword-with-normalizer
+        body:
+          settings:
+            analysis:
+              normalizer:
+                lowercase:
+                  type: custom
+                  filter:
+                    - lowercase
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              keyword:
+                type: keyword
+                normalizer: lowercase
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 1
+        body:
+          keyword: "the Quick Brown Fox jumps over the lazy Dog"
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 2
+        body:
+          keyword: "The five BOXING wizards jump Quickly"
+
+  - do:
+      mget:
+        index: test-keyword-with-normalizer
+        body:
+          ids:    [1, 2]
+  - match: { docs.0._index: "test-keyword-with-normalizer" }
+  - match: { docs.0._id: "1" }
+  - match:
+      docs.0._source:
+        keyword: "the Quick Brown Fox jumps over the lazy Dog"
+
+  - match: { docs.1._index: "test-keyword-with-normalizer" }
+  - match: { docs.1._id: "2" }
+  - match:
+      docs.1._source:
+        keyword: "The five BOXING wizards jump Quickly"
+
 ---
 stored text:
   - requires:

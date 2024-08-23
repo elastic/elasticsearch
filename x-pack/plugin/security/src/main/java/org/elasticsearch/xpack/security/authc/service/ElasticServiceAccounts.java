@@ -82,7 +82,7 @@ final class ElasticServiceAccounts {
         new RoleDescriptor(
             NAMESPACE + "/enterprise-search-connector",
             new String[] { "read_security", "manage_own_api_key" },
-            null,
+            new RoleDescriptor.IndicesPrivileges[] { RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("read").build() },
             null,
             null,
             null,

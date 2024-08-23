@@ -100,7 +100,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
@@ -407,12 +406,7 @@ public class ApiKeyService implements Closeable {
         final String... apiKeyIds
     ) {
         final Set<RoleDescriptor> userRolesWithoutDescription = removeUserRoleDescriptorDescriptions(userRoleDescriptors);
-        Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemotePrivileges(
-            userRolesWithoutDescription,
-            transportVersion,
-            apiKeyIds
-        );
-        return maybeRemoveGlobalPrivileges(filteredUserRoleDescriptors, transportVersion, apiKeyIds);
+        return maybeRemoveRemotePrivileges(userRolesWithoutDescription, transportVersion, apiKeyIds);
     }
 
     private boolean validateRoleDescriptorsForMixedCluster(
@@ -438,6 +432,16 @@ public class ApiKeyService implements Closeable {
                     "all nodes must have version ["
                         + ROLE_REMOTE_CLUSTER_PRIVS
                         + "] or higher to support remote cluster privileges for API keys"
+                )
+            );
+            return false;
+        }
+        if (transportVersion.before(ADD_MANAGE_ROLES_PRIVILEGE) && hasGlobalManageRolesPrivilege(roleDescriptors)) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "all nodes must have version ["
+                        + ADD_MANAGE_ROLES_PRIVILEGE
+                        + "] or higher to support the manage roles privilege for API keys"
                 )
             );
             return false;
@@ -483,6 +487,13 @@ public class ApiKeyService implements Closeable {
 
     private static boolean hasRemoteCluster(Collection<RoleDescriptor> roleDescriptors) {
         return roleDescriptors != null && roleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteClusterPermissions);
+    }
+
+    private static boolean hasGlobalManageRolesPrivilege(Collection<RoleDescriptor> roleDescriptors) {
+        return roleDescriptors != null
+            && roleDescriptors.stream()
+                .flatMap(roleDescriptor -> Arrays.stream(roleDescriptor.getConditionalClusterPrivileges()))
+                .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege);
     }
 
     private static IllegalArgumentException validateWorkflowsRestrictionConstraints(
@@ -820,60 +831,6 @@ public class ApiKeyService implements Closeable {
                             + ". Remote cluster privileges are not supported by all nodes in the cluster."
                     );
                 }
-            }
-            return result;
-        }
-        return userRoleDescriptors;
-    }
-
-    /**
-     * This method removes any global cluster privileges from the given role descriptors when we are in a mixed cluster in which some of
-     * the nodes do not support global cluster privileges since storing these roles would cause parsing issues on old nodes
-     */
-    static Set<RoleDescriptor> maybeRemoveGlobalPrivileges(
-        final Set<RoleDescriptor> userRoleDescriptors,
-        final TransportVersion transportVersion,
-        final String... apiKeyIds
-    ) {
-        if (transportVersion.before(ADD_MANAGE_ROLES_PRIVILEGE)) {
-            final Set<RoleDescriptor> affectedRoles = new HashSet<>();
-            final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
-                if (Arrays.stream(roleDescriptor.getConditionalClusterPrivileges())
-                    .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege)) {
-                    affectedRoles.add(roleDescriptor);
-                    return new RoleDescriptor(
-                        roleDescriptor.getName(),
-                        roleDescriptor.getClusterPrivileges(),
-                        roleDescriptor.getIndicesPrivileges(),
-                        roleDescriptor.getApplicationPrivileges(),
-                        Arrays.stream(roleDescriptor.getConditionalClusterPrivileges())
-                            .filter(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege == false)
-                            .toArray(ConfigurableClusterPrivilege[]::new),
-                        roleDescriptor.getRunAs(),
-                        roleDescriptor.getMetadata(),
-                        roleDescriptor.getTransientMetadata(),
-                        roleDescriptor.getRemoteIndicesPrivileges(),
-                        roleDescriptor.getRemoteClusterPermissions(),
-                        roleDescriptor.getRestriction(),
-                        roleDescriptor.getDescription()
-                    );
-                }
-                return roleDescriptor;
-            }).collect(Collectors.toSet());
-
-            if (false == affectedRoles.isEmpty()) {
-                List<String> affectedRolesNames = affectedRoles.stream().map(RoleDescriptor::getName).sorted().collect(Collectors.toList());
-
-                logger.info(
-                    "removed manage roles privilege from role(s) {} for API key(s) [{}]",
-                    affectedRolesNames,
-                    buildDelimitedStringWithLimit(10, apiKeyIds)
-                );
-                HeaderWarning.addWarning(
-                    "Removed API key's manage roles privilege from role(s) "
-                        + affectedRolesNames
-                        + ". Manage roles is not supported by all nodes in the cluster. "
-                );
             }
             return result;
         }

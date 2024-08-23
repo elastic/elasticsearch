@@ -82,7 +82,7 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
         try (
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
             SnapshotRetentionService service = new SnapshotRetentionService(Settings.EMPTY, () -> new FakeRetentionTask(event -> {
-                assertThat(event.jobName(), equalTo(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID));
+                assertThat(event.getJobName(), equalTo(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID));
                 invoked.incrementAndGet();
             }), clock)
         ) {

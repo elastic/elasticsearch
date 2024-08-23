@@ -256,7 +256,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
 
             CopyOnWriteArrayList<String> triggeredJobs = new CopyOnWriteArrayList<>();
             trigger.set(e -> {
-                triggeredJobs.add(e.jobName());
+                triggeredJobs.add(e.getJobName());
                 triggerCount.incrementAndGet();
             });
             clock.fastForwardSeconds(1);

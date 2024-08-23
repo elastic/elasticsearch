@@ -166,7 +166,7 @@ public class SchedulerEngineTests extends ESTestCase {
         final String jobId = randomAlphaOfLength(4);
         try {
             engine.register(event -> {
-                assertThat(event.jobName(), is(jobId));
+                assertThat(event.getJobName(), is(jobId));
                 calledCount.incrementAndGet();
                 jobRunningLatch.countDown();
                 try {

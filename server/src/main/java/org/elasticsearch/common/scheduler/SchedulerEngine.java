@@ -49,18 +49,63 @@ public class SchedulerEngine {
      * This could change if a master change or restart causes a new SchedulerEngine to be constructed.
      * But using a `fixedStartTime` populated  from a time stored in cluster state allows the basis time
      * to remain unchanged across master changes and restarts.
-     *
-     * @param id the id of the job
-     * @param schedule the schedule which is used to calculate when the job runs
-     * @param fixedStartTime a fixed time in the past which the schedule uses to calculate run times,
      */
-    public record Job(String id, Schedule schedule, @Nullable Long fixedStartTime) {
+    public static class Job {
+        // id of the job
+        private final String id;
+
+        // schedule which is used to calculate when the job runs
+        private final Schedule schedule;
+
+        // fixedStartTime a fixed time in the past which the schedule uses to calculate run times,
+        private final @Nullable Long fixedStartTime;
+
         public Job(String id, Schedule schedule) {
             this(id, schedule, null);
         }
+
+        public Job(String id, Schedule schedule, Long fixedStartTime) {
+            this.id = id;
+            this.schedule = schedule;
+            this.fixedStartTime = fixedStartTime;
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public Schedule getSchedule() {
+            return schedule;
+        }
+
+        public Long getFixedStartTime() {
+            return fixedStartTime;
+        }
     }
 
-    public record Event(String jobName, long triggeredTime, long scheduledTime) {
+    public static class Event {
+        private final String jobName;
+        private final long triggeredTime;
+        private final long scheduledTime;
+
+        public Event(String jobName, long triggeredTime, long scheduledTime) {
+            this.jobName = jobName;
+            this.triggeredTime = triggeredTime;
+            this.scheduledTime = scheduledTime;
+        }
+
+        public String getJobName() {
+            return jobName;
+        }
+
+        public long getTriggeredTime() {
+            return triggeredTime;
+        }
+
+        public long getScheduledTime() {
+            return scheduledTime;
+        }
+
         @Override
         public String toString() {
             return "Event[jobName=" + jobName + "," + "triggeredTime=" + triggeredTime + "," + "scheduledTime=" + scheduledTime + "]";
@@ -140,13 +185,13 @@ public class SchedulerEngine {
     }
 
     public void add(Job job) {
-        final long startTime = job.fixedStartTime() == null ? clock.millis() : job.fixedStartTime();
-        ActiveSchedule schedule = new ActiveSchedule(job.id(), job.schedule(), startTime);
+        final long startTime = job.getFixedStartTime() == null ? clock.millis() : job.getFixedStartTime();
+        ActiveSchedule schedule = new ActiveSchedule(job.getId(), job.getSchedule(), startTime);
         schedules.compute(schedule.name, (name, previousSchedule) -> {
             if (previousSchedule != null) {
                 previousSchedule.cancel();
             }
-            logger.debug(() -> "added job [" + job.id() + "]");
+            logger.debug(() -> "added job [" + job.getId() + "]");
             return schedule;
         });
     }

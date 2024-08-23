@@ -53,7 +53,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         List<String> patterns = new ArrayList<>(ctx.size());
         ctx.forEach(c -> {
             String indexPattern = visitIndexString(c.indexString());
-            //validateIndexPattern(indexPattern, c);
+            validateIndexPattern(indexPattern, c);
             patterns.add(
                 c.clusterString() != null ? c.clusterString().getText() + REMOTE_CLUSTER_INDEX_SEPARATOR + indexPattern : indexPattern
             );
@@ -71,11 +71,17 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                 if (index.charAt(0) == '-') {
                     index = index.substring(1);
                 }
-                index = IndexNameExpressionResolver.resolveDateMathExpression(index);
-                MetadataCreateIndexService.validateIndexOrAliasName(index.strip(), InvalidIndexNameException::new);
+                MetadataCreateIndexService.validateIndexOrAliasName(
+                    removeExclusion(IndexNameExpressionResolver.resolveDateMathExpression(removeExclusion(index))),
+                    InvalidIndexNameException::new
+                );
             }
         } catch (InvalidIndexNameException | ElasticsearchParseException e) {
             throw new ParsingException(e, source(ctx), e.getMessage());
         }
+    }
+
+    private static String removeExclusion(String indexPattern) {
+        return indexPattern.charAt(0) == '-' ? indexPattern.substring(1) : indexPattern;
     }
 }

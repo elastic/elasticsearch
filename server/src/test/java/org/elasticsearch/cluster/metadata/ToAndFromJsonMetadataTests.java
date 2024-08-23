@@ -218,6 +218,75 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
     private static final String ALIAS_FILTER1 = "{\"field1\":\"value1\"}";
     private static final String ALIAS_FILTER2 = "{\"field2\":\"value2\"}";
 
+    public void testToXContentGateway_MultiProject() throws IOException {
+        Map<String, String> mapParams = Map.of(
+            Metadata.CONTEXT_MODE_PARAM,
+            CONTEXT_MODE_GATEWAY,
+            "flat_settings",
+            "true",
+            "multi-project",
+            "true"
+        );
+
+        Metadata metadata = buildMetadata();
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        builder.startObject();
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
+        builder.endObject();
+
+        assertEquals(Strings.format("""
+            {
+              "meta-data" : {
+                "version" : 0,
+                "cluster_uuid" : "clusterUUID",
+                "cluster_uuid_committed" : false,
+                "cluster_coordination" : {
+                  "term" : 1,
+                  "last_committed_config" : [
+                    "commitedConfigurationNodeId"
+                  ],
+                  "last_accepted_config" : [
+                    "acceptedConfigurationNodeId"
+                  ],
+                  "voting_config_exclusions" : [
+                    {
+                      "node_id" : "exlucdedNodeId",
+                      "node_name" : "excludedNodeName"
+                    }
+                  ]
+                },
+                "settings" : {
+                  "index.version.created" : "%s"
+                },
+                "projects" : [
+                  {
+                    "id" : "default",
+                    "templates" : {
+                      "template" : {
+                        "order" : 0,
+                        "index_patterns" : [
+                          "pattern1",
+                          "pattern2"
+                        ],
+                        "settings" : {
+                          "index.version.created" : "8513000"
+                        },
+                        "mappings" : {
+                          "key1" : { }
+                        },
+                        "aliases" : { }
+                      }
+                    },
+                    "index-graveyard" : {
+                      "tombstones" : [ ]
+                    }
+                  }
+                ],
+                "reserved_state" : { }
+              }
+            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
+    }
+
     public void testToXContentGateway_FlatSettingTrue_ReduceMappingFalse() throws IOException {
         Map<String, String> mapParams = Map.of(
             Metadata.CONTEXT_MODE_PARAM,
@@ -274,10 +343,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     "aliases" : { }
                   }
                 },
-                "project" : {
-                  "index-graveyard" : {
-                    "tombstones" : [ ]
-                  }
+                "index-graveyard" : {
+                  "tombstones" : [ ]
                 },
                 "reserved_state" : { }
               }
@@ -430,10 +497,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     "aliases" : { }
                   }
                 },
-                "project" : {
-                  "index-graveyard" : {
-                    "tombstones" : [ ]
-                  }
+                "index-graveyard" : {
+                  "tombstones" : [ ]
                 },
                 "reserved_state" : { }
               }

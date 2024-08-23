@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -39,6 +40,7 @@ import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1075,8 +1077,12 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         return true;
     }
 
+    public static ProjectMetadata.Builder builder() {
+        return new ProjectMetadata.Builder(Map.of(), 0);
+    }
+
     public static ProjectMetadata.Builder builder(ProjectId id) {
-        return new ProjectMetadata.Builder(id, Map.of(), 0);
+        return new ProjectMetadata.Builder(Map.of(), 0).id(id);
     }
 
     public static ProjectMetadata.Builder builder(ProjectMetadata projectMetadata) {
@@ -1098,7 +1104,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         // have become unused because no indices were updated or removed from this builder in a way that would cause unused entries in
         // #mappingsByHash.
         private boolean checkForUnusedMappings = true;
-        private final ProjectId id;
+        private ProjectId id;
 
         Builder(ProjectMetadata projectMetadata) {
             this.id = projectMetadata.id;
@@ -1111,8 +1117,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             this.checkForUnusedMappings = false;
         }
 
-        Builder(ProjectId id, Map<String, MappingMetadata> mappingsByHash, int indexCountHint) {
-            this.id = id;
+        Builder(Map<String, MappingMetadata> mappingsByHash, int indexCountHint) {
             indices = ImmutableOpenMap.builder(indexCountHint);
             aliasedIndices = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
@@ -1120,6 +1125,12 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             previousIndicesLookup = null;
             this.mappingsByHash = new HashMap<>(mappingsByHash);
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
+        }
+
+        public Builder id(ProjectId id) {
+            assert this.id == null : "a project's ID cannot be changed";
+            this.id = id;
+            return this;
         }
 
         public ProjectId getId() {
@@ -1947,6 +1958,47 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
             return true;
         }
+
+        public static ProjectMetadata fromXContent(XContentParser parser) throws IOException {
+            XContentParser.Token token = parser.currentToken();
+            String currentFieldName = null;
+
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+            ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder();
+
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    switch (currentFieldName) {
+                        case "id" -> projectBuilder.id(ProjectId.fromXContent(parser));
+                        default -> throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    switch (currentFieldName) {
+                        case "indices" -> {
+                            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                                projectBuilder.put(IndexMetadata.Builder.fromXContent(parser), false);
+                            }
+                        }
+                        case "templates" -> {
+                            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                                projectBuilder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
+                            }
+                        }
+                        default -> Metadata.Builder.parseCustomObject(
+                            parser,
+                            currentFieldName,
+                            Metadata.ProjectCustom.class,
+                            projectBuilder::putCustom
+                        );
+                    }
+                } else {
+                    throw new IllegalArgumentException("Unexpected token " + token);
+                }
+            }
+            return projectBuilder.build();
+        }
     }
 
     @Override
@@ -1973,8 +2025,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 )
             ),
             indices,
-            // For BWC, the API does not have an embedded "project:", but other contexts do
-            context == Metadata.XContentContext.API ? customs : ChunkedToXContentHelper.wrapWithObject("project", customs)
+            customs
         );
     }
 
@@ -2087,7 +2138,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 return part;
             }
             var updatedIndices = indices.apply(part.indices);
-            Builder builder = new Builder(part.id, part.mappingsByHash, updatedIndices.size());
+            Builder builder = new Builder(part.mappingsByHash, updatedIndices.size());
+            builder.id(part.id);
             builder.indices(updatedIndices);
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));

@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
@@ -2434,6 +2435,22 @@ public class MetadataTests extends ESTestCase {
         diff.writeTo(out);
         final Diff<Metadata> deserializedDiff = Metadata.readDiffFrom(out.bytes().streamInput());
         assertSame(instance, deserializedDiff.apply(instance));
+    }
+
+    public void testMultiProjectXContent() throws IOException {
+        Metadata originalMeta = randomMetadata();
+        ToXContent.Params p = new ToXContent.MapParams(
+            Map.of("multi-project", "true", Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY)
+        );
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        ChunkedToXContent.wrapAsToXContent(originalMeta).toXContent(builder, p);
+        builder.endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            Metadata fromXContentMeta = Metadata.fromXContent(parser);
+            assertEquals(originalMeta.projects().size(), fromXContentMeta.projects().size());
+        }
     }
 
     public void testChunkedToXContent() {

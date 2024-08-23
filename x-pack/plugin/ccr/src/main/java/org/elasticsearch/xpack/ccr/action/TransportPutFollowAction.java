@@ -67,7 +67,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
     private final IndexScopedSettings indexScopedSettings;
     private final Client client;
     private final Executor remoteClientResponseExecutor;
-    private final Executor restoreExecutor;
     private final RestoreService restoreService;
     private final CcrLicenseChecker ccrLicenseChecker;
 
@@ -97,7 +96,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         this.indexScopedSettings = indexScopedSettings;
         this.client = client;
         this.remoteClientResponseExecutor = threadPool.executor(CCR_THREAD_POOL_NAME);
-        this.restoreExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT_META);
         this.restoreService = restoreService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
@@ -245,7 +243,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 mdBuilder.put(updatedDataStream);
             };
         }
-        restoreExecutor.execute(ActionRunnable.wrap(delegatelistener, l -> restoreService.restoreSnapshot(restoreRequest, l, updater)));
+        threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
+            .execute(ActionRunnable.wrap(delegatelistener, l -> restoreService.restoreSnapshot(restoreRequest, l, updater)));
     }
 
     private void afterRestoreStarted(

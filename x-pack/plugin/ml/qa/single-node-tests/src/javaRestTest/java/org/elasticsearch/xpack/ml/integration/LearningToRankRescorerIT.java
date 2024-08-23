@@ -16,7 +16,11 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -69,6 +73,19 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
               }
             }""");
         assertHitScores(client().performRequest(request), List.of(9.0, 9.0, 6.0));
+    }
+
+    public void testLearningToRankRescoreWithExplain() throws Exception {
+        Request request = new Request("GET", "store/_search?size=3&explain=true&error_trace");
+        request.setJsonEntity("""
+            {
+              "rescore": {
+                "window_size": 10,
+                "learning_to_rank": { "model_id": "ltr-model" }
+              }
+            }""");
+        var response = client().performRequest(request);
+        assertExplainExtractedFeatures(response, List.of("type_tv", "cost", "two"));
     }
 
     public void testLearningToRankRescoreSmallWindow() throws Exception {
@@ -157,6 +174,47 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
     @SuppressWarnings("unchecked")
     private static void assertHitScores(Response response, List<Double> expectedScores) throws IOException {
         assertThat((List<Double>) XContentMapValues.extractValue("hits.hits._score", responseAsMap(response)), equalTo(expectedScores));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertExplainExtractedFeatures(Response response, List<String> expectedFeatures) throws IOException {
+        var explainValues = (ArrayList<Map<String, Object>>) XContentMapValues.extractValue(
+            "hits.hits._explanation",
+            responseAsMap(response)
+        );
+        assertThat(explainValues.size(), equalTo(3));
+        for (Map<String, Object> hit : explainValues) {
+            assertThat(hit.get("description"), equalTo("rescored using LTR model ltr-model"));
+
+            var queryDetails = (ArrayList<Map<String, Object>>) hit.get("details");
+            assertThat(queryDetails.size(), equalTo(2));
+
+            assertThat(queryDetails.get(0).get("description"), equalTo("first pass query score"));
+            assertThat(queryDetails.get(1).get("description"), equalTo("extracted features"));
+
+            var featureDetails = new ArrayList<>((ArrayList<Map<String, Object>>) queryDetails.get(1).get("details"));
+            assertThat(featureDetails.size(), equalTo(3));
+
+            var missingKeys = new ArrayList<String>();
+            for (String expectedFeature : expectedFeatures) {
+                var expectedDescription = Strings.format("feature value for [%s]", expectedFeature);
+
+                var wasFound = false;
+                for (Map<String, Object> detailItem : featureDetails) {
+                    if (detailItem.get("description").equals(expectedDescription)) {
+                        featureDetails.remove(detailItem);
+                        wasFound = true;
+                        break;
+                    }
+                }
+
+                if (wasFound == false) {
+                    missingKeys.add(expectedFeature);
+                }
+            }
+
+            assertThat(Strings.format("Could not find features: [%s]", String.join(", ", missingKeys)), featureDetails.size(), equalTo(0));
+        }
     }
 
     private static String testIndexDefinition = """

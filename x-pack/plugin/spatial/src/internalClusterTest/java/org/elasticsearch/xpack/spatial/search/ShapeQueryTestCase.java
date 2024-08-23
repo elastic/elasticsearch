@@ -78,7 +78,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
         prepareIndex(defaultIndexName).setId("4")
             .setSource(
                 jsonBuilder().startObject()
-                    .field("name", "Document 3")
+                    .field("name", "Document 4")
                     .field(defaultFieldName, new String[] { "POINT(-30 -30)", "POINT(50 50)" })
                     .endObject()
             )
@@ -87,7 +87,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
         prepareIndex(defaultIndexName).setId("5")
             .setSource(
                 jsonBuilder().startObject()
-                    .field("name", "Document 3")
+                    .field("name", "Document 5")
                     .field(defaultFieldName, new String[] { "POINT(60 60)", "POINT(50 50)" })
                     .endObject()
             )
@@ -100,12 +100,12 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
     static String defaultFieldName = "xy";
     static String defaultIndexName = "test-points";
 
-    public void testNullShape() throws Exception {
+    public void testNullShape() {
         GetResponse result = client().prepareGet(defaultIndexName, "aNullshape").get();
         assertThat(result.getField(defaultFieldName), nullValue());
     };
 
-    public void testIndexPointsFilterRectangle() throws Exception {
+    public void testIndexPointsFilterRectangle() {
         Rectangle rectangle = new Rectangle(-45, 45, 45, -45);
 
         assertNoFailuresAndResponse(
@@ -184,7 +184,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
         );
     }
 
-    public void testIndexPointsRectangle() throws Exception {
+    public void testIndexPointsRectangle() {
         Rectangle rectangle = new Rectangle(-50, -40, -45, -55);
 
         assertNoFailuresAndResponse(
@@ -250,7 +250,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
 
     }
 
-    public void testDistanceQuery() throws Exception {
+    public void testDistanceQuery() {
         Circle circle = new Circle(-25, -25, 10);
 
         assertHitCount(

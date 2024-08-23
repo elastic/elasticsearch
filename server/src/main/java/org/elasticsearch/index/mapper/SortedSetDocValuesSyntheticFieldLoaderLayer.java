@@ -13,60 +13,30 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-
-import static java.util.Collections.emptyList;
 
 /**
  * Load {@code _source} fields from {@link SortedSetDocValues}.
  */
-public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
-    private static final Logger logger = LogManager.getLogger(SortedSetDocValuesSyntheticFieldLoader.class);
+public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.SyntheticFieldLoaderLayer {
+    private static final Logger logger = LogManager.getLogger(SortedSetDocValuesSyntheticFieldLoaderLayer.class);
 
     private final String name;
-    private final String simpleName;
     private DocValuesFieldValues docValues = NO_VALUES;
-
-    /**
-     * Optionally loads stored fields values.
-     */
-    @Nullable
-    private final String storedValuesName;
-    private List<Object> storedValues = emptyList();
-
-    /**
-     * Optionally loads malformed values from stored fields.
-     */
-    private final IgnoreMalformedStoredValues ignoreMalformedValues;
 
     /**
      * Build a loader from doc values and, optionally, a stored field.
      * @param name the name of the field to load from doc values
-     * @param simpleName the name to give the field in the rendered {@code _source}
-     * @param storedValuesName the name of a stored field to load or null if there aren't any stored field for this field
-     * @param loadIgnoreMalformedValues should we load values skipped by {@code ignore_malformed}
      */
-    public SortedSetDocValuesSyntheticFieldLoader(
-        String name,
-        String simpleName,
-        @Nullable String storedValuesName,
-        boolean loadIgnoreMalformedValues
-    ) {
+    public SortedSetDocValuesSyntheticFieldLoaderLayer(String name) {
         this.name = name;
-        this.simpleName = simpleName;
-        this.storedValuesName = storedValuesName;
-        this.ignoreMalformedValues = loadIgnoreMalformedValues
-            ? IgnoreMalformedStoredValues.stored(name)
-            : IgnoreMalformedStoredValues.empty();
     }
 
     @Override
@@ -76,13 +46,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
 
     @Override
     public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        if (storedValuesName == null) {
-            return ignoreMalformedValues.storedFieldLoaders();
-        }
-        return Stream.concat(
-            Stream.of(Map.entry(storedValuesName, values -> this.storedValues = values)),
-            ignoreMalformedValues.storedFieldLoaders()
-        );
+        return Stream.of();
     }
 
     @Override
@@ -112,48 +76,17 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
 
     @Override
     public boolean hasValue() {
-        return docValues.count() > 0 || storedValues.isEmpty() == false || ignoreMalformedValues.count() > 0;
+        return docValues.count() > 0;
     }
 
     @Override
-    public void write(XContentBuilder b) throws IOException {
-        int total = docValues.count() + storedValues.size() + ignoreMalformedValues.count();
-        switch (total) {
-            case 0:
-                return;
-            case 1:
-                b.field(simpleName);
-                if (docValues.count() > 0) {
-                    assert docValues.count() == 1;
-                    assert storedValues.isEmpty();
-                    assert ignoreMalformedValues.count() == 0;
-                    docValues.write(b);
-                } else if (storedValues.isEmpty() == false) {
-                    assert docValues.count() == 0;
-                    assert storedValues.size() == 1;
-                    assert ignoreMalformedValues.count() == 0;
-                    BytesRef converted = convert((BytesRef) storedValues.get(0));
-                    b.utf8Value(converted.bytes, converted.offset, converted.length);
-                    storedValues = emptyList();
-                } else {
-                    assert docValues.count() == 0;
-                    assert storedValues.isEmpty();
-                    assert ignoreMalformedValues.count() == 1;
-                    ignoreMalformedValues.write(b);
-                }
-                return;
-            default:
-                b.startArray(simpleName);
-                docValues.write(b);
-                for (Object v : storedValues) {
-                    BytesRef converted = convert((BytesRef) v);
-                    b.utf8Value(converted.bytes, converted.offset, converted.length);
-                }
-                storedValues = emptyList();
-                ignoreMalformedValues.write(b);
-                b.endArray();
-                return;
-        }
+    public long valueCount(int docId) {
+        return docValues.count();
+    }
+
+    @Override
+    public void write(int docId, XContentBuilder b) throws IOException {
+        docValues.write(b);
     }
 
     private interface DocValuesFieldValues {

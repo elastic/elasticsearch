@@ -562,7 +562,7 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void write(XContentBuilder b) throws IOException {
+        public void write(int docId, XContentBuilder b) throws IOException {
             if (binaryValue == null) {
                 return;
             }
@@ -591,7 +591,7 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public long valueCount() {
+        public long valueCount(int docId) {
             return binaryValue != null ? 1 : 0;
         }
     };

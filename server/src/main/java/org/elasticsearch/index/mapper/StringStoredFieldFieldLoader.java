@@ -22,6 +22,8 @@ import static java.util.Collections.emptyList;
 public abstract class StringStoredFieldFieldLoader implements SourceLoader.SyntheticFieldLoader {
     private final String name;
     private final String simpleName;
+
+    private int docId = -1;
     private List<Object> values = emptyList();
 
     @Nullable
@@ -36,11 +38,17 @@ public abstract class StringStoredFieldFieldLoader implements SourceLoader.Synth
 
     @Override
     public final Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        Stream<Map.Entry<String, StoredFieldLoader>> standard = Stream.of(Map.entry(name, values -> this.values = values));
+        Stream<Map.Entry<String, StoredFieldLoader>> standard = Stream.of(Map.entry(name, (docId, values) -> {
+            this.docId = docId;
+            this.values = values;
+        }));
         if (extraStoredName == null) {
             return standard;
         }
-        return Stream.concat(standard, Stream.of(Map.entry(extraStoredName, values -> this.extraValues = values)));
+        return Stream.concat(standard, Stream.of(Map.entry(extraStoredName, (docId, values) -> {
+            this.docId = docId;
+            this.extraValues = values;
+        })));
     }
 
     @Override
@@ -49,7 +57,16 @@ public abstract class StringStoredFieldFieldLoader implements SourceLoader.Synth
     }
 
     @Override
-    public final void write(XContentBuilder b) throws IOException {
+    public final void write(int docId, XContentBuilder b) throws IOException {
+        if (this.docId != docId) {
+            // Data from stored fields that we have is stale, discard it.
+            this.docId = -1;
+            this.values = emptyList();
+            this.extraValues = emptyList();
+
+            return;
+        }
+
         int size = values.size() + extraValues.size();
         switch (size) {
             case 0:

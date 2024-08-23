@@ -720,21 +720,19 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         return new CompositeSyntheticFieldLoader(
             leafName(),
             fullPath(),
-            new AggregateMetricSyntheticFieldLoader(fullPath(), leafName(), metrics),
+            new AggregateMetricSyntheticFieldLoader(fullPath(), metrics),
             new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
         );
     }
 
     public static class AggregateMetricSyntheticFieldLoader implements CompositeSyntheticFieldLoader.SyntheticFieldLoaderLayer {
         private final String name;
-        private final String simpleName;
         private final EnumSet<Metric> metrics;
         private final Map<Metric, SortedNumericDocValues> metricDocValues = new EnumMap<>(Metric.class);
         private final Set<Metric> metricHasValue = EnumSet.noneOf(Metric.class);
 
-        protected AggregateMetricSyntheticFieldLoader(String name, String simpleName, EnumSet<Metric> metrics) {
+        protected AggregateMetricSyntheticFieldLoader(String name, EnumSet<Metric> metrics) {
             this.name = name;
-            this.simpleName = simpleName;
             this.metrics = metrics;
         }
 
@@ -744,7 +742,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public long valueCount() {
+        public long valueCount(int docId) {
             return hasValue() ? 1 : 0;
         }
 
@@ -777,7 +775,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void write(XContentBuilder b) throws IOException {
+        public void write(int docId, XContentBuilder b) throws IOException {
             if (metricHasValue.isEmpty()) {
                 return;
             }

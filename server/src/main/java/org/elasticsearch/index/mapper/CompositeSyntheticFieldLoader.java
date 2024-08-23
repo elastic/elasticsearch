@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -28,13 +29,17 @@ import static java.util.Collections.emptyList;
  * stored in a different field in case of ignore_malformed being enabled.
  */
 public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
-    private final String fieldName;
+    private final String leafFieldName;
     private final String fullFieldName;
-    private final SyntheticFieldLoaderLayer[] parts;
+    private final Collection<SyntheticFieldLoaderLayer> parts;
     private boolean hasValue;
 
-    public CompositeSyntheticFieldLoader(String fieldName, String fullFieldName, SyntheticFieldLoaderLayer... parts) {
-        this.fieldName = fieldName;
+    public CompositeSyntheticFieldLoader(String leafFieldName, String fullFieldName, SyntheticFieldLoaderLayer... parts) {
+        this(leafFieldName, fullFieldName, Arrays.asList(parts));
+    }
+
+    public CompositeSyntheticFieldLoader(String leafFieldName, String fullFieldName, Collection<SyntheticFieldLoaderLayer> parts) {
+        this.leafFieldName = leafFieldName;
         this.fullFieldName = fullFieldName;
         this.parts = parts;
         this.hasValue = false;
@@ -42,15 +47,15 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
 
     @Override
     public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        return Arrays.stream(parts).flatMap(SyntheticFieldLoaderLayer::storedFieldLoaders).map(e -> Map.entry(e.getKey(), values -> {
+        return parts.stream().flatMap(SyntheticFieldLoaderLayer::storedFieldLoaders).map(e -> Map.entry(e.getKey(), (docId, values) -> {
             hasValue = true;
-            e.getValue().load(values);
+            e.getValue().load(docId, values);
         }));
     }
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-        var loaders = new ArrayList<DocValuesLoader>(parts.length);
+        var loaders = new ArrayList<DocValuesLoader>(parts.size());
         for (var part : parts) {
             var partLoader = part.docValuesLoader(leafReader, docIdsInLeaf);
             if (partLoader != null) {
@@ -79,24 +84,24 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
     }
 
     @Override
-    public void write(XContentBuilder b) throws IOException {
-        var totalCount = Arrays.stream(parts).mapToLong(SyntheticFieldLoaderLayer::valueCount).sum();
+    public void write(int docId, XContentBuilder b) throws IOException {
+        var totalCount = parts.stream().mapToLong(l -> l.valueCount(docId)).sum();
 
         if (totalCount == 0) {
             return;
         }
 
         if (totalCount == 1) {
-            b.field(fieldName);
+            b.field(leafFieldName);
             for (var part : parts) {
-                part.write(b);
+                part.write(docId, b);
             }
             return;
         }
 
-        b.startArray(fieldName);
+        b.startArray(leafFieldName);
         for (var part : parts) {
-            part.write(b);
+            part.write(docId, b);
         }
         b.endArray();
     }
@@ -110,38 +115,64 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
      * Represents one layer of loading synthetic source values for a field
      * as a part of {@link CompositeSyntheticFieldLoader}.
      * <br>
-     * Note that the contract of {@link SourceLoader.SyntheticFieldLoader#write(XContentBuilder)}
+     * Note that the contract of {@link SourceLoader.SyntheticFieldLoader#write(int, XContentBuilder)}
      * is slightly different here since it only needs to write field values without encompassing object or array.
      */
     public interface SyntheticFieldLoaderLayer extends SourceLoader.SyntheticFieldLoader {
         /**
-         * Number of values that this loader will write.
+         * Number of values that this loader will write for a given document.
          * @return
          */
-        long valueCount();
+        long valueCount(int docId);
     }
 
     /**
      * Layer that loads malformed values stored in a dedicated field with a conventional name.
      * @see IgnoreMalformedStoredValues
      */
-    public static class MalformedValuesLayer implements SyntheticFieldLoaderLayer {
+    public static class MalformedValuesLayer extends StoredFieldLayer {
+        public MalformedValuesLayer(String fieldName) {
+            super(IgnoreMalformedStoredValues.name(fieldName));
+        }
+
+        @Override
+        protected void writeValue(Object value, XContentBuilder b) throws IOException {
+            if (value instanceof BytesRef r) {
+                XContentDataHelper.decodeAndWrite(b, r);
+            } else {
+                b.value(value);
+            }
+        }
+    }
+
+    /**
+     * Layer that loads field values from a provided stored field.
+     */
+    public abstract static class StoredFieldLayer implements SyntheticFieldLoaderLayer {
         private final String fieldName;
+        private int docId;
         private List<Object> values;
 
-        public MalformedValuesLayer(String fieldName) {
-            this.fieldName = IgnoreMalformedStoredValues.name(fieldName);
+        public StoredFieldLayer(String fieldName) {
+            this.fieldName = fieldName;
+            this.docId = -1;
             this.values = emptyList();
         }
 
         @Override
-        public long valueCount() {
+        public long valueCount(int docId) {
+            if (this.docId != docId) {
+                return 0;
+            }
             return values.size();
         }
 
         @Override
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of(Map.entry(fieldName, values -> this.values = values));
+            return Stream.of(Map.entry(fieldName, (docId, values) -> {
+                this.docId = docId;
+                this.values = values;
+            }));
         }
 
         @Override
@@ -155,16 +186,27 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
         }
 
         @Override
-        public void write(XContentBuilder b) throws IOException {
+        public void write(int docId, XContentBuilder b) throws IOException {
+            if (this.docId != docId) {
+                // Data from stored fields that we have is stale, discard it.
+                this.docId = -1;
+                this.values = emptyList();
+
+                return;
+            }
+
             for (Object v : values) {
-                if (v instanceof BytesRef r) {
-                    XContentDataHelper.decodeAndWrite(b, r);
-                } else {
-                    b.value(v);
-                }
+                writeValue(v, b);
             }
             values = emptyList();
         }
+
+        /**
+         * Convert a {@link BytesRef} read from the source into bytes to write
+         * to the xcontent. This shouldn't make a deep copy if the conversion
+         * process itself doesn't require one.
+         */
+        protected abstract void writeValue(Object value, XContentBuilder b) throws IOException;
 
         @Override
         public String fieldName() {

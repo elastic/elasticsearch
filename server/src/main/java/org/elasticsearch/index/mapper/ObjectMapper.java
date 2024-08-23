@@ -837,10 +837,12 @@ public class ObjectMapper extends Mapper {
 
         @Override
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return fields.stream().flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders).map(e -> Map.entry(e.getKey(), values -> {
-                hasValue = true;
-                e.getValue().load(values);
-            }));
+            return fields.stream()
+                .flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders)
+                .map(e -> Map.entry(e.getKey(), (docId, values) -> {
+                    hasValue = true;
+                    e.getValue().load(docId, values);
+                }));
         }
 
         @Override
@@ -883,7 +885,7 @@ public class ObjectMapper extends Mapper {
         }
 
         @Override
-        public void write(XContentBuilder b) throws IOException {
+        public void write(int docId, XContentBuilder b) throws IOException {
             if (hasValue == false) {
                 return;
             }
@@ -921,13 +923,13 @@ public class ObjectMapper extends Mapper {
                 }
 
                 for (var writer : orderedFields.values()) {
-                    writer.writeTo(b);
+                    writer.writeTo(docId, b);
                 }
                 ignoredValues = null;
             } else {
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
                     if (field.hasValue()) {
-                        field.write(b);
+                        field.write(docId, b);
                     }
                 }
             }
@@ -954,12 +956,12 @@ public class ObjectMapper extends Mapper {
         }
 
         interface FieldWriter {
-            void writeTo(XContentBuilder builder) throws IOException;
+            void writeTo(int docId, XContentBuilder builder) throws IOException;
 
             record FieldLoader(SourceLoader.SyntheticFieldLoader loader) implements FieldWriter {
                 @Override
-                public void writeTo(XContentBuilder builder) throws IOException {
-                    loader.write(builder);
+                public void writeTo(int docId, XContentBuilder builder) throws IOException {
+                    loader.write(docId, builder);
                 }
             }
 
@@ -976,7 +978,7 @@ public class ObjectMapper extends Mapper {
                 }
 
                 @Override
-                public void writeTo(XContentBuilder builder) throws IOException {
+                public void writeTo(int docId, XContentBuilder builder) throws IOException {
                     XContentDataHelper.writeMerged(builder, leafName, values);
                 }
 

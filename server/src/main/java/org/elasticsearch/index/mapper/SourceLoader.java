@@ -191,7 +191,7 @@ public interface SourceLoader {
                 for (Map.Entry<String, List<Object>> e : storedFieldLoader.storedFields().entrySet()) {
                     SyntheticFieldLoader.StoredFieldLoader loader = storedFieldLoaders.get(e.getKey());
                     if (loader != null) {
-                        loader.load(e.getValue());
+                        loader.load(docId, e.getValue());
                     }
                     if (IgnoredSourceFieldMapper.NAME.equals(e.getKey())) {
                         for (Object value : e.getValue()) {
@@ -211,7 +211,7 @@ public interface SourceLoader {
                 }
                 // TODO accept a requested xcontent type
                 if (loader.hasValue()) {
-                    loader.write(b);
+                    loader.write(docId, b);
                 } else {
                     b.startObject().endObject();
                 }
@@ -271,7 +271,7 @@ public interface SourceLoader {
             }
 
             @Override
-            public void write(XContentBuilder b) {}
+            public void write(int docId, XContentBuilder b) {}
 
             @Override
             public String fieldName() {
@@ -302,7 +302,7 @@ public interface SourceLoader {
         /**
          * Write values for this document.
          */
-        void write(XContentBuilder b) throws IOException;
+        void write(int docId, XContentBuilder b) throws IOException;
 
         /**
          * Allows for identifying and tracking additional field values to include in the field source.
@@ -322,7 +322,7 @@ public interface SourceLoader {
          * Sync for stored field values.
          */
         interface StoredFieldLoader {
-            void load(List<Object> values);
+            void load(int docId, List<Object> values);
         }
 
         /**

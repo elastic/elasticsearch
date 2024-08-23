@@ -461,7 +461,7 @@ public class NestedObjectMapper extends ObjectMapper {
         }
 
         @Override
-        public void write(XContentBuilder b) throws IOException {
+        public void write(int docId, XContentBuilder b) throws IOException {
             assert (children != null && children.size() > 0);
             if (children.size() == 1) {
                 b.field(leafName());

@@ -2222,7 +2222,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void write(XContentBuilder b) throws IOException {
+        public void write(int docId, XContentBuilder b) throws IOException {
             if (false == hasValue) {
                 return;
             }
@@ -2286,7 +2286,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void write(XContentBuilder b) throws IOException {
+        public void write(int docId, XContentBuilder b) throws IOException {
             if (false == hasValue) {
                 return;
             }

@@ -372,7 +372,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void write(XContentBuilder b) throws IOException {
+            public void write(int docId, XContentBuilder b) throws IOException {
                 if (fieldType().value != null) {
                     b.field(leafName(), fieldType().value);
                 }

@@ -547,24 +547,57 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             })
             : Collections.emptyIterator();
 
-        return Iterators.concat(start, Iterators.single((builder, params) -> {
-            builder.field("cluster_uuid", clusterUUID);
-            builder.field("cluster_uuid_committed", clusterUUIDCommitted);
-            builder.startObject("cluster_coordination");
-            coordinationMetadata().toXContent(builder, params);
-            return builder.endObject();
-        }),
-            persistentSettings,
-            getSingleProject().toXContentChunked(p),
-            Iterators.flatMap(
-                customs.entrySet().iterator(),
-                entry -> entry.getValue().context().contains(context)
-                    ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
-                    : Collections.emptyIterator()
-            ),
-            ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
-            ChunkedToXContentHelper.endObject()
-        );
+        boolean multiProject = p.paramAsBoolean("multi-project", false);
+        if (multiProject) {
+            return Iterators.concat(start, Iterators.single((builder, params) -> {
+                builder.field("cluster_uuid", clusterUUID);
+                builder.field("cluster_uuid_committed", clusterUUIDCommitted);
+                builder.startObject("cluster_coordination");
+                coordinationMetadata().toXContent(builder, params);
+                return builder.endObject();
+            }),
+                persistentSettings,
+                ChunkedToXContentHelper.array(
+                    "projects",
+                    Iterators.flatMap(
+                        projectMetadata.entrySet().iterator(),
+                        e -> Iterators.concat(
+                            ChunkedToXContentHelper.startObject(),
+                            Iterators.single((builder, params) -> builder.field("id", e.getKey())),
+                            e.getValue().toXContentChunked(p),
+                            ChunkedToXContentHelper.endObject()
+                        )
+                    )
+                ),
+                Iterators.flatMap(
+                    customs.entrySet().iterator(),
+                    entry -> entry.getValue().context().contains(context)
+                        ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                        : Collections.emptyIterator()
+                ),
+                ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
+                ChunkedToXContentHelper.endObject()
+            );
+        } else {
+            return Iterators.concat(start, Iterators.single((builder, params) -> {
+                builder.field("cluster_uuid", clusterUUID);
+                builder.field("cluster_uuid_committed", clusterUUIDCommitted);
+                builder.startObject("cluster_coordination");
+                coordinationMetadata().toXContent(builder, params);
+                return builder.endObject();
+            }),
+                persistentSettings,
+                getSingleProject().toXContentChunked(p),
+                Iterators.flatMap(
+                    customs.entrySet().iterator(),
+                    entry -> entry.getValue().context().contains(context)
+                        ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                        : Collections.emptyIterator()
+                ),
+                ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
+                ChunkedToXContentHelper.endObject()
+            );
+        }
     }
 
     private static class MetadataDiff implements Diff<Metadata> {
@@ -1253,8 +1286,20 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         private ProjectMetadata.Builder createDefaultProject() {
-            return projectMetadata.put(DEFAULT_PROJECT_ID, new ProjectMetadata.Builder(DEFAULT_PROJECT_ID, Map.of(), 0));
+            return projectMetadata.put(DEFAULT_PROJECT_ID, new ProjectMetadata.Builder(Map.of(), 0).id(DEFAULT_PROJECT_ID));
         }
+
+        /**
+         * There are a set of specific custom sections that have moved from top-level sections to project-level sections
+         * as part of the multi-project refactor. Enumerate them here so we can move them to the right place
+         * if they are read as a top-level section from a previous metadata version.
+         */
+        private static final Set<String> MOVED_PROJECT_SECTIONS = Set.of(
+            IndexGraveyard.TYPE,
+            DataStreamMetadata.TYPE,
+            ComposableIndexTemplateMetadata.TYPE,
+            ComponentTemplateMetadata.TYPE
+        );
 
         public static Metadata fromXContent(XContentParser parser) throws IOException {
             Builder builder = new Builder();
@@ -1281,56 +1326,54 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    switch (currentFieldName) {
+                        case "projects" -> readProjects(parser, builder);
+                        default -> throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                    }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if ("cluster_coordination".equals(currentFieldName)) {
-                        builder.coordinationMetadata(CoordinationMetadata.fromXContent(parser));
-                    } else if ("settings".equals(currentFieldName)) {
-                        builder.persistentSettings(Settings.fromXContent(parser));
-                    } else if ("indices".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexMetadata.Builder.fromXContent(parser), false);
-                        }
-                    } else if ("hashes_of_consistent_settings".equals(currentFieldName)) {
-                        builder.hashesOfConsistentSettings(parser.mapStrings());
-                    } else if ("templates".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
-                        }
-                    } else if ("reserved_state".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(ReservedStateMetadata.fromXContent(parser));
-                        }
-                    } else if ("project".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                currentFieldName = parser.currentName();
-                                if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
-                                    parseCustomObject(parser, currentFieldName, ProjectCustom.class, builder::putProjectCustom);
-                                }
+                    switch (currentFieldName) {
+                        case "cluster_coordination" -> builder.coordinationMetadata(CoordinationMetadata.fromXContent(parser));
+                        case "settings" -> builder.persistentSettings(Settings.fromXContent(parser));
+                        case "hashes_of_consistent_settings" -> builder.hashesOfConsistentSettings(parser.mapStrings());
+                        case "reserved_state" -> {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                builder.put(ReservedStateMetadata.fromXContent(parser));
                             }
                         }
-                    } else {
-                        // Older clusters didn't separate cluster-scoped and project-scope customs so a top-level custom object might
-                        // actually be a project-scoped custom
-                        final NamedXContentRegistry registry = parser.getXContentRegistry();
-                        if (registry.hasParser(ClusterCustom.class, currentFieldName, parser.getRestApiVersion())) {
-                            parseCustomObject(parser, currentFieldName, ClusterCustom.class, builder::putCustom);
-                        } else if (registry.hasParser(ProjectCustom.class, currentFieldName, parser.getRestApiVersion())) {
-                            parseCustomObject(parser, currentFieldName, ProjectCustom.class, builder::putProjectCustom);
-                        } else {
-                            logger.warn("Skipping unknown custom object with type {}", currentFieldName);
-                            parser.skipChildren();
+                        /* BwC Top-level project things */
+                        case "indices" -> {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                builder.put(IndexMetadata.Builder.fromXContent(parser), false);
+                            }
+                        }
+                        case "templates" -> {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                builder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
+                            }
+                        }
+                        /* Cluster customs (and project customs in older formats) */
+                        default -> {
+                            // Older clusters didn't separate cluster-scoped and project-scope customs so a top-level custom object might
+                            // actually be a project-scoped custom
+                            final NamedXContentRegistry registry = parser.getXContentRegistry();
+                            if (registry.hasParser(ClusterCustom.class, currentFieldName, parser.getRestApiVersion())
+                                && MOVED_PROJECT_SECTIONS.contains(currentFieldName) == false) {
+                                parseCustomObject(parser, currentFieldName, ClusterCustom.class, builder::putCustom);
+                            } else if (registry.hasParser(ProjectCustom.class, currentFieldName, parser.getRestApiVersion())) {
+                                parseCustomObject(parser, currentFieldName, ProjectCustom.class, builder::putProjectCustom);
+                            } else {
+                                logger.warn("Skipping unknown custom object with type {}", currentFieldName);
+                                parser.skipChildren();
+                            }
                         }
                     }
                 } else if (token.isValue()) {
-                    if ("version".equals(currentFieldName)) {
-                        builder.version(parser.longValue());
-                    } else if ("cluster_uuid".equals(currentFieldName) || "uuid".equals(currentFieldName)) {
-                        builder.clusterUUID(parser.text());
-                    } else if ("cluster_uuid_committed".equals(currentFieldName)) {
-                        builder.clusterUUIDCommitted(parser.booleanValue());
-                    } else {
-                        throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                    switch (currentFieldName) {
+                        case "version" -> builder.version(parser.longValue());
+                        case "cluster_uuid", "uuid" -> builder.clusterUUID(parser.text());
+                        case "cluster_uuid_committed" -> builder.clusterUUIDCommitted(parser.booleanValue());
+                        default -> throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
                 } else {
                     throw new IllegalArgumentException("Unexpected token " + token);
@@ -1340,7 +1383,16 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return builder.build();
         }
 
-        private static <C extends MetadataCustom<C>> void parseCustomObject(
+        private static void readProjects(XContentParser parser, Builder builder) throws IOException {
+            XContentParser.Token token;
+
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                builder.put(ProjectMetadata.Builder.fromXContent(parser));
+            }
+        }
+
+        static <C extends MetadataCustom<C>> void parseCustomObject(
             XContentParser parser,
             String name,
             Class<C> categoryClass,

@@ -11,10 +11,13 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public record ProjectId(String id) implements Writeable {
+public record ProjectId(String id) implements Writeable, ToXContent {
 
     public static final Reader<ProjectId> READER = ProjectId::new;
 
@@ -25,5 +28,14 @@ public record ProjectId(String id) implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(id);
+    }
+
+    public static ProjectId fromXContent(XContentParser parser) throws IOException {
+        return new ProjectId(parser.text());
     }
 }

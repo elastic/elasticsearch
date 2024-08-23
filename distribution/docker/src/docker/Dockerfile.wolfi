@@ -16,9 +16,9 @@ FROM docker.elastic.co/wolfi/chainguard-base:latest AS builder
 RUN for iter in 1 2 3 4 5 6 7 8 9 10; do \
       apk update && DEBIAN_FRONTEND=noninteractive apk add curl  && \
       exit_code=0 && break || \
-        exit_code=\$? && echo "apk error: retry $iter in 10s" && sleep 10; \
+        exit_code=\$? && echo "apk error: retry \$iter in 10s" && sleep 10; \
     done; \
-    exit $exit_code
+    exit \$exit_code
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
@@ -28,22 +28,22 @@ RUN for iter in 1 2 3 4 5 6 7 8 9 10; do \
 # build. Instead, we check the binary against the published checksum.
 RUN set -eux ; \
     tini_bin="" ; \
-    case "$(arch)" in \
+    case "${arch}" in \
         aarch64) tini_bin='tini-arm64' ;; \
         x86_64)  tini_bin='tini-amd64' ;; \
-        *) echo >&2 ; echo >&2 "Unsupported architecture $(arch)" ; echo >&2 ; exit 1 ;; \
+        *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \
     esac ; \
-    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/${tini_bin} ; \
-    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/${tini_bin}.sha256sum ; \
-    sha256sum -c ${tini_bin}.sha256sum ; \
-    rm ${tini_bin}.sha256sum ; \
-    mv ${tini_bin} /bin/tini ; \
+    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \
+    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \
+    sha256sum -c \${tini_bin}.sha256sum ; \
+    rm \${tini_bin}.sha256sum ; \
+    mv \${tini_bin} /bin/tini ; \
     chmod 0555 /bin/tini
 
 RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
-RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-8.16.0-SNAPSHOT-linux-$(arch).tar.gz
+RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-8.16.0-SNAPSHOT-linux-${arch}.tar.gz
 
 RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1
 
@@ -100,9 +100,9 @@ RUN for iter in 1 2 3 4 5 6 7 8 9 10; do \
               zip && \
       rm -rf /var/cache/apk/* && \
       exit_code=0 && break || \
-        exit_code=\$? && echo "apk error: retry $iter in 10s" && sleep 10; \
+        exit_code=\$? && echo "apk error: retry \$iter in 10s" && sleep 10; \
     done; \
-    exit $exit_code
+    exit \$exit_code
 
 RUN groupadd -g 1000 elasticsearch && \
     adduser -G elasticsearch -u 1000 elasticsearch -D --home /usr/share/elasticsearch elasticsearch && \
@@ -116,7 +116,7 @@ WORKDIR /usr/share/elasticsearch
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
 
-ENV PATH=/usr/share/elasticsearch/bin:$PATH
+ENV PATH=/usr/share/elasticsearch/bin:\$PATH
 
 COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 

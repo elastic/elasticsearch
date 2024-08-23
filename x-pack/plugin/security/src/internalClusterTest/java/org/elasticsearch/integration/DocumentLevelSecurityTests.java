@@ -135,14 +135,24 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
     @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
-        return super.configUsers() + Strings.format("""
-            user1:%s
-            user2:%s
-            user3:%s
-            user4:%s
-            user5:%s
-            user6:%s
-            """, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
+        return super.configUsers() + Strings.format(
+            """
+                user1:%s
+                user2:%s
+                user3:%s
+                user4:%s
+                user5:%s
+                user6:%s
+                user7:%s
+                """,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed
+        );
     }
 
     @Override
@@ -154,6 +164,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             role4:user4
             role5:user5
             role6:user6
+            role7:user7
             """;
     }
 
@@ -207,6 +218,12 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 - names: '*'
                   privileges: [ ALL ]
                   query: '{"term" : {"color" : "red"}}'
+            role7:
+              cluster: [ all ]
+              indices:
+                - names: '*'
+                  privileges: [ ALL ]
+                  query: '{"multi_match":{ "fields": [ "field*" ], "query" : "find_me"}}'
             """;
     }
 
@@ -247,6 +264,39 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .setQuery(randomBoolean() ? combined : QueryBuilders.matchAllQuery()),
             "1",
             "2"
+        );
+    }
+
+    public void testMultiMatchWithFieldWildcard() {
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text", "other", "type=text"));
+        prepareIndex("test").setId("1")
+            .setSource(Map.ofEntries(Map.entry("field1", "find_me"), Map.entry("field2", "blah"), Map.entry("other", "something")))
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        prepareIndex("test").setId("2")
+            .setSource(Map.ofEntries(Map.entry("field1", "not_this"), Map.entry("field2", "find_me"), Map.entry("other", "something else")))
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        prepareIndex("test").setId("3")
+            .setSource(Map.ofEntries(Map.entry("field1", "hide"), Map.entry("field2", "hide"), Map.entry("other", "other")))
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        prepareIndex("test").setId("4")
+            .setSource(Map.ofEntries(Map.entry("field1", "find_me"), Map.entry("field2", "find_me"), Map.entry("other", "foo")))
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        prepareIndex("test").setId("5")
+            .setSource(Map.ofEntries(Map.entry("field1", "hide"), Map.entry("field2", "blah"), Map.entry("other", "find_me")))
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(QueryBuilders.matchAllQuery()),
+            "1",
+            "2",
+            "4"
         );
     }
 

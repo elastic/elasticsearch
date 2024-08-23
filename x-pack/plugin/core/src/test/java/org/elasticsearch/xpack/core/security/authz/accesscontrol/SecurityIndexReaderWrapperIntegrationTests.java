@@ -165,7 +165,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 DocumentPermissions.filteredBy(singleton(new BytesArray(termQuery)))
             );
             SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(
-                s -> searchExecutionContext,
+                (r, s) -> searchExecutionContext,
                 bitsetCache,
                 securityContext,
                 licenseState,
@@ -272,7 +272,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(
-            s -> searchExecutionContext,
+            (r, s) -> searchExecutionContext,
             bitsetCache,
             securityContext,
             licenseState,

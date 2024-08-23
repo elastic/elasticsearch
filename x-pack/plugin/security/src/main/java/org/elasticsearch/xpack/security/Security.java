@@ -12,6 +12,7 @@ import io.netty.handler.codec.http.HttpUtil;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -1484,16 +1485,10 @@ public class Security extends Plugin
                 assert dlsBitsetCache.get() != null;
                 module.setReaderWrapper(
                     indexService -> new SecurityIndexReaderWrapper(
-                        shardId -> indexService.newSearchExecutionContext(
-                            shardId.id(),
-                            0,
-                            // we pass a null index reader, which is legal and will disable rewrite optimizations
-                            // based on index statistics, which is probably safer...
-                            null,
-                            () -> {
-                                throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
+                        (reader, shardId) -> indexService.newSearchExecutionContext(shardId.id(), 0, new IndexSearcher(reader), () -> {
+                            throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
 
-                            },
+                        },
                             null,
                             // Don't use runtime mappings in the security query
                             emptyMap()

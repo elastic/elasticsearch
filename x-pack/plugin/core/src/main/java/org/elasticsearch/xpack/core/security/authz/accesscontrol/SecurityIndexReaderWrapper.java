@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 

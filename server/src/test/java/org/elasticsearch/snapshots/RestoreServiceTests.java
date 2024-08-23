@@ -163,8 +163,8 @@ public class RestoreServiceTests extends ESTestCase {
         RestoreService.refreshRepositoryUuids(
             false,
             repositoriesService,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            () -> assertTrue(called.compareAndSet(false, true))
+            () -> assertTrue(called.compareAndSet(false, true)),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         assertTrue(called.get());
         verifyNoMoreInteractions(repositoriesService);
@@ -218,8 +218,8 @@ public class RestoreServiceTests extends ESTestCase {
         RestoreService.refreshRepositoryUuids(
             true,
             repositoriesService,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            () -> assertTrue(completed.compareAndSet(false, true))
+            () -> assertTrue(completed.compareAndSet(false, true)),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         assertTrue(completed.get());
         assertThat(pendingRefreshes, empty());

@@ -187,6 +187,7 @@ public final class RestoreService implements ClusterStateApplier {
     private final FileSettingsService fileSettingsService;
 
     private final ThreadPool threadPool;
+
     private final Executor snapshotMetaExecutor;
 
     private volatile boolean refreshRepositoryUuidOnRestore;
@@ -250,9 +251,10 @@ public final class RestoreService implements ClusterStateApplier {
 
         // Try and fill in any missing repository UUIDs in case they're needed during the restore
         final var repositoryUuidRefreshStep = SubscribableListener.newForked(
-            l -> refreshRepositoryUuids(refreshRepositoryUuidOnRestore, repositoriesService, snapshotMetaExecutor, () -> l.onResponse(null))
+            l -> refreshRepositoryUuids(refreshRepositoryUuidOnRestore, repositoriesService, () -> l.onResponse(null), snapshotMetaExecutor)
         );
 
+        // AtomicReference just so we have somewhere to hold these objects, there's no interesting concurrency here
         final AtomicReference<Repository> repositoryRef = new AtomicReference<>();
         final AtomicReference<RepositoryData> repositoryDataRef = new AtomicReference<>();
 
@@ -519,12 +521,18 @@ public final class RestoreService implements ClusterStateApplier {
      * Best-effort attempt to make sure that we know all the repository UUIDs. Calls {@link Repository#getRepositoryData} on every
      * {@link BlobStoreRepository} with a missing UUID.
      *
-     * @param enabled If {@code false} this method completes the listener immediately
+     * @param enabled             If {@code false} this method completes the listener immediately
      * @param repositoriesService Supplies the repositories to check
-     * @param onCompletion Action that is executed when all repositories have been refreshed.
+     * @param onCompletion        Action that is executed when all repositories have been refreshed.
+     * @param responseExecutor    Executor on which to execute {@code onCompletion} if not using the calling thread.
      */
     // Exposed for tests
-    static void refreshRepositoryUuids(boolean enabled, RepositoriesService repositoriesService, Executor executor, Runnable onCompletion) {
+    static void refreshRepositoryUuids(
+        boolean enabled,
+        RepositoriesService repositoriesService,
+        Runnable onCompletion,
+        Executor responseExecutor
+    ) {
         try (var refs = new RefCountingRunnable(onCompletion)) {
             if (enabled == false) {
                 logger.debug("repository UUID refresh is disabled");
@@ -538,17 +546,18 @@ public final class RestoreService implements ClusterStateApplier {
                 if (repository instanceof BlobStoreRepository && repository.getMetadata().uuid().equals(RepositoryData.MISSING_UUID)) {
                     final var repositoryName = repository.getMetadata().name();
                     logger.info("refreshing repository UUID for repository [{}]", repositoryName);
-                    repository.getRepositoryData(executor, ActionListener.releaseAfter(new ActionListener<>() {
-                        @Override
-                        public void onResponse(RepositoryData repositoryData) {
-                            logger.debug(() -> format("repository UUID [%s] refresh completed", repositoryName));
-                        }
+                    repository.getRepositoryData(responseExecutor, ActionListener.releaseAfter(new ActionListener<>() {
+                            @Override
+                            public void onResponse(RepositoryData repositoryData) {
+                                logger.debug(() -> format("repository UUID [%s] refresh completed", repositoryName));
+                            }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.debug(() -> format("repository UUID [%s] refresh failed", repositoryName), e);
-                        }
-                    }, refs.acquire()));
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.debug(() -> format("repository UUID [%s] refresh failed", repositoryName), e);
+                            }
+                        }, refs.acquire())
+                    );
                 }
             }
         }

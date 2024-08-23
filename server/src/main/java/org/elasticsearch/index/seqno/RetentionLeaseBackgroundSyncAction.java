@@ -84,7 +84,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             threadPool.executor(ThreadPool.Names.MANAGEMENT),
             SyncGlobalCheckpointAfterOperation.DoNotSync,
             PrimaryActionExecution.RejectOnOverload,
-            ReplicaActionExecution.SubjectToCircuitBreaker
+            ReplicaActionExecution.BypassCircuitBreaker
         );
     }
 

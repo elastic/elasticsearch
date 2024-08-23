@@ -214,7 +214,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         if (remoteDataStream == null) {
             // If the index we're following is not part of a data stream, start the
             // restoration of the index normally.
-            updater = (clusterState, builder) -> {};
+            updater = (clusterState, mdBuilder) -> {};
         } else {
             String followerIndexName = request.getFollowerIndex();
             // This method is used to update the metadata in the same cluster state

@@ -57,13 +57,6 @@ You can also specify a format using the `Accept` HTTP header. If you specify
 both this parameter and the `Accept` HTTP header, this parameter takes
 precedence.
 
-`pragma`::
-(Optional, object) Do not use the pragma parameter unless you fully understand
-the risks. The query pragma can break your cluster and can be removed without notice.
-To ensure that these implications are well-understood, this parameter requires
-the parameter `accept_pragma_risks` to be explicitly set to `true`.
-
-
 [discrete]
 [role="child_attributes"]
 [[esql-query-api-request-body]]

@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -162,7 +163,8 @@ public class ModelImporterTests extends ESTestCase {
 
         latch.await();
         assertThat(exceptionHolder.get().getMessage(), containsString("put model part failed"));
-        verify(client, times(1)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
+        verify(client, atLeastOnce()).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any()); // cannot verify the exact
+                                                                                                               // number of calls
     }
 
     public void testReadFailure() throws IOException, InterruptedException {

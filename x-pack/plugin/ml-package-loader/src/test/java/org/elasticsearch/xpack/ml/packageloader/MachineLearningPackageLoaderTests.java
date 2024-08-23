@@ -85,11 +85,11 @@ public class MachineLearningPackageLoaderTests extends ESTestCase {
         assertEquals("xpack.ml.model_repository does not support authentication", e.getMessage());
     }
 
-    public void testThreadPoolHasSingleThread() {
+    public void testThreadPoolHasFixedThreadCount() {
         var fixedThreadPool = MachineLearningPackageLoader.modelDownloadExecutor(Settings.EMPTY);
         List<Setting<?>> settings = fixedThreadPool.getRegisteredSettings();
         var sizeSettting = settings.stream().filter(s -> s.getKey().startsWith("xpack.ml.model_download_thread_pool")).findFirst();
         assertTrue(sizeSettting.isPresent());
-        assertEquals(1, sizeSettting.get().get(Settings.EMPTY));
+        assertEquals(4, sizeSettting.get().get(Settings.EMPTY));
     }
 }

@@ -28,6 +28,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
@@ -44,9 +45,9 @@ import static org.elasticsearch.core.Strings.format;
  * this is ensured by using a fixed size threadpool with a single
  * thread.
  */
-class ModelImporter {
+public class ModelImporter {
     private static final int DEFAULT_CHUNK_SIZE = 1024 * 1024; // 1MB
-    private static final int MAX_IN_FLIGHT_REQUESTS = 5;
+    public static final int MAX_IN_FLIGHT_REQUESTS = 3;
     private static final Logger logger = LogManager.getLogger(ModelImporter.class);
     private final Client client;
     private final String modelId;
@@ -112,66 +113,46 @@ class ModelImporter {
         @Nullable ModelLoaderUtils.VocabularyParts vocabularyParts,
         ActionListener<AcknowledgedResponse> finalListener
     ) {
-        var countingListener = new RefCountingListener(1, finalListener.map(ignored -> {
+        var requestLimiter = new Semaphore(MAX_IN_FLIGHT_REQUESTS);
+
+        try (var countingListener = new RefCountingListener(1, finalListener.map(ignored -> {
             checkDownloadComplete(chunkIterator);
             return AcknowledgedResponse.TRUE;
-        }));
-        // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
-        // download is complete
-        if (vocabularyParts != null) {
-            uploadVocabulary(vocabularyParts, countingListener.acquire(r -> {
-                logger.debug(() -> format("[%s] imported model vocabulary [%s]", modelId, config.getVocabularyFile()));
-            }));
-        }
-
-        for (int part = 0; part < MAX_IN_FLIGHT_REQUESTS; ++part) {
-            doNextPart(size, chunkIterator, countingListener);
-        }
-    }
-
-    private void doNextPart(long size, ModelLoaderUtils.InputStreamChunker chunkIterator, RefCountingListener countingListener) {
-        assert ThreadPool.assertCurrentThreadPool(MachineLearningPackageLoader.MODEL_DOWNLOAD_THREADPOOL_NAME)
-            : format(
-                "Model download must execute from [%s] but thread is [%s]",
-                MachineLearningPackageLoader.MODEL_DOWNLOAD_THREADPOOL_NAME,
-                Thread.currentThread().getName()
-            );
-
-        if (countingListener.isFailing()) {
-            if (listenerIsClosed.compareAndSet(false, true)) {
-                countingListener.close();
-            }
-            return;
-        }
-
-        task.setProgress(chunkIterator.getTotalParts(), Math.max(0, chunkIterator.getCurrentPart().get()));
-        try {
-            BytesArray definition = chunkIterator.next();
-
-            if (task.isCancelled()) {
-                throw new TaskCancelledException(format("task cancelled with reason [%s]", task.getReasonCancelled()));
+        }))) {
+            // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
+            // download is complete
+            if (vocabularyParts != null) {
+                uploadVocabulary(vocabularyParts, countingListener.acquire(r -> {
+                    logger.debug(() -> format("[%s] imported model vocabulary [%s]", modelId, config.getVocabularyFile()));
+                }));
             }
 
-            if (definition.length() == 0) {
-                // download complete
-                if (listenerIsClosed.compareAndSet(false, true)) {
-                    countingListener.close();
+            for (int part = 0; part < chunkIterator.getTotalParts(); ++part) {
+                task.setProgress(chunkIterator.getTotalParts(), part);
+
+                if (countingListener.isFailing()) {
+                    break;
                 }
-                return;
-            }
 
-            // Index the downloaded chunk and schedule the next download once
-            // the chunk is written.
-            // The key thing here is that the threadpool only has a single
-            // thread preventing concurrent access to the model stream while
-            // allowing multiple index requests to be in flight.
-            indexPart(chunkIterator.getCurrentPart().get(), chunkIterator.getTotalParts(), size, definition, countingListener.acquire(r -> {
-                executorService.execute(() -> doNextPart(size, chunkIterator, countingListener));
-            }));
-        } catch (Exception e) {
-            countingListener.acquire().onFailure(e);
-            if (listenerIsClosed.compareAndSet(false, true)) {
-                countingListener.close();
+                try {
+                    BytesArray definition = chunkIterator.next();
+
+                    if (task.isCancelled()) {
+                        throw new TaskCancelledException(format("task cancelled with reason [%s]", task.getReasonCancelled()));
+                    }
+
+                    requestLimiter.acquire();
+
+                    final int thisPart = part;
+                    // acquire here so the ref counting listen won't close on leaving the try with resources
+                    final ActionListener<AcknowledgedResponse> l = countingListener.acquire(r -> { requestLimiter.release(); });
+                    final var releasingListener = ActionListener.runAfter(l, requestLimiter::release);
+
+                    executorService.execute(() -> indexPart(thisPart, chunkIterator.getTotalParts(), size, definition, releasingListener));
+                } catch (Exception e) {
+                    countingListener.acquire().onFailure(e);
+                    break;
+                }
             }
         }
     }

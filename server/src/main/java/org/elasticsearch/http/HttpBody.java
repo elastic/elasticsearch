@@ -11,7 +11,7 @@ package org.elasticsearch.http;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 
 /**
  * A super-interface for different HTTP content implementations
@@ -20,6 +20,10 @@ public sealed interface HttpBody permits HttpBody.Full, HttpBody.Stream {
 
     static Full fromBytesReference(BytesReference bytesRef) {
         return new ByteRefHttpBody(bytesRef);
+    }
+
+    static Full fromReleasableBytesReference(ReleasableBytesReference bytesRef) {
+        return new RelByteRefHttpBody(bytesRef);
     }
 
     static Full empty() {
@@ -38,7 +42,7 @@ public sealed interface HttpBody permits HttpBody.Full, HttpBody.Stream {
      * Assumes that HTTP body is a full content. If not sure, use {@link HttpBody#isFull()}.
      */
     default Full asFull() {
-        assert this instanceof Full;
+        assert this instanceof Full : "must be full body, got " + this;
         return (Full) this;
     }
 
@@ -46,32 +50,44 @@ public sealed interface HttpBody permits HttpBody.Full, HttpBody.Stream {
      * Assumes that HTTP body is a lazy-stream. If not sure, use {@link HttpBody#isStream()}.
      */
     default Stream asStream() {
-        assert this instanceof Stream;
+        assert this instanceof Stream : "must be stream body, got " + this;
         return (Stream) this;
     }
 
     /**
      * Full content represents a complete http body content that can be accessed immediately.
      */
-    non-sealed interface Full extends HttpBody {
+    non-sealed interface Full extends HttpBody, Releasable {
         BytesReference bytes();
+
+        @Override
+        default void close() {}
     }
 
     /**
-     * Stream is a lazy-loaded content. Stream supports only single handler, this handler must be
-     * set before requesting next chunk.
+     * Stream is a lazy-loaded content.
      */
     non-sealed interface Stream extends HttpBody {
-        /**
-         * Returns current handler
-         */
-        @Nullable
-        ChunkHandler handler();
 
         /**
-         * Sets handler that can handle next chunk
+         * Adds tracing handler to stream. Tracing handlers can be used for metering and monitoring.
+         * Stream will broadcast chunk to all tracing handlers before sending chunk to consuming
+         * handler. Tracing handler should not invoke {@link Stream#next()}.
          */
-        void setHandler(ChunkHandler chunkHandler);
+        void addTracingHandler(ChunkHandler chunkHandler);
+
+        /**
+         * Sets chunk consuming handler. This handler must be set only once and responsible for
+         * chunk processing, releasing memory, and calling {@link Stream#next()}.
+         */
+        void setConsumingHandler(ChunkHandler chunkHandler);
+
+        /**
+         * Discards all queued and following chunks. In some cases, for example bad-request, content
+         * processing is not required. In this case there might be no consuming handler attached to
+         * stream. This method prevents buffers leaking.
+         */
+        void discard();
 
         /**
          * Request next chunk of data from the network. The size of the chunk depends on following
@@ -82,7 +98,7 @@ public sealed interface HttpBody permits HttpBody.Full, HttpBody.Stream {
          * for every chunk.
          * <pre>
          * {@code
-         *     stream.setHandler((chunk, isLast) -> {
+         *     stream.setConsumingHandler((chunk, isLast) -> {
          *         processChunk(chunk);
          *         if (isLast == false) {
          *             stream.next();
@@ -100,4 +116,11 @@ public sealed interface HttpBody permits HttpBody.Full, HttpBody.Stream {
     }
 
     record ByteRefHttpBody(BytesReference bytes) implements Full {}
+
+    record RelByteRefHttpBody(ReleasableBytesReference bytes) implements Full {
+        @Override
+        public void close() {
+            bytes.close();
+        }
+    }
 }

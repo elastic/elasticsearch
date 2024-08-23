@@ -25,4 +25,22 @@ public class HttpUtils {
             return true;
         }
     }
+
+    public static int contentLengthHeader(HttpRequest httpRequest) {
+        var cl = httpRequest.getHeaders().get("content-length");
+        if (cl.isEmpty()) {
+            return 0;
+        } else {
+            return Integer.parseInt(cl.get(0));
+        }
+    }
+
+    public static boolean isChunkedTransferEncoding(HttpRequest httpRequest) {
+        var te = httpRequest.getHeaders().get("transfer-encoding");
+        if (te.isEmpty()) {
+            return false;
+        } else {
+            return te.get(0).equals("chunked");
+        }
+    }
 }

@@ -29,6 +29,10 @@ public interface HttpRequest extends HttpPreRequest {
 
     HttpBody body();
 
+    default void setBody(HttpBody body) {
+        throw new IllegalStateException();
+    };
+
     List<String> strictCookies();
 
     HttpVersion protocolVersion();

@@ -10,6 +10,7 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -17,12 +18,15 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -32,6 +36,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -90,10 +95,30 @@ public abstract class BaseRestHandler implements RestHandler {
                 throw new IllegalArgumentException(unrecognized(request, unsupported, allSupported, "parameter"));
             }
         }
+        if (request.isFullContent() || supportsIncrementalContent()) {
+            prepareAndAccept(request, channel, client);
+        } else {
+            aggregateContent(request.contentStream(), (fullContent) -> {
+                request.getHttpRequest().setBody(fullContent);
+                if (allowsUnsafeBuffers() == false) {
+                    request.ensureSafeBuffers();
+                }
+                tryPrepareAndAccept(request, channel, client);
+            });
+        }
+    }
 
-        // prepare the request for execution; has the side effect of touching the request parameters
+    private void tryPrepareAndAccept(RestRequest request, RestChannel channel, NodeClient client) {
+        try {
+            prepareAndAccept(request, channel, client);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    // prepare the request for execution; has the side effect of touching the request parameters
+    private void prepareAndAccept(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         try (var action = prepareRequest(request, client)) {
-
             // validate unconsumed params, but we must exclude params used to format the response
             // use a sorted set so the unconsumed parameters appear in a reliable sorted order
             final SortedSet<String> unconsumedParams = request.unconsumedParams()
@@ -101,7 +126,6 @@ public abstract class BaseRestHandler implements RestHandler {
                 .filter(p -> RestResponse.RESPONSE_PARAMS.contains(p) == false)
                 .filter(p -> responseParams(request.getRestApiVersion()).contains(p) == false)
                 .collect(Collectors.toCollection(TreeSet::new));
-
             // validate the non-response params
             if (unconsumedParams.isEmpty() == false) {
                 final Set<String> candidateParams = new HashSet<>();
@@ -109,23 +133,34 @@ public abstract class BaseRestHandler implements RestHandler {
                 candidateParams.addAll(responseParams(request.getRestApiVersion()));
                 throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
             }
-
             if (request.hasContent() && (request.isContentConsumed() == false && request.isFullContent())) {
                 throw new IllegalArgumentException(
                     "request [" + request.method() + " " + request.path() + "] does not support having a body"
                 );
             }
-
-            if (request.isStreamedContent()) {
-                assert action instanceof RequestBodyChunkConsumer;
-                var chunkConsumer = (RequestBodyChunkConsumer) action;
-                request.contentStream().setHandler((chunk, isLast) -> chunkConsumer.handleChunk(channel, chunk, isLast));
+            if (action instanceof RequestBodyChunkConsumer chunkConsumer) {
+                assert request.isStreamedContent();
+                request.contentStream().setConsumingHandler((chunk, isLast) -> chunkConsumer.handleChunk(channel, chunk, isLast));
             }
-
             usageCount.increment();
-            // execute the action
             action.accept(channel);
         }
+    }
+
+    static void aggregateContent(final HttpBody.Stream stream, final Consumer<HttpBody.Full> aggregateConsumer) {
+        var chunks = new ArrayList<ReleasableBytesReference>();
+        stream.setConsumingHandler((chunk, isLast) -> {
+            chunks.add(chunk);
+            if (isLast) {
+                var composite = CompositeBytesReference.of(chunks.toArray(new ReleasableBytesReference[0]));
+                var relComposite = new ReleasableBytesReference(composite, () -> Releasables.close(chunks));
+                var body = HttpBody.fromReleasableBytesReference(relComposite);
+                aggregateConsumer.accept(body);
+            } else {
+                stream.next(); // todo: add backpressure
+            }
+        });
+        stream.next();
     }
 
     protected static String unrecognized(RestRequest request, Set<String> invalids, Set<String> candidates, String detail) {

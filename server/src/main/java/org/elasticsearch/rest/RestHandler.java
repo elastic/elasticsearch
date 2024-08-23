@@ -48,6 +48,14 @@ public interface RestHandler {
     }
 
     /**
+     * Indicates that handler can process content incrementally. Incremental content is a lazy stream
+     * of byte chunks (not related to chunked encoding). Handler should request chunk from stream
+     * when ready to process one. Chunk is a raw bytes slice from network after decompression, size
+     * can vary, and there is no framing.
+     */
+    default boolean supportsIncrementalContent() { return false;}
+
+    /**
      * Returns the concrete RestHandler for this RestHandler. That is, if this is a delegating RestHandler it returns the delegate.
      * Otherwise it returns itself.
      * @return The underlying RestHandler

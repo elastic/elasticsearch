@@ -20,6 +20,7 @@ import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.netty4.Netty4Utils;
@@ -64,6 +66,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     private final int maxEventsHeld;
     private final ThreadWatchdog.ActivityTracker activityTracker;
     private final PriorityQueue<Tuple<? extends Netty4HttpResponse, ChannelPromise>> outboundHoldingQueue;
+    private final HttpHandlingSettings handlingSettings;
 
     private record ChunkedWrite(PromiseCombiner combiner, ChannelPromise onDone, ChunkedRestResponseBodyPart responseBodyPart) {}
 
@@ -77,7 +80,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
      * HTTP request content stream for current request, it's null if there is no current request or request is fully-aggregated
      */
     @Nullable
-    private Netty4HttpRequestBodyStream currentRequestStream;
+    private Netty4HttpStreamRequest currentStreamRequest;
 
     /*
      * The current read and write sequence numbers. Read sequence numbers are attached to requests in the order they are read from the
@@ -106,12 +109,14 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     public Netty4HttpPipeliningHandler(
         final int maxEventsHeld,
         final Netty4HttpServerTransport serverTransport,
-        final ThreadWatchdog.ActivityTracker activityTracker
+        final ThreadWatchdog.ActivityTracker activityTracker,
+        final HttpHandlingSettings handlingSettings
     ) {
         this.maxEventsHeld = maxEventsHeld;
         this.activityTracker = activityTracker;
         this.outboundHoldingQueue = new PriorityQueue<>(1, Comparator.comparingInt(t -> t.v1().getSequence()));
         this.serverTransport = serverTransport;
+        this.handlingSettings = handlingSettings;
     }
 
     @Override
@@ -129,25 +134,24 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                     } else {
                         nonError = (Exception) cause;
                     }
-                    netty4HttpRequest = new Netty4HttpRequest(readSequence++, (FullHttpRequest) request, nonError);
+                    netty4HttpRequest = new Netty4HttpRequestException(readSequence++, (FullHttpRequest) request, nonError);
+                    currentStreamRequest = null;
+                } else if (request instanceof FullHttpRequest fullHttpRequest) {
+                    netty4HttpRequest = new Netty4FullHttpRequest(readSequence++, fullHttpRequest);
+                    currentStreamRequest = null;
                 } else {
-                    assert currentRequestStream == null : "current stream must be null for new request";
-                    if (request instanceof FullHttpRequest fullHttpRequest) {
-                        netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
-                        currentRequestStream = null;
-                    } else {
-                        var contentStream = new Netty4HttpRequestBodyStream(ctx.channel());
-                        currentRequestStream = contentStream;
-                        netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, contentStream);
-                    }
+                    assert currentStreamRequest == null : "current stream must be null for new request";
+                    var contentStream = new Netty4HttpRequestBodyStream(ctx.channel());
+                    currentStreamRequest = new Netty4HttpStreamRequest(readSequence++, request, contentStream);
+                    netty4HttpRequest = currentStreamRequest;
                 }
                 handlePipelinedRequest(ctx, netty4HttpRequest);
             } else {
                 assert msg instanceof HttpContent : "expect HttpContent got " + msg;
-                assert currentRequestStream != null : "current stream must exists before handling http content";
-                currentRequestStream.handleNettyContent((HttpContent) msg);
+                assert currentStreamRequest != null : "current stream must exists before handling http content";
+                currentStreamRequest.body().onHttpContent((HttpContent) msg);
                 if (msg instanceof LastHttpContent) {
-                    currentRequestStream = null;
+                    currentStreamRequest = null;
                 }
             }
         } finally {

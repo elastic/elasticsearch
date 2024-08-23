@@ -23,7 +23,6 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMessage;
-import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseEncoder;
@@ -364,9 +363,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         )
                     );
             }
-            // combines the HTTP message pieces into a single full HTTP request (with headers and body)
-            final HttpObjectAggregator aggregator = new Netty4HttpAggregator(handlingSettings.maxContentLength());
-            aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             ch.pipeline()
                 .addLast("decoder_compress", new HttpContentDecompressor()) // this handles request body decompression
                 .addLast("encoder", new HttpResponseEncoder() {
@@ -380,8 +376,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         }
                         return super.isContentAlwaysEmpty(msg);
                     }
-                })
-                .addLast("aggregator", aggregator);
+                });
             if (handlingSettings.compression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()) {
                     @Override
@@ -400,7 +395,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     new Netty4HttpPipeliningHandler(
                         transport.pipeliningMaxEvents,
                         transport,
-                        transport.threadWatchdog.getActivityTrackerForCurrentThread()
+                        transport.threadWatchdog.getActivityTrackerForCurrentThread(),
+                        handlingSettings
                     )
                 );
             transport.serverAcceptedChannel(nettyHttpChannel);

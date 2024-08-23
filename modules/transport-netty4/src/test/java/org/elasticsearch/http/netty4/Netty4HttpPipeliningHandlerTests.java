@@ -37,6 +37,7 @@ import org.elasticsearch.common.bytes.ZeroBytesReference;
 import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.network.ThreadWatchdogHelper;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestStatus;
@@ -125,12 +126,20 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private EmbeddedChannel makeEmbeddedChannelWithSimulatedWork(int numberOfRequests) {
-        return new EmbeddedChannel(new Netty4HttpPipeliningHandler(numberOfRequests, null, new ThreadWatchdog.ActivityTracker()) {
-            @Override
-            protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
-                ctx.fireChannelRead(pipelinedRequest);
-            }
-        }, new WorkEmulatorHandler());
+        return new EmbeddedChannel(
+            new Netty4HttpPipeliningHandler(
+                numberOfRequests,
+                null,
+                new ThreadWatchdog.ActivityTracker(),
+                HttpHandlingSettings.empty()
+            ) {
+                @Override
+                protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
+                    ctx.fireChannelRead(pipelinedRequest);
+                }
+            },
+            new WorkEmulatorHandler()
+        );
     }
 
     public void testThatPipeliningWorksWhenSlowRequestsInDifferentOrder() throws InterruptedException {
@@ -192,7 +201,12 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     public void testPipeliningRequestsAreReleased() {
         final int numberOfRequests = 10;
         final EmbeddedChannel embeddedChannel = new EmbeddedChannel(
-            new Netty4HttpPipeliningHandler(numberOfRequests + 1, null, new ThreadWatchdog.ActivityTracker())
+            new Netty4HttpPipeliningHandler(
+                numberOfRequests + 1,
+                null,
+                new ThreadWatchdog.ActivityTracker(),
+                HttpHandlingSettings.empty()
+            )
         );
 
         for (int i = 0; i < numberOfRequests; i++) {
@@ -210,7 +224,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             ChannelPromise promise = embeddedChannel.newPromise();
             promises.add(promise);
             Netty4HttpRequest pipelinedRequest = requests.get(i);
-            Netty4FullHttpResponse resp = pipelinedRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
+            Netty4FullHttpResponse resp = (Netty4FullHttpResponse) pipelinedRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
             embeddedChannel.writeAndFlush(resp, promise);
         }
 
@@ -462,7 +476,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         for (Netty4HttpRequest request : requests) {
             ChannelPromise promise = embeddedChannel.newPromise();
             promises.add(promise);
-            Netty4FullHttpResponse resp = request.createResponse(RestStatus.OK, BytesArray.EMPTY);
+            Netty4FullHttpResponse resp = (Netty4FullHttpResponse) request.createResponse(RestStatus.OK, BytesArray.EMPTY);
             embeddedChannel.write(resp, promise);
         }
         assertFalse(chunkedWritePromise.isDone());
@@ -484,7 +498,12 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         final var watchdog = new ThreadWatchdog();
         final var activityTracker = watchdog.getActivityTrackerForCurrentThread();
         final var requestHandled = new AtomicBoolean();
-        final var handler = new Netty4HttpPipeliningHandler(Integer.MAX_VALUE, mock(Netty4HttpServerTransport.class), activityTracker) {
+        final var handler = new Netty4HttpPipeliningHandler(
+            Integer.MAX_VALUE,
+            mock(Netty4HttpServerTransport.class),
+            activityTracker,
+            HttpHandlingSettings.empty()
+        ) {
             @Override
             protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
                 // thread is not idle while handling the request
@@ -528,7 +547,8 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         return new Netty4HttpPipeliningHandler(
             Integer.MAX_VALUE,
             mock(Netty4HttpServerTransport.class),
-            new ThreadWatchdog.ActivityTracker()
+            new ThreadWatchdog.ActivityTracker(),
+            HttpHandlingSettings.empty()
         ) {
             @Override
             protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {

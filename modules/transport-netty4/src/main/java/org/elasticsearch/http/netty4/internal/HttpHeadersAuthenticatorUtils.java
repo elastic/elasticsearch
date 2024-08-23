@@ -23,8 +23,8 @@ import org.elasticsearch.rest.RestRequest;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.http.netty4.Netty4HttpRequest.getHttpHeadersAsMap;
-import static org.elasticsearch.http.netty4.Netty4HttpRequest.translateRequestMethod;
+import static org.elasticsearch.http.netty4.Netty4AbstractHttpRequest.getHttpHeadersAsMap;
+import static org.elasticsearch.http.netty4.Netty4AbstractHttpRequest.translateRequestMethod;
 
 /**
  * Provides utilities for hooking into the netty pipeline and authenticate each HTTP request's headers.
@@ -111,9 +111,9 @@ public final class HttpHeadersAuthenticatorUtils {
         if (request instanceof Netty4HttpRequest == false) {
             return null;
         }
-        if (((Netty4HttpRequest) request).getNettyRequest().headers() instanceof HttpHeadersWithAuthenticationContext == false) {
+        if (((Netty4HttpRequest) request).nettyRequest().headers() instanceof HttpHeadersWithAuthenticationContext == false) {
             return null;
         }
-        return (HttpHeadersWithAuthenticationContext) (((Netty4HttpRequest) request).getNettyRequest().headers());
+        return (HttpHeadersWithAuthenticationContext) (((Netty4HttpRequest) request).nettyRequest().headers());
     }
 }

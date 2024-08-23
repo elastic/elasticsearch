@@ -18,7 +18,6 @@ import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.flow.FlowControlHandler;
 
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -30,18 +29,16 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
 
     EmbeddedChannel channel;
     Netty4HttpRequestBodyStream stream;
-    static HttpBody.ChunkHandler discardHandler = (chunk, isLast) -> chunk.close();
 
     @Before
     public void createStream() {
         channel = new EmbeddedChannel();
         stream = new Netty4HttpRequestBodyStream(channel);
-        stream.setHandler(discardHandler); // set default handler, each test might override one
         channel.pipeline().addLast(new SimpleChannelInboundHandler<HttpContent>() {
             @Override
             protected void channelRead0(ChannelHandlerContext ctx, HttpContent msg) {
                 msg.retain();
-                stream.handleNettyContent(msg);
+                stream.onHttpContent(msg);
             }
         });
     }
@@ -52,14 +49,14 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         for (int i = 0; i < totalChunks; i++) {
             channel.writeInbound(randomContent(1024));
         }
-        assertEquals(totalChunks, stream.chunkQueue().size());
+        assertEquals(totalChunks, stream.queueSize());
     }
 
     // ensures all queued chunks can be flushed downstream
     public void testFlushQueued() {
         var chunks = new ArrayList<ReleasableBytesReference>();
         var totalBytes = new AtomicInteger();
-        stream.setHandler((chunk, isLast) -> {
+        stream.setConsumingHandler((chunk, isLast) -> {
             chunks.add(chunk);
             totalBytes.addAndGet(chunk.length());
         });
@@ -82,11 +79,11 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
     public void testReadFromChannel() {
         var gotChunks = new ArrayList<ReleasableBytesReference>();
         var gotLast = new AtomicBoolean(false);
-        stream.setHandler((chunk, isLast) -> {
+        stream.setConsumingHandler((chunk, isLast) -> {
             gotChunks.add(chunk);
             gotLast.set(isLast);
         });
-        channel.pipeline().addFirst(new FlowControlHandler()); // block all incoming messages, need explicit channel.read()
+        channel.pipeline().addFirst(new FlowControlHandler()); // blocks all incoming messages, need explicit channel.read()
         var chunkSize = 1024;
         var totalChunks = randomIntBetween(1, 32);
         for (int i = 0; i < totalChunks - 1; i++) {
@@ -95,7 +92,7 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         channel.writeInbound(randomLastContent(chunkSize));
 
         for (int i = 0; i < totalChunks; i++) {
-            assertEquals("should not enqueue chunks", 0, stream.chunkQueue().size());
+            assertEquals("should not enqueue chunks", 0, stream.queueSize());
             stream.next();
             assertEquals("each next() should produce single chunk", i + 1, gotChunks.size());
         }

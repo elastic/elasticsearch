@@ -30,6 +30,10 @@ public record HttpHandlingSettings(
     boolean detailedErrorsEnabled
 ) {
 
+    public static HttpHandlingSettings empty() {
+        return fromSettings(Settings.EMPTY);
+    }
+
     public static HttpHandlingSettings fromSettings(Settings settings) {
         return new HttpHandlingSettings(
             Math.toIntExact(SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).getBytes()),

@@ -24,9 +24,6 @@ template:
     index:
       default_pipeline: traces-apm@default-pipeline
       final_pipeline: traces-apm@pipeline
-      lifecycle:
-        name: traces-apm.traces-default_policy
-        prefer_ilm: false
   mappings:
     properties:
       data_stream.type:

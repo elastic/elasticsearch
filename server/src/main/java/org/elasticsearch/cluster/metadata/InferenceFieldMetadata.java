@@ -45,7 +45,13 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     private final String[] sourceFields;
     private final String queryName;
 
-    public InferenceFieldMetadata(String name, String inferenceId, String searchInferenceId, String[] sourceFields, String queryName) {
+    public InferenceFieldMetadata(
+        String name,
+        String inferenceId,
+        String searchInferenceId,
+        String[] sourceFields,
+        String queryName
+    ) {
         this.name = Objects.requireNonNull(name);
         this.inferenceId = Objects.requireNonNull(inferenceId);
         this.searchInferenceId = Objects.requireNonNull(searchInferenceId);

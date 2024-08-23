@@ -53,6 +53,7 @@ public final class RoleDescriptorTestHelper {
             .allowRestriction(randomBoolean())
             .allowDescription(randomBoolean())
             .allowRemoteClusters(randomBoolean())
+            .allowConfigurableClusterPrivileges(randomBoolean())
             .build();
     }
 
@@ -273,11 +274,17 @@ public final class RoleDescriptorTestHelper {
         private boolean allowRestriction = false;
         private boolean allowDescription = false;
         private boolean allowRemoteClusters = false;
+        private boolean allowConfigurableClusterPrivileges = false;
 
         public Builder() {}
 
         public Builder allowReservedMetadata(boolean allowReservedMetadata) {
             this.allowReservedMetadata = allowReservedMetadata;
+            return this;
+        }
+
+        public Builder allowConfigurableClusterPrivileges(boolean allowConfigurableClusterPrivileges) {
+            this.allowConfigurableClusterPrivileges = allowConfigurableClusterPrivileges;
             return this;
         }
 
@@ -324,7 +331,7 @@ public final class RoleDescriptorTestHelper {
                 randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
                 randomIndicesPrivileges(0, 3),
                 randomApplicationPrivileges(),
-                randomClusterPrivileges(),
+                allowConfigurableClusterPrivileges ? randomClusterPrivileges() : null,
                 generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
                 randomRoleDescriptorMetadata(allowReservedMetadata),
                 Map.of(),

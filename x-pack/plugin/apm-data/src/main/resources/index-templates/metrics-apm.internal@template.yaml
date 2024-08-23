@@ -25,9 +25,6 @@ template:
     index:
       default_pipeline: metrics-apm.internal@default-pipeline
       final_pipeline: metrics-apm@pipeline
-      lifecycle:
-        name: metrics-apm.internal_metrics-default_policy
-        prefer_ilm: false
   mappings:
     properties:
       data_stream.dataset:

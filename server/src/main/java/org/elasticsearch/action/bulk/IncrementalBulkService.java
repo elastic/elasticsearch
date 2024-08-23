@@ -36,7 +36,7 @@ public class IncrementalBulkService {
         return new Handler(client, waitForActiveShards, timeout, refresh);
     }
 
-    public static class Handler {
+    public static class Handler implements Releasable {
 
         private final Client client;
         private final ActiveShardCount waitForActiveShards;
@@ -203,6 +203,11 @@ public class IncrementalBulkService {
             }
 
             return new BulkResponse(bulkItemResponses, tookInMillis, ingestTookInMillis);
+        }
+
+        @Override
+        public void close() {
+            // TODO: Implement
         }
     }
 }

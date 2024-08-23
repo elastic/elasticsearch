@@ -125,7 +125,7 @@ public final class RoleDescriptorTestHelper {
             1,
             10,
             () -> {
-                String[] indexPatterns = randomArray(5, String[]::new, () -> randomAlphaOfLengthBetween(5, 100));
+                String[] indexPatterns = randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(5, 100));
 
                 int startIndex = randomIntBetween(0, IndexPrivilege.names().size() - 2);
                 int endIndex = randomIntBetween(startIndex + 1, IndexPrivilege.names().size());

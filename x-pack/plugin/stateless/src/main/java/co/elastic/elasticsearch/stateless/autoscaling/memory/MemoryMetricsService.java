@@ -56,18 +56,39 @@ public class MemoryMetricsService implements ClusterStateListener {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-    // let each shard use 6MB by default, which matches what we see in heap dumps (with a bit of margin).
-    public static final ByteSizeValue SHARD_MEMORY_OVERHEAD_DEFAULT = ByteSizeValue.ofMb(6);
-    public static final Setting<ByteSizeValue> SHARD_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(
+
+    /**
+     * Two methods to estimate the memory usage of IndexShard instances:
+     * 1. Fixed Method: Assigns a default value of 6MB per shard. This method may overestimate memory usage for shards with minimal data
+     * and underestimate it for shards with many segments and fields.
+     * 2. Adaptive Method: Estimates memory usage based on the actual number of segments and fields in segments. While generally more
+     * accurate, this method can still occasionally overestimate or underestimate memory usage.
+     * <p>
+     * By default, the Fixed Method is used. To switch to the Adaptive Method, explicitly set
+     * the `serverless.autoscaling.memory_metrics.shard_memory_overhead` setting to -1.
+     */
+    public static final ByteSizeValue FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT = ByteSizeValue.ofMb(6);
+    public static final Setting<ByteSizeValue> FIXED_SHARD_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(
         "serverless.autoscaling.memory_metrics.shard_memory_overhead",
-        SHARD_MEMORY_OVERHEAD_DEFAULT,
+        FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    volatile ByteSizeValue fixedShardMemoryOverhead;
+    // The memory overhead of each IndexShard instance used in the adaptive estimate
+    static final ByteSizeValue ADAPTIVE_SHARD_MEMORY_OVERHEAD = ByteSizeValue.ofKb(75);
+    // The memory overhead of each Lucene segment, including maps for postings, doc_values, and stored_fields producers
+    static final ByteSizeValue ADAPTIVE_SEGMENT_MEMORY_OVERHEAD = ByteSizeValue.ofKb(55);
+    // The memory overhead of each field found in Lucene segments
+    static final ByteSizeValue ADAPTIVE_FIELD_MEMORY_OVERHEAD = ByteSizeValue.ofBytes(1024);
+    // For the adaptive method, add an additional overhead of 50% of the estimate
+    static final int ADAPTIVE_EXTRA_OVERHEAD_PERCENT = 50;
+
     private static final Logger logger = LogManager.getLogger(MemoryMetricsService.class);
     // visible for testing
     static final long INDEX_MEMORY_OVERHEAD = ByteSizeValue.ofKb(350).getBytes();
-    // visible for testing
+
     /**
      * See:
      * https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html#_consider_additional_heap_overheads
@@ -86,19 +107,16 @@ public class MemoryMetricsService implements ClusterStateListener {
 
     private volatile long lastStaleMetricsCheckTimeNs = Long.MIN_VALUE;
     private volatile TimeValue staleMetricsCheckInterval;
-    // visible for testing
-    volatile ByteSizeValue shardMemoryOverhead;
 
     public MemoryMetricsService(LongSupplier relativeTimeInNanosSupplier, ClusterSettings clusterSettings, ProjectType projectType) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.projectType = projectType;
         clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_DURATION_SETTING, value -> staleMetricsCheckDuration = value);
         clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_INTERVAL_SETTING, value -> staleMetricsCheckInterval = value);
-        clusterSettings.initializeAndWatch(SHARD_MEMORY_OVERHEAD_SETTING, value -> shardMemoryOverhead = value);
+        clusterSettings.initializeAndWatch(FIXED_SHARD_MEMORY_OVERHEAD_SETTING, value -> fixedShardMemoryOverhead = value);
     }
 
     public MemoryMetrics getMemoryMetrics() {
-        final var totalIndicesMappingSize = calculateTotalIndicesMappingSize();
 
         final long nodeMemoryInBytes = Math.min(
             HeapToSystemMemory.dataNode(INDEX_MEMORY_OVERHEAD * totalIndices + WORKLOAD_MEMORY_OVERHEAD, projectType),
@@ -119,20 +137,16 @@ public class MemoryMetricsService implements ClusterStateListener {
         //
         // https://github.com/elastic/elasticsearch-autoscaler/blob/72ac2692f900dc8fe5220b53b1ab20b88008ef7e/internal/autoscaler/
         // elasticsearch/autoscaling/recommender/search.go#L142
-        final long tierMemoryInBytes = HeapToSystemMemory.tier(
-            totalIndicesMappingSize.sizeInBytes + shardMemoryOverhead.getBytes() * shardMemoryMetrics.size(),
-            projectType
-        );
-
-        return new MemoryMetrics(nodeMemoryInBytes, tierMemoryInBytes, totalIndicesMappingSize.metricQuality);
+        final var estimateMemoryUsage = estimateTierMemoryUsage();
+        final long tierMemoryInBytes = HeapToSystemMemory.tier(estimateMemoryUsage.totalBytes, projectType);
+        return new MemoryMetrics(nodeMemoryInBytes, tierMemoryInBytes, estimateMemoryUsage.metricQuality);
     }
 
-    // Total mapping size of all known indices, and whether it is exact or not.
-    record TotalIndicesMappingsSize(long sizeInBytes, MetricQuality metricQuality) {}
+    // Estimate of total mapping size of all known indices and IndexShard instances
+    record TierEstimateMemoryUsage(long totalBytes, MetricQuality metricQuality) {}
 
-    // Calculates rolling sum & metric quality of all known indices, if any of qualities is not `EXACT` report the whole batch as such.
-    TotalIndicesMappingsSize calculateTotalIndicesMappingSize() {
-        long sizeInBytes = 0;
+    // Calculates sum & metric quality of all known indices and shards, if any of qualities is not `EXACT` report the whole batch as such.
+    TierEstimateMemoryUsage estimateTierMemoryUsage() {
         MetricQuality metricQuality = MetricQuality.EXACT;
         // Can't control the frequency in which getTotalIndicesMappingSize is called, so we need to make sure we run the stale check
         // at a regular interval to avoid flooding logs with stale index warnings
@@ -140,22 +154,37 @@ public class MemoryMetricsService implements ClusterStateListener {
         if (checkStaleMetrics) {
             lastStaleMetricsCheckTimeNs = relativeTimeInNanos();
         }
+        long mappingSizeInBytes = 0;
+        long totalSegments = 0;
+        long totalFields = 0;
         for (var entry : shardMemoryMetrics.entrySet()) {
-            // TODO: Use mapping_size_in_bytes from any shard metric once the cluster is upgraded. Consider using the highest
-            // quality (exact) metric of each index to improve metric quality and minimize excessive warning logs from stale metrics.
-            if (entry.getKey().id() != 0) {
-                continue;
+            var metric = entry.getValue();
+            // once per index
+            if (entry.getKey().id() == 0) {
+                mappingSizeInBytes += metric.mappingSizeInBytes;
             }
-            var memoryMetrics = entry.getValue();
-            sizeInBytes += memoryMetrics.mappingSizeInBytes;
-            metricQuality = memoryMetrics.getMetricQuality() == MetricQuality.EXACT ? metricQuality : memoryMetrics.getMetricQuality();
+            totalSegments += metric.getNumSegments();
+            totalFields += metric.getTotalFields();
+            metricQuality = metric.getMetricQuality() == MetricQuality.EXACT ? metricQuality : metric.getMetricQuality();
             if (checkStaleMetrics
-                && memoryMetrics.getMetricQuality() != MetricQuality.EXACT
-                && relativeTimeInNanos() - staleMetricsCheckDuration.nanos() > memoryMetrics.getUpdateTimestampNanos()) {
+                && metric.getMetricQuality() != MetricQuality.EXACT
+                && relativeTimeInNanos() - staleMetricsCheckDuration.nanos() > metric.getUpdateTimestampNanos()) {
                 logger.warn("Memory metrics are stale for shard {}", entry);
             }
         }
-        return new TotalIndicesMappingsSize(sizeInBytes, metricQuality);
+        final long shardMemoryInBytes = estimateShardMemoryUsageInBytes(shardMemoryMetrics.size(), totalSegments, totalFields);
+        return new TierEstimateMemoryUsage(mappingSizeInBytes + shardMemoryInBytes, metricQuality);
+    }
+
+    long estimateShardMemoryUsageInBytes(int numShards, long numSegments, long numFields) {
+        final var fixedShardOverhead = this.fixedShardMemoryOverhead;
+        if (fixedShardOverhead.getBytes() > 0) {
+            return fixedShardOverhead.getBytes() * numShards;
+        }
+        long estimateBytes = numShards * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + numSegments * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD
+            .getBytes() + numFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes();
+        long extraBytes = estimateBytes * ADAPTIVE_EXTRA_OVERHEAD_PERCENT / 100;
+        return estimateBytes + extraBytes;
     }
 
     // visible for testing

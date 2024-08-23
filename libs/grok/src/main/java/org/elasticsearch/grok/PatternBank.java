@@ -90,25 +90,22 @@ public class PatternBank {
              */
             Deque<String[]> stack = new ArrayDeque<>();
             stack.push(new String[] { traversalStartNode });
-            /*
-             * This is used to record the parent of the current stack frame, if any. This way if we get back to that node we know not to
-             * get its neighbors again.
-             */
-            String lastParent = null;
+            // This is used so that we know that we're unwinding the stack and know not to get the current node's neighbors again.
+            boolean unwinding = false;
             while (stack.isEmpty() == false) {
                 String[] currentLevel = stack.peek();
                 int firstNonNullIndex = findFirstNonNull(currentLevel);
                 String node = currentLevel[firstNonNullIndex];
                 boolean endOfThisPath = false;
-                if (traversalStartNode.equals(node) && stack.size() > 1) {
+                if (unwinding) {
+                    // We have completed all of this node's neighbors and have popped back to the node
+                    endOfThisPath = true;
+                } else if (traversalStartNode.equals(node) && stack.size() > 1) {
                     Deque<String> reversedPath = new ArrayDeque<>();
                     for (String[] level : stack) {
                         reversedPath.push(level[findFirstNonNull(level)]);
                     }
                     throw new IllegalArgumentException("circular reference detected: " + String.join("->", reversedPath));
-                } else if (node.equals(lastParent)) {
-                    // We have completed all of this node's neighbors and have popped back to the node
-                    endOfThisPath = true;
                 } else if (visitedFromThisStartNode.contains(node)) {
                     /*
                      * We are only looking for a cycle starting and ending at traversalStartNode right now. But this node has been
@@ -128,17 +125,16 @@ public class PatternBank {
                     }
                 }
                 if (endOfThisPath) {
-                    currentLevel[firstNonNullIndex] = null;
                     if (firstNonNullIndex == currentLevel.length - 1) {
-                        // We have handled all of the neighbors at this level -- there are no more non-null ones
+                        // We have handled all the neighbors at this level -- there are no more non-null ones
                         stack.pop();
-                        if (stack.isEmpty() == false) {
-                            String[] previousLevel = stack.peek();
-                            lastParent = previousLevel[findFirstNonNull(previousLevel)];
-                        } else {
-                            lastParent = null;
-                        }
+                        unwinding = true;
+                    } else {
+                        currentLevel[firstNonNullIndex] = null;
+                        unwinding = false;
                     }
+                } else {
+                    unwinding = false;
                 }
             }
             allVisitedNodes.addAll(visitedFromThisStartNode);

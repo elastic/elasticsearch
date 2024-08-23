@@ -1,7 +1,7 @@
 ---
 "Metrics object indexing":
   - requires:
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [ "allowed_warnings", "allowed_warnings_regex" ]
       cluster_features: ["gte_v8.3.0"]
       reason: added in 8.3.0
 
@@ -68,7 +68,7 @@
 ---
 "Root without subobjects":
   - requires:
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [ "allowed_warnings", "allowed_warnings_regex" ]
       cluster_features: ["gte_v8.3.0"]
       reason: added in 8.3.0
 
@@ -130,7 +130,7 @@
 ---
 "Metrics object indexing with synthetic source":
   - requires:
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [ "allowed_warnings", "allowed_warnings_regex" ]
       cluster_features: ["gte_v8.4.0"]
       reason: added in 8.4.0
 
@@ -200,7 +200,7 @@
 ---
 "Root without subobjects with synthetic source":
   - requires:
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [ "allowed_warnings", "allowed_warnings_regex" ]
       cluster_features: ["gte_v8.4.0"]
       reason: added in 8.4.0
 

@@ -31,11 +31,11 @@ public class ScriptTermStats {
     private final Term[] terms;
     private final IndexSearcher searcher;
     private final LeafReaderContext leafReaderContext;
-    private final StatsAccumulator statsAccumulator = new StatsAccumulator();
+    private final StatsSummary statsSummary = new StatsSummary();
     private final Supplier<TermStates[]> termContextsSupplier;
     private final Supplier<PostingsEnum[]> postingsSupplier;
-    private final Supplier<StatsAccumulator> docFreqSupplier;
-    private final Supplier<StatsAccumulator> totalTermFreqSupplier;
+    private final Supplier<StatsSummary> docFreqSupplier;
+    private final Supplier<StatsSummary> totalTermFreqSupplier;
 
     public ScriptTermStats(IndexSearcher searcher, LeafReaderContext leafReaderContext, Supplier<Integer> docIdSupplier, Set<Term> terms) {
         this.searcher = searcher;
@@ -83,12 +83,12 @@ public class ScriptTermStats {
      *
      * @return statistics on docFreq for the terms of the query.
      */
-    public StatsAccumulator docFreq() {
+    public StatsSummary docFreq() {
         return docFreqSupplier.get();
     }
 
-    private StatsAccumulator loadDocFreq() {
-        StatsAccumulator docFreqStats = new StatsAccumulator();
+    private StatsSummary loadDocFreq() {
+        StatsSummary docFreqStats = new StatsSummary();
         TermStates[] termContexts = termContextsSupplier.get();
 
         try {
@@ -111,12 +111,12 @@ public class ScriptTermStats {
      *
      * @return statistics on totalTermFreq for the terms of the query.
      */
-    public StatsAccumulator totalTermFreq() {
+    public StatsSummary totalTermFreq() {
         return this.totalTermFreqSupplier.get();
     }
 
-    private StatsAccumulator loadTotalTermFreq() {
-        StatsAccumulator totalTermFreqStats = new StatsAccumulator();
+    private StatsSummary loadTotalTermFreq() {
+        StatsSummary totalTermFreqStats = new StatsSummary();
         TermStates[] termContexts = termContextsSupplier.get();
 
         try {
@@ -139,20 +139,20 @@ public class ScriptTermStats {
      *
      * @return statistics on totalTermFreq for the terms of the query in the current dac
      */
-    public StatsAccumulator termFreq() {
-        statsAccumulator.reset();
+    public StatsSummary termFreq() {
+        statsSummary.reset();
         final int docId = docIdSupplier.get();
 
         try {
             for (PostingsEnum postingsEnum : postingsSupplier.get()) {
                 if (postingsEnum == null || postingsEnum.advance(docId) != docId) {
-                    statsAccumulator.accept(0);
+                    statsSummary.accept(0);
                 } else {
-                    statsAccumulator.accept(postingsEnum.freq());
+                    statsSummary.accept(postingsEnum.freq());
                 }
             }
 
-            return statsAccumulator;
+            return statsSummary;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -163,9 +163,9 @@ public class ScriptTermStats {
      *
      * @return statistics on termPositions for the terms of the query in the current dac
      */
-    public StatsAccumulator termPositions() {
+    public StatsSummary termPositions() {
         try {
-            statsAccumulator.reset();
+            statsSummary.reset();
             int docId = docIdSupplier.get();
 
             for (PostingsEnum postingsEnum : postingsSupplier.get()) {
@@ -173,11 +173,11 @@ public class ScriptTermStats {
                     continue;
                 }
                 for (int i = 0; i < postingsEnum.freq(); i++) {
-                    statsAccumulator.accept(postingsEnum.nextPosition() + 1);
+                    statsSummary.accept(postingsEnum.nextPosition() + 1);
                 }
             }
 
-            return statsAccumulator;
+            return statsSummary;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

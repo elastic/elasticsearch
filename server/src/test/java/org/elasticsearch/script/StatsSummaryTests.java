@@ -13,9 +13,9 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class StatsAccumulatorTests extends ESTestCase {
+public class StatsSummaryTests extends ESTestCase {
     public void tesEmpty() {
-        StatsAccumulator accumulator = new StatsAccumulator();
+        StatsSummary accumulator = new StatsSummary();
         assertThat(accumulator.getMin(), equalTo(0.0));
         assertThat(accumulator.getMax(), equalTo(0.0));
         assertThat(accumulator.getSum(), equalTo(0.0));
@@ -23,7 +23,7 @@ public class StatsAccumulatorTests extends ESTestCase {
     }
 
     public void testGivenPositiveValues() {
-        StatsAccumulator accumulator = new StatsAccumulator();
+        StatsSummary accumulator = new StatsSummary();
 
         for (int i = 1; i <= 10; i++) {
             accumulator.accept(i);
@@ -36,7 +36,7 @@ public class StatsAccumulatorTests extends ESTestCase {
     }
 
     public void testGivenNegativeValues() {
-        StatsAccumulator accumulator = new StatsAccumulator();
+        StatsSummary accumulator = new StatsSummary();
 
         for (int i = 1; i <= 10; i++) {
             accumulator.accept(-1 * i);
@@ -49,12 +49,12 @@ public class StatsAccumulatorTests extends ESTestCase {
     }
 
     public void testReset() {
-        StatsAccumulator accumulator = new StatsAccumulator();
+        StatsSummary accumulator = new StatsSummary();
         randomDoubles(randomIntBetween(1, 20)).forEach(accumulator);
-        assertThat(accumulator, not(equalTo(new StatsAccumulator())));
+        assertThat(accumulator, not(equalTo(new StatsSummary())));
 
         accumulator.reset();
-        assertThat(accumulator, equalTo(new StatsAccumulator()));
+        assertThat(accumulator, equalTo(new StatsSummary()));
         assertThat(accumulator.getMin(), equalTo(0.0));
         assertThat(accumulator.getMax(), equalTo(0.0));
         assertThat(accumulator.getSum(), equalTo(0.0));
@@ -62,8 +62,8 @@ public class StatsAccumulatorTests extends ESTestCase {
     }
 
     public void testEqualsAndHashCode() {
-        StatsAccumulator stats1 = new StatsAccumulator();
-        StatsAccumulator stats2 = new StatsAccumulator();
+        StatsSummary stats1 = new StatsSummary();
+        StatsSummary stats2 = new StatsSummary();
 
         // Empty accumulators are equals.
         assertThat(stats1, equalTo(stats2));

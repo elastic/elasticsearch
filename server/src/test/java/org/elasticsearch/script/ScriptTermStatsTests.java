@@ -77,7 +77,7 @@ public class ScriptTermStatsTests extends ESTestCase {
     public void testDocFreq() throws IOException {
         // Single term
         {
-            StatsAccumulator expected = new StatsAccumulator(1, 2, 2, 2);
+            StatsSummary expected = new StatsSummary(1, 2, 2, 2);
             assertAllDocs(
                 Set.of(new Term("field", "foo")),
                 ScriptTermStats::docFreq,
@@ -87,7 +87,7 @@ public class ScriptTermStatsTests extends ESTestCase {
 
         // Multiple terms
         {
-            StatsAccumulator expected = new StatsAccumulator(2, 5, 2, 3);
+            StatsSummary expected = new StatsSummary(2, 5, 2, 3);
             assertAllDocs(
                 Set.of(new Term("field", "foo"), new Term("field", "bar")),
                 ScriptTermStats::docFreq,
@@ -97,7 +97,7 @@ public class ScriptTermStatsTests extends ESTestCase {
 
         // With missing terms
         {
-            StatsAccumulator expected = new StatsAccumulator(2, 2, 0, 2);
+            StatsSummary expected = new StatsSummary(2, 2, 0, 2);
             assertAllDocs(
                 Set.of(new Term("field", "foo"), new Term("field", "baz")),
                 ScriptTermStats::docFreq,
@@ -107,7 +107,7 @@ public class ScriptTermStatsTests extends ESTestCase {
 
         // When no term is provided.
         {
-            StatsAccumulator expected = new StatsAccumulator();
+            StatsSummary expected = new StatsSummary();
             assertAllDocs(
                 Set.of(),
                 ScriptTermStats::docFreq,
@@ -117,7 +117,7 @@ public class ScriptTermStatsTests extends ESTestCase {
 
         // When using a non-existing field
         {
-            StatsAccumulator expected = new StatsAccumulator(2, 0, 0, 0);
+            StatsSummary expected = new StatsSummary(2, 0, 0, 0);
             assertAllDocs(
                 Set.of(new Term("non-existing-field", "foo"), new Term("non-existing-field", "baz")),
                 ScriptTermStats::docFreq,
@@ -129,7 +129,7 @@ public class ScriptTermStatsTests extends ESTestCase {
     public void testTotalTermFreq() throws IOException {
         // Single term
         {
-            StatsAccumulator expected = new StatsAccumulator(1, 3, 3, 3);
+            StatsSummary expected = new StatsSummary(1, 3, 3, 3);
             assertAllDocs(
                 Set.of(new Term("field", "foo")),
                 ScriptTermStats::totalTermFreq,
@@ -139,7 +139,7 @@ public class ScriptTermStatsTests extends ESTestCase {
 
         // Multiple terms
         {
-            StatsAccumulator expected = new StatsAccumulator(2, 6, 3, 3);
+            StatsSummary expected = new StatsSummary(2, 6, 3, 3);
             assertAllDocs(
                 Set.of(new Term("field", "foo"), new Term("field", "bar")),
                 ScriptTermStats::totalTermFreq,
@@ -149,7 +149,7 @@ public class ScriptTermStatsTests extends ESTestCase {
 
         // With missing terms
         {
-            StatsAccumulator expected = new StatsAccumulator(2, 3, 0, 3);
+            StatsSummary expected = new StatsSummary(2, 3, 0, 3);
             assertAllDocs(
                 Set.of(new Term("field", "foo"), new Term("field", "baz")),
                 ScriptTermStats::totalTermFreq,
@@ -159,7 +159,7 @@ public class ScriptTermStatsTests extends ESTestCase {
 
         // When no term is provided.
         {
-            StatsAccumulator expected = new StatsAccumulator();
+            StatsSummary expected = new StatsSummary();
             assertAllDocs(
                 Set.of(),
                 ScriptTermStats::totalTermFreq,
@@ -169,7 +169,7 @@ public class ScriptTermStatsTests extends ESTestCase {
 
         // When using a non-existing field
         {
-            StatsAccumulator expected = new StatsAccumulator(2, 0, 0, 0);
+            StatsSummary expected = new StatsSummary(2, 0, 0, 0);
             assertAllDocs(
                 Set.of(new Term("non-existing-field", "foo"), new Term("non-existing-field", "baz")),
                 ScriptTermStats::totalTermFreq,
@@ -186,23 +186,23 @@ public class ScriptTermStatsTests extends ESTestCase {
                 Set.of(new Term("field", "foo")),
                 ScriptTermStats::termFreq,
                 Map.ofEntries(
-                    Map.entry("doc-1", equalTo(new StatsAccumulator(1, 1, 1, 1))),
-                    Map.entry("doc-2", equalTo(new StatsAccumulator(1, 2, 2, 2))),
-                    Map.entry("doc-3", equalTo(new StatsAccumulator(1, 0, 0, 0)))
+                    Map.entry("doc-1", equalTo(new StatsSummary(1, 1, 1, 1))),
+                    Map.entry("doc-2", equalTo(new StatsSummary(1, 2, 2, 2))),
+                    Map.entry("doc-3", equalTo(new StatsSummary(1, 0, 0, 0)))
                 )
             );
         }
 
         // Multiple terms
         {
-            StatsAccumulator expected = new StatsAccumulator(2, 6, 3, 3);
+            StatsSummary expected = new StatsSummary(2, 6, 3, 3);
             assertAllDocs(
                 Set.of(new Term("field", "foo"), new Term("field", "bar")),
                 ScriptTermStats::termFreq,
                 Map.ofEntries(
-                    Map.entry("doc-1", equalTo(new StatsAccumulator(2, 2, 1, 1))),
-                    Map.entry("doc-2", equalTo(new StatsAccumulator(2, 3, 1, 2))),
-                    Map.entry("doc-3", equalTo(new StatsAccumulator(2, 1, 0, 1)))
+                    Map.entry("doc-1", equalTo(new StatsSummary(2, 2, 1, 1))),
+                    Map.entry("doc-2", equalTo(new StatsSummary(2, 3, 1, 2))),
+                    Map.entry("doc-3", equalTo(new StatsSummary(2, 1, 0, 1)))
                 )
             );
         }
@@ -213,16 +213,16 @@ public class ScriptTermStatsTests extends ESTestCase {
                 Set.of(new Term("field", "foo"), new Term("field", "baz")),
                 ScriptTermStats::termFreq,
                 Map.ofEntries(
-                    Map.entry("doc-1", equalTo(new StatsAccumulator(2, 1, 0, 1))),
-                    Map.entry("doc-2", equalTo(new StatsAccumulator(2, 2, 0, 2))),
-                    Map.entry("doc-3", equalTo(new StatsAccumulator(2, 0, 0, 0)))
+                    Map.entry("doc-1", equalTo(new StatsSummary(2, 1, 0, 1))),
+                    Map.entry("doc-2", equalTo(new StatsSummary(2, 2, 0, 2))),
+                    Map.entry("doc-3", equalTo(new StatsSummary(2, 0, 0, 0)))
                 )
             );
         }
 
         // When no term is provided.
         {
-            StatsAccumulator expected = new StatsAccumulator();
+            StatsSummary expected = new StatsSummary();
             assertAllDocs(
                 Set.of(),
                 ScriptTermStats::termFreq,
@@ -232,7 +232,7 @@ public class ScriptTermStatsTests extends ESTestCase {
 
         // When using a non-existing field
         {
-            StatsAccumulator expected = new StatsAccumulator(2, 0, 0, 0);
+            StatsSummary expected = new StatsSummary(2, 0, 0, 0);
             assertAllDocs(
                 Set.of(new Term("non-existing-field", "foo"), new Term("non-existing-field", "baz")),
                 ScriptTermStats::termFreq,
@@ -249,23 +249,23 @@ public class ScriptTermStatsTests extends ESTestCase {
                 Set.of(new Term("field", "foo")),
                 ScriptTermStats::termPositions,
                 Map.ofEntries(
-                    Map.entry("doc-1", equalTo(new StatsAccumulator(1, 1, 1, 1))),
-                    Map.entry("doc-2", equalTo(new StatsAccumulator(2, 3, 1, 2))),
-                    Map.entry("doc-3", equalTo(new StatsAccumulator()))
+                    Map.entry("doc-1", equalTo(new StatsSummary(1, 1, 1, 1))),
+                    Map.entry("doc-2", equalTo(new StatsSummary(2, 3, 1, 2))),
+                    Map.entry("doc-3", equalTo(new StatsSummary()))
                 )
             );
         }
 
         // Multiple terms
         {
-            StatsAccumulator expected = new StatsAccumulator(2, 6, 3, 3);
+            StatsSummary expected = new StatsSummary(2, 6, 3, 3);
             assertAllDocs(
                 Set.of(new Term("field", "foo"), new Term("field", "bar")),
                 ScriptTermStats::termPositions,
                 Map.ofEntries(
-                    Map.entry("doc-1", equalTo(new StatsAccumulator(2, 3, 1, 2))),
-                    Map.entry("doc-2", equalTo(new StatsAccumulator(3, 6, 1, 3))),
-                    Map.entry("doc-3", equalTo(new StatsAccumulator(1, 1, 1, 1)))
+                    Map.entry("doc-1", equalTo(new StatsSummary(2, 3, 1, 2))),
+                    Map.entry("doc-2", equalTo(new StatsSummary(3, 6, 1, 3))),
+                    Map.entry("doc-3", equalTo(new StatsSummary(1, 1, 1, 1)))
                 )
             );
         }
@@ -276,16 +276,16 @@ public class ScriptTermStatsTests extends ESTestCase {
                 Set.of(new Term("field", "foo"), new Term("field", "baz")),
                 ScriptTermStats::termPositions,
                 Map.ofEntries(
-                    Map.entry("doc-1", equalTo(new StatsAccumulator(1, 1, 1, 1))),
-                    Map.entry("doc-2", equalTo(new StatsAccumulator(2, 3, 1, 2))),
-                    Map.entry("doc-3", equalTo(new StatsAccumulator()))
+                    Map.entry("doc-1", equalTo(new StatsSummary(1, 1, 1, 1))),
+                    Map.entry("doc-2", equalTo(new StatsSummary(2, 3, 1, 2))),
+                    Map.entry("doc-3", equalTo(new StatsSummary()))
                 )
             );
         }
 
         // When no term is provided.
         {
-            StatsAccumulator expected = new StatsAccumulator();
+            StatsSummary expected = new StatsSummary();
             assertAllDocs(
                 Set.of(),
                 ScriptTermStats::termPositions,
@@ -295,7 +295,7 @@ public class ScriptTermStatsTests extends ESTestCase {
 
         // When using a non-existing field
         {
-            StatsAccumulator expected = new StatsAccumulator();
+            StatsSummary expected = new StatsSummary();
             assertAllDocs(
                 Set.of(new Term("non-existing-field", "foo"), new Term("non-existing-field", "bar")),
                 ScriptTermStats::termPositions,

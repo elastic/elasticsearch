@@ -14,21 +14,21 @@ import java.util.Objects;
 import java.util.function.DoubleConsumer;
 
 /**
- * The {@link StatsAccumulator} class accumulates statistical data for a sequence of double values.
+ * The {@link StatsSummary} class accumulates statistical data for a sequence of double values.
  *
  * <p>This class provides statistics such as count, sum, minimum, maximum, and arithmetic mean
  * of the recorded values.
  */
-public class StatsAccumulator implements DoubleConsumer {
+public class StatsSummary implements DoubleConsumer {
 
     private long count = 0;
     private double sum = 0d;
     private Double min;
     private Double max;
 
-    public StatsAccumulator() {}
+    public StatsSummary() {}
 
-    StatsAccumulator(long count, double sum, double min, double max) {
+    StatsSummary(long count, double sum, double min, double max) {
         this.count = count;
         this.sum = sum;
         this.min = min;
@@ -100,7 +100,7 @@ public class StatsAccumulator implements DoubleConsumer {
             return false;
         }
 
-        StatsAccumulator other = (StatsAccumulator) obj;
+        StatsSummary other = (StatsSummary) obj;
 
         return Objects.equals(count, other.count)
             && Objects.equals(sum, other.sum)

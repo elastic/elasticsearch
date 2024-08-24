@@ -21,13 +21,14 @@ import org.elasticsearch.common.util.CachedSupplier;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Set;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 /**
  * Access the term statistics of the children query of a script_score query.
  */
 public class ScriptTermStats {
-    private final Supplier<Integer> docIdSupplier;
+    private final IntSupplier docIdSupplier;
     private final Term[] terms;
     private final IndexSearcher searcher;
     private final LeafReaderContext leafReaderContext;
@@ -37,7 +38,7 @@ public class ScriptTermStats {
     private final Supplier<StatsSummary> docFreqSupplier;
     private final Supplier<StatsSummary> totalTermFreqSupplier;
 
-    public ScriptTermStats(IndexSearcher searcher, LeafReaderContext leafReaderContext, Supplier<Integer> docIdSupplier, Set<Term> terms) {
+    public ScriptTermStats(IndexSearcher searcher, LeafReaderContext leafReaderContext, IntSupplier docIdSupplier, Set<Term> terms) {
         this.searcher = searcher;
         this.leafReaderContext = leafReaderContext;
         this.docIdSupplier = docIdSupplier;
@@ -63,7 +64,7 @@ public class ScriptTermStats {
      * @return the number of matched terms
      */
     public int matchedTermsCount() {
-        final int docId = docIdSupplier.get();
+        final int docId = docIdSupplier.getAsInt();
         int matchedTerms = 0;
 
         try {
@@ -141,7 +142,7 @@ public class ScriptTermStats {
      */
     public StatsSummary termFreq() {
         statsSummary.reset();
-        final int docId = docIdSupplier.get();
+        final int docId = docIdSupplier.getAsInt();
 
         try {
             for (PostingsEnum postingsEnum : postingsSupplier.get()) {
@@ -166,7 +167,7 @@ public class ScriptTermStats {
     public StatsSummary termPositions() {
         try {
             statsSummary.reset();
-            int docId = docIdSupplier.get();
+            int docId = docIdSupplier.getAsInt();
 
             for (PostingsEnum postingsEnum : postingsSupplier.get()) {
                 if (postingsEnum == null || postingsEnum.advance(docId) != docId) {

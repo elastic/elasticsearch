@@ -187,6 +187,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/112144
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/112147
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {mv_percentile.FromIndex SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/112180
 
 # Examples:
 #

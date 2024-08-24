@@ -14,7 +14,6 @@ import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.apache.http.nio.util.SimpleInputBuffer;
 import org.apache.http.protocol.HttpContext;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -41,7 +40,6 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  * the HttpEntity.</p>
  */
 class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResponse>, Flow.Publisher<HttpResult> {
-    private final ThreadPool threadPool;
     private final HttpSettings settings;
     private final ActionListener<Flow.Publisher<HttpResult>> listener;
 
@@ -51,10 +49,12 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
 
     // used to control the state of this publisher (Apache) and its interaction with its subscriber
     private final Deque<HttpResult> resultQueue = new ConcurrentLinkedDeque<>();
-    private final AtomicBoolean pendingRequest = new AtomicBoolean(false);
-    private final AtomicBoolean isRunning = new AtomicBoolean(false);
+    private final PendingRequestCount requestCount = new PendingRequestCount();
     private final AtomicBoolean isDone = new AtomicBoolean(false);
+    private final AtomicBoolean subscriptionCanceled = new AtomicBoolean(false);
     private volatile Flow.Subscriber<? super HttpResult> subscriber;
+
+    private final RequestBasedTaskRunner taskRunner;
 
     // used to control the flow of data from the Apache client, if we're producing more bytes than we can consume then we'll pause
     private final AtomicLong totalByteSize = new AtomicLong(0);
@@ -62,9 +62,10 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
     private volatile IOControl savedIoControl;
 
     StreamingHttpResultPublisher(ThreadPool threadPool, HttpSettings settings, ActionListener<Flow.Publisher<HttpResult>> listener) {
-        this.threadPool = Objects.requireNonNull(threadPool);
         this.settings = Objects.requireNonNull(settings);
         this.listener = Objects.requireNonNull(listener);
+
+        this.taskRunner = new RequestBasedTaskRunner(new OffloadThread(), threadPool, UTILITY_THREAD_POOL_NAME);
     }
 
     @Override
@@ -82,25 +83,29 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
 
     @Override
     public void consumeContent(ContentDecoder contentDecoder, IOControl ioControl) throws IOException {
-        if (isDone() == false) { // if the subscriber canceled us, don't bother to keep reading
-            var buffer = new SimpleInputBuffer(4096);
-            var consumed = buffer.consumeContent(contentDecoder);
-            var allBytes = new byte[consumed];
-            buffer.read(allBytes);
-
-            // we can have empty bytes, don't bother sending them
-            if (allBytes.length > 0) {
-                resultQueue.offer(new HttpResult(response, allBytes));
-            }
-
-            // always check if totalByteSize > the configured setting in case the settings change
-            if (totalByteSize.accumulateAndGet(allBytes.length, Long::sum) >= settings.getMaxResponseSize().getBytes()) {
-                pauseProducer(ioControl);
-            }
-
-            // always run in case we're waking up from a pause and need to start a new thread
-            runOrScheduleNextMessage();
+        // if the subscriber canceled us, tell Apache
+        if (subscriptionCanceled.get()) {
+            ioControl.shutdown();
+            return;
         }
+
+        var buffer = new SimpleInputBuffer(4096);
+        var consumed = buffer.consumeContent(contentDecoder);
+        var allBytes = new byte[consumed];
+        buffer.read(allBytes);
+
+        // we can have empty bytes, don't bother sending them
+        if (allBytes.length > 0) {
+            resultQueue.offer(new HttpResult(response, allBytes));
+        }
+
+        // always check if totalByteSize > the configured setting in case the settings change
+        if (totalByteSize.accumulateAndGet(allBytes.length, Long::sum) >= settings.getMaxResponseSize().getBytes()) {
+            pauseProducer(ioControl);
+        }
+
+        // always run in case we're waking up from a pause and need to start a new thread
+        taskRunner.requestNextRun();
     }
 
     private void pauseProducer(IOControl ioControl) {
@@ -119,31 +124,32 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
         }
     }
 
-    // if there is currently a thread running in a loop, it should pick up this new request
-    // if not, check if this thread is one of ours and reuse it
-    // else, offload to a new thread so we do not block Apache's connection thread or ElasticSearch's transport thread
-    private void runOrScheduleNextMessage() {
-        if (subscriber != null && isRunning.compareAndSet(false, true)) {
-            var currentThreadPool = EsExecutors.executorName(Thread.currentThread().getName());
-            if (UTILITY_THREAD_POOL_NAME.equalsIgnoreCase(currentThreadPool)) {
-                new OffloadThread().run();
-            } else {
-                threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(new OffloadThread());
-            }
-        }
-    }
-
     @Override
     public void responseCompleted(HttpContext httpContext) {}
 
+    // called when Apache is failing the response
     @Override
     public void failed(Exception e) {
         if (this.isDone.compareAndSet(false, true)) {
             this.ex = e;
+            taskRunner.requestNextRun();
         }
-        if (isRunning.get() == false && subscriber != null && pendingRequest.compareAndSet(true, false)) {
-            subscriber.onError(ex);
+    }
+
+    // called when Apache is done with the response
+    @Override
+    public void close() {
+        if (isDone.compareAndSet(false, true)) {
+            taskRunner.requestNextRun();
         }
+    }
+
+    // called when Apache is canceling the response
+    @Override
+    public boolean cancel() {
+        resultQueue.clear();
+        close();
+        return true;
     }
 
     @Override
@@ -161,50 +167,41 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
         return isDone.get();
     }
 
-    @Override
-    public void close() {
-        // if isRunning == true, the OffloadThread will close out the subscription
-        // if pendingRequest is false, the next call to request() will close out the subscription
-        if (isDone.compareAndSet(false, true)
-            && isRunning.get() == false
-            && subscriber != null
-            && pendingRequest.compareAndSet(true, false)) {
-            subscriber.onComplete();
-        }
-    }
-
-    @Override
-    public boolean cancel() {
-        resultQueue.clear();
-        close();
-        return true;
-    }
-
     private class HttpSubscription implements Flow.Subscription {
         @Override
         public void request(long n) {
-            pendingRequest.set(true);
-            // always run in case we're waking up from a pause and need to start a new thread
-            runOrScheduleNextMessage();
+            if (subscriptionCanceled.get()) {
+                return;
+            }
+
+            if (n > 0) {
+                requestCount.increment(n);
+                taskRunner.requestNextRun();
+            } else {
+                // per Subscription's spec, fail the subscriber and stop the processor
+                cancel();
+                subscriber.onError(new IllegalArgumentException("Subscriber requested a non-positive number " + n));
+            }
         }
 
         @Override
         public void cancel() {
-            StreamingHttpResultPublisher.this.cancel();
+            if (subscriptionCanceled.compareAndSet(false, true)) {
+                resultQueue.clear();
+                taskRunner.cancel();
+            }
         }
     }
 
     private class OffloadThread implements Runnable {
         @Override
         public void run() {
-            while (resultQueue.isEmpty() == false && pendingRequest.compareAndSet(true, false)) {
+            while (resultQueue.isEmpty() == false && ex == null && subscriptionCanceled.get() == false && requestCount.decrement()) {
                 var nextRequest = resultQueue.poll();
                 subscriber.onNext(nextRequest);
             }
 
-            isRunning.set(false);
-
-            if (isDone() && pendingRequest.compareAndSet(true, false)) {
+            if (isDone() && subscriptionCanceled.get() == false && requestCount.decrement()) {
                 if (ex == null) {
                     subscriber.onComplete();
                 } else {
@@ -213,6 +210,35 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
             } else if (savedIoControl != null) {
                 resumeProducer();
             }
+        }
+    }
+
+    private static class PendingRequestCount {
+        private final AtomicLong counter = new AtomicLong(0);
+
+        private void increment(long n) {
+            assert n > 0 : "Only increment positive numbers";
+
+            if (n == Long.MAX_VALUE) {
+                counter.set(Long.MAX_VALUE);
+            } else {
+                counter.accumulateAndGet(n, (a, b) -> {
+                    var sum = a + b;
+                    return sum >= 0 ? sum : Long.MAX_VALUE;
+                });
+            }
+        }
+
+        private boolean decrement() {
+            if (counter.get() == 0) {
+                return false;
+            }
+
+            var previousValue = counter.getAndUpdate(currentValue -> {
+                var nextValue = currentValue - 1;
+                return nextValue >= 0 ? nextValue : 0;
+            });
+            return previousValue != 0;
         }
     }
 }

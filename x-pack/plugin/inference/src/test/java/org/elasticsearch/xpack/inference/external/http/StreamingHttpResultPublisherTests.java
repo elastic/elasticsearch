@@ -23,16 +23,21 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -345,6 +350,38 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     }
 
     /**
+     * When a subscriber requests a negative number
+     * Then the subscription should call onError with an IllegalArgumentException
+     */
+    public void testRequestingANegativeNumberFails() {
+        TestSubscriber subscriber = subscribe();
+
+        subscriber.subscription.request(-1);
+
+        assertThat(
+            "onError should be called with an IllegalArgumentException",
+            subscriber.throwable,
+            instanceOf(IllegalArgumentException.class)
+        );
+    }
+
+    /**
+     * When a subscriber requests a negative number
+     * Then the subscription should call onError with an IllegalArgumentException
+     */
+    public void testRequestingZeroFails() {
+        TestSubscriber subscriber = subscribe();
+
+        subscriber.subscription.request(0);
+
+        assertThat(
+            "onError should be called with an IllegalArgumentException",
+            subscriber.throwable,
+            instanceOf(IllegalArgumentException.class)
+        );
+    }
+
+    /**
      * Given the thread is an ML Utility thread
      * When a new request is processed
      * Then it should reuse that ML Utility thread
@@ -373,7 +410,18 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
      */
     public void testCancelBreaksInfiniteLoop() throws Exception {
         try {
+            var futureHolder = new AtomicReference<CompletableFuture<Void>>();
             threadPool = spy(createThreadPool(inferenceUtilityPool()));
+            doAnswer(utilityThreadPool -> {
+                var realExecutorService = (ExecutorService) utilityThreadPool.callRealMethod();
+                var executorServiceSpy = spy(realExecutorService);
+                doAnswer(runnable -> {
+                    futureHolder.set(CompletableFuture.runAsync(runnable.getArgument(0), realExecutorService));
+                    return null; // void
+                }).when(executorServiceSpy).execute(any(Runnable.class));
+                return executorServiceSpy;
+            }).when(threadPool).executor(UTILITY_THREAD_POOL_NAME);
+
             publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
             publisher.responseReceived(mock(HttpResponse.class));
             // create an infinitely running Subscriber
@@ -410,10 +458,11 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
             publisher.subscribe(subscriber);
 
             // verify the thread has started
-            verify(threadPool, times(1)).executor(UTILITY_THREAD_POOL_NAME);
+            assertThat("Thread should have started on subscribe", futureHolder.get(), notNullValue());
+            assertFalse("Thread should still be running", futureHolder.get().isDone());
 
             subscriber.subscription.cancel();
-            assertBusy(() -> assertTrue("Subscription was not canceled in 10 seconds.", subscriber.completed));
+            assertBusy(() -> assertTrue("Thread was not canceled in 10 seconds.", futureHolder.get().isDone()));
         } finally {
             terminate(threadPool);
         }

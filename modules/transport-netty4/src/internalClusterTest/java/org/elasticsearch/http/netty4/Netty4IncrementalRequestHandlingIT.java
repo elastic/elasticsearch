@@ -10,6 +10,7 @@ package org.elasticsearch.http.netty4;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -24,11 +25,16 @@ import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpChunkedInput;
 import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.handler.stream.ChunkedStream;
+import io.netty.handler.stream.ChunkedWriteHandler;
 
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -43,6 +49,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -61,9 +68,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -216,6 +221,86 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             }
             assertTrue(handler.stream.hasLast());
         }
+    }
+
+    // ensures that server reply 100-continue on acceptable request size
+    public void test100Continue() throws Exception {
+        try (var ctx = setupClientCtx()) {
+            for (int reqNo = 0; reqNo < randomIntBetween(2, 10); reqNo++) {
+                var id = opaqueId(reqNo);
+                var acceptableContentLength = randomIntBetween(0, maxContentLength());
+
+                // send request header and await 100-continue
+                var req = httpRequest(id, acceptableContentLength);
+                HttpUtil.set100ContinueExpected(req, true);
+                ctx.clientChannel.writeAndFlush(req);
+                var resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
+                assertEquals(HttpResponseStatus.CONTINUE, resp.status());
+                resp.release();
+
+                // send content
+                var content = randomContent(acceptableContentLength, true);
+                ctx.clientChannel.writeAndFlush(content);
+
+                // consume content and reply 200
+                var handler = ctx.awaitRestChannelAccepted(id);
+                handler.consumeBytes(acceptableContentLength);
+                handler.sendResponse(new RestResponse(RestStatus.OK, ""));
+
+                resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
+                assertEquals(HttpResponseStatus.OK, resp.status());
+                resp.release();
+            }
+        }
+    }
+
+    // ensures that server reply 413-too-large on oversized request with expect-100-continue
+    public void test413TooLargeOnExpect100Continue() throws Exception {
+        try (var ctx = setupClientCtx()) {
+            for (int reqNo = 0; reqNo < randomIntBetween(2, 10); reqNo++) {
+                var id = opaqueId(reqNo);
+                var oversized = maxContentLength() + 1;
+
+                // send request header and await 413 too large
+                var req = httpRequest(id, oversized);
+                HttpUtil.set100ContinueExpected(req, true);
+                ctx.clientChannel.writeAndFlush(req);
+                var resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
+                assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
+                resp.release();
+
+                // terminate request
+                ctx.clientChannel.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+            }
+        }
+    }
+
+    // ensures that server reply 413-too-large on oversized chunked encoding request and closes connection
+    public void test413TooLargeOnChunkedEncoding() throws Exception {
+        try (var ctx = setupClientCtx()) {
+            var contentSize = maxContentLength() + 1;
+            var content = randomByteArrayOfLength(contentSize);
+            var is = new ByteBufInputStream(Unpooled.wrappedBuffer(content));
+            var chunkedIs = new ChunkedStream(is);
+            var httpChunkedIs = new HttpChunkedInput(chunkedIs, LastHttpContent.EMPTY_LAST_CONTENT);
+            var req = httpRequest(opaqueId(0), 0);
+            HttpUtil.setTransferEncodingChunked(req, true);
+
+            ctx.clientChannel.pipeline().addLast(new ChunkedWriteHandler());
+            ctx.clientChannel.writeAndFlush(req);
+            ctx.clientChannel.writeAndFlush(httpChunkedIs);
+            var handler = ctx.awaitRestChannelAccepted(opaqueId(0));
+            handler.stream.channel().config().setAutoRead(true);
+
+            var resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
+            assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
+            resp.release();
+            ctx.clientChannel.closeFuture().get(10, TimeUnit.SECONDS);
+        }
+    }
+
+    private int maxContentLength() {
+        return HttpHandlingSettings.fromSettings(internalCluster().getInstance(Settings.class)).maxContentLength();
     }
 
     private String opaqueId(int reqNo) {
@@ -382,10 +467,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                     break;
                 }
             }
-        }
-
-        Future<?> onChannelThread(Callable<?> task) {
-            return this.stream.channel().eventLoop().submit(task);
         }
 
         record Chunk(ReleasableBytesReference chunk, boolean isLast) {}

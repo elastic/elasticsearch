@@ -8,19 +8,50 @@
 
 package org.elasticsearch.http.netty4;
 
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPipeline;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.EmptyHttpHeaders;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpMessage;
+import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpUtil;
 
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 
 import java.util.function.Predicate;
 
+/**
+ * <p>
+ * A wrapper around {@link HttpObjectAggregator}. Provides optional content aggregation based on
+ * predicate. {@link HttpObjectAggregator} also handles Expect: 100-continue and oversized content.
+ * Unfortunately, Netty does not provide handlers for oversized messages beyond HttpObjectAggregator.
+ * These details are tight to {@link HttpObjectAggregator} and {@link io.netty.handler.codec.MessageAggregator}.
+ * </p>
+ * <p>
+ * This wrapper cherry-pick methods from underlying handlers.
+ * {@link HttpObjectAggregator#newContinueResponse(HttpMessage, int, ChannelPipeline)} provides
+ * handling for Expect: 100-continue. {@link HttpObjectAggregator#handleOversizedMessage(ChannelHandlerContext, HttpMessage)}
+ * provides handling for requests that already in fly and reached limit, for example chunked encoding.
+ * </p>
+ *
+ */
 public class Netty4HttpAggregator extends HttpObjectAggregator {
     private static final Predicate<HttpPreRequest> IGNORE_TEST = (req) -> req.uri().startsWith("/_test/request-stream") == false;
 
     private final Predicate<HttpPreRequest> decider;
-    private boolean shouldAggregate;
+    private boolean aggregating = true;
+    private long currentContentLength = 0;
+    private HttpRequest currentRequest;
+    private boolean handlingOversized = false;
+    private boolean ignoreContentAfterContinueResponse = false;
 
     public Netty4HttpAggregator(int maxContentLength) {
         this(maxContentLength, IGNORE_TEST);
@@ -32,15 +63,66 @@ public class Netty4HttpAggregator extends HttpObjectAggregator {
     }
 
     @Override
-    public boolean acceptInboundMessage(Object msg) throws Exception {
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        assert msg instanceof HttpObject;
         if (msg instanceof HttpRequest request) {
             var preReq = HttpHeadersAuthenticatorUtils.asHttpPreRequest(request);
-            shouldAggregate = decider.test(preReq);
+            aggregating = decider.test(preReq);
         }
-        if (shouldAggregate) {
-            return super.acceptInboundMessage(msg);
+        if (aggregating || msg instanceof FullHttpRequest) {
+            super.channelRead(ctx, msg);
         } else {
-            return false;
+            handle(ctx, (HttpObject) msg);
+        }
+    }
+
+    private void handle(ChannelHandlerContext ctx, HttpObject msg) throws Exception {
+        if (msg instanceof HttpRequest request) {
+            var continueResponse = newContinueResponse(request, maxContentLength(), ctx.pipeline());
+            if (continueResponse != null) {
+                // there are 3 responses expected: 100, 413, 417
+                // on 100 we pass request further and reply to client to continue
+                // on 413/417 we ignore following content
+                ctx.writeAndFlush(continueResponse);
+                var resp = (FullHttpResponse) continueResponse;
+                if (resp.status() != HttpResponseStatus.CONTINUE) {
+                    ignoreContentAfterContinueResponse = true;
+                    return;
+                }
+                HttpUtil.set100ContinueExpected(request, false);
+            }
+            currentRequest = request;
+            currentContentLength = 0;
+            ignoreContentAfterContinueResponse = false;
+            ctx.fireChannelRead(msg);
+
+        } else {
+            var httpContent = (HttpContent) msg;
+            if (ignoreContentAfterContinueResponse) {
+                httpContent.release();
+                return;
+            }
+            currentContentLength += httpContent.content().readableBytes();
+            if (currentContentLength > maxContentLength()) {
+                if (handlingOversized == false) {
+                    handlingOversized = true;
+                    // magic: passing full request into handleOversizedMessage will close connection
+                    var fullReq = new DefaultFullHttpRequest(
+                        currentRequest.protocolVersion(),
+                        currentRequest.method(),
+                        currentRequest.uri(),
+                        Unpooled.EMPTY_BUFFER,
+                        currentRequest.headers(),
+                        EmptyHttpHeaders.INSTANCE
+                    );
+                    handleOversizedMessage(ctx, fullReq);
+                }
+                // if we're already handling oversized message connection will be closed soon
+                // we can discard following content
+                httpContent.release();
+            } else {
+                ctx.fireChannelRead(msg);
+            }
         }
     }
 }

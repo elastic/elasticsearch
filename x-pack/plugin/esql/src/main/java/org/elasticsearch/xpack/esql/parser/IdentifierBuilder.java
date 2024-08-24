@@ -68,14 +68,10 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                 if (index.isBlank()) {
                     continue;
                 }
-                index = index.strip();
-                if (index.charAt(0) == '-') {
-                    index = index.substring(1);
-                }
-                MetadataCreateIndexService.validateIndexOrAliasName(
-                    removeExclusion(IndexNameExpressionResolver.resolveDateMathExpression(removeExclusion(index))),
-                    InvalidIndexNameException::new
-                );
+                index = removeExclusion(index.strip());
+                String temp = IndexNameExpressionResolver.resolveDateMathExpression(index);
+                index = temp.equals(index) ? index : removeExclusion(temp);
+                MetadataCreateIndexService.validateIndexOrAliasName(index, InvalidIndexNameException::new);
             }
         } catch (InvalidIndexNameException | ElasticsearchParseException e) {
             throw new ParsingException(e, source(ctx), e.getMessage());

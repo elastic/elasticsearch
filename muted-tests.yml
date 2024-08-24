@@ -193,6 +193,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {mv_percentile.FromIndex SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/112187
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {mv_percentile.FromIndex ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/112188
 
 # Examples:
 #

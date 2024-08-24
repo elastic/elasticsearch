@@ -791,12 +791,26 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
      */
     static class CacheFileRegion<KeyType> extends EvictableRefCounted {
 
+        private static final VarHandle VH_IO = findIOVarHandle();
+
+        private static VarHandle findIOVarHandle() {
+            try {
+                return MethodHandles.lookup().in(CacheFileRegion.class).findVarHandle(CacheFileRegion.class, "io", SharedBytes.IO.class);
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         final SharedBlobCacheService<KeyType> blobCacheService;
 
         final RegionKey<KeyType> regionKey;
         final SparseFileTracker tracker;
         // io can be null when not init'ed or after evict/take
-        volatile SharedBytes.IO io = null;
+        // io does not need volatile access on the read path, since it goes from null to a final value only and "cache.get" never returns
+        // a `CacheFileRegion` without checking the value is non-null (with a volatile read, ensuring the value is visible in that thread).
+        // we assume any IndexInput passing among threads (slicing etc) is done with proper happens-before semantics (otherwise they'd
+        // themselves break).
+        SharedBytes.IO io = null;
 
         CacheFileRegion(SharedBlobCacheService<KeyType> blobCacheService, RegionKey<KeyType> regionKey, int regionSize) {
             this.blobCacheService = blobCacheService;
@@ -882,6 +896,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             throwAlreadyClosed("File chunk is evicted");
         }
 
+        private SharedBytes.IO volatileIO() {
+            return (SharedBytes.IO) VH_IO.getVolatile(this);
+        }
+
+        private void volatileIO(SharedBytes.IO io) {
+            VH_IO.setVolatile(this, io);
+        }
         /**
          * Optimistically try to read from the region
          * @return true if successful, i.e., not evicted and data available, false if evicted
@@ -1488,10 +1509,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     key -> new LFUCacheEntry(new CacheFileRegion<KeyType>(SharedBlobCacheService.this, key, effectiveRegionSize), now)
                 );
             }
-            // io is volatile, double locking is fine, as long as we assign it last.
-            if (entry.chunk.io == null) {
+            // checks using volatile, double locking is fine, as long as we assign io last.
+            if (entry.chunk.volatileIO() == null) {
                 synchronized (entry.chunk) {
-                    if (entry.chunk.io == null && entry.chunk.isEvicted() == false) {
+                    if (entry.chunk.volatileIO() == null && entry.chunk.isEvicted() == false) {
                         return initChunk(entry);
                     }
                 }
@@ -1521,7 +1542,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     for (LFUCacheEntry entry : matchingEntries) {
                         int frequency = entry.freq;
                         boolean evicted = entry.chunk.forceEvict();
-                        if (evicted && entry.chunk.io != null) {
+                        if (evicted && entry.chunk.volatileIO() != null) {
                             unlink(entry);
                             keyMapping.remove(entry.chunk.regionKey, entry);
                             evictedCount++;
@@ -1582,7 +1603,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 }
                 pushEntryToBack(entry);
                 // assign io only when chunk is ready for use. Under lock to avoid concurrent tryEvict.
-                entry.chunk.io = freeSlot;
+                entry.chunk.volatileIO(freeSlot);
             }
         }
 
@@ -1770,13 +1791,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 boolean evicted = entry.chunk.tryEvictNoDecRef();
                 if (evicted) {
                     try {
-                        SharedBytes.IO ioRef = entry.chunk.io;
+                        SharedBytes.IO ioRef = entry.chunk.volatileIO();
                         if (ioRef != null) {
                             try {
                                 if (entry.chunk.refCount() == 1) {
                                     // we own that one refcount (since we CAS'ed evicted to 1)
                                     // grab io, rely on incref'ers also checking evicted field.
-                                    entry.chunk.io = null;
+                                    entry.chunk.volatileIO(null);
                                     assert regionOwners.remove(ioRef) == entry.chunk;
                                     return ioRef;
                                 }

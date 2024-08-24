@@ -155,7 +155,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
 
         ArgumentCaptor<ScriptTermStats> scriptTermStats = ArgumentCaptor.forClass(ScriptTermStats.class);
         verify(scoreScriptMock)._setTermStats(scriptTermStats.capture());
-        assertThat(scriptTermStats.getValue().uniqueTermsCount(), equalTo(2L));
+        assertThat(scriptTermStats.getValue().uniqueTermsCount(), equalTo(2));
     }
 
     public void testScriptTermStatsNotAvailable() throws IOException {

@@ -33,7 +33,6 @@ import java.util.function.Predicate;
  * A wrapper around {@link HttpObjectAggregator}. Provides optional content aggregation based on
  * predicate. {@link HttpObjectAggregator} also handles Expect: 100-continue and oversized content.
  * Unfortunately, Netty does not provide handlers for oversized messages beyond HttpObjectAggregator.
- * These details are tight to {@link HttpObjectAggregator} and {@link io.netty.handler.codec.MessageAggregator}.
  * </p>
  * <p>
  * This wrapper cherry-pick methods from underlying handlers.

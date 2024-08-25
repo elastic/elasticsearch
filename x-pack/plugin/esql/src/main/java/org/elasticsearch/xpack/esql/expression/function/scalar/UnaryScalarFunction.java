@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
@@ -96,6 +97,7 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
         entries.add(Signum.ENTRY);
         entries.add(Sin.ENTRY);
         entries.add(Sinh.ENTRY);
+        entries.add(Space.ENTRY);
         entries.add(Sqrt.ENTRY);
         entries.add(StX.ENTRY);
         entries.add(StY.ENTRY);

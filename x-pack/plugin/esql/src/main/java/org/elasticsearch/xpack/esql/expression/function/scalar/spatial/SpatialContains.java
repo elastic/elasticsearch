@@ -176,10 +176,10 @@ public class SpatialContains extends SpatialRelatesFunction {
     @Override
     public Object fold() {
         try {
-            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType, left());
+            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType(), left());
             Geometry rightGeom = makeGeometryFromLiteral(right());
-            Component2D[] components = asLuceneComponent2Ds(crsType, rightGeom);
-            return (crsType == SpatialCrsType.GEO)
+            Component2D[] components = asLuceneComponent2Ds(crsType(), rightGeom);
+            return (crsType() == SpatialCrsType.GEO)
                 ? GEO.geometryRelatesGeometries(docValueReader, components)
                 : CARTESIAN.geometryRelatesGeometries(docValueReader, components);
         } catch (IOException e) {

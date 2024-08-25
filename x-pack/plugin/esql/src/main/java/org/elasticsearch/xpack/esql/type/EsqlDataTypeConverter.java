@@ -50,6 +50,7 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAmount;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -111,6 +112,41 @@ public class EsqlDataTypeConverter {
         entry(VERSION, ToVersion::new),
         entry(DATE_PERIOD, ToDatePeriod::new),
         entry(TIME_DURATION, ToTimeDuration::new)
+    );
+
+    public static final List<String> TIME_DURATIONS = List.of(
+        "millisecond",
+        "milliseconds",
+        "ms",
+        "second",
+        "seconds",
+        "sec",
+        "s",
+        "minute",
+        "minutes",
+        "min",
+        "hour",
+        "hours",
+        "h"
+    );
+
+    public static final List<String> DATE_PERIODS = List.of(
+        "day",
+        "days",
+        "d",
+        "week",
+        "weeks",
+        "w",
+        "month",
+        "months",
+        "mo",
+        "quarter",
+        "quarters",
+        "q",
+        "year",
+        "years",
+        "yr",
+        "y"
     );
 
     /**

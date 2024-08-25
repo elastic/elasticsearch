@@ -33,6 +33,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DATE_PERIODS;
 
 public class ToDatePeriod extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -47,37 +48,18 @@ public class ToDatePeriod extends AbstractConvertFunction {
         Map.entry(TEXT, (fieldEval, source) -> fieldEval)
     );
 
-    private static final List<String> intervals = List.of(
-        "day",
-        "days",
-        "d",
-        "week",
-        "weeks",
-        "w",
-        "month",
-        "months",
-        "mo",
-        "quarter",
-        "quarters",
-        "q",
-        "year",
-        "years",
-        "yr",
-        "y"
-    );
-
     private static final String INVALID_INTERVAL_ERROR = "Invalid interval value in [{}], expected integer followed by one of "
-        + intervals
+        + DATE_PERIODS
         + " but got [{}]";
 
     @FunctionInfo(
         returnType = "date_period",
-        description = "Converts an input value into a date_period value.",
-        examples = @Example(description = "Converts an input value into a date_period value.", file = "convert", tag = "castToDatePeriod")
+        description = "Converts a string into a `date_period` value.",
+        examples = @Example(file = "convert", tag = "castToDatePeriod")
     )
     public ToDatePeriod(
         Source source,
-        @Param(name = "field", type = { "date_period", "keyword", "text" }, description = "Input value.") Expression v
+        @Param(name = "string", type = { "date_period", "keyword", "text" }, description = "A string.") Expression v
     ) {
         super(source, v);
     }
@@ -161,7 +143,7 @@ public class ToDatePeriod extends AbstractConvertFunction {
 
     private boolean isValidInterval(String interval) {
         String[] input = interval.toLowerCase(Locale.ROOT).stripLeading().stripTrailing().split("\\s+");
-        if (input.length != 2 || intervals.contains(input[1]) == false) {
+        if (input.length != 2 || DATE_PERIODS.contains(input[1]) == false) {
             return false;
         }
         try {

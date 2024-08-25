@@ -33,6 +33,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.TIME_DURATIONS;
 
 public class ToTimeDuration extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -47,38 +48,18 @@ public class ToTimeDuration extends AbstractConvertFunction {
         Map.entry(TEXT, (fieldEval, source) -> fieldEval)
     );
 
-    private static final List<String> intervals = List.of(
-        "millisecond",
-        "milliseconds",
-        "ms",
-        "second",
-        "seconds",
-        "sec",
-        "s",
-        "minute",
-        "minutes",
-        "min",
-        "hour",
-        "hours",
-        "h"
-    );
-
     private static final String INVALID_INTERVAL_ERROR = "Invalid interval value in [{}], expected integer followed by one of "
-        + intervals
+        + TIME_DURATIONS
         + " but got [{}]";
 
     @FunctionInfo(
         returnType = "time_duration",
-        description = "Converts an input value into a time_duration value.",
-        examples = @Example(
-            description = "Converts an input value into a time_duration value.",
-            file = "convert",
-            tag = "castToTimeDuration"
-        )
+        description = "Converts a string into a `time_duration` value.",
+        examples = @Example(file = "convert", tag = "castToTimeDuration")
     )
     public ToTimeDuration(
         Source source,
-        @Param(name = "field", type = { "time_duration", "keyword", "text" }, description = "Input value.") Expression v
+        @Param(name = "string", type = { "time_duration", "keyword", "text" }, description = "A string.") Expression v
     ) {
         super(source, v);
     }
@@ -160,7 +141,7 @@ public class ToTimeDuration extends AbstractConvertFunction {
 
     private boolean isValidInterval(String interval) {
         String[] input = interval.toLowerCase(Locale.ROOT).stripLeading().stripTrailing().split("\\s+");
-        if (input.length != 2 || intervals.contains(input[1]) == false) {
+        if (input.length != 2 || TIME_DURATIONS.contains(input[1]) == false) {
             return false;
         }
         try {

@@ -202,6 +202,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/inference_processor/Test create processor with missing mandatory fields}
   issue: https://github.com/elastic/elasticsearch/issues/112191
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {mv_percentile.FromIndex ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/112193
 
 # Examples:
 #

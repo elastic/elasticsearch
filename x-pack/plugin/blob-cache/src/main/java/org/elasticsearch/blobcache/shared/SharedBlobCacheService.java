@@ -906,7 +906,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             VH_IO.setVolatile(this, io);
         }
 
-        private SharedBytes.IO nonVolatileIO() { return io; }
+        private SharedBytes.IO nonVolatileIO() {
+            return io;
+        }
+
         /**
          * Optimistically try to read from the region
          * @return true if successful, i.e., not evicted and data available, false if evicted

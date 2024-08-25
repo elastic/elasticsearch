@@ -199,6 +199,9 @@ tests:
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
   issue: https://github.com/elastic/elasticsearch/issues/112189
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/inference_processor/Test create processor with missing mandatory fields}
+  issue: https://github.com/elastic/elasticsearch/issues/112191
 
 # Examples:
 #

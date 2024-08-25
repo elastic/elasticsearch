@@ -1149,21 +1149,21 @@ public class VerifierTests extends ESTestCase {
         // where
         assertEquals(
             "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
-                + "[boolean, cartesian_point, cartesian_shape, datetime, double, geo_point, geo_shape, integer, ip, keyword, long, "
+                + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, double, geo_point, geo_shape, integer, ip, keyword, long, "
                 + "text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]",
             error("row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")")
         );
 
         assertEquals(
             "1:26: first argument of [\"3 hours\"::time_duration <= to_timeduration(\"3 hours\")] must be "
-                + "[datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
+                + "[date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
                 + "found value [\"3 hours\"::time_duration] type [time_duration]",
             error("row x = \"3 days\" | where \"3 hours\"::time_duration <= to_timeduration(\"3 hours\")")
         );
 
         assertEquals(
             "1:19: second argument of [first_name <= to_timeduration(\"3 hours\")] must be "
-                + "[datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
+                + "[date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
                 + "found value [to_timeduration(\"3 hours\")] type [time_duration]",
             error("from test | where first_name <= to_timeduration(\"3 hours\")")
         );

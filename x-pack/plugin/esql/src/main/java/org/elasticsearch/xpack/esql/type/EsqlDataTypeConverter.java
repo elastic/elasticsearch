@@ -276,7 +276,11 @@ public class EsqlDataTypeConverter {
         return DataTypeConverter.commonType(left, right);
     }
 
-    // generally supporting abbreviations from https://en.wikipedia.org/wiki/Unit_of_time
+    /** generally supporting abbreviations from https://en.wikipedia.org/wiki/Unit_of_time
+     *
+     * When modify the qualifiers/constants, keep them in sync with DATE_PERIODS and TIME_DURATIONS.
+     * to_dateperiod and to_timeduration only recognize the qualifiers/constants defined in DATE_PERIODS and TIME_DURATIONS.
+     */
     public static TemporalAmount parseTemporalAmout(Number value, String qualifier, Source source) throws InvalidArgumentException,
         ArithmeticException, ParsingException {
         return switch (qualifier) {

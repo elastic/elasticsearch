@@ -662,7 +662,7 @@ public class MetadataRolloverService {
             }
             if ((request.settings().equals(Settings.EMPTY) == false)
                 || (request.aliases().size() > 0)
-                || (request.mappings().equals("{}") == false)) {
+                || (request.mappings().equals(CreateIndexRequest.EMPTY_MAPPINGS) == false)) {
                 throw new IllegalArgumentException(
                     "aliases, mappings, and index settings may not be specified when rolling over a data stream"
                 );

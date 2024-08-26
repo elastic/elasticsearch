@@ -124,7 +124,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
                         // binary doc values allocate an array upfront, lets only allocate it if we are going to use it
                         final BinaryDocValues values = context.reader().getBinaryDocValues(field);
                         if (values == null) {
-                            return new ConstantScoreScorer(weight, score(), scoreMode, DocIdSetIterator.empty());
+                            return new ConstantScoreScorer(weight, 0f, scoreMode, DocIdSetIterator.empty());
                         }
                         final GeometryDocValueReader reader = new GeometryDocValueReader();
                         final Component2DVisitor visitor = Component2DVisitor.getVisitor(component2D, relation, encoder);
@@ -182,7 +182,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
                         // binary doc values allocate an array upfront, lets only allocate it if we are going to use it
                         final BinaryDocValues values = context.reader().getBinaryDocValues(field);
                         if (values == null) {
-                            return new ConstantScoreScorer(weight, score(), scoreMode, DocIdSetIterator.empty());
+                            return new ConstantScoreScorer(weight, 0f, scoreMode, DocIdSetIterator.empty());
                         }
                         final Component2DVisitor[] visitors = new Component2DVisitor[components2D.size()];
                         for (int i = 0; i < components2D.size(); i++) {

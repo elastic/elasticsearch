@@ -47,10 +47,13 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -82,6 +85,13 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1)
 public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        builder.put(HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), new ByteSizeValue(50, ByteSizeUnit.MB));
+        return builder.build();
+    }
 
     // ensure empty http content has single 0 size chunk
     public void testEmptyContent() throws Exception {
@@ -116,7 +126,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 var opaqueId = opaqueId(reqNo);
 
                 // this dataset will be compared with one on server side
-                var dataSize = randomIntBetween(1024, 10 * 1024 * 1024);
+                var dataSize = randomIntBetween(1024, maxContentLength());
                 var sendData = Unpooled.wrappedBuffer(randomByteArrayOfLength(dataSize));
                 sendData.retain();
                 ctx.clientChannel.writeAndFlush(fullHttpRequest(opaqueId, sendData));
@@ -217,7 +227,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                         bufSize >= minBufSize && bufSize <= maxBufSize
                     );
                 });
-                handler.consumeBytes(MBytes(10));
+                handler.readBytes(MBytes(10));
             }
             assertTrue(handler.stream.hasLast());
         }
@@ -244,7 +254,8 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
                 // consume content and reply 200
                 var handler = ctx.awaitRestChannelAccepted(id);
-                handler.consumeBytes(acceptableContentLength);
+                var consumed = handler.readAllBytes();
+                assertEquals(acceptableContentLength, consumed);
                 handler.sendResponse(new RestResponse(RestStatus.OK, ""));
 
                 resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
@@ -275,27 +286,32 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
-    // ensures that server reply 413-too-large on oversized chunked encoding request and closes connection
-    public void test413TooLargeOnChunkedEncoding() throws Exception {
+    // ensures that oversized chunked encoded request has no limits at http layer
+    // rest handler is responsible for oversized requests
+    public void testOversizedChunkedEncodingNoLimits() throws Exception {
         try (var ctx = setupClientCtx()) {
-            var contentSize = maxContentLength() + 1;
-            var content = randomByteArrayOfLength(contentSize);
-            var is = new ByteBufInputStream(Unpooled.wrappedBuffer(content));
-            var chunkedIs = new ChunkedStream(is);
-            var httpChunkedIs = new HttpChunkedInput(chunkedIs, LastHttpContent.EMPTY_LAST_CONTENT);
-            var req = httpRequest(opaqueId(0), 0);
-            HttpUtil.setTransferEncodingChunked(req, true);
+            for (var reqNo = 0; reqNo < randomIntBetween(2, 10); reqNo++) {
+                var id = opaqueId(reqNo);
+                var contentSize = maxContentLength() + 1;
+                var content = randomByteArrayOfLength(contentSize);
+                var is = new ByteBufInputStream(Unpooled.wrappedBuffer(content));
+                var chunkedIs = new ChunkedStream(is);
+                var httpChunkedIs = new HttpChunkedInput(chunkedIs, LastHttpContent.EMPTY_LAST_CONTENT);
+                var req = httpRequest(id, 0);
+                HttpUtil.setTransferEncodingChunked(req, true);
 
-            ctx.clientChannel.pipeline().addLast(new ChunkedWriteHandler());
-            ctx.clientChannel.writeAndFlush(req);
-            ctx.clientChannel.writeAndFlush(httpChunkedIs);
-            var handler = ctx.awaitRestChannelAccepted(opaqueId(0));
-            handler.stream.channel().config().setAutoRead(true);
+                ctx.clientChannel.pipeline().addLast(new ChunkedWriteHandler());
+                ctx.clientChannel.writeAndFlush(req);
+                ctx.clientChannel.writeAndFlush(httpChunkedIs);
+                var handler = ctx.awaitRestChannelAccepted(id);
+                var consumed = handler.readAllBytes();
+                assertEquals(contentSize, consumed);
+                handler.sendResponse(new RestResponse(RestStatus.OK, ""));
 
-            var resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
-            assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
-            resp.release();
-            ctx.clientChannel.closeFuture().get(10, TimeUnit.SECONDS);
+                var resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
+                assertEquals(HttpResponseStatus.OK, resp.status());
+                resp.release();
+            }
         }
     }
 
@@ -453,20 +469,25 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             channel.sendResponse(response);
         }
 
-        void consumeBytes(int bytes) {
-            if (recvLast) {
-                return;
-            }
-            while (bytes > 0) {
-                stream.next();
-                var recvChunk = safePoll(recvChunks);
-                bytes -= recvChunk.chunk.length();
-                recvChunk.chunk.close();
-                if (recvChunk.isLast) {
-                    recvLast = true;
-                    break;
+        int readBytes(int bytes) {
+            var consumed = 0;
+            if (recvLast == false) {
+                while (consumed < bytes) {
+                    stream.next();
+                    var recvChunk = safePoll(recvChunks);
+                    consumed += recvChunk.chunk.length();
+                    recvChunk.chunk.close();
+                    if (recvChunk.isLast) {
+                        recvLast = true;
+                        break;
+                    }
                 }
             }
+            return consumed;
+        }
+
+        int readAllBytes() {
+            return readBytes(Integer.MAX_VALUE);
         }
 
         record Chunk(ReleasableBytesReference chunk, boolean isLast) {}

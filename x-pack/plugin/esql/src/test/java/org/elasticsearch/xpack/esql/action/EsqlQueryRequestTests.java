@@ -302,6 +302,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
         request.onSnapshotBuild(false);
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("[pragma] only allowed in snapshot builds"));
+
+        request.acceptedPragmaRisks(true);
+        assertNull(request.validate());
     }
 
     public void testTablesKeyword() throws IOException {

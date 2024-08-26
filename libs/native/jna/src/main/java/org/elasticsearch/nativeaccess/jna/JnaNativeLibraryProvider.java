@@ -8,6 +8,7 @@
 
 package org.elasticsearch.nativeaccess.jna;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.nativeaccess.lib.JavaLibrary;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;
@@ -25,7 +26,7 @@ import java.util.function.Supplier;
 public class JnaNativeLibraryProvider extends NativeLibraryProvider {
 
     static {
-        System.setProperty("jna.library.path", LoaderHelper.platformLibDir.toString());
+        setJnaLibraryPath();
     }
 
     public JnaNativeLibraryProvider() {
@@ -48,6 +49,11 @@ public class JnaNativeLibraryProvider extends NativeLibraryProvider {
                 notImplemented()
             )
         );
+    }
+
+    @SuppressForbidden(reason = "jna library path must be set for load library to work with our own libs")
+    private static void setJnaLibraryPath() {
+        System.setProperty("jna.library.path", LoaderHelper.platformLibDir.toString());
     }
 
     private static Supplier<NativeLibrary> notImplemented() {

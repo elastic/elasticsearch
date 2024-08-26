@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
@@ -22,10 +23,21 @@ public interface OperatorOnlyRegistry {
     OperatorPrivilegesViolation check(String action, TransportRequest request);
 
     /**
-     * This method is only called if the user is not an operator.
-     * Implementations should fail the request if the {@link RestRequest} is not allowed to proceed by throwing an
-     * {@link org.elasticsearch.ElasticsearchException}. If the request should be handled by the associated {@link RestHandler},
-     * then this implementations should do nothing.
+     * Checks to see if a given {@link RestHandler} is subject to operator-only restrictions for the REST API.
+     *
+     * Any REST API may be fully or partially restricted.
+     * A fully restricted REST API mandates that the implementation of this method throw an
+     * {@link org.elasticsearch.ElasticsearchStatusException} with an appropriate status code and error message.
+     *
+     * A partially restricted REST API mandates that the {@link RestRequest} is marked as restricted so that the downstream handler can
+     * behave appropriately.
+     * For example, to restrict the REST response the implementation
+     * should call {@link RestRequest#markPathRestricted(String)} so that the downstream handler can properly restrict the response
+     * before returning to the client. Note - a partial restriction should not throw an exception.
+     *
+     * @param restHandler The {@link RestHandler} to check for any restrictions
+     * @param restRequest The {@link RestRequest} to check for any restrictions and mark any partially restricted REST API's
+     * @throws ElasticsearchStatusException if the request should be denied in its entirety (fully restricted)
      */
     void checkRest(RestHandler restHandler, RestRequest restRequest) throws ElasticsearchException;
 

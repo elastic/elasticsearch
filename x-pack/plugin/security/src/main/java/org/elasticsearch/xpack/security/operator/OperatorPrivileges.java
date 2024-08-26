@@ -182,9 +182,6 @@ public class OperatorPrivileges {
                     );
                     throw e;
                 }
-            } else {
-                restRequest.markAsOperatorRequest();
-                logger.trace("Marked request for uri [{}] as operator request", restRequest.uri());
             }
             return true;
         }

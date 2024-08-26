@@ -8,7 +8,7 @@ lhs | rhs | result
 boolean | boolean | boolean
 cartesian_point | cartesian_point | boolean
 cartesian_shape | cartesian_shape | boolean
-datetime | datetime | boolean
+date | date | boolean
 double | double | boolean
 double | integer | boolean
 double | long | boolean

@@ -9,7 +9,7 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionProvider;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -47,6 +47,6 @@ public record PluginServiceInstances(
     IndicesService indicesService,
     FeatureService featureService,
     SystemIndices systemIndices,
-    DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider,
+    DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings,
     DocumentParsingProvider documentParsingProvider
 ) implements Plugin.PluginServices {}

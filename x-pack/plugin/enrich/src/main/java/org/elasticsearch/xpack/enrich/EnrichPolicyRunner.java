@@ -171,7 +171,7 @@ public class EnrichPolicyRunner {
     private Map<String, Object> getMappings(final GetIndexResponse getIndexResponse, final String sourceIndexName) {
         Map<String, MappingMetadata> mappings = getIndexResponse.mappings();
         MappingMetadata indexMapping = mappings.get(sourceIndexName);
-        if (indexMapping == MappingMetadata.EMPTY_MAPPINGS) {
+        if (MappingMetadata.EMPTY_MAPPINGS.equals(indexMapping)) {
             throw new ElasticsearchException(
                 "Enrich policy execution for [{}] failed. No mapping available on source [{}] included in [{}]",
                 policyName,

@@ -31,6 +31,8 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -383,6 +385,63 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         assertEquals(403, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("action [" + GrantApiKeyAction.NAME + "] is unauthorized for user"));
+    }
+
+    public void testApiKeyWithManageRoles() throws IOException {
+        final Request createApiKeyrequest = new Request("POST", "_security/api_key");
+        createApiKeyrequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(MANAGE_SECURITY_USER, END_USER_PASSWORD))
+        );
+        final Map<String, Object> requestBody = Map.of(
+            "name",
+            "test-api-key",
+            "role_descriptors",
+            Map.of(
+                "test-role",
+                XContentTestUtils.convertToMap(
+                    new RoleDescriptor(
+                        "test-role",
+                        null,
+                        null,
+                        null,
+                        new ConfigurableClusterPrivilege[] {
+                            new ConfigurableClusterPrivileges.ManageRolesPrivilege(
+                                List.of(
+                                    new ConfigurableClusterPrivileges.ManageRolesPrivilege.ManageRolesIndexPermissionGroup(
+                                        new String[] { "allowed-prefix*" },
+                                        new String[] { "read" }
+                                    )
+                                )
+                            ) },
+                        null,
+                        null,
+                        null
+                    )
+                )
+            )
+        );
+
+        createApiKeyrequest.setJsonEntity(XContentTestUtils.convertToXContent(requestBody, XContentType.JSON).utf8ToString());
+        Map<String, Object> responseMap = responseAsMap(client().performRequest(createApiKeyrequest));
+        String encodedApiKey = responseMap.get("encoded").toString();
+
+        final Request createRoleRequest = new Request("POST", "_security/role/test-role");
+        createRoleRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + encodedApiKey));
+        // Allowed role by manage roles permission
+        {
+            createRoleRequest.setJsonEntity("""
+                {"indices": [{"names": ["allowed-prefix-test"],"privileges": ["read"]}]}""");
+            assertOK(client().performRequest(createRoleRequest));
+        }
+        // Not allowed role by manage roles permission
+        {
+            createRoleRequest.setJsonEntity("""
+                {"indices": [{"names": ["not-allowed-prefix-test"],"privileges": ["read"]}]}""");
+            final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createRoleRequest));
+            assertEquals(403, e.getResponse().getStatusLine().getStatusCode());
+            assertThat(e.getMessage(), containsString("this action is granted by the cluster privileges [manage_security,all]"));
+        }
     }
 
     public void testUpdateApiKey() throws IOException {

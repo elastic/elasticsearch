@@ -1,7 +1,7 @@
 [[shard-allocation-relocation-recovery]]
 === Shard allocation, relocation, and recovery
 
-Each <<documents-indices,index>> in Elasticsearch is divided into one or more <<scalability,shards>>. 
+Each index in Elasticsearch is divided into one or more <<scalability,shards>>. 
 Each document in an index belongs to a single shard.
 
 A cluster can contain multiple copies of a shard. Each shard has one distinguished shard copy called the _primary_, and zero or more non-primary copies called _replicas_. The primary shard copy serves as the main entry point for all indexing operations. The operations on the primary shard copy are then forwarded to its replicas.

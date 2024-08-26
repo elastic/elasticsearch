@@ -284,7 +284,7 @@ ip_prefix     |Truncates an IP to a given prefix length.
 least         |Returns the minimum value from multiple columns. This is similar to <<esql-mv_min>> except it is intended to run on multiple columns at once.
 left          |Returns the substring that extracts 'length' chars from 'string' starting from the left.
 length        |Returns the character length of a string.
-locate        |Returns an integer that indicates the position of a keyword substring within another string.
+locate        |Returns an integer that indicates the position of a keyword substring within another string. Returns `0` if the substring cannot be found.
 log           |Returns the logarithm of a value to a base. The input can be any numeric value, the return value is always a double.  Logs of zero, negative numbers, and base of one return `null` as well as a warning.
 log10         |Returns the logarithm of a value to base 10. The input can be any numeric value, the return value is always a double.  Logs of 0 and negative numbers return `null` as well as a warning.
 ltrim         |Removes leading whitespaces from a string.

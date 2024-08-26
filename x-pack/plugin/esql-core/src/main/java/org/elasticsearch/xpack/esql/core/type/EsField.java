@@ -23,21 +23,14 @@ import java.util.Objects;
  */
 public class EsField implements Writeable {
 
-    private static Map<String, Writeable.Reader<? extends EsField>> readers = Map.of(
-        "EsField",
-        EsField::new,
-        "DateEsField",
-        DateEsField::new,
-        "InvalidMappedField",
-        InvalidMappedField::new,
-        "KeywordEsField",
-        KeywordEsField::new,
-        "MultiTypeEsField",
-        MultiTypeEsField::new,
-        "TextEsField",
-        TextEsField::new,
-        "UnsupportedEsField",
-        UnsupportedEsField::new
+    private static Map<String, Writeable.Reader<? extends EsField>> readers = Map.ofEntries(
+        Map.entry("EsField", EsField::new),
+        Map.entry("DateEsField", DateEsField::new),
+        Map.entry("InvalidMappedField", InvalidMappedField::new),
+        Map.entry("KeywordEsField", KeywordEsField::new),
+        Map.entry("MultiTypeEsField", MultiTypeEsField::new),
+        Map.entry("TextEsField", TextEsField::new),
+        Map.entry("UnsupportedEsField", UnsupportedEsField::new)
     );
 
     public static Writeable.Reader<? extends EsField> getReader(String name) {

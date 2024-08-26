@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.index;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -23,7 +22,6 @@ import org.elasticsearch.xpack.esql.type.EsFieldTests;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -85,11 +83,6 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
             default -> throw new IllegalArgumentException();
         }
         return new EsIndex(name, mapping, concreteIndices);
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(List.of());
     }
 
     /**

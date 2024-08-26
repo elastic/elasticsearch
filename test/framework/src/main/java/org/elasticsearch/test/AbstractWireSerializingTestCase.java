@@ -25,6 +25,9 @@ public abstract class AbstractWireSerializingTestCase<T extends Writeable> exten
      */
     protected abstract Writeable.Reader<T> instanceReader();
 
+    /**
+     * Returns a {@link Writeable.Writer} that will be used to serialize the instance
+     */
     protected Writeable.Writer<T> instanceWriter() {
         return StreamOutput::writeWriteable;
     }

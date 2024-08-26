@@ -19,7 +19,6 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
-import org.elasticsearch.search.rank.TestRankDoc;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -43,10 +42,10 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
     private Supplier<RankDoc[]> rankDocsSupplier() {
         final int rankDocsCount = randomIntBetween(0, 10);
         final int shardIndex = 0;
-        TestRankDoc[] rankDocs = new TestRankDoc[rankDocsCount];
+        RankDoc[] rankDocs = new RankDoc[rankDocsCount];
         int docId = 0;
         for (int i = 0; i < rankDocsCount; i++) {
-            TestRankDoc testRankDoc = new TestRankDoc(docId, randomFloat(), shardIndex);
+            RankDoc testRankDoc = new RankDoc(docId, randomFloat(), shardIndex);
             docId += randomInt(100);
             rankDocs[i] = testRankDoc;
         }

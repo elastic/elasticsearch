@@ -20,7 +20,6 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
-import org.elasticsearch.search.rank.TestRankDoc;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -115,10 +114,10 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
     public void testTopDocsQuery() {
         KnnRetrieverBuilder knnRetriever = createRandomKnnRetrieverBuilder();
         knnRetriever.rankDocs = new RankDoc[] {
-            new TestRankDoc(0, randomFloat(), 0),
-            new TestRankDoc(10, randomFloat(), 0),
-            new TestRankDoc(20, randomFloat(), 1),
-            new TestRankDoc(25, randomFloat(), 1), };
+            new RankDoc(0, randomFloat(), 0),
+            new RankDoc(10, randomFloat(), 0),
+            new RankDoc(20, randomFloat(), 1),
+            new RankDoc(25, randomFloat(), 1), };
         final int preFilters = knnRetriever.preFilterQueryBuilders.size();
         QueryBuilder topDocsQuery = knnRetriever.topDocsQuery();
         assertNotNull(topDocsQuery);

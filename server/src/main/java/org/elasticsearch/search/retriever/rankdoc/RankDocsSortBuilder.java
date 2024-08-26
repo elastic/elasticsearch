@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Builds a {@code RankDocsSortField} that sorts documents by their rank as computed through the {@code RankDocsRetrieverBuilder}.
@@ -31,7 +32,7 @@ import java.util.Arrays;
 public class RankDocsSortBuilder extends SortBuilder<RankDocsSortBuilder> {
     public static final String NAME = "rank_docs_sort";
 
-    private final RankDoc[] rankDocs;
+    private RankDoc[] rankDocs;
 
     public RankDocsSortBuilder(RankDoc[] rankDocs) {
         this.rankDocs = rankDocs;
@@ -39,6 +40,15 @@ public class RankDocsSortBuilder extends SortBuilder<RankDocsSortBuilder> {
 
     public RankDocsSortBuilder(StreamInput in) throws IOException {
         this.rankDocs = in.readArray(c -> c.readNamedWriteable(RankDoc.class), RankDoc[]::new);
+    }
+
+    public RankDocsSortBuilder(RankDocsSortBuilder original) {
+        this.rankDocs = original.rankDocs;
+    }
+
+    public RankDocsSortBuilder rankDocs(RankDoc[] rankDocs) {
+        this.rankDocs = rankDocs;
+        return this;
     }
 
     @Override
@@ -78,5 +88,22 @@ public class RankDocsSortBuilder extends SortBuilder<RankDocsSortBuilder> {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         throw new UnsupportedOperationException("toXContent() is not supported for " + this.getClass());
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        RankDocsSortBuilder that = (RankDocsSortBuilder) obj;
+        return Arrays.equals(rankDocs, that.rankDocs) && this.order.equals(that.order);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(Arrays.hashCode(this.rankDocs), this.order);
     }
 }

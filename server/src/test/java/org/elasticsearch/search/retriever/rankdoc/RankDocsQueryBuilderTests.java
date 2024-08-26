@@ -13,33 +13,22 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.rank.RankDoc;
-import org.elasticsearch.search.rank.TestRankDoc;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 
 public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQueryBuilder> {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(RankDocsPlugin.class);
-    }
 
     private RankDoc[] generateRandomRankDocs() {
         int totalDocs = randomIntBetween(0, 10);
         RankDoc[] rankDocs = new RankDoc[totalDocs];
         int currentDoc = 0;
         for (int i = 0; i < totalDocs; i++) {
-            RankDoc rankDoc = new TestRankDoc(currentDoc, randomFloat(), randomIntBetween(0, 2));
+            RankDoc rankDoc = new RankDoc(currentDoc, randomFloat(), randomIntBetween(0, 2));
             rankDocs[i] = rankDoc;
             currentDoc += randomIntBetween(0, 100);
         }
@@ -127,13 +116,5 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
     @Override
     public void testValidOutput() throws IOException {
         // no-op since RankDocsQueryBuilder is an internal only API
-    }
-
-    public static class RankDocsPlugin extends Plugin {
-
-        @Override
-        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-            return Collections.singletonList(new NamedWriteableRegistry.Entry(RankDoc.class, TestRankDoc.NAME, TestRankDoc::new));
-        }
     }
 }

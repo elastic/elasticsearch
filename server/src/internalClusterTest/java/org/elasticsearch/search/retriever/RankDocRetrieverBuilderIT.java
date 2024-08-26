@@ -32,10 +32,6 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.rank.RankDoc;
-import org.elasticsearch.search.rank.TestRankDoc;
-import org.elasticsearch.search.rescore.QueryRescoreMode;
-import org.elasticsearch.search.rescore.QueryRescorerBuilder;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilderTests;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -62,7 +58,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(MockSearchService.TestPlugin.class, RankDocsQueryBuilderTests.RankDocsPlugin.class);
+        return List.of(MockSearchService.TestPlugin.class);
     }
 
     public record RetrieverSource(RetrieverBuilder retriever, SearchSourceBuilder source) {}
@@ -409,62 +405,6 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         });
     }
 
-    public void testRankDocsRetrieverWithRescore() {
-        final int rankWindowSize = 100;
-        SearchSourceBuilder source = new SearchSourceBuilder();
-        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder();
-        // this one retrieves docs 1, 4, and 6
-        standard0.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("quick").defaultField(TEXT_FIELD))
-            .boost(10L);
-        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder();
-        // this one retrieves docs 2 and 6 due to prefilter
-        standard1.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L);
-        standard1.preFilterQueryBuilders.add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
-        // this one retrieves docs 7, 2, 3, and 6
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
-            VECTOR_FIELD,
-            new float[] { 3.0f, 3.0f, 3.0f },
-            null,
-            10,
-            100,
-            null
-        );
-        // the compound retriever here produces a score for a doc based on the percentage of the queries that it was matched on and
-        // resolves ties based on actual score, rank, and then the doc (we're forcing 1 shard for consistent results)
-        // so ideal rank would be: 6, 2, 1, 4, 7, 3
-        // with rescore, and given that the final score is the hit ratio, we would have 4, 6, 2, 1, 3, 7
-        // as the docs 1, 3, and 7 have the same hit ratio (1/3) and are sorted based on doc id
-        source.retriever(
-            new CompoundRetrieverWithRankDocs(
-                rankWindowSize,
-                Arrays.asList(
-                    new RetrieverSource(standard0, null),
-                    new RetrieverSource(standard1, null),
-                    new RetrieverSource(knnRetrieverBuilder, null)
-                )
-            )
-        );
-        source.addRescorer(
-            new QueryRescorerBuilder(
-                QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("aardvark").defaultField(TEXT_FIELD)).boost(500)
-            ).setQueryWeight(1.0f).setRescoreQueryWeight(10.0f).setScoreMode(QueryRescoreMode.Total)
-        );
-        source.fetchField(TOPIC_FIELD);
-        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
-        ElasticsearchAssertions.assertResponse(req, resp -> {
-            assertNull(resp.pointInTimeId());
-            assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value, equalTo(6L));
-            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
-            assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_4"));
-            assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_6"));
-            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_2"));
-            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_1"));
-            assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_3"));
-            assertThat(resp.getHits().getAt(5).getId(), equalTo("doc_7"));
-        });
-    }
-
     public void testRankDocsRetrieverWithNestedQuery() {
         final int rankWindowSize = 100;
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -734,7 +674,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
                 long sortValue = (long) hit.getRawSortValues()[hit.getRawSortValues().length - 1];
                 int doc = decodeDoc(sortValue);
                 int shardRequestIndex = decodeShardRequestIndex(sortValue);
-                docs[i] = new TestRankDoc(doc, hit.getScore(), shardRequestIndex);
+                docs[i] = new RankDoc(doc, hit.getScore(), shardRequestIndex);
                 docs[i].rank = i + 1;
             }
             return docs;
@@ -748,7 +688,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             return (int) (value >> 32);
         }
 
-        record RankDocAndHitRatio(TestRankDoc rankDoc, float hitRatio) {}
+        record RankDocAndHitRatio(RankDoc rankDoc, float hitRatio) {}
 
         /**
          * Combines the provided {@code rankResults} to return the final top documents.
@@ -761,15 +701,11 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
                 for (RankDoc scoreDoc : rankResult) {
                     docsToRankResults.compute(new RankDoc.RankKey(scoreDoc.doc, scoreDoc.shardIndex), (key, value) -> {
                         if (value == null) {
-                            TestRankDoc res = new TestRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
+                            RankDoc res = new RankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
                             res.rank = scoreDoc.rank;
                             return new RankDocAndHitRatio(res, step);
                         } else {
-                            TestRankDoc res = new TestRankDoc(
-                                scoreDoc.doc,
-                                Math.max(scoreDoc.score, value.rankDoc.score),
-                                scoreDoc.shardIndex
-                            );
+                            RankDoc res = new RankDoc(scoreDoc.doc, Math.max(scoreDoc.score, value.rankDoc.score), scoreDoc.shardIndex);
                             res.rank = Math.min(scoreDoc.rank, value.rankDoc.rank);
                             return new RankDocAndHitRatio(res, value.hitRatio + step);
                         }
@@ -793,7 +729,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             });
             // trim the results if needed, otherwise each shard will always return `rank_window_size` results.
             // pagination and all else will happen on the coordinator when combining the shard responses
-            TestRankDoc[] topResults = new TestRankDoc[Math.min(rankWindowSize, sortedResults.length)];
+            RankDoc[] topResults = new RankDoc[Math.min(rankWindowSize, sortedResults.length)];
             for (int rank = 0; rank < topResults.length; ++rank) {
                 topResults[rank] = sortedResults[rank].rankDoc;
                 topResults[rank].rank = rank + 1;

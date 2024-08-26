@@ -21,18 +21,23 @@ import java.util.Objects;
 
 /**
  * {@code RankDoc} is the base class for all ranked results.
- * Subclasses should extend this with additional information
- * required for their global ranking method.
+ * Subclasses should extend this with additional information required for their global ranking method.
  */
-public abstract class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragment {
+public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragment {
+
+    public static final String NAME = "rank_doc";
 
     public static final int NO_RANK = -1;
 
     /**
-     * If this document has been ranked, this is its final
-     * rrf ranking from all the result sets.
+     * If this document has been ranked, this is its final rrf ranking from all the result sets.
      */
     public int rank = NO_RANK;
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 
     public record RankKey(int doc, int shardIndex) {}
 
@@ -54,12 +59,14 @@ public abstract class RankDoc extends ScoreDoc implements NamedWriteable, ToXCon
         doWriteTo(out);
     }
 
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+    protected void doWriteTo(StreamOutput out) throws IOException {};
 
     /**
      * Explain the ranking of this document.
      */
-    public abstract Explanation explain();
+    public Explanation explain() {
+        return Explanation.match(rank, "doc [" + doc + "] with an original score of [" + score + "] is at rank [" + rank + "].");
+    }
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -71,7 +78,7 @@ public abstract class RankDoc extends ScoreDoc implements NamedWriteable, ToXCon
         return builder;
     }
 
-    protected abstract void doToXContent(XContentBuilder builder, Params params) throws IOException;
+    protected void doToXContent(XContentBuilder builder, Params params) throws IOException {}
 
     @Override
     public final boolean equals(Object o) {
@@ -81,14 +88,18 @@ public abstract class RankDoc extends ScoreDoc implements NamedWriteable, ToXCon
         return doc == rd.doc && score == rd.score && shardIndex == rd.shardIndex && rank == rd.rank && doEquals(rd);
     }
 
-    protected abstract boolean doEquals(RankDoc rd);
+    protected boolean doEquals(RankDoc rd) {
+        return true;
+    }
 
     @Override
     public final int hashCode() {
         return Objects.hash(doc, score, shardIndex, doHashCode());
     }
 
-    protected abstract int doHashCode();
+    protected int doHashCode() {
+        return 0;
+    }
 
     @Override
     public String toString() {

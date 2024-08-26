@@ -980,6 +980,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return this;
         }
 
+        public Builder removeProject(ProjectId projectId) {
+            this.projectMetadata.remove(projectId);
+            return this;
+        }
+
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
             getSingleProject().put(indexMetadataBuilder);
             return this;

@@ -307,6 +307,11 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
             return put(id, routing.build());
         }
 
+        public Builder removeProject(ProjectId projectId) {
+            this.projectRouting.remove(projectId);
+            return this;
+        }
+
         public Builder clear() {
             this.projectRouting.clear();
             return this;

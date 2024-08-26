@@ -179,6 +179,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     public static final double searchAutoscalingEWMA = 0.1;
 
+    // This value is chosen such that a sudden increase in the task durations would need to persist roughly for 60 samples
+    // for the EWMA value to be mostly representative of the increased task durations. Mostly representative means that the
+    // EWMA value is at least within 90% of the new increased task duration.
+    public static final double indexAutoscalingEWMA = 0.04;
+
     private final Map<String, ExecutorHolder> executors;
 
     private final ThreadPoolInfo threadPoolInfo;
@@ -249,7 +254,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.WRITE,
-            new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000, new TaskTrackingConfig(true, 0.1))
+            new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000, new TaskTrackingConfig(true, indexAutoscalingEWMA))
         );
         int searchOrGetThreadPoolSize = searchOrGetThreadPoolSize(allocatedProcessors);
         builders.put(
@@ -338,7 +343,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.SYSTEM_WRITE,
-            new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, new TaskTrackingConfig(true, 0.1))
+            new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, new TaskTrackingConfig(true, indexAutoscalingEWMA))
         );
         builders.put(
             Names.SYSTEM_CRITICAL_READ,
@@ -346,7 +351,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.SYSTEM_CRITICAL_WRITE,
-            new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_WRITE, halfProcMaxAt5, 1500, new TaskTrackingConfig(true, 0.1))
+            new FixedExecutorBuilder(
+                settings,
+                Names.SYSTEM_CRITICAL_WRITE,
+                halfProcMaxAt5,
+                1500,
+                new TaskTrackingConfig(true, indexAutoscalingEWMA)
+            )
         );
 
         for (final ExecutorBuilder<?> builder : customBuilders) {

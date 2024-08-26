@@ -1417,32 +1417,14 @@ public final class Authentication implements ToXContentObject {
     }
 
     static BytesReference maybeRemoveRemoteClusterFromRoleDescriptors(BytesReference roleDescriptorsBytes) {
-        if (roleDescriptorsBytes == null || roleDescriptorsBytes.length() == 0) {
-            return roleDescriptorsBytes;
-        }
-
-        final Map<String, Object> roleDescriptorsMap = convertRoleDescriptorsBytesToMap(roleDescriptorsBytes);
-        final AtomicBoolean removedAtLeastOne = new AtomicBoolean(false);
-        roleDescriptorsMap.forEach((key, value) -> {
-            if (value instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> roleDescriptor = (Map<String, Object>) value;
-                boolean removed = roleDescriptor.remove(RoleDescriptor.Fields.REMOTE_CLUSTER.getPreferredName()) != null;
-                if (removed) {
-                    removedAtLeastOne.set(true);
-                }
-            }
-        });
-
-        if (removedAtLeastOne.get()) {
-            return convertRoleDescriptorsMapToBytes(roleDescriptorsMap);
-        } else {
-            // No need to serialize if we did not remove anything.
-            return roleDescriptorsBytes;
-        }
+        return maybeRemoveTopLevelFromRoleDescriptors(roleDescriptorsBytes, RoleDescriptor.Fields.REMOTE_CLUSTER.getPreferredName());
     }
 
     static BytesReference maybeRemoveRemoteIndicesFromRoleDescriptors(BytesReference roleDescriptorsBytes) {
+        return maybeRemoveTopLevelFromRoleDescriptors(roleDescriptorsBytes, RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName());
+    }
+
+    static BytesReference maybeRemoveTopLevelFromRoleDescriptors(BytesReference roleDescriptorsBytes, String topLevelField) {
         if (roleDescriptorsBytes == null || roleDescriptorsBytes.length() == 0) {
             return roleDescriptorsBytes;
         }
@@ -1453,7 +1435,7 @@ public final class Authentication implements ToXContentObject {
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> roleDescriptor = (Map<String, Object>) value;
-                boolean removed = roleDescriptor.remove(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName()) != null;
+                boolean removed = roleDescriptor.remove(topLevelField) != null;
                 if (removed) {
                     removedAtLeastOne.set(true);
                 }

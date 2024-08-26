@@ -27,9 +27,9 @@ import org.elasticsearch.search.aggregations.InternalAggregationsTests;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.TestRankBuilder;
-import org.elasticsearch.search.rank.TestRankDoc;
 import org.elasticsearch.search.rank.TestRankShardResult;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
@@ -80,9 +80,9 @@ public class QuerySearchResultTests extends ESTestCase {
         result.from(randomInt());
         if (randomBoolean()) {
             int queryCount = randomIntBetween(2, 4);
-            TestRankDoc[] docs = new TestRankDoc[randomIntBetween(5, 20)];
+            RankDoc[] docs = new RankDoc[randomIntBetween(5, 20)];
             for (int di = 0; di < docs.length; ++di) {
-                docs[di] = new TestRankDoc(di, -1, queryCount);
+                docs[di] = new RankDoc(di, -1, queryCount);
             }
             result.setRankShardResult(new TestRankShardResult(docs));
         }

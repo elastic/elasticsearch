@@ -1,0 +1,5 @@
+pr: 112214
+summary: '`ByteArrayStreamInput:` Return -1 when there are no more bytes to read'
+area: Infra/Core
+type: bug
+issues: []

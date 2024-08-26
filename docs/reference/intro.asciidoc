@@ -66,7 +66,7 @@ If you just want to get started quickly with a minimal local setup, refer to <<r
 
 * <<getting-started, Quickstart>>. A beginner's guide to deploying your first {es} instance, indexing data, and running queries.
 * https://elastic.co/webinars/getting-started-elasticsearch[Webinar: Introduction to {es}]. Register for our live webinars to learn directly from {es} experts.
-* Visit Elastic Search Labs for tutorials that AI-powered search using the latest {es} features.
+* https://www.elastic.co/search-labs[Elastic Search Labs]. Tutorials and blogs that explore AI-powered search using the latest {es} features.
 ** Follow our tutorial https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[to build a hybrid search solution in Python].
 ** Check out the https://github.com/elastic/elasticsearch-labs?tab=readme-ov-file#elasticsearch-examples--apps[`elasticsearch-labs` repository] for a range of Python notebooks and apps for various use cases.
 

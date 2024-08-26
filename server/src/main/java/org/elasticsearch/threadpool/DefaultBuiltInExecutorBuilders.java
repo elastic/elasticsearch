@@ -14,24 +14,27 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
 
+import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.threadpool.ThreadPool.searchAutoscalingEWMA;
 
 public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
     @Override
     @SuppressWarnings("rawtypes")
-    public void registerBuilders(Settings settings, int allocatedProcessors, Map<String, ExecutorBuilder> builders) {
+    public Map<String, ExecutorBuilder> getBuilders(Settings settings, int allocatedProcessors) {
         final int halfProc = Util.halfAllocatedProcessors(allocatedProcessors);
         final int halfProcMaxAt5 = Util.halfAllocatedProcessorsMaxFive(allocatedProcessors);
         final int halfProcMaxAt10 = Util.halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = Util.boundedBy(4 * allocatedProcessors, 128, 512);
 
-        builders.put(
+        Map<String, ExecutorBuilder> result = new HashMap<>();
+        result.put(
             ThreadPool.Names.GENERIC,
             new ScalingExecutorBuilder(ThreadPool.Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30), false)
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.WRITE,
             new FixedExecutorBuilder(
                 settings,
@@ -42,7 +45,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
             )
         );
         int searchOrGetThreadPoolSize = Util.searchOrGetThreadPoolSize(allocatedProcessors);
-        builders.put(
+        result.put(
             ThreadPool.Names.GET,
             new FixedExecutorBuilder(
                 settings,
@@ -52,11 +55,11 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             )
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.ANALYZE,
             new FixedExecutorBuilder(settings, ThreadPool.Names.ANALYZE, 1, 16, EsExecutors.TaskTrackingConfig.DO_NOT_TRACK)
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.SEARCH,
             new FixedExecutorBuilder(
                 settings,
@@ -66,7 +69,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 new EsExecutors.TaskTrackingConfig(true, searchAutoscalingEWMA)
             )
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.SEARCH_WORKER,
             new FixedExecutorBuilder(
                 settings,
@@ -76,7 +79,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 EsExecutors.TaskTrackingConfig.DEFAULT
             )
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.SEARCH_COORDINATION,
             new FixedExecutorBuilder(
                 settings,
@@ -86,7 +89,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 new EsExecutors.TaskTrackingConfig(true, searchAutoscalingEWMA)
             )
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.AUTO_COMPLETE,
             new FixedExecutorBuilder(
                 settings,
@@ -96,11 +99,11 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 EsExecutors.TaskTrackingConfig.DEFAULT
             )
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.SEARCH_THROTTLED,
             new FixedExecutorBuilder(settings, ThreadPool.Names.SEARCH_THROTTLED, 1, 100, EsExecutors.TaskTrackingConfig.DEFAULT)
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.MANAGEMENT,
             new ScalingExecutorBuilder(
                 ThreadPool.Names.MANAGEMENT,
@@ -110,26 +113,26 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 false
             )
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.FLUSH,
             new ScalingExecutorBuilder(ThreadPool.Names.FLUSH, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false)
         );
         // TODO: remove (or refine) this temporary stateless custom refresh pool sizing once ES-7631 is solved.
         final int refreshThreads = DiscoveryNode.isStateless(settings) ? allocatedProcessors : halfProcMaxAt10;
-        builders.put(
+        result.put(
             ThreadPool.Names.REFRESH,
             new ScalingExecutorBuilder(ThreadPool.Names.REFRESH, 1, refreshThreads, TimeValue.timeValueMinutes(5), false)
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.WARMER,
             new ScalingExecutorBuilder(ThreadPool.Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false)
         );
         final int maxSnapshotCores = Util.getMaxSnapshotThreadPoolSize(allocatedProcessors);
-        builders.put(
+        result.put(
             ThreadPool.Names.SNAPSHOT,
             new ScalingExecutorBuilder(ThreadPool.Names.SNAPSHOT, 1, maxSnapshotCores, TimeValue.timeValueMinutes(5), false)
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.SNAPSHOT_META,
             new ScalingExecutorBuilder(
                 ThreadPool.Names.SNAPSHOT_META,
@@ -139,7 +142,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 false
             )
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.FETCH_SHARD_STARTED,
             new ScalingExecutorBuilder(
                 ThreadPool.Names.FETCH_SHARD_STARTED,
@@ -149,7 +152,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 false
             )
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.FORCE_MERGE,
             new FixedExecutorBuilder(
                 settings,
@@ -159,15 +162,15 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             )
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.CLUSTER_COORDINATION,
             new FixedExecutorBuilder(settings, ThreadPool.Names.CLUSTER_COORDINATION, 1, -1, EsExecutors.TaskTrackingConfig.DO_NOT_TRACK)
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.FETCH_SHARD_STORE,
             new ScalingExecutorBuilder(ThreadPool.Names.FETCH_SHARD_STORE, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5), false)
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.SYSTEM_READ,
             new FixedExecutorBuilder(
                 settings,
@@ -177,7 +180,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             )
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.SYSTEM_WRITE,
             new FixedExecutorBuilder(
                 settings,
@@ -187,7 +190,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 new EsExecutors.TaskTrackingConfig(true, 0.1)
             )
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.SYSTEM_CRITICAL_READ,
             new FixedExecutorBuilder(
                 settings,
@@ -197,7 +200,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             )
         );
-        builders.put(
+        result.put(
             ThreadPool.Names.SYSTEM_CRITICAL_WRITE,
             new FixedExecutorBuilder(
                 settings,
@@ -207,5 +210,6 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 new EsExecutors.TaskTrackingConfig(true, 0.1)
             )
         );
+        return unmodifiableMap(result);
     }
 }

@@ -15,5 +15,5 @@ import java.util.Map;
 
 public interface BuiltInExecutorBuilders {
     @SuppressWarnings("rawtypes")
-    void registerBuilders(Settings settings, int allocatedProcessors, Map<String, ExecutorBuilder> builders);
+    Map<String, ExecutorBuilder> getBuilders(Settings settings, int allocatedProcessors);
 }

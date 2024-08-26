@@ -240,9 +240,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         final Map<String, ArrayList<Instrument>> instruments = new HashMap<>();
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
-        final Map<String, ExecutorBuilder> builders = new HashMap<>();
 
-        builtInExecutorBuilders.registerBuilders(settings, allocatedProcessors, builders);
+        final Map<String, ExecutorBuilder> builders = new HashMap<>(builtInExecutorBuilders.getBuilders(settings, allocatedProcessors));
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {

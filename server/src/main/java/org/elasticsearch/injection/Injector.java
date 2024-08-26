@@ -22,7 +22,6 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Constructor;
 import java.util.ArrayDeque;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -93,13 +92,6 @@ public final class Injector {
     /**
      * Equivalent to multiple chained calls to {@link #addClass}.
      */
-    public Injector addClasses(Class<?>... classesToProcess) {
-        return addClasses(Arrays.asList(classesToProcess));
-    }
-
-    /**
-     * Equivalent to multiple chained calls to {@link #addClass}.
-     */
     public Injector addClasses(Collection<Class<?>> classesToProcess) {
         classesToProcess.forEach(this::addClass);
         return this;
@@ -117,17 +109,7 @@ public final class Injector {
     /**
      * Equivalent to multiple calls to {@link #addInstance(Object)}.
      */
-    public Injector addInstances(Object... objects) {
-        for (var x : objects) {
-            addInstance(x);
-        }
-        return this;
-    }
-
-    /**
-     * Equivalent to multiple calls to {@link #addInstance(Object)}.
-     */
-    public Injector addInstances(Iterable<?> objects) {
+    public Injector addInstances(Collection<?> objects) {
         for (var x : objects) {
             addInstance(x);
         }
@@ -138,7 +120,7 @@ public final class Injector {
      * Indicates that <code>object</code> is to be injected for parameters of type <code>type</code>.
      * The given object is treated as though it had been instantiated by the injector.
      */
-    public <T> Injector addInstance(Class<? super T> type, T object) {
+    private <T> Injector addInstance(Class<? super T> type, T object) {
         assert type.isInstance(object); // No unchecked casting shenanigans allowed
         var existing = seedSpecs.put(type, new ExistingInstanceSpec(type, object));
         if (existing != null) {
@@ -165,21 +147,8 @@ public final class Injector {
         return this;
     }
 
-    public void inject() {
-        doInjection();
-    }
-
     /**
-     * @param resultType The type of object to return.
-     *                   Can't be a list; if you want a list, wrap it in a record.
-     */
-    public <T> T inject(Class<T> resultType) {
-        ensureClassIsSpecified(resultType);
-        return doInjection().theInstanceOf(resultType);
-    }
-
-    /**
-     * Like {@link #inject(Class)} but can return multiple result objects
+     * Main entry point. Causes objects to be constructed.
      * @return {@link Map} whose keys are all the requested <code>resultTypes</code> and whose values are all the instances of those types.
      */
     public Map<Class<?>, Object> inject(Collection<? extends Class<?>> resultTypes) {

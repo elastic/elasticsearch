@@ -20,7 +20,7 @@ public class InjectorTests extends ESTestCase {
         var first = new First();
         var second = new Second(first);
         Injector injector = Injector.create().addRecordContents(new ExistingInstances(first, second));
-        Third third = injector.inject(Third.class);
+        Third third = (Third) injector.inject(List.of(Third.class)).get(Third.class);
         assertSame(first, third.first);
         assertSame(second, third.second);
     }
@@ -34,7 +34,7 @@ public class InjectorTests extends ESTestCase {
     public record ExistingInstances(First first, Second second) {}
 
     public void testMultipleResultsMap() {
-        Injector injector = Injector.create().addClasses(Service1.class, Component3.class);
+        Injector injector = Injector.create().addClasses(List.of(Service1.class, Component3.class));
         var resultMap = injector.inject(List.of(Service1.class, Component3.class));
         assertEquals(Set.of(Service1.class, Component3.class), resultMap.keySet());
         Service1 service1 = (Service1) resultMap.get(Service1.class);
@@ -52,24 +52,27 @@ public class InjectorTests extends ESTestCase {
         assertEquals(
             Superclass.class,
             Injector.create()
-                .addClasses(Superclass.class, Subclass.class) // Superclass first
-                .inject(Superclass.class)
+                .addClasses(List.of(Superclass.class, Subclass.class)) // Superclass first
+                .inject(List.of(Superclass.class))
+                .get(Superclass.class)
                 .getClass()
         );
         MethodHandles.lookup();
         assertEquals(
             Superclass.class,
             Injector.create()
-                .addClasses(Subclass.class, Superclass.class) // Subclass first
-                .inject(Superclass.class)
+                .addClasses(List.of(Subclass.class, Superclass.class)) // Subclass first
+                .inject(List.of(Superclass.class))
+                .get(Superclass.class)
                 .getClass()
         );
         MethodHandles.lookup();
         assertEquals(
             Superclass.class,
             Injector.create()
-                .addClasses(Subclass.class)
-                .inject(Superclass.class) // Superclass is not mentioned until here
+                .addClasses(List.of(Subclass.class))
+                .inject(List.of(Superclass.class)) // Superclass is not mentioned until here
+                .get(Superclass.class)
                 .getClass()
         );
     }
@@ -81,7 +84,7 @@ public class InjectorTests extends ESTestCase {
     public void testBadInterfaceClass() {
         assertThrows(IllegalStateException.class, () -> {
             MethodHandles.lookup();
-            Injector.create().addClass(Listener.class).inject();
+            Injector.create().addClass(Listener.class).inject(List.of());
         });
     }
 
@@ -90,13 +93,14 @@ public class InjectorTests extends ESTestCase {
         MethodHandles.lookup();
         Injector injector = Injector.create().addClass(Component4.class);
 
-        assertThrows(IllegalStateException.class, injector::inject);
+        assertThrows(IllegalStateException.class, () -> injector.inject(List.of()));
     }
 
     public void testBadCircularDependency() {
         assertThrows(IllegalStateException.class, () -> {
             MethodHandles.lookup();
-            Injector.create().addClasses(Circular1.class, Circular2.class).inject();
+            Injector injector = Injector.create();
+            injector.addClasses(List.of(Circular1.class, Circular2.class)).inject(List.of());
         });
     }
 
@@ -108,7 +112,7 @@ public class InjectorTests extends ESTestCase {
         record UsesCircular1(Circular1 circular1) {}
         assertThrows(IllegalStateException.class, () -> {
             MethodHandles.lookup();
-            Injector.create().addClass(UsesCircular1.class).inject();
+            Injector.create().addClass(UsesCircular1.class).inject(List.of());
         });
     }
 
@@ -118,7 +122,8 @@ public class InjectorTests extends ESTestCase {
         record Service3(Service2 service2) implements Service1 {}
         assertThrows(IllegalStateException.class, () -> {
             MethodHandles.lookup();
-            Injector.create().addClasses(Service2.class, Service3.class).inject();
+            Injector injector = Injector.create();
+            injector.addClasses(List.of(new Class[] { Service2.class, Service3.class })).inject(List.of());
         });
     }
 

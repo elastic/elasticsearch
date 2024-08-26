@@ -16,12 +16,10 @@ import org.elasticsearch.injection.step.InstantiateStep;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
@@ -34,7 +32,6 @@ final class Planner {
     private static final Logger logger = LogManager.getLogger(Planner.class);
 
     final List<InjectionStep> plan;
-    final Queue<Class<?>> queue;
     final Map<Class<?>, InjectionSpec> specsByClass;
     final Set<Class<?>> requiredTypes; // The injector's job is to ensure there is an instance of these; this is like the "root set"
     final Set<Class<?>> allParameterTypes; // All the injectable types in all dependencies (recursively) of all required types
@@ -55,11 +52,6 @@ final class Planner {
         this.startedPlanning = new HashSet<>();
         this.finishedPlanning = new HashSet<>();
         this.alreadyProxied = new HashSet<>();
-
-        // Evolution note: this was a queue because we anticipated cases where the planner needs
-        // to put items at the end rather than recursing. If that never turns out to be necessary,
-        // this could be simplified away.
-        this.queue = new ArrayDeque<>(requiredTypes);
     }
 
     /**
@@ -76,8 +68,7 @@ final class Planner {
      * @return the {@link InjectionStep} objects listed in execution order.
      */
     List<InjectionStep> injectionPlan() {
-        Class<?> c;
-        while ((c = queue.poll()) != null) {
+        for (Class<?> c : requiredTypes) {
             planForClass(c, 0);
         }
         return plan;

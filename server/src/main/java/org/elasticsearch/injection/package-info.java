@@ -12,7 +12,7 @@
  * The new injector is {@link org.elasticsearch.injection.Injector}.
  * You create an instance using {@link org.elasticsearch.injection.Injector#create()},
  * call various methods like {@link org.elasticsearch.injection.Injector#addClass} to configure it,
- * then call {@link org.elasticsearch.injection.Injector#inject()} to cause the constructors to be called.
+ * then call {@link org.elasticsearch.injection.Injector#inject} to cause the constructors to be called.
  *
  * <h2>Operation</h2>
  * Injection proceeds in three phases:

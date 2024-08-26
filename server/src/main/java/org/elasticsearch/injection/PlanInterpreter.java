@@ -19,7 +19,6 @@ import org.elasticsearch.logging.Logger;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Performs the actual injection operations by running the {@link InjectionStep}s.
@@ -34,7 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <strong>Execution model</strong>:
  * The state of the injector during injection comprises a map from classes to objects.
  * Before any steps execute, the map is pre-populated by object instances added via
- * {@link Injector#addInstance(Class, Object) Injector.addInstance},
+ * {@link Injector#addInstance(Object)}  Injector.addInstance},
  * and then the steps begin to execute, reading and writing from this map.
  * Some steps create objects and add them to this map; others manipulate the map itself.
  */
@@ -50,20 +49,20 @@ final class PlanInterpreter {
      * Main entry point. Contains the implementation logic for each {@link InjectionStep}.
      */
     void executePlan(List<InjectionStep> plan) {
-        AtomicInteger numConstructorCalls = new AtomicInteger(0);
-        plan.forEach(step -> {
+        int numConstructorCalls = 0;
+        for (InjectionStep step : plan) {
             if (step instanceof InstantiateStep i) {
                 MethodHandleSpec spec = i.spec();
                 logger.trace("Instantiating {}", spec.requestedType().getSimpleName());
                 addInstance(spec.requestedType(), instantiate(spec));
-                numConstructorCalls.incrementAndGet();
+                ++numConstructorCalls;
             } else {
                 // TODO: switch patterns would make this unnecessary
                 assert false : "Unexpected step type: " + step.getClass().getSimpleName();
                 throw new IllegalStateException("Unexpected step type: " + step.getClass().getSimpleName());
             }
-        });
-        logger.debug("Instantiated {} objects", numConstructorCalls.get());
+        }
+        logger.debug("Instantiated {} objects", numConstructorCalls);
     }
 
     /**

@@ -392,7 +392,7 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics
         ) {
-            return new TestSharedBlobCacheService(nodeEnvironment, settings, threadPool, SHARD_READ_THREAD_POOL, blobCacheMetrics);
+            return new TestSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics);
         }
     }
 
@@ -404,10 +404,9 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
             NodeEnvironment environment,
             Settings settings,
             ThreadPool threadPool,
-            String ioExecutor,
             BlobCacheMetrics blobCacheMetrics
         ) {
-            super(environment, settings, threadPool, ioExecutor, blobCacheMetrics);
+            super(environment, settings, threadPool, blobCacheMetrics);
         }
 
         @Override

@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.MeteringCacheBlobReader;
@@ -29,7 +30,9 @@ import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
@@ -57,7 +60,12 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
 
     private MeteringCacheBlobReader doGetCacheBlobReader(BlobContainer blobContainer, String blobName) {
         return new MeteringCacheBlobReader(
-            new ObjectStoreCacheBlobReader(blobContainer, blobName, getCacheService().getRangeSize()),
+            new ObjectStoreCacheBlobReader(
+                blobContainer,
+                blobName,
+                getCacheService().getRangeSize(),
+                getCacheService().getShardReadThreadPoolExecutor()
+            ),
             createReadCompleteCallback(totalBytesReadFromObjectStore, BlobCacheMetrics.CachePopulationReason.CacheMiss)
         );
     }
@@ -68,8 +76,9 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
     }
 
     private MeteringCacheBlobReader doGetCacheBlobReaderForWarming(BlobContainer blobContainer, String blobName) {
+        assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL, ThreadPool.Names.GENERIC);
         return new MeteringCacheBlobReader(
-            new ObjectStoreCacheBlobReader(blobContainer, blobName, getCacheService().getRangeSize()),
+            new ObjectStoreCacheBlobReader(blobContainer, blobName, getCacheService().getRangeSize(), EsExecutors.DIRECT_EXECUTOR_SERVICE),
             createReadCompleteCallback(totalBytesWarmedFromObjectStore, BlobCacheMetrics.CachePopulationReason.Warming)
         );
     }

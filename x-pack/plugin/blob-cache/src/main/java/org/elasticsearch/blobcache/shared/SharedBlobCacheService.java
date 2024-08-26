@@ -806,10 +806,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         final RegionKey<KeyType> regionKey;
         final SparseFileTracker tracker;
         // io can be null when not init'ed or after evict/take
-        // io does not need volatile access on the read path, since it goes from null to a final value only and "cache.get" never returns
-        // a `CacheFileRegion` without checking the value is non-null (with a volatile read, ensuring the value is visible in that thread).
-        // we assume any IndexInput passing among threads (slicing etc) is done with proper happens-before semantics (otherwise they'd
-        // themselves break).
+        // io does not need volatile access on the read path, since it goes from null to a single value (and then possbily back to null).
+        // "cache.get" never returns a `CacheFileRegion` without checking the value is non-null (with a volatile read, ensuring the value is
+        // visible in that thread).
+        // We assume any IndexInput passing among threads is done with proper happens-before semantics (otherwise they'd themselves break).
+        // In general, assertions should use `nonVolatileIO` (when they can) to access this over `volatileIO` to avoid memory visibility
+        // side effects
         private SharedBytes.IO io = null;
 
         CacheFileRegion(SharedBlobCacheService<KeyType> blobCacheService, RegionKey<KeyType> regionKey, int regionSize) {

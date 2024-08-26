@@ -43,7 +43,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-constant]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-window-size]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-window-size]
 
 An example request using RRF:
 

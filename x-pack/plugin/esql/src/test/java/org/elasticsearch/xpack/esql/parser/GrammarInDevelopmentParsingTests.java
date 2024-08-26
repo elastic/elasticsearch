@@ -12,7 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-public class GrammarInDevelopmentParsingTest extends ESTestCase {
+public class GrammarInDevelopmentParsingTests extends ESTestCase {
 
     public void testDevelopmentInline() throws Exception {
         parse("row a = 1 | inlinestats b = min(a) by c, d.e", "inlinestats");

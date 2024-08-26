@@ -66,11 +66,11 @@ booleanExpression
     : NOT booleanExpression                                                      #logicalNot
     | valueExpression                                                            #booleanDefault
     | regexBooleanExpression                                                     #regexExpression
-    | matchBooleanExpression                                                     #matchExpression
     | left=booleanExpression operator=AND right=booleanExpression                #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
     | valueExpression IS NOT? NULL                                               #isNull
+    | {isDevVersion()}? matchBooleanExpression                                   #matchExpression
     ;
 
 regexBooleanExpression
@@ -79,7 +79,7 @@ regexBooleanExpression
     ;
 
 matchBooleanExpression
-    : qualifiedName DEV_MATCH queryString=string
+    : valueExpression DEV_MATCH queryString=string
     ;
 
 valueExpression

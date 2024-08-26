@@ -84,7 +84,7 @@ WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 // main section while preserving alphabetical order.
 DEV_INLINESTATS : {isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 DEV_LOOKUP :      {isDevVersion()}? 'lookup'        -> pushMode(LOOKUP_MODE);
-DEV_MATCH_CMD :   {isDevVersion()}? 'match'         -> type(DEV_MATCH), pushMode(EXPRESSION_MODE);
+DEV_MATCH :       {isDevVersion()}? 'match'         -> pushMode(EXPRESSION_MODE);
 DEV_METRICS :     {isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
 
 //
@@ -207,6 +207,9 @@ ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
 
+// move it in the main section if the feature gets promoted
+DEV_MATCH_OP : {isDevVersion()}? DEV_MATCH -> type(DEV_MATCH);
+
 NAMED_OR_POSITIONAL_PARAM
     : PARAM LETTER UNQUOTED_ID_BODY*
     | PARAM DIGIT+
@@ -246,10 +249,6 @@ EXPR_MULTILINE_COMMENT
 EXPR_WS
     : WS -> channel(HIDDEN)
     ;
-
-// move it in the main section if the feature gets promoted
-DEV_MATCH: {isDevVersion()}? 'match';
-
 
 //
 // Explain

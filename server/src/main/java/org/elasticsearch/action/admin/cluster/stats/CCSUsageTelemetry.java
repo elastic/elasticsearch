@@ -175,7 +175,7 @@ public class CCSUsageTelemetry {
         // The number of successful (not skipped) requests to this cluster.
         private final LongAdder count;
         private final LongAdder skippedCount;
-        // This is only over the successful requetss, skipped ones do not count here.
+        // This is only over the successful requests, skipped ones do not count here.
         private final LongMetric took;
 
         PerClusterCCSTelemetry(String clusterAlias) {

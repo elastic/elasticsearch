@@ -14,8 +14,6 @@ boolean basicSecurityMode = Boolean.valueOf(providers.systemProperty('basicSecur
 def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   testDistribution = providers.systemProperty('run.distribution').orElse('default').get()
 
-
-  version = '8.14.0'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'

@@ -70,6 +70,58 @@ If you just want to get started quickly with a minimal local setup, refer to <<r
 ** Follow our tutorial https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[to build a hybrid search solution in Python].
 ** Check out the https://github.com/elastic/elasticsearch-labs?tab=readme-ov-file#elasticsearch-examples--apps[`elasticsearch-labs` repository] for a range of Python notebooks and apps for various use cases.
 
+[[documents-indices]]
+=== Documents and indices
+
+{es} is a distributed document store. Instead of storing information as rows of
+columnar data, {es} stores complex data structures that have been serialized
+as JSON documents. When you have multiple {es} nodes in a cluster, stored
+documents are distributed across the cluster and can be accessed immediately
+from any node.
+
+When a document is stored, it is indexed and fully searchable in <<near-real-time,near real-time>>--within 1 second. {es} uses a data structure called an
+inverted index that supports very fast full-text searches. An inverted index
+lists every unique word that appears in any document and identifies all of the
+documents each word occurs in.
+
+An index can be thought of as an optimized collection of documents and each
+document is a collection of fields, which are the key-value pairs that contain
+your data. By default, {es} indexes all data in every field and each indexed
+field has a dedicated, optimized data structure. For example, text fields are
+stored in inverted indices, and numeric and geo fields are stored in BKD trees.
+The ability to use the per-field data structures to assemble and return search
+results is what makes {es} so fast.
+
+{es} also has the ability to be schema-less, which means that documents can be
+indexed without explicitly specifying how to handle each of the different fields
+that might occur in a document. When dynamic mapping is enabled, {es}
+automatically detects and adds new fields to the index. This default
+behavior makes it easy to index and explore your data--just start
+indexing documents and {es} will detect and map booleans, floating point and
+integer values, dates, and strings to the appropriate {es} data types.
+
+You can define rules to control dynamic mapping and explicitly
+define mappings to take full control of how fields are stored and indexed.
+
+Defining your own mappings enables you to:
+
+* Distinguish between full-text string fields and exact value string fields
+* Perform language-specific text analysis
+* Optimize fields for partial matching
+* Use custom date formats
+* Use data types such as `geo_point` and `geo_shape` that cannot be automatically
+detected
+
+It’s often useful to index the same field in different ways for different
+purposes. For example, you might want to index a string field as both a text
+field for full-text search and as a keyword field for sorting or aggregating
+your data. Or, you might choose to use more than one language analyzer to
+process the contents of a string field that contains user input.
+
+The analysis chain that is applied to a full-text field during indexing is also
+used at search time. When you query a full-text field, the query text undergoes
+the same analysis before the terms are looked up in the index.
+
 [[scalability]]
 === Scalability and resilience: clusters, nodes, and shards
 ++++

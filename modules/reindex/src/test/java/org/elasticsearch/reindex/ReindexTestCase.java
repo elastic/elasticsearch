@@ -13,8 +13,6 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
@@ -33,7 +31,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 public abstract class ReindexTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, TestTelemetryPlugin.class);
+        return Arrays.asList(ReindexPlugin.class);
     }
 
     protected ReindexRequestBuilder reindex() {
@@ -101,9 +99,5 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
 
     protected int expectedSliceStatuses(int slicesConfigured, String index) {
         return expectedSliceStatuses(slicesConfigured, singleton(index));
-    }
-
-    protected TestTelemetryPlugin getTestTelemetryPlugin() {
-        return (internalCluster().getInstance(PluginsService.class).filterPlugins(TestTelemetryPlugin.class).toList().get(0));
     }
 }

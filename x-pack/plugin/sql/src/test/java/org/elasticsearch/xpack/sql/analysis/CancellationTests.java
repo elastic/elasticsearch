@@ -190,7 +190,7 @@ public class CancellationTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<OpenPointInTimeResponse> listener = (ActionListener<OpenPointInTimeResponse>) invocation.getArguments()[2];
-            listener.onResponse(new OpenPointInTimeResponse(pitId));
+            listener.onResponse(new OpenPointInTimeResponse(pitId, 1, 1, 0, 0));
             return null;
         }).when(client).execute(eq(TransportOpenPointInTimeAction.TYPE), any(), any());
 

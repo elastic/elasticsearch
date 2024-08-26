@@ -78,6 +78,44 @@ IMPORTANT: The open point in time request and each subsequent search request can
 return different `id`; thus always use the most recently received `id` for the
 next search request.
 
+In addition to the `keep_alive` parameter, the `allow_partial_search_results` parameter
+can also be defined.
+This parameter determines whether the <<point-in-time-api, point in time (PIT)>>
+should tolerate unavailable shards or <<shard-failures, shard failures>> when
+initially creating the PIT.
+If set to true, the PIT will be created with the available shards, along with a
+reference to any missing ones.
+If set to false, the operation will fail if any shard is unavailable.
+The default value is false.
+
+The PIT response includes a summary of the total number of shards, as well as the number
+of successful shards when creating the PIT.
+
+[source,console]
+--------------------------------------------------
+POST /my-index-000001/_pit?keep_alive=1m&allow_partial_search_results=true
+--------------------------------------------------
+// TEST[setup:my_index]
+
+[source,js]
+--------------------------------------------------
+{
+  "id": "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=",
+  "_shards": {
+    "total": 10,
+    "successful": 10,
+    "skipped": 0,
+    "failed": 0
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+When a PIT that contains shard failures is used in a search request, the missing are
+always reported in the search response as a NoShardAvailableActionException exception.
+To get rid of these exceptions, a new PIT needs to be created so that shards missing
+from the previous PIT can be handled, assuming they become available in the meantime.
+
 [[point-in-time-keep-alive]]
 ==== Keeping point in time alive
 The `keep_alive` parameter, which is passed to a open point in time request and

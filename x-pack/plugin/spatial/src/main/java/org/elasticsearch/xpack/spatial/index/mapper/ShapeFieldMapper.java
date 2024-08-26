@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.XYQueriesUtils;
 import org.elasticsearch.script.field.AbstractScriptFieldFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.Field;
@@ -39,7 +40,6 @@ import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicCartesianShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.CartesianShapeIndexFieldData;
-import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSourceType;
 
 import java.io.IOException;
@@ -137,8 +137,6 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
 
     public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry> implements ShapeQueryable {
 
-        private final ShapeQueryProcessor queryProcessor;
-
         public ShapeFieldType(
             String name,
             boolean indexed,
@@ -148,7 +146,6 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             Map<String, String> meta
         ) {
             super(name, indexed, false, hasDocValues, parser, orientation, meta);
-            this.queryProcessor = new ShapeQueryProcessor();
         }
 
         @Override
@@ -172,7 +169,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 );
             }
             try {
-                return queryProcessor.shapeQuery(shape, fieldName, relation, isIndexed(), hasDocValues());
+                return XYQueriesUtils.toXYShapeQuery(shape, fieldName, relation, isIndexed(), hasDocValues());
             } catch (IllegalArgumentException e) {
                 throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
             }

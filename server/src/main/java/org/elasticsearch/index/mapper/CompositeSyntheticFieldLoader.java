@@ -47,9 +47,9 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
 
     @Override
     public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        return parts.stream().flatMap(SyntheticFieldLoaderLayer::storedFieldLoaders).map(e -> Map.entry(e.getKey(), (docId, values) -> {
+        return parts.stream().flatMap(SyntheticFieldLoaderLayer::storedFieldLoaders).map(e -> Map.entry(e.getKey(), (values) -> {
             hasValue = true;
-            e.getValue().load(docId, values);
+            e.getValue().load(values);
         }));
     }
 
@@ -84,8 +84,8 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
     }
 
     @Override
-    public void write(int docId, XContentBuilder b) throws IOException {
-        var totalCount = parts.stream().mapToLong(l -> l.valueCount(docId)).sum();
+    public void write(XContentBuilder b) throws IOException {
+        var totalCount = parts.stream().mapToLong(l -> l.valueCount()).sum();
 
         if (totalCount == 0) {
             return;
@@ -94,14 +94,14 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
         if (totalCount == 1) {
             b.field(leafFieldName);
             for (var part : parts) {
-                part.write(docId, b);
+                part.write(b);
             }
             return;
         }
 
         b.startArray(leafFieldName);
         for (var part : parts) {
-            part.write(docId, b);
+            part.write(b);
         }
         b.endArray();
     }
@@ -115,7 +115,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
      * Represents one layer of loading synthetic source values for a field
      * as a part of {@link CompositeSyntheticFieldLoader}.
      * <br>
-     * Note that the contract of {@link SourceLoader.SyntheticFieldLoader#write(int, XContentBuilder)}
+     * Note that the contract of {@link SourceLoader.SyntheticFieldLoader#write(XContentBuilder)}
      * is slightly different here since it only needs to write field values without encompassing object or array.
      */
     public interface SyntheticFieldLoaderLayer extends SourceLoader.SyntheticFieldLoader {
@@ -123,7 +123,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
          * Number of values that this loader will write for a given document.
          * @return
          */
-        long valueCount(int docId);
+        long valueCount();
     }
 
     /**
@@ -160,16 +160,13 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
         }
 
         @Override
-        public long valueCount(int docId) {
-            if (this.docId != docId) {
-                return 0;
-            }
+        public long valueCount() {
             return values.size();
         }
 
         @Override
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of(Map.entry(fieldName, (docId, values) -> {
+            return Stream.of(Map.entry(fieldName, (values) -> {
                 this.docId = docId;
                 this.values = values;
             }));
@@ -186,15 +183,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
         }
 
         @Override
-        public void write(int docId, XContentBuilder b) throws IOException {
-            if (this.docId != docId) {
-                // Data from stored fields that we have is stale, discard it.
-                this.docId = -1;
-                this.values = emptyList();
-
-                return;
-            }
-
+        public void write(XContentBuilder b) throws IOException {
             for (Object v : values) {
                 writeValue(v, b);
             }

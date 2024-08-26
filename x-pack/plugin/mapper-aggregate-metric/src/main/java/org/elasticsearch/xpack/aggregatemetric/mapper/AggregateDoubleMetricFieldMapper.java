@@ -742,7 +742,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public long valueCount(int docId) {
+        public long valueCount() {
             return hasValue() ? 1 : 0;
         }
 
@@ -775,7 +775,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void write(int docId, XContentBuilder b) throws IOException {
+        public void write(XContentBuilder b) throws IOException {
             if (metricHasValue.isEmpty()) {
                 return;
             }

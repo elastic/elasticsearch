@@ -77,7 +77,7 @@ public abstract class IgnoreMalformedStoredValues {
     /**
      * Write values for this document.
      */
-    public abstract void write(int docId, XContentBuilder b) throws IOException;
+    public abstract void write(XContentBuilder b) throws IOException;
 
     private static final Empty EMPTY = new Empty();
 
@@ -93,7 +93,7 @@ public abstract class IgnoreMalformedStoredValues {
         }
 
         @Override
-        public void write(int docId, XContentBuilder b) throws IOException {}
+        public void write(XContentBuilder b) throws IOException {}
     }
 
     private static class Stored extends IgnoreMalformedStoredValues {
@@ -111,8 +111,7 @@ public abstract class IgnoreMalformedStoredValues {
             return Stream.of(Map.entry(name(fieldName), this::load));
         }
 
-        private void load(int docId, List<Object> values) {
-            this.docId = docId;
+        private void load(List<Object> values) {
             this.values = values;
         }
 
@@ -122,15 +121,7 @@ public abstract class IgnoreMalformedStoredValues {
         }
 
         @Override
-        public void write(int docId, XContentBuilder b) throws IOException {
-            if (this.docId != docId) {
-                // Data from stored fields that we have is stale, discard it.
-                this.docId = -1;
-                this.values = emptyList();
-
-                return;
-            }
-
+        public void write(XContentBuilder b) throws IOException {
             for (Object v : values) {
                 if (v instanceof BytesRef r) {
                     XContentDataHelper.decodeAndWrite(b, r);

@@ -66,7 +66,7 @@ public class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLo
     }
 
     @Override
-    public void write(int docId, XContentBuilder b) throws IOException {
+    public void write(XContentBuilder b) throws IOException {
         if (docValues.count() == 0) {
             return;
         }

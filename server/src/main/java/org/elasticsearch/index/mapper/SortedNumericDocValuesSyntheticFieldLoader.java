@@ -84,7 +84,7 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
     }
 
     @Override
-    public void write(int docId, XContentBuilder b) throws IOException {
+    public void write(XContentBuilder b) throws IOException {
         switch (values.count() + ignoreMalformedValues.count()) {
             case 0:
                 return;
@@ -96,13 +96,13 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
                     values.write(b);
                 } else {
                     assert ignoreMalformedValues.count() == 1;
-                    ignoreMalformedValues.write(docId, b);
+                    ignoreMalformedValues.write(b);
                 }
                 return;
             default:
                 b.startArray(simpleName);
                 values.write(b);
-                ignoreMalformedValues.write(docId, b);
+                ignoreMalformedValues.write(b);
                 b.endArray();
         }
     }

@@ -141,7 +141,7 @@ public class IgnoreMalformedStoredValuesTests extends ESTestCase {
         StoredField s = ignoreMalformedStoredField(type, value);
         Object stored = Stream.of(s.numericValue(), s.binaryValue(), s.stringValue()).filter(v -> v != null).findFirst().get();
         IgnoreMalformedStoredValues values = IgnoreMalformedStoredValues.stored(fieldName);
-        values.storedFieldLoaders().forEach(e -> e.getValue().load(0, List.of(stored)));
+        values.storedFieldLoaders().forEach(e -> e.getValue().load(List.of(stored)));
         return parserFrom(values, fieldName);
     }
 
@@ -161,7 +161,7 @@ public class IgnoreMalformedStoredValuesTests extends ESTestCase {
         XContentBuilder b = CborXContent.contentBuilder();
         b.startObject();
         b.field(fieldName);
-        values.write(0, b);
+        values.write(b);
         b.endObject();
         XContentParser p = CborXContent.cborXContent.createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(b).streamInput());
         assertThat(p.nextToken(), equalTo(XContentParser.Token.START_OBJECT));

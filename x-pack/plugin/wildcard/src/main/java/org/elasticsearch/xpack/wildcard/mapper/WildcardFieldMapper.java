@@ -1059,12 +1059,12 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public long valueCount(int docId) {
+        public long valueCount() {
             return docValueCount;
         }
 
         @Override
-        public void write(int docId, XContentBuilder b) throws IOException {
+        public void write(XContentBuilder b) throws IOException {
             switch (docValueCount) {
                 case 0:
                     return;

@@ -80,12 +80,12 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
     }
 
     @Override
-    public long valueCount(int docId) {
+    public long valueCount() {
         return docValues.count();
     }
 
     @Override
-    public void write(int docId, XContentBuilder b) throws IOException {
+    public void write(XContentBuilder b) throws IOException {
         docValues.write(b);
     }
 

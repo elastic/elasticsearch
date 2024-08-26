@@ -172,7 +172,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public void write(int docId, XContentBuilder b) throws IOException {
+        public void write(XContentBuilder b) throws IOException {
             if (hasValue == false) {
                 return;
             }

@@ -1185,10 +1185,12 @@ class NodeConstruction {
      * to register the value with the component's declared type.
      */
     @SuppressForbidden(reason = "Can't call invokeExact because we don't know the exact Record subtype statically")
-    private static void addRecordContents(org.elasticsearch.injection.Injector injector, Record r) {
+    private static <T> void addRecordContents(org.elasticsearch.injection.Injector injector, Record r) {
         for (var c : r.getClass().getRecordComponents()) {
             try {
-                injector.addInstance(lookup().unreflect(c.getAccessor()).invoke(r));
+                @SuppressWarnings("unchecked")
+                Class<T> type = (Class<T>) c.getType(); // T represents the declared type of the record component, whatever it is
+                injector.addInstance(type, type.cast(lookup().unreflect(c.getAccessor()).invoke(r)));
             } catch (Throwable e) {
                 throw new IllegalStateException("Unable to read record component " + c, e);
             }

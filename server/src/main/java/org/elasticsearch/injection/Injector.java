@@ -119,7 +119,7 @@ public final class Injector {
      * Indicates that <code>object</code> is to be injected for parameters of type <code>type</code>.
      * The given object is treated as though it had been instantiated by the injector.
      */
-    private <T> Injector addInstance(Class<? super T> type, T object) {
+    public <T> Injector addInstance(Class<? super T> type, T object) {
         assert type.isInstance(object); // No unchecked casting shenanigans allowed
         var existing = seedSpecs.put(type, new ExistingInstanceSpec(type, object));
         if (existing != null) {

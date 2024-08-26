@@ -38,11 +38,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class GeoIpProcessorTests extends ESTestCase {
 
-    private static final GeoDataLookup CITY_GEO_DATA_LOOKUP_ALL = GeoDataLookupFactory.get(Database.City)
-        .create(Database.City.properties());
-    private static final GeoDataLookup COUNTRY_GEO_DATA_LOOKUP_ALL = GeoDataLookupFactory.get(Database.Country)
-        .create(Database.Country.properties());
-
     private static GeoDataLookup geoDataLookupAll(final Database database) {
         return GeoDataLookupFactory.get(database).create(database.properties());
     }

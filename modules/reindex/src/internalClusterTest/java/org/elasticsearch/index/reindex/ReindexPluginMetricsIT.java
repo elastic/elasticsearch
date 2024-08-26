@@ -8,10 +8,12 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.reindex.BulkIndexByScrollResponseMatcher;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -21,7 +23,9 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.reindex.DeleteByQueryMetrics.DELETE_BY_QUERY_TIME_HISTOGRAM;
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_TIME_HISTOGRAM;
+import static org.elasticsearch.reindex.UpdateByQueryMetrics.UPDATE_BY_QUERY_TIME_HISTOGRAM;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -48,11 +52,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         return new BulkIndexByScrollResponseMatcher();
     }
 
-    protected TestTelemetryPlugin getTestTelemetryPlugin() {
-        return (internalCluster().getInstance(PluginsService.class).filterPlugins(TestTelemetryPlugin.class).toList().get(0));
-    }
-
-    public void testFiltering() throws Exception {
+    public void testReindexMetrics() throws Exception {
         internalCluster().startNode();
 
         indexRandom(
@@ -70,22 +70,12 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             .findFirst()
             .orElseThrow();
 
-        // TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin();
-        // testTelemetryPlugin.resetMeter();
-
         // Copy all the docs
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
         assertThat(copy.get(), matcher().created(4));
         assertHitCount(prepareSearch("dest").setSize(0), 4);
 
-        // final var tp = internalCluster().getInstance(ThreadPool.class, dataNodeName);
-        // final var tps = new ThreadPoolStats[1];
-
-        // wait for all threads to complete so that we get deterministic results
-        // waitUntil(() -> (tps[0] = tp.stats()).stats().stream().allMatch(s -> s.active() == 0));
-
-        // testTelemetryPlugin.collect();
-        // List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
+        // Use assertBusy to wait for all threads to complete so we get deterministic results
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
@@ -137,6 +127,136 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
+            assertThat(measurements.size(), equalTo(4));
+        });
+    }
+
+    public void testDeleteByQueryMetrics() throws Exception {
+        internalCluster().startNode();
+
+        indexRandom(
+            true,
+            prepareIndex("test").setId("1").setSource("foo", "a"),
+            prepareIndex("test").setId("2").setSource("foo", "a"),
+            prepareIndex("test").setId("3").setSource("foo", "b"),
+            prepareIndex("test").setId("4").setSource("foo", "c"),
+            prepareIndex("test").setId("5").setSource("foo", "d"),
+            prepareIndex("test").setId("6").setSource("foo", "e"),
+            prepareIndex("test").setId("7").setSource("foo", "f")
+        );
+
+        assertHitCount(prepareSearch("test").setSize(0), 7);
+
+        final String dataNodeName = internalCluster().getRandomNodeName();
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+
+        // Deletes two docs that matches "foo:a"
+        assertThat(deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).get(), matcher().deleted(2));
+        assertHitCount(prepareSearch("test").setSize(0), 5);
+
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(DELETE_BY_QUERY_TIME_HISTOGRAM);
+            assertThat(measurements.size(), equalTo(1));
+        });
+
+        // Deletes the two first docs with limit by size
+        DeleteByQueryRequestBuilder request = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).size(2).refresh(true);
+        request.source().addSort("foo.keyword", SortOrder.ASC);
+        assertThat(request.get(), matcher().deleted(2));
+        assertHitCount(prepareSearch("test").setSize(0), 3);
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(DELETE_BY_QUERY_TIME_HISTOGRAM);
+            assertThat(measurements.size(), equalTo(2));
+        });
+
+        // Deletes but match no docs
+        assertThat(deleteByQuery().source("test").filter(termQuery("foo", "no_match")).refresh(true).get(), matcher().deleted(0));
+        assertHitCount(prepareSearch("test").setSize(0), 3);
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(DELETE_BY_QUERY_TIME_HISTOGRAM);
+            assertThat(measurements.size(), equalTo(3));
+        });
+
+        // Deletes all remaining docs
+        assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get(), matcher().deleted(3));
+        assertHitCount(prepareSearch("test").setSize(0), 0);
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(DELETE_BY_QUERY_TIME_HISTOGRAM);
+            assertThat(measurements.size(), equalTo(4));
+        });
+    }
+
+    public void testUpdateByQueryMetrics() throws Exception {
+        internalCluster().startNode();
+
+        indexRandom(
+            true,
+            prepareIndex("test").setId("1").setSource("foo", "a"),
+            prepareIndex("test").setId("2").setSource("foo", "a"),
+            prepareIndex("test").setId("3").setSource("foo", "b"),
+            prepareIndex("test").setId("4").setSource("foo", "c")
+        );
+        assertHitCount(prepareSearch("test").setSize(0), 4);
+        assertEquals(1, client().prepareGet("test", "1").get().getVersion());
+        assertEquals(1, client().prepareGet("test", "4").get().getVersion());
+
+        final String dataNodeName = internalCluster().getRandomNodeName();
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+
+        // Reindex all the docs
+        assertThat(updateByQuery().source("test").refresh(true).get(), matcher().updated(4));
+        assertEquals(2, client().prepareGet("test", "1").get().getVersion());
+        assertEquals(2, client().prepareGet("test", "4").get().getVersion());
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(UPDATE_BY_QUERY_TIME_HISTOGRAM);
+            assertThat(measurements.size(), equalTo(1));
+        });
+
+        // Now none of them
+        assertThat(updateByQuery().source("test").filter(termQuery("foo", "no_match")).refresh(true).get(), matcher().updated(0));
+        assertEquals(2, client().prepareGet("test", "1").get().getVersion());
+        assertEquals(2, client().prepareGet("test", "4").get().getVersion());
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(UPDATE_BY_QUERY_TIME_HISTOGRAM);
+            assertThat(measurements.size(), equalTo(2));
+        });
+
+        // Now half of them
+        assertThat(updateByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).get(), matcher().updated(2));
+        assertEquals(3, client().prepareGet("test", "1").get().getVersion());
+        assertEquals(3, client().prepareGet("test", "2").get().getVersion());
+        assertEquals(2, client().prepareGet("test", "3").get().getVersion());
+        assertEquals(2, client().prepareGet("test", "4").get().getVersion());
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(UPDATE_BY_QUERY_TIME_HISTOGRAM);
+            assertThat(measurements.size(), equalTo(3));
+        });
+
+        // Limit with size
+        UpdateByQueryRequestBuilder request = updateByQuery().source("test").size(3).refresh(true);
+        request.source().addSort("foo.keyword", SortOrder.ASC);
+        assertThat(request.get(), matcher().updated(3));
+        // Only the first three documents are updated because of sort
+        assertEquals(4, client().prepareGet("test", "1").get().getVersion());
+        assertEquals(4, client().prepareGet("test", "2").get().getVersion());
+        assertEquals(3, client().prepareGet("test", "3").get().getVersion());
+        assertEquals(2, client().prepareGet("test", "4").get().getVersion());
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(UPDATE_BY_QUERY_TIME_HISTOGRAM);
             assertThat(measurements.size(), equalTo(4));
         });
     }

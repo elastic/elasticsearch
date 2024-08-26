@@ -194,18 +194,6 @@ public class SpatialRelatesQuery extends Query {
             return new ConstantScoreQuery(innerQuery);
         }
 
-        /**
-         * This code is based on the ShapeQueryPointProcessor.shapeQuery() method, with additional support for two special cases:
-         * <ul>
-         *     <li>
-         *         DISJOINT queries (using {@code EXISTS && !INTERSECTS}, similar to {@code LegacyGeoShapeQueryProcessor.geoShapeQuery()})
-         *     </li>
-         *     <li>
-         *         CONTAINS queries (if the shape is a point, INTERSECTS is used, otherwise a MatchNoDocsQuery is built,
-         *         similar to {@code LatLonPoint.makeContainsGeometryQuery()})
-         *     </li>
-         * </ul>
-         */
         private static org.apache.lucene.search.Query pointShapeQuery(
             Geometry geometry,
             String fieldName,
@@ -220,9 +208,6 @@ public class SpatialRelatesQuery extends Query {
             }
         }
 
-        /**
-         * This code is based on the ShapeQueryProcessor.shapeQuery() method
-         */
         private static org.apache.lucene.search.Query shapeShapeQuery(
             Geometry geometry,
             String fieldName,

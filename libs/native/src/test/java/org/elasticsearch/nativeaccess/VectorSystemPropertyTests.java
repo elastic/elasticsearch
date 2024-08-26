@@ -49,7 +49,7 @@ public class VectorSystemPropertyTests extends ESTestCase {
             "-Xms4m",
             "-cp",
             jarPath + File.pathSeparator + System.getProperty("java.class.path"),
-            "-Djava.library.path=" + System.getProperty("java.library.path"),
+            "-Des.nativelibs.path=" + System.getProperty("es.nativelibs.path"),
             "p.Test"
         ).start();
         String output = new String(process.getInputStream().readAllBytes(), UTF_8);

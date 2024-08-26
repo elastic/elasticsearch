@@ -215,7 +215,8 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
         @Override
         public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
-            return queryProcessor.shapeQuery(shape, fieldName, relation, context);
+            failIfNotIndexedNorDocValuesFallback(context);
+            return queryProcessor.shapeQuery(shape, fieldName, relation, isIndexed(), hasDocValues());
         }
 
         @Override

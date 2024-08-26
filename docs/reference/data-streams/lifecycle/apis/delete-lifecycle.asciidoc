@@ -4,7 +4,7 @@
 <titleabbrev>Delete Data Stream Lifecycle</titleabbrev>
 ++++
 
-Deletes the lifecycle from a set of data streams.
+Deletes the <<data-stream-lifecycle,lifecycle>> from a set of data streams.
 
 [[delete-lifecycle-api-prereqs]]
 ==== {api-prereq-title}

@@ -1164,7 +1164,8 @@ public class BulkOperationTests extends ESTestCase {
             timeZero,
             listener,
             observer,
-            failureStoreDocumentConverter
+            failureStoreDocumentConverter,
+            FailureStoreMetrics.NOOP
         );
     }
 

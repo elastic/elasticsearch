@@ -31,7 +31,8 @@ public class MapperFeatures implements FeatureSpecification {
             KeywordFieldMapper.KEYWORD_DIMENSION_IGNORE_ABOVE,
             IndexModeFieldMapper.QUERYING_INDEX_MODE,
             NodeMappingStats.SEGMENT_LEVEL_FIELDS_STATS,
-            BooleanFieldMapper.BOOLEAN_DIMENSION
+            BooleanFieldMapper.BOOLEAN_DIMENSION,
+            ObjectMapper.SUBOBJECTS_AUTO
         );
     }
 }

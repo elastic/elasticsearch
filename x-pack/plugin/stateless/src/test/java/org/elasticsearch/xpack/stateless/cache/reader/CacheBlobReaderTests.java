@@ -60,6 +60,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -73,6 +74,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -239,7 +241,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                     MutableObjectStoreUploadTracker objectStoreUploadTracker,
                     LongConsumer totalBytesReadFromObjectStore,
                     LongConsumer totalBytesReadFromIndexing,
-                    BlobCacheMetrics.CachePopulationReason cachePopulationReason
+                    BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+                    Executor objectStoreFetchExecutor
                 ) {
                     var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                         shardId,
@@ -248,7 +251,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                         objectStoreUploadTracker,
                         totalBytesReadFromObjectStore,
                         totalBytesReadFromIndexing,
-                        cachePopulationReason
+                        cachePopulationReason,
+                        objectStoreFetchExecutor
                     );
                     var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
                         shardId,
@@ -337,7 +341,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                         },
                         bytesReadFromObjectStore -> {},
                         bytesReadFromIndexing -> {},
-                        BlobCacheMetrics.CachePopulationReason.CacheMiss
+                        BlobCacheMetrics.CachePopulationReason.CacheMiss,
+                        threadPool.executor(SHARD_READ_THREAD_POOL)
                     ),
                     null,
                     1,
@@ -361,6 +366,9 @@ public class CacheBlobReaderTests extends ESTestCase {
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     blobReads.incrementAndGet();
+                    if (blobName.contains(StatelessCompoundCommit.PREFIX)) {
+                        assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
+                    }
                     logger.debug("reading {} from blob store", blobName);
                     return super.readBlob(purpose, blobName);
                 }
@@ -368,6 +376,9 @@ public class CacheBlobReaderTests extends ESTestCase {
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
                     blobReads.incrementAndGet();
+                    if (blobName.contains(StatelessCompoundCommit.PREFIX)) {
+                        assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
+                    }
                     logger.debug("reading {} from blob store, position: {} length: {}", blobName, position, length);
                     return super.readBlob(purpose, blobName, position, length);
                 }
@@ -711,7 +722,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                         MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer totalBytesReadFromObjectStore,
                         LongConsumer totalBytesReadFromIndexing,
-                        BlobCacheMetrics.CachePopulationReason cachePopulationReason
+                        BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+                        Executor objectStoreFetchExecutor
                     ) {
                         var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                             shardId,
@@ -720,7 +732,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                             objectStoreUploadTracker,
                             totalBytesReadFromObjectStore,
                             totalBytesReadFromIndexing,
-                            cachePopulationReason
+                            cachePopulationReason,
+                            objectStoreFetchExecutor
                         );
                         return new CacheBlobReader() {
                             @Override
@@ -780,12 +793,14 @@ public class CacheBlobReaderTests extends ESTestCase {
                             MutableObjectStoreUploadTracker objectStoreUploadTracker,
                             LongConsumer totalBytesReadFromObjectStore,
                             LongConsumer totalBytesReadFromIndexing,
-                            BlobCacheMetrics.CachePopulationReason cachePopulationReason
+                            BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+                            Executor objectStoreFetchExecutor
                         ) {
                             var writerFromObjectStore = new ObjectStoreCacheBlobReader(
                                 blobContainer.apply(location.primaryTerm()),
                                 location.blobName(),
-                                rangeSize.getBytes()
+                                rangeSize.getBytes(),
+                                objectStoreFetchExecutor
                             ) {
                                 @Override
                                 public ByteRange getRange(long position, int length, long remainingFileLength) {
@@ -835,7 +850,15 @@ public class CacheBlobReaderTests extends ESTestCase {
                                 location.getBatchedCompoundCommitTermAndGeneration(),
                                 writerFromObjectStore,
                                 writerFromPrimary
-                            );
+                            ) {
+                                @Override
+                                public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                                    // Assert that it's the test thread trying to fetch and not some executor thread.
+                                    String threadName = Thread.currentThread().getName();
+                                    assert (threadName.startsWith("TEST-") || threadName.startsWith("LuceneTestCase")) : threadName;
+                                    super.getRangeInputStream(position, length, listener);
+                                }
+                            };
                         }
                     };
                 }

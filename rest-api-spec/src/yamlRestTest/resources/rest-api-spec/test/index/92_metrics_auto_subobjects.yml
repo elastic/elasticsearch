@@ -1,0 +1,262 @@
+---
+"Metrics object indexing":
+  - requires:
+      test_runner_features: [ "allowed_warnings", "allowed_warnings_regex" ]
+      cluster_features: ["mapper.subobjects_auto"]
+      reason: requires supporting subobjects auto setting
+
+  - do:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test
+        body:
+          index_patterns: test-*
+          template:
+            mappings:
+              dynamic_templates:
+                - no_subobjects:
+                    match: metrics
+                    mapping:
+                      type: object
+                      subobjects: auto
+                      properties:
+                        host.name:
+                          type: keyword
+
+  - do:
+      allowed_warnings_regex:
+        - "index \\[test-1\\] matches multiple legacy templates \\[global, test\\], composable templates will only match a single template"
+      index:
+        index: test-1
+        id: 1
+        refresh: true
+        body:
+          { metrics.host.name: localhost, metrics.host.id: 1, metrics.time: 10, metrics.time.max: 100, metrics.time.min: 1 }
+
+  - do:
+      field_caps:
+        index: test-1
+        fields: metrics*
+  - match: {fields.metrics\.host\.id.long.searchable: true}
+  - match: {fields.metrics\.host\.id.long.aggregatable: true}
+  - match: {fields.metrics\.host\.name.keyword.searchable: true}
+  - match: {fields.metrics\.host\.name.keyword.aggregatable: true}
+  - match: {fields.metrics\.time.long.searchable: true}
+  - match: {fields.metrics\.time.long.aggregatable: true}
+  - match: {fields.metrics\.time\.max.long.searchable: true}
+  - match: {fields.metrics\.time\.max.long.aggregatable: true}
+  - match: {fields.metrics\.time\.min.long.searchable: true}
+  - match: {fields.metrics\.time\.min.long.aggregatable: true}
+
+  - do:
+      get:
+        index: test-1
+        id:    1
+  - match: {_index: "test-1"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        metrics.host.name: localhost
+        metrics.host.id: 1
+        metrics.time: 10
+        metrics.time.max: 100
+        metrics.time.min: 1
+
+---
+"Root with metrics":
+  - requires:
+      test_runner_features: [ "allowed_warnings", "allowed_warnings_regex" ]
+      cluster_features: ["mapper.subobjects_auto"]
+      reason: requires supporting subobjects auto setting
+
+  - do:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test
+        body:
+          index_patterns: test-*
+          template:
+            mappings:
+              subobjects: auto
+              properties:
+                host.name:
+                  type: keyword
+
+  - do:
+      allowed_warnings_regex:
+        - "index \\[test-1\\] matches multiple legacy templates \\[global, test\\], composable templates will only match a single template"
+      index:
+        index: test-1
+        id: 1
+        refresh: true
+        body:
+          { host.name: localhost, host.id: 1, time: 10, time.max: 100, time.min: 1 }
+
+  - do:
+      field_caps:
+        index: test-1
+        fields: [host*, time*]
+  - match: {fields.host\.name.keyword.searchable: true}
+  - match: {fields.host\.name.keyword.aggregatable: true}
+  - match: {fields.host\.id.long.searchable: true}
+  - match: {fields.host\.id.long.aggregatable: true}
+  - match: {fields.time.long.searchable: true}
+  - match: {fields.time.long.aggregatable: true}
+  - match: {fields.time\.max.long.searchable: true}
+  - match: {fields.time\.max.long.aggregatable: true}
+  - match: {fields.time\.min.long.searchable: true}
+  - match: {fields.time\.min.long.aggregatable: true}
+
+  - do:
+      get:
+        index: test-1
+        id:    1
+  - match: {_index: "test-1"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        host.name: localhost
+        host.id: 1
+        time: 10
+        time.max: 100
+        time.min: 1
+
+---
+"Metrics object indexing with synthetic source":
+  - requires:
+      test_runner_features: [ "allowed_warnings", "allowed_warnings_regex" ]
+      cluster_features: ["mapper.subobjects_auto"]
+      reason: added in 8.4.0
+
+  - do:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test
+        body:
+          index_patterns: test-*
+          template:
+            mappings:
+              _source:
+                mode: synthetic
+              dynamic_templates:
+                - no_subobjects:
+                    match: metrics
+                    mapping:
+                      type: object
+                      subobjects: auto
+                      properties:
+                        host.name:
+                          type: keyword
+
+  - do:
+      allowed_warnings_regex:
+        - "index \\[test-1\\] matches multiple legacy templates \\[global, test\\], composable templates will only match a single template"
+      index:
+        index: test-1
+        id: 1
+        refresh: true
+        body:
+          { metrics.host.name: localhost, metrics.host.id: 1, metrics.time: 10, metrics.time.max: 100, metrics.time.min: 1 }
+
+  - do:
+      field_caps:
+        index: test-1
+        fields: metrics*
+  - match: {fields.metrics\.host\.id.long.searchable: true}
+  - match: {fields.metrics\.host\.id.long.aggregatable: true}
+  - match: {fields.metrics\.host\.name.keyword.searchable: true}
+  - match: {fields.metrics\.host\.name.keyword.aggregatable: true}
+  - match: {fields.metrics\.time.long.searchable: true}
+  - match: {fields.metrics\.time.long.aggregatable: true}
+  - match: {fields.metrics\.time\.max.long.searchable: true}
+  - match: {fields.metrics\.time\.max.long.aggregatable: true}
+  - match: {fields.metrics\.time\.min.long.searchable: true}
+  - match: {fields.metrics\.time\.min.long.aggregatable: true}
+
+  - do:
+      get:
+        index: test-1
+        id:    1
+  - match: {_index: "test-1"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        metrics:
+          host.name: localhost
+          host.id: 1
+          time: 10
+          time.max: 100
+          time.min: 1
+
+---
+"Root without subobjects with synthetic source":
+  - requires:
+      test_runner_features: [ "allowed_warnings", "allowed_warnings_regex" ]
+      cluster_features: ["mapper.subobjects_auto"]
+      reason: added in 8.4.0
+
+  - do:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test
+        body:
+          index_patterns: test-*
+          template:
+            mappings:
+              _source:
+                mode: synthetic
+              subobjects: auto
+              properties:
+                host.name:
+                  type: keyword
+
+  - do:
+      allowed_warnings_regex:
+        - "index \\[test-1\\] matches multiple legacy templates \\[global, test\\], composable templates will only match a single template"
+      index:
+        index: test-1
+        id: 1
+        refresh: true
+        body:
+          { host.name: localhost, host.id: 1, time: 10, time.max: 100, time.min: 1 }
+
+  - do:
+      field_caps:
+        index: test-1
+        fields: [host*, time*]
+  - match: {fields.host\.name.keyword.searchable: true}
+  - match: {fields.host\.name.keyword.aggregatable: true}
+  - match: {fields.host\.id.long.searchable: true}
+  - match: {fields.host\.id.long.aggregatable: true}
+  - match: {fields.time.long.searchable: true}
+  - match: {fields.time.long.aggregatable: true}
+  - match: {fields.time\.max.long.searchable: true}
+  - match: {fields.time\.max.long.aggregatable: true}
+  - match: {fields.time\.min.long.searchable: true}
+  - match: {fields.time\.min.long.aggregatable: true}
+
+  - do:
+      get:
+        index: test-1
+        id:    1
+  - match: {_index: "test-1"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        host.name: localhost
+        host.id: 1
+        time: 10
+        time.max: 100
+        time.min: 1

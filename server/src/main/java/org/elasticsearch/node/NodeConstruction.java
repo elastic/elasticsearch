@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
@@ -659,6 +660,7 @@ class NodeConstruction {
 
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
+        FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
         final IngestService ingestService = new IngestService(
             clusterService,
             threadPool,
@@ -668,7 +670,8 @@ class NodeConstruction {
             pluginsService.filterPlugins(IngestPlugin.class).toList(),
             client,
             IngestService.createGrokThreadWatchdog(environment, threadPool),
-            documentParsingProvider
+            documentParsingProvider,
+            failureStoreMetrics
         );
 
         SystemIndices systemIndices = createSystemIndices(settings);
@@ -1154,6 +1157,7 @@ class NodeConstruction {
             b.bind(FileSettingsService.class).toInstance(fileSettingsService);
             b.bind(CompatibilityVersions.class).toInstance(compatibilityVersions);
             b.bind(DataStreamAutoShardingService.class).toInstance(dataStreamAutoShardingService);
+            b.bind(FailureStoreMetrics.class).toInstance(failureStoreMetrics);
         });
 
         if (ReadinessService.enabled(environment)) {

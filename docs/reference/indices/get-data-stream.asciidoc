@@ -253,8 +253,17 @@ Functionality in preview:[]. Contains the configuration for the data stream life
 =====
 `data_retention`::
 (string)
+If defined, it represents the retention requested by the data stream owner for this data stream.
+
+`effective_retention`::
+(string)
 If defined, every document added to this data stream will be stored at least for this time frame. Any time after this
-duration the document could be deleted. When empty, every document in this data stream will be stored indefinitely.
+duration the document could be deleted. When empty, every document in this data stream will be stored indefinitely. The
+effective retention is calculated as described in the <<effective-retention-calculation, tutorial>>.
+
+`retention_determined_by`::
+(string)
+The source of the retention, it can be one of three values, `data_stream_configuration`, `default_retention` or `max_retention`.
 
 `rollover`::
 (object)
@@ -268,6 +277,22 @@ param `include_defaults` is set to `true`. The contents of this field are subjec
 If `true`, the next write to this data stream will trigger a rollover first and the document will be
 indexed in the new backing index. If the rollover fails the indexing request will fail too.
 ====
+
+`global_retention`::
+(object)
+Contains the global max and default retention. Global retention is only retrieved when the request sets `include_defaults` to `true`.
++
+.Properties of `global_retention`
+[%collapsible%open]
+====
+`max_retention`::
+(string)
+The effective retention of data streams managed by the data stream lifecycle cannot exceed this value.
+
+`default_retention`::
+(string)
+This will be the effective retention of data streams managed by the data stream lifecycle that do not specify `data_retention`.
+=====
 
 [[get-data-stream-api-example]]
 ==== {api-examples-title}

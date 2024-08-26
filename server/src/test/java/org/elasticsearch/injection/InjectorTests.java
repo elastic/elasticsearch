@@ -123,7 +123,7 @@ public class InjectorTests extends ESTestCase {
         assertThrows(IllegalStateException.class, () -> {
             MethodHandles.lookup();
             Injector injector = Injector.create();
-            injector.addClasses(List.of(new Class[] { Service2.class, Service3.class })).inject(List.of());
+            injector.addClasses(List.of(Service2.class, Service3.class)).inject(List.of());
         });
     }
 

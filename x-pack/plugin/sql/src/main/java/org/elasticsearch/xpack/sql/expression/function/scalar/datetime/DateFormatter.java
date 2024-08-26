@@ -42,7 +42,7 @@ class DateFormatter {
             new Builder().pattern("%e").javaPattern("d").build(),
             new Builder().pattern("%f")
                 .javaPattern("n")
-                .additionalMapper(s -> String.format(Locale.ROOT, "%06d", Math.round(Integer.parseInt(s) / 1000.0)))
+                .additionalMapper(s -> String.format(Locale.ENGLISH, "%06d", Math.round(Integer.parseInt(s) / 1000.0)))
                 .build(),
             new Builder().pattern("%H").javaPattern("HH").build(),
             new Builder().pattern("%h").javaPattern("hh").build(),
@@ -59,19 +59,28 @@ class DateFormatter {
             new Builder().pattern("%s").javaPattern("ss").build(),
             new Builder().pattern("%T").javaPattern("HH:mm:ss").build(),
             new Builder().pattern("%U")
-                .javaFormat(t -> String.format(Locale.ROOT, "%02d", t.get(WeekFields.of(DayOfWeek.SUNDAY, 7).weekOfYear())))
+                .javaFormat(t -> String.format(Locale.ENGLISH, "%02d", t.get(WeekFields.of(DayOfWeek.SUNDAY, 7).weekOfYear())))
                 .build(),
-            new Builder().pattern("%u").javaFormat(t -> String.format(Locale.ROOT, "%02d", t.get(WeekFields.ISO.weekOfYear()))).build(),
+            new Builder().pattern("%u")
+                .javaFormat(t -> String.format(Locale.ENGLISH, "%02d", t.get(WeekFields.of(DayOfWeek.MONDAY, 4).weekOfYear())))
+                .build(),
+
             new Builder().pattern("%V")
-                .javaFormat(t -> String.format(Locale.ROOT, "%02d", t.get(WeekFields.of(DayOfWeek.SUNDAY, 7).weekOfWeekBasedYear())))
+                .javaFormat(t -> String.format(Locale.ENGLISH, "%02d", t.get(WeekFields.of(DayOfWeek.SUNDAY, 7).weekOfWeekBasedYear())))
                 .build(),
-            new Builder().pattern("%v").javaPattern("ww").build(),
+            new Builder().pattern("%v")
+                .javaFormat(t -> String.format(Locale.ENGLISH, "%02d", t.get(WeekFields.of(DayOfWeek.MONDAY, 4).weekOfWeekBasedYear())))
+                .build(),
             new Builder().pattern("%W").javaPattern("EEEE").build(),
-            new Builder().pattern("%w").javaPattern("e").additionalMapper(s -> Integer.parseInt(s) == 7 ? String.valueOf(0) : s).build(),
-            new Builder().pattern("%X")
-                .javaFormat(t -> String.format(Locale.ROOT, "%04d", t.get(WeekFields.of(DayOfWeek.SUNDAY, 7).weekBasedYear())))
+            new Builder().pattern("%w")
+                .javaFormat(t -> String.format(Locale.ENGLISH, "%01d", t.get(WeekFields.of(DayOfWeek.SUNDAY, 7).dayOfWeek()) - 1))
                 .build(),
-            new Builder().pattern("%x").javaPattern("Y").build(),
+            new Builder().pattern("%X")
+                .javaFormat(t -> String.format(Locale.ENGLISH, "%04d", t.get(WeekFields.of(DayOfWeek.SUNDAY, 7).weekBasedYear())))
+                .build(),
+            new Builder().pattern("%x")
+                .javaFormat(t -> String.format(Locale.ENGLISH, "%04d", t.get(WeekFields.of(DayOfWeek.MONDAY, 7).weekBasedYear())))
+                .build(),
             new Builder().pattern("%Y").javaPattern("yyyy").build(),
             new Builder().pattern("%y").javaPattern("yy").build()
         );
@@ -162,7 +171,7 @@ class DateFormatter {
         }
 
         private Builder javaPattern(String javaPattern) {
-            this.javaFormat = temporalAccessor -> DateTimeFormatter.ofPattern(javaPattern, Locale.ROOT).format(temporalAccessor);
+            this.javaFormat = temporalAccessor -> DateTimeFormatter.ofPattern(javaPattern, Locale.ENGLISH).format(temporalAccessor);
             return this;
         }
 

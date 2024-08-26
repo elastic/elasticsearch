@@ -1596,10 +1596,14 @@ emp_no:integer | languages:integer | first_name:keyword
 ;
 
 space
+// tag::space[]
 ROW message = CONCAT("Hello", SPACE(1), "World!");
+// end::space[]
 
+// tag::space-result[]
 message:keyword
 Hello World!
+// end::space-result[]
 ;
 
 spaceLength

@@ -78,6 +78,10 @@ public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFi
         return super.fieldsWriter(directory, si, context);
     }
 
+    public Mode getMode() {
+        return mode;
+    }
+
     private static class ZstdCompressionMode extends CompressionMode {
         private final int level;
 

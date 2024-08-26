@@ -4,7 +4,7 @@
 <titleabbrev>Get Data Stream Lifecycle</titleabbrev>
 ++++
 
-Gets the lifecycle of a set of data streams.
+Gets the <<data-stream-lifecycle,lifecycle>> of a set of <<data-streams,data streams>>.
 
 [[get-lifecycle-api-prereqs]]
 ==== {api-prereq-title}
@@ -128,14 +128,18 @@ The response will look like the following:
       "name": "my-data-stream-1",
       "lifecycle": {
         "enabled": true,
-        "data_retention": "7d"
+        "data_retention": "7d",
+        "effective_retention": "7d",
+        "retention_determined_by": "data_stream_configuration"
       }
     },
     {
       "name": "my-data-stream-2",
       "lifecycle": {
         "enabled": true,
-        "data_retention": "7d"
+        "data_retention": "7d",
+        "effective_retention": "7d",
+        "retention_determined_by": "data_stream_configuration"
       }
     }
   ]

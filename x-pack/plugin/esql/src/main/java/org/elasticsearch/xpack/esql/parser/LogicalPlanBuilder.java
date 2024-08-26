@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.joni.exception.SyntaxException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -153,7 +154,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> {
             Source source = source(ctx);
             String pattern = visitString(ctx.string()).fold().toString();
-            Grok.Parser grokParser = Grok.pattern(source, pattern);
+            Grok.Parser grokParser;
+            try {
+                grokParser = Grok.pattern(source, pattern);
+            } catch (SyntaxException e) {
+                throw new ParsingException(source, "Invalid grok pattern [{}]: [{}]", pattern, e.getMessage());
+            }
             validateGrokPattern(source, grokParser, pattern);
             Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), grokParser);
             return result;

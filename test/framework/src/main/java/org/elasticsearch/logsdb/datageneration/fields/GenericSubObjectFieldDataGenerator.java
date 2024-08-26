@@ -49,9 +49,9 @@ public class GenericSubObjectFieldDataGenerator {
             var fieldName = generateFieldName(existingFieldNames);
 
             if (context.shouldAddObjectField()) {
-                result.add(new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject())));
+                result.add(new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject()), false));
             } else if (context.shouldAddNestedField()) {
-                result.add(new ChildField(fieldName, new NestedFieldDataGenerator(context.nestedObject())));
+                result.add(new ChildField(fieldName, new NestedFieldDataGenerator(context.nestedObject()), false));
             } else {
                 var fieldType = context.fieldTypeGenerator().generator().get();
                 result.add(leafField(fieldType, fieldName));
@@ -103,19 +103,19 @@ public class GenericSubObjectFieldDataGenerator {
 
     private ChildField leafField(FieldType type, String fieldName) {
         var generator = switch (type) {
-            case KEYWORD -> new KeywordFieldDataGenerator(context.specification().dataSource());
-            case LONG -> new LongFieldDataGenerator(context.specification().dataSource());
-            case UNSIGNED_LONG -> new UnsignedLongFieldDataGenerator(context.specification().dataSource());
-            case INTEGER -> new IntegerFieldDataGenerator(context.specification().dataSource());
-            case SHORT -> new ShortFieldDataGenerator(context.specification().dataSource());
-            case BYTE -> new ByteFieldDataGenerator(context.specification().dataSource());
-            case DOUBLE -> new DoubleFieldDataGenerator(context.specification().dataSource());
-            case FLOAT -> new FloatFieldDataGenerator(context.specification().dataSource());
-            case HALF_FLOAT -> new HalfFloatFieldDataGenerator(context.specification().dataSource());
-            case SCALED_FLOAT -> new ScaledFloatFieldDataGenerator(context.specification().dataSource());
+            case KEYWORD -> new KeywordFieldDataGenerator(fieldName, context.specification().dataSource());
+            case LONG -> new LongFieldDataGenerator(fieldName, context.specification().dataSource());
+            case UNSIGNED_LONG -> new UnsignedLongFieldDataGenerator(fieldName, context.specification().dataSource());
+            case INTEGER -> new IntegerFieldDataGenerator(fieldName, context.specification().dataSource());
+            case SHORT -> new ShortFieldDataGenerator(fieldName, context.specification().dataSource());
+            case BYTE -> new ByteFieldDataGenerator(fieldName, context.specification().dataSource());
+            case DOUBLE -> new DoubleFieldDataGenerator(fieldName, context.specification().dataSource());
+            case FLOAT -> new FloatFieldDataGenerator(fieldName, context.specification().dataSource());
+            case HALF_FLOAT -> new HalfFloatFieldDataGenerator(fieldName, context.specification().dataSource());
+            case SCALED_FLOAT -> new ScaledFloatFieldDataGenerator(fieldName, context.specification().dataSource());
         };
 
-        return new ChildField(fieldName, generator);
+        return new ChildField(fieldName, generator, false);
     }
 
     private String generateFieldName(Set<String> existingFields) {
@@ -128,5 +128,5 @@ public class GenericSubObjectFieldDataGenerator {
         return fieldName;
     }
 
-    record ChildField(String fieldName, FieldDataGenerator generator) {}
+    record ChildField(String fieldName, FieldDataGenerator generator, boolean dynamic) {}
 }

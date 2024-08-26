@@ -21,6 +21,10 @@ setup:
             - '{"text" : "Baby its cold there outside"}'
             - '{"index": {"_index": "test", "_id": "4"}}'
             - '{"text" : "Outside it is cold and wet"}'
+            - '{"index": {"_index": "test", "_id": "5"}}'
+            - '{"text" : "the big bad wolf"}'
+            - '{"index": {"_index": "test", "_id": "6"}}'
+            - '{"text" : "the big wolf"}'
 
 ---
 "Test ordered matching":
@@ -444,4 +448,31 @@ setup:
                         prefix: out
   - match: { hits.total.value: 3 }
 
+---
+"Test rewrite disjunctions":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - "match":
+                        "query": "the"
+                    - "any_of":
+                        "intervals":
+                          - "match":
+                              "query": "big"
+                          - "match":
+                              "query": "big bad"
+                    - "match":
+                        "query": "wolf"
+                  max_gaps: 0
+                  ordered: true
+
+  - match: { hits.total.value: 2   }
+  - match: { hits.hits.0._id:  "6" }
+  - match: { hits.hits.1._id:  "5" }
 

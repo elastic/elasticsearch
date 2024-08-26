@@ -1934,7 +1934,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         private void recordTelemetry() {
             usageService.getCcsUsageHolder().updateUsage(usageBuilder.build());
-            usageBuilder.setRemotesCount(0); // prevent double recording
         }
 
         /**

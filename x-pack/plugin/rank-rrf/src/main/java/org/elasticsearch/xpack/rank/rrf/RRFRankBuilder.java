@@ -46,9 +46,6 @@ public class RRFRankBuilder extends RankBuilder {
     static final ConstructingObjectParser<RRFRankBuilder, Void> PARSER = new ConstructingObjectParser<>(RRFRankPlugin.NAME, args -> {
         int windowSize = args[0] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[0];
         int rankConstant = args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1];
-        if (rankConstant < 1) {
-            throw new IllegalArgumentException("[rank_constant] must be greater than [0] for [rrf]");
-        }
         return new RRFRankBuilder(windowSize, rankConstant);
     });
 
@@ -73,6 +70,11 @@ public class RRFRankBuilder extends RankBuilder {
 
     public RRFRankBuilder(int rankWindowSize, int rankConstant) {
         super(rankWindowSize);
+
+        if (rankConstant < 1) {
+            throw new IllegalArgumentException("[rank_constant] must be greater or equal to [1] for [rrf]");
+        }
+
         this.rankConstant = rankConstant;
     }
 

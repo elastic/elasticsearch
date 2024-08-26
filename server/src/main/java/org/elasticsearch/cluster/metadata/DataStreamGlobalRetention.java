@@ -18,13 +18,9 @@ import org.elasticsearch.features.NodeFeature;
 import java.io.IOException;
 
 /**
- * A cluster state entry that contains global retention settings that are configurable by the user. These settings include:
- * - default retention, applied on any data stream managed by DSL that does not have an explicit retention defined
- * - max retention, applied on every data stream managed by DSL
+ * Wrapper class for the {@link DataStreamGlobalRetentionSettings}.
  */
 public record DataStreamGlobalRetention(@Nullable TimeValue defaultRetention, @Nullable TimeValue maxRetention) implements Writeable {
-
-    public static final String TYPE = "data-stream-global-retention";
 
     public static final NodeFeature GLOBAL_RETENTION = new NodeFeature("data_stream.lifecycle.global_retention");
     public static final TimeValue MIN_RETENTION_VALUE = TimeValue.timeValueSeconds(10);

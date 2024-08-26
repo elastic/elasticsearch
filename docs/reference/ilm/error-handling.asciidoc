@@ -2,7 +2,7 @@
 [[index-lifecycle-error-handling]]
 == Troubleshooting {ilm} errors
 
-When {ilm-init} executes a lifecycle policy, it's possible for errors to occur
+When <<index-lifecycle-management,{ilm-init}>> executes a lifecycle policy, it's possible for errors to occur
 while performing the necessary index operations for a step. 
 When this happens, {ilm-init} moves the index to an `ERROR` step. 
 If {ilm-init} cannot resolve the error automatically, execution is halted  

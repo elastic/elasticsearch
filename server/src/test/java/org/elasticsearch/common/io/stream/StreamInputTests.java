@@ -24,6 +24,15 @@ import static org.mockito.Mockito.verify;
 public class StreamInputTests extends ESTestCase {
 
     private StreamInput in = Mockito.spy(StreamInput.class);
+
+    {
+        try {
+            Mockito.when(in.skip(anyLong())).thenAnswer(a -> a.getArguments()[0]);
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     byte[] bytes = "0123456789".getBytes(UTF_8);
 
     public void testCalculateByteLengthOfAscii() throws IOException {

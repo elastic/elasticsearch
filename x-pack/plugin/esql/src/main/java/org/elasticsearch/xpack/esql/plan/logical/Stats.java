@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.List;
 
@@ -17,14 +18,24 @@ import java.util.List;
  */
 public interface Stats {
     /**
+     * The user supplied text in the query for this command.
+     */
+    Source source();
+
+    /**
      * Rebuild this plan with new groupings and new aggregates.
      */
-    Stats with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates);
+    Stats with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates);
 
     /**
      * Have all the expressions in this plan been resolved?
      */
     boolean expressionsResolved();
+
+    /**
+     * The operation directly before this one in the plan.
+     */
+    LogicalPlan child();
 
     /**
      * List containing both the aggregate expressions and grouping expressions.

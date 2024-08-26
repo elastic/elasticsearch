@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.AddDefaultTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanSimplification;
 import org.elasticsearch.xpack.esql.optimizer.rules.CombineBinaryComparisons;
-import org.elasticsearch.xpack.esql.optimizer.rules.CombineDisjunctionsToIn;
+import org.elasticsearch.xpack.esql.optimizer.rules.CombineDisjunctions;
 import org.elasticsearch.xpack.esql.optimizer.rules.CombineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.ConstantFolding;
@@ -155,6 +155,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }
+        optimized.setOptimized();
         return optimized;
     }
 
@@ -209,7 +210,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PropagateNullable(),
             new BooleanFunctionEqualsElimination(),
             new CombineBinaryComparisons(),
-            new CombineDisjunctionsToIn(),
+            new CombineDisjunctions(),
             new SimplifyComparisonsArithmetics(DataType::areCompatible),
             // prune/elimination
             new PruneFilters(),
@@ -336,7 +337,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                         new Alias(
                             originalAttribute.source(),
                             originalAttribute.name(),
-                            originalAttribute.qualifier(),
                             renamedAttribute,
                             originalAttribute.id(),
                             originalAttribute.synthetic()
@@ -375,7 +375,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                         String tempName = locallyUniqueTemporaryName(a.name(), "temp_name");
                         // TODO: this should be synthetic
                         // blocked on https://github.com/elastic/elasticsearch/issues/98703
-                        return new Alias(a.source(), tempName, null, a, null, false);
+                        return new Alias(a.source(), tempName, a, null, false);
                     });
                     return renamedAttribute.toAttribute();
                 }

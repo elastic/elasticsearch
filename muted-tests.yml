@@ -151,24 +151,12 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/112144
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/112147
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {mv_percentile.FromIndex SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/112180
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {mv_percentile.FromIndex SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/112187
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {mv_percentile.FromIndex ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/112188
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
   issue: https://github.com/elastic/elasticsearch/issues/112189
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/inference_processor/Test create processor with missing mandatory fields}
   issue: https://github.com/elastic/elasticsearch/issues/112191
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {mv_percentile.FromIndex ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/112193
 
 # Examples:
 #

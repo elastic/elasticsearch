@@ -35,7 +35,6 @@
       "other" : 500
     },
     "clusters" : {
-      "count" : 3,
       "(local)" : {
         "total" : 12,
         "skipped" : 0,

@@ -341,7 +341,6 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
             builder.field("clients", clientCounts);
             builder.startObject("clusters");
             {
-                builder.field("count", byRemoteCluster.size());
                 for (var entry : byRemoteCluster.entrySet()) {
                     String remoteName = entry.getKey();
                     if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(remoteName)) {

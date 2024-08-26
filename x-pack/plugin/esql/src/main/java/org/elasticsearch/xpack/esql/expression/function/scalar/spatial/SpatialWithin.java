@@ -11,6 +11,7 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
@@ -106,8 +107,8 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
     }
 
     @Override
-    public ShapeField.QueryRelation queryRelation() {
-        return ShapeField.QueryRelation.WITHIN;
+    public ShapeRelation queryRelation() {
+        return ShapeRelation.WITHIN;
     }
 
     @Override

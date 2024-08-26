@@ -77,7 +77,7 @@ tasks.named("run").configure {
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
   args << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
   dependsOn "copyExpression", "copyPainless"
-  systemProperty 'java.library.path', file("../libs/native/libraries/build/platform/${platformName()}-${os.arch}")
+  systemProperty 'es.nativelibs.path', file("../libs/native/libraries/build/platform/${platformName()}-${os.arch}")
 }
 
 String platformName() {

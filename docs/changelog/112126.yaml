@@ -1,0 +1,5 @@
+pr: 112126
+summary: Add support for spatial relationships in point field mapper
+area: Geo
+type: enhancement
+issues: []

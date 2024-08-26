@@ -45,6 +45,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -261,6 +263,7 @@ public class InternalEngine extends Engine {
                 assert translog.getGeneration() != null;
                 this.translog = translog;
                 this.totalDiskSpace = new ByteSizeValue(Environment.getFileStore(translog.location()).getTotalSpace(), ByteSizeUnit.BYTES);
+                this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 this.softDeletesPolicy = newSoftDeletesPolicy();
                 this.combinedDeletionPolicy = new CombinedDeletionPolicy(
                     logger,
@@ -342,7 +345,7 @@ public class InternalEngine extends Engine {
         final long maxSeqNo;
         final long localCheckpoint;
         final SequenceNumbers.CommitInfo seqNoStats = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
-            store.readLastCommittedSegmentsInfo().userData.entrySet()
+            lastCommittedSegmentInfos.userData.entrySet()
         );
         maxSeqNo = seqNoStats.maxSeqNo();
         localCheckpoint = seqNoStats.localCheckpoint();
@@ -361,7 +364,7 @@ public class InternalEngine extends Engine {
     }
 
     private SoftDeletesPolicy newSoftDeletesPolicy() throws IOException {
-        final Map<String, String> commitUserData = store.readLastCommittedSegmentsInfo().userData;
+        final Map<String, String> commitUserData = lastCommittedSegmentInfos.userData;
         final long lastMinRetainedSeqNo;
         if (commitUserData.containsKey(Engine.MIN_RETAINED_SEQNO)) {
             lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(Engine.MIN_RETAINED_SEQNO));
@@ -773,7 +776,6 @@ public class InternalEngine extends Engine {
         try {
             try {
                 directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
-                lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 internalReaderManager = createInternalReaderManager(directoryReader);
                 ExternalReaderManager externalReaderManager = new ExternalReaderManager(internalReaderManager, externalRefreshListener);
                 success = true;
@@ -1688,7 +1690,13 @@ public class InternalEngine extends Engine {
         final long totalDocs = indexWriter.getPendingNumDocs() + inFlightDocCount.addAndGet(addingDocs);
         if (totalDocs > maxDocs) {
             releaseInFlightDocs(addingDocs);
-            return new IllegalArgumentException("Number of documents in the shard cannot exceed [" + maxDocs + "]");
+            return new IllegalArgumentException(
+                Strings.format(
+                    "Number of documents in the shard cannot exceed [%d]; for more information, see [%s]",
+                    maxDocs,
+                    ReferenceDocs.LUCENE_MAX_DOCS_LIMIT
+                )
+            );
         } else {
             return null;
         }
@@ -2668,8 +2676,8 @@ public class InternalEngine extends Engine {
         }
     }
 
-    // pkg-private for testing
-    IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
+    // protected for testing
+    protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
         if (Assertions.ENABLED) {
             return new AssertingIndexWriter(directory, iwc);
         } else {
@@ -2677,17 +2685,19 @@ public class InternalEngine extends Engine {
         }
     }
 
+    // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
+    private static final boolean TESTS_VERBOSE = Boolean.parseBoolean(System.getProperty("tests.verbose"));
+
+    private static final boolean SHUFFLE_FORCE_MERGE = Booleans.parseBoolean(
+        System.getProperty("es.shuffle_forced_merge", Boolean.TRUE.toString())
+    );
+
     private IndexWriterConfig getIndexWriterConfig() {
         final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCommitOnClose(false); // we by default don't commit on close
         iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         iwc.setIndexDeletionPolicy(combinedDeletionPolicy);
-        // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
-        boolean verbose = false;
-        try {
-            verbose = Boolean.parseBoolean(System.getProperty("tests.verbose"));
-        } catch (Exception ignore) {}
-        iwc.setInfoStream(verbose ? InfoStream.getDefault() : new LoggerInfoStream(logger));
+        iwc.setInfoStream(TESTS_VERBOSE ? InfoStream.getDefault() : new LoggerInfoStream(logger));
         iwc.setMergeScheduler(mergeScheduler);
         // Give us the opportunity to upgrade old segments while performing
         // background merges
@@ -2704,8 +2714,7 @@ public class InternalEngine extends Engine {
                 new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
             )
         );
-        boolean shuffleForcedMerge = Booleans.parseBoolean(System.getProperty("es.shuffle_forced_merge", Boolean.TRUE.toString()));
-        if (shuffleForcedMerge) {
+        if (SHUFFLE_FORCE_MERGE) {
             // We wrap the merge policy for all indices even though it is mostly useful for time-based indices
             // but there should be no overhead for other type of indices so it's simpler than adding a setting
             // to enable it.
@@ -2842,7 +2851,9 @@ public class InternalEngine extends Engine {
                     @Override
                     public void onFailure(Exception e) {
                         if (isClosed.get() == false) {
-                            logger.warn("failed to flush after merge has finished");
+                            logger.warn("failed to flush after merge has finished", e);
+                        } else {
+                            logger.info("failed to flush after merge has finished during shard close");
                         }
                     }
 

@@ -11,10 +11,12 @@ package org.elasticsearch.nativeaccess.jna;
 import com.sun.jna.Library;
 import com.sun.jna.Memory;
 import com.sun.jna.Native;
+import com.sun.jna.NativeLibrary;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 
+import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.util.Arrays;
@@ -108,6 +110,16 @@ class JnaPosixCLibrary implements PosixCLibrary {
         }
     }
 
+    public static class JnaSockAddr implements SockAddr {
+        final Memory memory;
+
+        JnaSockAddr(String path) {
+            this.memory = new Memory(110);
+            memory.setShort(0, AF_UNIX);
+            memory.setString(2, path, "UTF-8");
+        }
+    }
+
     private interface NativeFunctions extends Library {
         int geteuid();
 
@@ -117,13 +129,19 @@ class JnaPosixCLibrary implements PosixCLibrary {
 
         int mlockall(int flags);
 
-        int fcntl(int fd, int cmd, Pointer fst);
+        int fcntl(int fd, int cmd, Object... args);
 
         int ftruncate(int fd, NativeLong length);
 
         int open(String filename, int flags, Object... mode);
 
         int close(int fd);
+
+        int socket(int domain, int type, int protocol);
+
+        int connect(int sockfd, Pointer addr, int addrlen);
+
+        long send(int sockfd, Pointer buf, long buflen, int flags);
 
         String strerror(int errno);
     }
@@ -143,9 +161,17 @@ class JnaPosixCLibrary implements PosixCLibrary {
         this.functions = Native.load("c", NativeFunctions.class);
         FStat64Function fstat64;
         try {
+            // JNA lazily finds symbols, so even though we try to bind two different functions below, if fstat64
+            // isn't found, we won't know until runtime when calling the function. To force resolution of the
+            // symbol we get a function object directly from the native library. We don't use it, we just want to
+            // see if it will throw UnsatisfiedLinkError
+            NativeLibrary.getInstance("c").getFunction("fstat64");
             fstat64 = Native.load("c", FStat64Function.class);
         } catch (UnsatisfiedLinkError e) {
-            // TODO: explain
+            // fstat has a long history in linux from the 32-bit architecture days. On some modern linux systems,
+            // fstat64 doesn't exist as a symbol in glibc. Instead, the compiler replaces fstat64 calls with
+            // the internal __fxstat method. Here we fall back to __fxstat, and staticall bind the special
+            // "version" argument so that the call site looks the same as that of fstat64
             var fxstat = Native.load("c", FXStatFunction.class);
             int version = System.getProperty("os.arch").equals("aarch64") ? 0 : 1;
             fstat64 = (fd, stat) -> fxstat.__fxstat(version, fd, stat);
@@ -224,6 +250,30 @@ class JnaPosixCLibrary implements PosixCLibrary {
         assert stats instanceof JnaStat64;
         var jnaStats = (JnaStat64) stats;
         return fstat64.fstat64(fd, jnaStats.memory);
+    }
+
+    @Override
+    public int socket(int domain, int type, int protocol) {
+        return functions.socket(domain, type, protocol);
+    }
+
+    @Override
+    public SockAddr newUnixSockAddr(String path) {
+        return new JnaSockAddr(path);
+    }
+
+    @Override
+    public int connect(int sockfd, SockAddr addr) {
+        assert addr instanceof JnaSockAddr;
+        var jnaAddr = (JnaSockAddr) addr;
+        return functions.connect(sockfd, jnaAddr.memory, (int) jnaAddr.memory.size());
+    }
+
+    @Override
+    public long send(int sockfd, CloseableByteBuffer buffer, int flags) {
+        assert buffer instanceof JnaCloseableByteBuffer;
+        var nativeBuffer = (JnaCloseableByteBuffer) buffer;
+        return functions.send(sockfd, nativeBuffer.memory, nativeBuffer.buffer().remaining(), flags);
     }
 
     @Override

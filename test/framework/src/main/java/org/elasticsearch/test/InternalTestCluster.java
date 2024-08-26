@@ -1744,11 +1744,7 @@ public final class InternalTestCluster extends TestCluster {
                 .filter(nac -> nodes.containsKey(nac.name) == false) // filter out old masters
                 .count();
             rebuildUnicastHostFiles(nodeAndClients); // ensure that new nodes can find the existing nodes when they start
-            try {
-                runInParallel(nodeAndClients.size(), i -> nodeAndClients.get(i).startNode());
-            } catch (InterruptedException e) {
-                throw new AssertionError("interrupted while starting nodes", e);
-            }
+            runInParallel(nodeAndClients.size(), i -> nodeAndClients.get(i).startNode());
             nodeAndClients.forEach(this::publishNode);
 
             if (autoManageMasterNodes && newMasters > 0) {
@@ -2545,15 +2541,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private void assertSearchContextsReleased() {
         for (NodeAndClient nodeAndClient : nodes.values()) {
-            SearchService searchService = getInstance(SearchService.class, nodeAndClient.name);
-            try {
-                assertBusy(() -> {
-                    assertThat(searchService.getActiveContexts(), equalTo(0));
-                    assertThat(searchService.getOpenScrollContexts(), equalTo(0));
-                });
-            } catch (Exception e) {
-                throw new AssertionError("Failed to verify search contexts", e);
-            }
+            ESTestCase.ensureAllContextsReleased(getInstance(SearchService.class, nodeAndClient.name));
         }
     }
 

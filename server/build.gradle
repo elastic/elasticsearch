@@ -68,7 +68,6 @@ dependencies {
 
   // access to native functions
   implementation project(':libs:elasticsearch-native')
-  api "net.java.dev.jna:jna:${versions.jna}"
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
@@ -268,7 +267,7 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("licenseHeaders").configure {
     // Ignore our vendored version of Google Guice
-    excludes << 'org/elasticsearch/common/inject/**/*'
+    excludes << 'org/elasticsearch/injection/guice/**/*'
     // Ignore temporary copies of impending 8.7 Lucene classes
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'

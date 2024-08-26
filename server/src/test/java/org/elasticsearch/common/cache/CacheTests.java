@@ -326,32 +326,19 @@ public class CacheTests extends ESTestCase {
         assertEquals(numberOfEntries, cache.stats().getEvictions());
     }
 
-    public void testComputeIfAbsentDeadlock() {
-        final int numberOfThreads = randomIntBetween(2, 32);
+    public void testComputeIfAbsentDeadlock() throws InterruptedException {
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder()
             .setExpireAfterAccess(TimeValue.timeValueNanos(1))
             .build();
-
-        final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
-        for (int i = 0; i < numberOfThreads; i++) {
-            final Thread thread = new Thread(() -> {
-                safeAwait(barrier);
-                for (int j = 0; j < numberOfEntries; j++) {
-                    try {
-                        cache.computeIfAbsent(0, k -> Integer.toString(k));
-                    } catch (final ExecutionException e) {
-                        throw new AssertionError(e);
-                    }
+        startInParallel(randomIntBetween(2, 32), i -> {
+            for (int j = 0; j < numberOfEntries; j++) {
+                try {
+                    cache.computeIfAbsent(0, k -> Integer.toString(k));
+                } catch (final ExecutionException e) {
+                    throw new AssertionError(e);
                 }
-                safeAwait(barrier);
-            });
-            thread.start();
-        }
-
-        // wait for all threads to be ready
-        safeAwait(barrier);
-        // wait for all threads to finish
-        safeAwait(barrier);
+            }
+        });
     }
 
     // randomly promote some entries, step the clock forward, then check that the promoted entries remain and the
@@ -596,41 +583,26 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    public void testComputeIfAbsentCallsOnce() {
-        int numberOfThreads = randomIntBetween(2, 32);
+    public void testComputeIfAbsentCallsOnce() throws InterruptedException {
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
         AtomicReferenceArray<Object> flags = new AtomicReferenceArray<>(numberOfEntries);
         for (int j = 0; j < numberOfEntries; j++) {
             flags.set(j, false);
         }
-
         CopyOnWriteArrayList<ExecutionException> failures = new CopyOnWriteArrayList<>();
-
-        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
-        for (int i = 0; i < numberOfThreads; i++) {
-            Thread thread = new Thread(() -> {
-                safeAwait(barrier);
-                for (int j = 0; j < numberOfEntries; j++) {
-                    try {
-                        cache.computeIfAbsent(j, key -> {
-                            assertTrue(flags.compareAndSet(key, false, true));
-                            return Integer.toString(key);
-                        });
-                    } catch (ExecutionException e) {
-                        failures.add(e);
-                        break;
-                    }
+        startInParallel(randomIntBetween(2, 32), i -> {
+            for (int j = 0; j < numberOfEntries; j++) {
+                try {
+                    cache.computeIfAbsent(j, key -> {
+                        assertTrue(flags.compareAndSet(key, false, true));
+                        return Integer.toString(key);
+                    });
+                } catch (ExecutionException e) {
+                    failures.add(e);
+                    break;
                 }
-                safeAwait(barrier);
-            });
-            thread.start();
-        }
-
-        // wait for all threads to be ready
-        safeAwait(barrier);
-        // wait for all threads to finish
-        safeAwait(barrier);
-
+            }
+        });
         assertThat(failures, is(empty()));
     }
 
@@ -751,111 +723,70 @@ public class CacheTests extends ESTestCase {
         assertFalse("deadlock", deadlock.get());
     }
 
-    public void testCachePollution() {
+    public void testCachePollution() throws InterruptedException {
         int numberOfThreads = randomIntBetween(2, 32);
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
-
-        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
-
-        for (int i = 0; i < numberOfThreads; i++) {
-            Thread thread = new Thread(() -> {
-                safeAwait(barrier);
-                Random random = new Random(random().nextLong());
-                for (int j = 0; j < numberOfEntries; j++) {
-                    Integer key = random.nextInt(numberOfEntries);
-                    boolean first;
-                    boolean second;
-                    do {
-                        first = random.nextBoolean();
-                        second = random.nextBoolean();
-                    } while (first && second);
-                    if (first) {
-                        try {
-                            cache.computeIfAbsent(key, k -> {
-                                if (random.nextBoolean()) {
-                                    return Integer.toString(k);
-                                } else {
-                                    throw new Exception("testCachePollution");
-                                }
-                            });
-                        } catch (ExecutionException e) {
-                            assertNotNull(e.getCause());
-                            assertThat(e.getCause(), instanceOf(Exception.class));
-                            assertEquals(e.getCause().getMessage(), "testCachePollution");
-                        }
-                    } else if (second) {
-                        cache.invalidate(key);
-                    } else {
-                        cache.get(key);
-                    }
-                }
-                safeAwait(barrier);
-            });
-            thread.start();
-        }
-
-        // wait for all threads to be ready
-        safeAwait(barrier);
-        // wait for all threads to finish
-        safeAwait(barrier);
-    }
-
-    public void testExceptionThrownDuringConcurrentComputeIfAbsent() {
-        int numberOfThreads = randomIntBetween(2, 32);
-        final Cache<String, String> cache = CacheBuilder.<String, String>builder().build();
-
-        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
-
-        final String key = randomAlphaOfLengthBetween(2, 32);
-        for (int i = 0; i < numberOfThreads; i++) {
-            Thread thread = new Thread(() -> {
-                safeAwait(barrier);
-                for (int j = 0; j < numberOfEntries; j++) {
+        startInParallel(numberOfThreads, i -> {
+            Random random = new Random(random().nextLong());
+            for (int j = 0; j < numberOfEntries; j++) {
+                Integer key = random.nextInt(numberOfEntries);
+                boolean first;
+                boolean second;
+                do {
+                    first = random.nextBoolean();
+                    second = random.nextBoolean();
+                } while (first && second);
+                if (first) {
                     try {
-                        String value = cache.computeIfAbsent(key, k -> { throw new RuntimeException("failed to load"); });
-                        fail("expected exception but got: " + value);
+                        cache.computeIfAbsent(key, k -> {
+                            if (random.nextBoolean()) {
+                                return Integer.toString(k);
+                            } else {
+                                throw new Exception("testCachePollution");
+                            }
+                        });
                     } catch (ExecutionException e) {
                         assertNotNull(e.getCause());
-                        assertThat(e.getCause(), instanceOf(RuntimeException.class));
-                        assertEquals(e.getCause().getMessage(), "failed to load");
+                        assertThat(e.getCause(), instanceOf(Exception.class));
+                        assertEquals(e.getCause().getMessage(), "testCachePollution");
                     }
+                } else if (second) {
+                    cache.invalidate(key);
+                } else {
+                    cache.get(key);
                 }
-                safeAwait(barrier);
-            });
-            thread.start();
-        }
+            }
+        });
+    }
 
-        // wait for all threads to be ready
-        safeAwait(barrier);
-        // wait for all threads to finish
-        safeAwait(barrier);
+    public void testExceptionThrownDuringConcurrentComputeIfAbsent() throws InterruptedException {
+        final Cache<String, String> cache = CacheBuilder.<String, String>builder().build();
+        final String key = randomAlphaOfLengthBetween(2, 32);
+        startInParallel(randomIntBetween(2, 32), i -> {
+            for (int j = 0; j < numberOfEntries; j++) {
+                try {
+                    String value = cache.computeIfAbsent(key, k -> { throw new RuntimeException("failed to load"); });
+                    fail("expected exception but got: " + value);
+                } catch (ExecutionException e) {
+                    assertNotNull(e.getCause());
+                    assertThat(e.getCause(), instanceOf(RuntimeException.class));
+                    assertEquals(e.getCause().getMessage(), "failed to load");
+                }
+            }
+        });
     }
 
     // test that the cache is not corrupted under lots of concurrent modifications, even hitting the same key
     // here be dragons: this test did catch one subtle bug during development; do not remove lightly
-    public void testTorture() {
-        int numberOfThreads = randomIntBetween(2, 32);
+    public void testTorture() throws InterruptedException {
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().setMaximumWeight(1000).weigher((k, v) -> 2).build();
-
-        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
-        for (int i = 0; i < numberOfThreads; i++) {
-            Thread thread = new Thread(() -> {
-                safeAwait(barrier);
-                Random random = new Random(random().nextLong());
-                for (int j = 0; j < numberOfEntries; j++) {
-                    Integer key = random.nextInt(numberOfEntries);
-                    cache.put(key, Integer.toString(j));
-                }
-                safeAwait(barrier);
-            });
-            thread.start();
-        }
-
-        // wait for all threads to be ready
-        safeAwait(barrier);
-        // wait for all threads to finish
-        safeAwait(barrier);
-
+        startInParallel(randomIntBetween(2, 32), i -> {
+            Random random = new Random(random().nextLong());
+            for (int j = 0; j < numberOfEntries; j++) {
+                Integer key = random.nextInt(numberOfEntries);
+                cache.put(key, Integer.toString(j));
+            }
+        });
         cache.refresh();
         assertEquals(500, cache.count());
     }

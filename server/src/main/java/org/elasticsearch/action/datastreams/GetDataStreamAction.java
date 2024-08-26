@@ -15,6 +15,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -57,15 +59,20 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
         private boolean includeDefaults = false;
 
-        public Request(String[] names) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, String[] names) {
+            super(masterNodeTimeout);
             this.names = names;
         }
 
-        public Request(String[] names, boolean includeDefaults) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, String[] names, boolean includeDefaults) {
+            super(masterNodeTimeout);
             this.names = names;
             this.includeDefaults = includeDefaults;
+        }
+
+        @Deprecated(forRemoval = true) // temporary compatibility shim
+        public Request(String[] names) {
+            this(MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, names);
         }
 
         public String[] getNames() {
@@ -511,7 +518,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             this(
                 in.readCollectionAsList(DataStreamInfo::new),
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(RolloverConfiguration::new) : null,
-                in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
                     ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
                     : null
             );
@@ -537,7 +544,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalWriteable(globalRetention);
             }
         }
@@ -549,7 +556,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             for (DataStreamInfo dataStream : dataStreams) {
                 dataStream.toXContent(
                     builder,
-                    DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
+                    DataStreamLifecycle.addEffectiveRetentionParams(params),
                     rolloverConfiguration,
                     globalRetention
                 );

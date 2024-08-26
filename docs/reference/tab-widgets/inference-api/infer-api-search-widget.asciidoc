@@ -9,6 +9,12 @@
     </button>
     <button role="tab"
             aria-selected="false"
+            aria-controls="infer-api-search-elser-tab"
+            id="infer-api-search-elser">
+      ELSER
+    </button>
+    <button role="tab"
+            aria-selected="false"
             aria-controls="infer-api-search-hf-tab"
             id="infer-api-search-hf">
       HuggingFace
@@ -37,6 +43,12 @@
             id="infer-api-search-mistral">
       Mistral
     </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-search-amazon-bedrock-tab"
+            id="infer-api-search-amazon-bedrock">
+      Amazon Bedrock
+    </button>
   </div>
   <div tabindex="0"
        role="tabpanel"
@@ -45,6 +57,17 @@
 ++++
 
 include::infer-api-search.asciidoc[tag=cohere]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-search-elser-tab"
+       aria-labelledby="infer-api-search-elser"
+       hidden="">
+++++
+
+include::infer-api-search.asciidoc[tag=elser]
 
 ++++
   </div>
@@ -100,6 +123,17 @@ include::infer-api-search.asciidoc[tag=azure-ai-studio]
 ++++
 
 include::infer-api-search.asciidoc[tag=mistral]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-search-amazon-bedrock-tab"
+       aria-labelledby="infer-api-search-amazon-bedrock"
+       hidden="">
+++++
+
+include::infer-api-search.asciidoc[tag=amazon-bedrock]
 
 ++++
   </div>

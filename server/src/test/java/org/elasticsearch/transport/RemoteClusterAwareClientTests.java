@@ -194,17 +194,15 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                     randomBoolean(),
                     null
                 );
-                final SearchShardsResponse searchShardsResponse = PlainActionFuture.get(
-                    future -> client.execute(
+                final SearchShardsResponse searchShardsResponse = safeAwait(
+                    listener -> client.execute(
                         TransportSearchShardsAction.REMOTE_TYPE,
                         searchShardsRequest,
                         ActionListener.runBefore(
-                            future,
+                            listener,
                             () -> assertTrue(Thread.currentThread().getName().contains('[' + TEST_THREAD_POOL_NAME + ']'))
                         )
-                    ),
-                    10,
-                    TimeUnit.SECONDS
+                    )
                 );
                 assertThat(searchShardsResponse.getNodes(), equalTo(knownNodes));
             }

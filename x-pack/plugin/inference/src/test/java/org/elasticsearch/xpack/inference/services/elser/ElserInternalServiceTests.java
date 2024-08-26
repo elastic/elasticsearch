@@ -171,7 +171,7 @@ public class ElserInternalServiceTests extends ESTestCase {
             "foo",
             TaskType.SPARSE_EMBEDDING,
             ElserInternalService.NAME,
-            new ElserInternalServiceSettings(1, 4, ElserInternalService.ELSER_V2_MODEL, null),
+            new ElserInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null),
             ElserMlNodeTaskSettings.DEFAULT
         );
 
@@ -332,7 +332,7 @@ public class ElserInternalServiceTests extends ESTestCase {
             );
 
             ActionListener<Model> modelActionListener = ActionListener.<Model>wrap((model) -> {
-                assertEquals(".elser_model_2", ((ElserInternalModel) model).getServiceSettings().getModelId());
+                assertEquals(".elser_model_2", ((ElserInternalModel) model).getServiceSettings().modelId());
             }, (e) -> { fail("Model verification should not fail"); });
 
             service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of(), modelActionListener);
@@ -345,7 +345,7 @@ public class ElserInternalServiceTests extends ESTestCase {
             );
 
             ActionListener<Model> modelActionListener = ActionListener.<Model>wrap((model) -> {
-                assertEquals(".elser_model_2_linux-x86_64", ((ElserInternalModel) model).getServiceSettings().getModelId());
+                assertEquals(".elser_model_2_linux-x86_64", ((ElserInternalModel) model).getServiceSettings().modelId());
             }, (e) -> { fail("Model verification should not fail"); });
 
             service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of("linux-x86_64"), modelActionListener);

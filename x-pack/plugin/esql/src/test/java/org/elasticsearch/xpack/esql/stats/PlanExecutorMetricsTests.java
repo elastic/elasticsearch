@@ -19,13 +19,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -39,6 +39,7 @@ import java.util.function.BiConsumer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -73,28 +74,28 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         String[] indices = new String[] { "test" };
 
         Client qlClient = mock(Client.class);
-        IndexResolver idxResolver = new IndexResolver(qlClient, EsqlDataTypeRegistry.INSTANCE);
+        IndexResolver idxResolver = new IndexResolver(qlClient);
         // simulate a valid field_caps response so we can parse and correctly analyze de query
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
         when(fieldCapabilitiesResponse.getIndices()).thenReturn(indices);
         when(fieldCapabilitiesResponse.get()).thenReturn(fields(indices));
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<FieldCapabilitiesResponse> listener = (ActionListener<FieldCapabilitiesResponse>) invocation.getArguments()[1];
+            ActionListener<FieldCapabilitiesResponse> listener = (ActionListener<FieldCapabilitiesResponse>) invocation.getArguments()[2];
             // simulate a valid field_caps response so we can parse and correctly analyze de query
             listener.onResponse(fieldCapabilitiesResponse);
             return null;
-        }).when(qlClient).fieldCaps(any(), any());
+        }).when(qlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
         Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient, EsqlDataTypeRegistry.INSTANCE);
+        IndexResolver indexResolver = new IndexResolver(esqlClient);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<FieldCapabilitiesResponse> listener = (ActionListener<FieldCapabilitiesResponse>) invocation.getArguments()[1];
+            ActionListener<FieldCapabilitiesResponse> listener = (ActionListener<FieldCapabilitiesResponse>) invocation.getArguments()[2];
             // simulate a valid field_caps response so we can parse and correctly analyze de query
             listener.onResponse(new FieldCapabilitiesResponse(indexFieldCapabilities(indices), List.of()));
             return null;
-        }).when(esqlClient).fieldCaps(any(), any());
+        }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
         var planExecutor = new PlanExecutor(indexResolver);
         var enrichResolver = mockEnrichResolver();

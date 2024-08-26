@@ -144,7 +144,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     private static ThreadPool threadPool;
 
-    private boolean forceExecute;
+    private TransportReplicationAction.PrimaryActionExecution primaryActionExecution;
     private ClusterService clusterService;
     private TransportService transportService;
     private CapturingTransport transport;
@@ -165,7 +165,7 @@ public class TransportReplicationActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        forceExecute = randomBoolean();
+        primaryActionExecution = randomFrom(TransportReplicationAction.PrimaryActionExecution.values());
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
         transportService = transport.createTransportService(
@@ -951,7 +951,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             ActionListener<Releasable> argument = (ActionListener<Releasable>) invocation.getArguments()[0];
             argument.onResponse(count::decrementAndGet);
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), any(Executor.class), eq(forceExecute));
+        }).when(shard).acquirePrimaryOperationPermit(any(), any(Executor.class), eq(shouldForceAcquirePermit(primaryActionExecution)));
         when(shard.getActiveOperationsCount()).thenAnswer(i -> count.get());
 
         final IndexService indexService = mock(IndexService.class);
@@ -977,6 +977,13 @@ public class TransportReplicationActionTests extends ESTestCase {
         TransportReplicationAction.ConcreteShardRequest<Request> shardRequest = (TransportReplicationAction.ConcreteShardRequest<
             Request>) requestsToReplicas[0].request();
         assertThat(shardRequest.getPrimaryTerm(), equalTo(primaryTerm));
+    }
+
+    private boolean shouldForceAcquirePermit(TransportReplicationAction.PrimaryActionExecution primaryActionExecution) {
+        return switch (primaryActionExecution) {
+            case Force -> true;
+            case RejectOnOverload -> false;
+        };
     }
 
     public void testCounterOnPrimary() throws Exception {
@@ -1511,8 +1518,9 @@ public class TransportReplicationActionTests extends ESTestCase {
                 Request::new,
                 Request::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                false,
-                forceExecute
+                SyncGlobalCheckpointAfterOperation.DoNotSync,
+                primaryActionExecution,
+                ReplicaActionExecution.SubjectToCircuitBreaker
             );
         }
 
@@ -1587,7 +1595,12 @@ public class TransportReplicationActionTests extends ESTestCase {
                 callback.onFailure(new ShardNotInPrimaryModeException(shardId, IndexShardState.STARTED));
             }
             return null;
-        }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), any(Executor.class), eq(forceExecute));
+        }).when(indexShard)
+            .acquirePrimaryOperationPermit(
+                any(ActionListener.class),
+                any(Executor.class),
+                eq(shouldForceAcquirePermit(primaryActionExecution))
+            );
         when(indexShard.isPrimaryMode()).thenAnswer(invocation -> isPrimaryMode.get());
         doAnswer(invocation -> {
             long term = (Long) invocation.getArguments()[0];

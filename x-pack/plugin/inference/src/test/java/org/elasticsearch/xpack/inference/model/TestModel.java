@@ -168,6 +168,11 @@ public class TestModel extends Model {
         public DenseVectorFieldMapper.ElementType elementType() {
             return elementType;
         }
+
+        @Override
+        public String modelId() {
+            return model;
+        }
     }
 
     public record TestTaskSettings(Integer temperature) implements TaskSettings {

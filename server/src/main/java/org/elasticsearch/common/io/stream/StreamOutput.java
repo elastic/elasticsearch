@@ -766,7 +766,18 @@ public abstract class StreamOutput extends OutputStream {
             o.writeByte((byte) 23);
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
             o.writeString(zonedDateTime.getZone().getId());
-            o.writeLong(zonedDateTime.toInstant().toEpochMilli());
+            Instant instant = zonedDateTime.toInstant();
+            if (o.getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT_BROKEN)) {
+                // epoch seconds can be negative, but it was incorrectly first written as vlong
+                if (o.getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT)) {
+                    o.writeZLong(instant.getEpochSecond());
+                } else {
+                    o.writeVLong(instant.getEpochSecond());
+                }
+                o.writeInt(instant.getNano());
+            } else {
+                o.writeLong(instant.toEpochMilli());
+            }
         }),
         entry(Set.class, (o, v) -> {
             if (v instanceof LinkedHashSet) {
@@ -1135,7 +1146,8 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an enum with type E based on its ordinal value
+     * Writes an enum with type {@code E} in terms of the value of its ordinal. Enums serialized like this must have a corresponding test
+     * which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {
         assert enumValue instanceof XContentType == false : "XContentHelper#writeTo should be used for XContentType serialisation";
@@ -1143,7 +1155,8 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an optional enum with type E based on its ordinal value
+     * Writes an optional enum with type {@code E} in terms of the value of its ordinal. Enums serialized like this must have a
+     * corresponding test which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> void writeOptionalEnum(@Nullable E enumValue) throws IOException {
         if (enumValue == null) {
@@ -1156,7 +1169,8 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an EnumSet with type E that by serialized it based on it's ordinal value
+     * Writes a set of enum with type {@code E} in terms of the value of its ordinal. Enums serialized like this must have a corresponding
+     * test which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> void writeEnumSet(EnumSet<E> enumSet) throws IOException {
         writeVInt(enumSet.size());

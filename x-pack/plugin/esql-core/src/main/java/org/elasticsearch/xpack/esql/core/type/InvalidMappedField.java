@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  * Representation of field mapped differently across indices.
@@ -62,6 +63,10 @@ public class InvalidMappedField extends EsField {
 
     private InvalidMappedField(StreamInput in) throws IOException {
         this(in.readString(), in.readString(), in.readImmutableMap(StreamInput::readString, i -> i.readNamedWriteable(EsField.class)));
+    }
+
+    public Set<DataType> types() {
+        return typesToIndices.keySet().stream().map(DataType::fromTypeName).collect(Collectors.toSet());
     }
 
     @Override
@@ -125,7 +130,13 @@ public class InvalidMappedField extends EsField {
             errorMessage.append("[");
             errorMessage.append(e.getKey());
             errorMessage.append("] in ");
-            errorMessage.append(e.getValue());
+            if (e.getValue().size() <= 3) {
+                errorMessage.append(e.getValue());
+            } else {
+                errorMessage.append(e.getValue().stream().sorted().limit(3).collect(Collectors.toList()));
+                errorMessage.append(" and [" + (e.getValue().size() - 3) + "] other ");
+                errorMessage.append(e.getValue().size() == 4 ? "index" : "indices");
+            }
         }
         return errorMessage.toString();
     }

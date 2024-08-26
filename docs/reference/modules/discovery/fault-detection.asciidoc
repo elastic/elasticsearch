@@ -168,9 +168,8 @@ reason, something other than {es} likely caused the connection to close. A
 common cause is a misconfigured firewall with an improper timeout or another
 policy that's <<long-lived-connections,incompatible with {es}>>. It could also
 be caused by general connectivity issues, such as packet loss due to faulty
-hardware or network congestion. If you're an advanced user, you can get more
-detailed information about network exceptions by configuring the following
-loggers:
+hardware or network congestion. If you're an advanced user, configure the
+following loggers to get more detailed information about network exceptions:
 
 [source,yaml]
 ----
@@ -178,9 +177,11 @@ logger.org.elasticsearch.transport.TcpTransport: DEBUG
 logger.org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport: DEBUG
 ----
 
-In extreme cases, you may need to take packet captures using `tcpdump` to
-determine whether messages between nodes are being dropped or rejected by some
-other device on the network.
+If these logs do not show enough information to diagnose the problem, obtain a
+packet capture simultaneously from the nodes at both ends of an unstable
+connection and analyse it alongside the {es} logs from those nodes to determine
+if traffic between the nodes is being disrupted by another device on the
+network.
 
 [discrete]
 ===== Diagnosing `lagging` nodes

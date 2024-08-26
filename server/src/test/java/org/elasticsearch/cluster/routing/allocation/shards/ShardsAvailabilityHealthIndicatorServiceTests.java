@@ -2109,10 +2109,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             for (Map.Entry<String, Integer> indexNameToPriority : indexNameToPriorityMap.entrySet()) {
                 String indexName = indexNameToPriority.getKey();
                 IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexName);
-                Settings settings = Settings.builder()
-                    .put(IndexMetadata.SETTING_PRIORITY, indexNameToPriority.getValue())
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                Settings settings = indexSettings(1, 1).put(IndexMetadata.SETTING_PRIORITY, indexNameToPriority.getValue())
                     .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
                     .build();
                 indexMetadataBuilder.settings(settings);

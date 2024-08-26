@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -318,14 +319,15 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     private void cleanDatabases() {
-        List<Map.Entry<String, Metadata>> expiredDatabases = state.getDatabases()
+        List<Tuple<String, Metadata>> expiredDatabases = state.getDatabases()
             .entrySet()
             .stream()
-            .filter(e -> e.getValue().isValid(clusterService.state().metadata().settings()) == false)
+            .filter(e -> e.getValue().isNewEnough(clusterService.state().metadata().settings()) == false)
+            .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
             .toList();
         expiredDatabases.forEach(e -> {
-            String name = e.getKey();
-            Metadata meta = e.getValue();
+            String name = e.v1();
+            Metadata meta = e.v2();
             deleteOldChunks(name, meta.lastChunk() + 1);
             state = state.put(name, new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1));
             updateTaskState();

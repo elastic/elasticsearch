@@ -32,6 +32,8 @@ import static org.elasticsearch.ingest.CompoundProcessor.PROCESSOR_TYPE_EXCEPTIO
  */
 public class FailureStoreDocumentConverter {
 
+    private static final int STACKTRACE_PRINT_DEPTH = 2;
+
     private static final Set<String> INGEST_EXCEPTION_HEADERS = Set.of(
         PIPELINE_ORIGIN_EXCEPTION_HEADER,
         PROCESSOR_TAG_EXCEPTION_HEADER,
@@ -68,20 +70,14 @@ public class FailureStoreDocumentConverter {
         Supplier<Long> timeSupplier
     ) throws IOException {
         return new IndexRequest().index(targetIndexName)
-            .source(createSource(source, exception, targetIndexName, timeSupplier))
+            .source(createSource(source, exception, timeSupplier))
             .opType(DocWriteRequest.OpType.CREATE)
             .setWriteToFailureStore(true);
     }
 
-    private static XContentBuilder createSource(
-        IndexRequest source,
-        Exception exception,
-        String targetIndexName,
-        Supplier<Long> timeSupplier
-    ) throws IOException {
+    private static XContentBuilder createSource(IndexRequest source, Exception exception, Supplier<Long> timeSupplier) throws IOException {
         Objects.requireNonNull(source, "source must not be null");
         Objects.requireNonNull(exception, "exception must not be null");
-        Objects.requireNonNull(targetIndexName, "targetIndexName must not be null");
         Objects.requireNonNull(timeSupplier, "timeSupplier must not be null");
         Throwable unwrapped = ExceptionsHelper.unwrapCause(exception);
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -96,7 +92,9 @@ public class FailureStoreDocumentConverter {
                 if (source.routing() != null) {
                     builder.field("routing", source.routing());
                 }
-                builder.field("index", source.index());
+                if (source.index() != null) {
+                    builder.field("index", source.index());
+                }
                 // Unmapped source field
                 builder.startObject("source");
                 {
@@ -109,7 +107,7 @@ public class FailureStoreDocumentConverter {
             {
                 builder.field("type", ElasticsearchException.getExceptionName(unwrapped));
                 builder.field("message", unwrapped.getMessage());
-                builder.field("stack_trace", ExceptionsHelper.stackTrace(unwrapped));
+                builder.field("stack_trace", ExceptionsHelper.limitedStackTrace(unwrapped, STACKTRACE_PRINT_DEPTH));
                 // Try to find the IngestProcessorException somewhere in the stack trace. Since IngestProcessorException is package-private,
                 // we can't instantiate it in tests, so we'll have to check for the headers directly.
                 var ingestException = ExceptionsHelper.<ElasticsearchException>unwrapCausesAndSuppressed(

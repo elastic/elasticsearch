@@ -19,8 +19,23 @@ public class ShardChangesObserver implements RoutingChangesObserver {
     private static final Logger logger = LogManager.getLogger(ShardChangesObserver.class);
 
     @Override
+    public void shardInitialized(ShardRouting unassignedShard, ShardRouting initializedShard) {
+        logger.trace(
+            "{} initializing from {} on node [{}]",
+            shardIdentifier(initializedShard),
+            initializedShard.recoverySource().getType(),
+            initializedShard.currentNodeId()
+        );
+    }
+
+    @Override
     public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
-        logger.debug("{} started on node [{}]", shardIdentifier(startedShard), startedShard.currentNodeId());
+        logger.debug(
+            "{} started from {} on node [{}]",
+            shardIdentifier(startedShard),
+            initializingShard.recoverySource().getType(),
+            startedShard.currentNodeId()
+        );
     }
 
     @Override

@@ -36,8 +36,3 @@ tasks.named("test").configure { enabled = false }
 tasks.register('destructivePackagingTest') {
   dependsOn 'destructiveDistroTest'
 }
-
-tasks.named('resolveAllDependencies') {
-  // avoid resolving all elasticsearch distros
-  enabled = false
-}

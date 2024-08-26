@@ -7,7 +7,13 @@
             id="infer-api-task-cohere">
       Cohere
     </button>
-        <button role="tab"
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-task-elser-tab"
+            id="infer-api-task-elser">
+      ELSER
+    </button>
+    <button role="tab"
             aria-selected="false"
             aria-controls="infer-api-task-hf-tab"
             id="infer-api-task-hf">
@@ -37,6 +43,12 @@
             id="infer-api-task-mistral">
       Mistral
     </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-task-amazon-bedrock-tab"
+            id="infer-api-task-amazon-bedrock">
+      Amazon Bedrock
+    </button>
   </div>
   <div tabindex="0"
        role="tabpanel"
@@ -45,6 +57,17 @@
 ++++
 
 include::infer-api-task.asciidoc[tag=cohere]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-task-elser-tab"
+       aria-labelledby="infer-api-task-elser"
+       hidden="">
+++++
+
+include::infer-api-task.asciidoc[tag=elser]
 
 ++++
   </div>
@@ -100,6 +123,17 @@ include::infer-api-task.asciidoc[tag=azure-ai-studio]
 ++++
 
 include::infer-api-task.asciidoc[tag=mistral]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-task-amazon-bedrock-tab"
+       aria-labelledby="infer-api-task-amazon-bedrock"
+       hidden="">
+++++
+
+include::infer-api-task.asciidoc[tag=amazon-bedrock]
 
 ++++
   </div>

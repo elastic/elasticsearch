@@ -18,7 +18,7 @@ public class CreateIndexCapabilities {
     /**
      * Support for using the 'logs' index mode.
      */
-    private static final String LOGS_INDEX_MODE_CAPABILITY = "logs_index_mode";
+    private static final String LOGSDB_INDEX_MODE_CAPABILITY = "logsdb_index_mode";
 
-    public static Set<String> CAPABILITIES = Set.of(LOGS_INDEX_MODE_CAPABILITY);
+    public static Set<String> CAPABILITIES = Set.of(LOGSDB_INDEX_MODE_CAPABILITY);
 }

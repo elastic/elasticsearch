@@ -15,6 +15,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
@@ -35,7 +37,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DateUtils;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -71,15 +73,15 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.source;
-import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.typedParsing;
-import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseTemporalAmout;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIntegral;
@@ -89,9 +91,22 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     private int expressionDepth = 0;
 
     /**
-     * Maximum depth for nested expressions
+     * Maximum depth for nested expressions.
+     * Avoids StackOverflowErrors at parse time with very convoluted expressions,
+     * eg. EVAL x = sin(sin(sin(sin(sin(sin(sin(sin(sin(....sin(x)....)
+     * ANTLR parser is recursive, so the only way to prevent a StackOverflow is to detect how
+     * deep we are in the expression parsing and abort the query execution after a threshold
+     *
+     * This value is defined empirically, but the actual stack limit is highly
+     * dependent on the JVM and on the JIT.
+     *
+     * A value of 500 proved to be right below the stack limit, but it still triggered
+     * some CI failures (once every ~2000 iterations). see https://github.com/elastic/elasticsearch/issues/109846
+     * Even though we didn't manage to reproduce the problem in real conditions, we decided
+     * to reduce the max allowed depth to 400 (that is still a pretty reasonable limit for real use cases) and be more safe.
+     *
      */
-    public static final int MAX_EXPRESSION_DEPTH = 500;
+    public static final int MAX_EXPRESSION_DEPTH = 400;
 
     protected final QueryParams params;
 
@@ -642,7 +657,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
         Expression value = expression(ctx.booleanExpression());
         var source = source(ctx);
-        String name = id == null ? source.text() : id.qualifiedName();
+        String name = id == null ? source.text() : id.name();
         return new Alias(source, name, value);
     }
 
@@ -673,7 +688,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                         name = source(field).text();
                     }
                 } else {
-                    name = id.qualifiedName();
+                    name = id.name();
                 }
                 // wrap when necessary - no alias and no underlying attribute
                 if (ne == null) {
@@ -748,5 +763,18 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             }
             return params.get(nameOrPosition);
         }
+    }
+
+    @Override
+    public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
+        if (Build.current().isSnapshot() == false) {
+            throw new ParsingException(source(ctx), "MATCH operator currently requires a snapshot build");
+        }
+        return new MatchQueryPredicate(
+            source(ctx),
+            visitQualifiedName(ctx.qualifiedName()),
+            visitString(ctx.queryString).fold().toString(),
+            null
+        );
     }
 }

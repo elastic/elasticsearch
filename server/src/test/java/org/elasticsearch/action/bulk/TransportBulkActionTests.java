@@ -33,6 +33,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.features.FeatureService;
@@ -54,6 +56,7 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +71,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assume.assumeThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -100,7 +104,8 @@ public class TransportBulkActionTests extends ESTestCase {
                 new ActionFilters(Collections.emptySet()),
                 new Resolver(),
                 new IndexingPressure(Settings.EMPTY),
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                FailureStoreMetrics.NOOP
             );
         }
 
@@ -287,7 +292,7 @@ public class TransportBulkActionTests extends ESTestCase {
         prohibitCustomRoutingOnDataStream(writeRequestAgainstIndex, metadata.getIndicesLookup().get(writeRequestAgainstIndex.index()));
     }
 
-    public void testOnlySystem() {
+    public void testOnlySystem() throws IOException {
         SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         indicesLookup.put(
@@ -303,15 +308,23 @@ public class TransportBulkActionTests extends ESTestCase {
         );
         List<String> onlySystem = List.of(".foo", ".bar");
         assertTrue(TransportBulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
+        /* Test forwarded bulk requests (that are serialized then deserialized) */
+        assertTrue(TransportBulkAction.isOnlySystem(buildBulkStreamRequest(onlySystem), indicesLookup, systemIndices));
 
         onlySystem = List.of(".foo", ".bar", ".test");
         assertTrue(TransportBulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
+        /* Test forwarded bulk requests (that are serialized then deserialized) */
+        assertTrue(TransportBulkAction.isOnlySystem(buildBulkStreamRequest(onlySystem), indicesLookup, systemIndices));
 
         List<String> nonSystem = List.of("foo", "bar");
         assertFalse(TransportBulkAction.isOnlySystem(buildBulkRequest(nonSystem), indicesLookup, systemIndices));
+        /* Test forwarded bulk requests (that are serialized then deserialized) */
+        assertFalse(TransportBulkAction.isOnlySystem(buildBulkStreamRequest(nonSystem), indicesLookup, systemIndices));
 
         List<String> mixed = List.of(".foo", ".test", "other");
         assertFalse(TransportBulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
+        /* Test forwarded bulk requests (that are serialized then deserialized) */
+        assertFalse(TransportBulkAction.isOnlySystem(buildBulkStreamRequest(mixed), indicesLookup, systemIndices));
     }
 
     private void blockWriteThreadPool(CountDownLatch blockingLatch) {
@@ -406,13 +419,16 @@ public class TransportBulkActionTests extends ESTestCase {
             .build();
 
         // Data stream with failure store should store failures
-        assertThat(TransportBulkAction.shouldStoreFailureInternal(dataStreamWithFailureStore, metadata, testTime), is(true));
+        assertThat(TransportBulkAction.resolveFailureInternal(dataStreamWithFailureStore, metadata, testTime), is(true));
         // Data stream without failure store should not
-        assertThat(TransportBulkAction.shouldStoreFailureInternal(dataStreamWithoutFailureStore, metadata, testTime), is(false));
+        assertThat(TransportBulkAction.resolveFailureInternal(dataStreamWithoutFailureStore, metadata, testTime), is(false));
         // An index should not be considered for failure storage
-        assertThat(TransportBulkAction.shouldStoreFailureInternal(backingIndex1.getIndex().getName(), metadata, testTime), is(false));
+        assertThat(TransportBulkAction.resolveFailureInternal(backingIndex1.getIndex().getName(), metadata, testTime), is(nullValue()));
         // even if that index is itself a failure store
-        assertThat(TransportBulkAction.shouldStoreFailureInternal(failureStoreIndex1.getIndex().getName(), metadata, testTime), is(false));
+        assertThat(
+            TransportBulkAction.resolveFailureInternal(failureStoreIndex1.getIndex().getName(), metadata, testTime),
+            is(nullValue())
+        );
     }
 
     public void testResolveFailureStoreFromTemplate() throws Exception {
@@ -443,11 +459,11 @@ public class TransportBulkActionTests extends ESTestCase {
             .build();
 
         // Data stream with failure store should store failures
-        assertThat(TransportBulkAction.shouldStoreFailureInternal(dsTemplateWithFailureStore + "-1", metadata, testTime), is(true));
+        assertThat(TransportBulkAction.resolveFailureInternal(dsTemplateWithFailureStore + "-1", metadata, testTime), is(true));
         // Data stream without failure store should not
-        assertThat(TransportBulkAction.shouldStoreFailureInternal(dsTemplateWithoutFailureStore + "-1", metadata, testTime), is(false));
+        assertThat(TransportBulkAction.resolveFailureInternal(dsTemplateWithoutFailureStore + "-1", metadata, testTime), is(false));
         // An index template should not be considered for failure storage
-        assertThat(TransportBulkAction.shouldStoreFailureInternal(indexTemplate + "-1", metadata, testTime), is(false));
+        assertThat(TransportBulkAction.resolveFailureInternal(indexTemplate + "-1", metadata, testTime), is(nullValue()));
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {
@@ -462,5 +478,13 @@ public class TransportBulkActionTests extends ESTestCase {
             request.add(subRequest);
         }
         return request;
+    }
+
+    private BulkRequest buildBulkStreamRequest(List<String> indices) throws IOException {
+        BulkRequest request = buildBulkRequest(indices);
+        BytesStreamOutput out = new BytesStreamOutput();
+        request.writeTo(out);
+        StreamInput streamInput = out.bytes().streamInput();
+        return (new BulkRequest(streamInput));
     }
 }

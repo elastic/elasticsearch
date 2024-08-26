@@ -276,6 +276,36 @@ public class BitArrayTests extends ESTestCase {
         }
     }
 
+    public void testFillTrueAfterArrayLength() {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            int from = 100;
+            int to = 200;
+
+            bitArray.fill(from, to, true);
+
+            for (int i = 0; i < to; i++) {
+                if (i < from) {
+                    assertFalse(bitArray.get(i));
+                } else {
+                    assertTrue(bitArray.get(i));
+                }
+            }
+        }
+    }
+
+    public void testFillFalseAfterArrayLength() {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            int from = 100;
+            int to = 200;
+
+            bitArray.fill(from, to, false);
+
+            for (int i = 0; i < to; i++) {
+                assertFalse(bitArray.get(i));
+            }
+        }
+    }
+
     public void testSerialize() throws Exception {
         int initial = randomIntBetween(1, 100_000);
         BitArray bits1 = new BitArray(initial, BigArrays.NON_RECYCLING_INSTANCE);

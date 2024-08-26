@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -60,7 +61,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -151,7 +152,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected final DocumentMapper createLogsModeDocumentMapper(XContentBuilder mappings) throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "logs").build();
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).build();
         return createMapperService(settings, mappings).documentMapper();
     }
 
@@ -382,7 +383,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             XContentType.JSON,
             routing,
             dynamicTemplates,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            XContentMeteringParserDecorator.NOOP
         );
     }
 
@@ -425,8 +426,13 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected static XContentBuilder mappingNoSubobjects(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+        return mappingWithSubobjects(buildFields, "false");
+    }
+
+    protected static XContentBuilder mappingWithSubobjects(CheckedConsumer<XContentBuilder, IOException> buildFields, String subobjects)
+        throws IOException {
         return topMapping(xContentBuilder -> {
-            xContentBuilder.field("subobjects", false);
+            xContentBuilder.field("subobjects", subobjects);
             xContentBuilder.startObject("properties");
             buildFields.accept(xContentBuilder);
             xContentBuilder.endObject();
@@ -782,7 +788,8 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected RandomIndexWriter indexWriterForSyntheticSource(Directory directory) throws IOException {
-        return new RandomIndexWriter(random(), directory);
+        // MockAnalyzer (rarely) produces random payloads that lead to failures during assertReaderEquals.
+        return new RandomIndexWriter(random(), directory, new StandardAnalyzer());
     }
 
     protected final String syntheticSource(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {

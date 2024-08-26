@@ -20,7 +20,7 @@ import java.util.Map;
 public class SearchResponseMetrics {
 
     public enum ResponseCountTotalStatus {
-        SUCCESS("succes"),
+        SUCCESS("success"),
         PARTIAL_FAILURE("partial_failure"),
         FAILURE("failure");
 
@@ -35,7 +35,7 @@ public class SearchResponseMetrics {
         }
     }
 
-    public static final String RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME = "status";
+    public static final String RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME = "response_status";
 
     public static final String TOOK_DURATION_TOTAL_HISTOGRAM_NAME = "es.search_response.took_durations.histogram";
     public static final String RESPONSE_COUNT_TOTAL_COUNTER_NAME = "es.search_response.response_count.total";

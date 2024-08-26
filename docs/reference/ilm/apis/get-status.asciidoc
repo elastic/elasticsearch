@@ -7,7 +7,7 @@
 <titleabbrev>Get {ilm} status</titleabbrev>
 ++++
 
-Retrieves the current {ilm} ({ilm-init}) status.
+Retrieves the current <<index-lifecycle-management,{ilm}>> ({ilm-init}) status.
 
 You can start or stop {ilm-init} with the <<ilm-start,start {ilm-init}>> and
 <<ilm-stop,stop {ilm-init}>> APIs.

@@ -192,7 +192,7 @@ $elseif(double)$
 $elseif(int)$
                 return blockFactory.newConstantIntBlockWith((int) values.get(0), 1);
 $elseif(BytesRef)$
-                return blockFactory.newConstantBytesRefBlockWith(values.get(0, scratch), 1);
+                return blockFactory.newConstantBytesRefBlockWith(BytesRef.deepCopyOf(values.get(0, scratch)), 1);
 $endif$
             }
             try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder((int) values.size())) {

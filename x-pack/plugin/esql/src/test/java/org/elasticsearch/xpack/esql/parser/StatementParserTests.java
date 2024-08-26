@@ -18,12 +18,12 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -50,11 +51,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -310,6 +313,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsWithGroups() {
+        assumeTrue("INLINESTATS requires snapshot builds", Build.current().isSnapshot());
         assertEquals(
             new InlineStats(
                 EMPTY,
@@ -326,6 +330,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsWithoutGroups() {
+        assumeTrue("INLINESTATS requires snapshot builds", Build.current().isSnapshot());
         assertEquals(
             new InlineStats(
                 EMPTY,
@@ -786,6 +791,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "line 1:22: Invalid GROK pattern [%{NUMBER:foo} %{WORD:foo}]:"
                 + " the attribute [foo] is defined multiple times with different types"
         );
+
+        expectError(
+            "row a = \"foo\" | GROK a \"(?P<justification>.+)\"",
+            "line 1:18: Invalid grok pattern [(?P<justification>.+)]: [undefined group option]"
+        );
     }
 
     public void testLikeRLike() {
@@ -960,6 +970,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(), is(11));
+    }
+
+    public void testMatchCommand() throws IOException {
+        assumeTrue("Match command available just for snapshots", Build.current().isSnapshot());
+        String queryString = "field: value";
+        assertEquals(
+            new Filter(EMPTY, PROCESSING_CMD_INPUT, new StringQueryPredicate(EMPTY, queryString, null)),
+            processingCommand("match \"" + queryString + "\"")
+        );
+
+        expectError("from a | match an unquoted string", "mismatched input 'an' expecting QUOTED_STRING");
     }
 
     public void testMissingInputParams() {

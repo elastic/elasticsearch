@@ -8,7 +8,7 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "boolean",
           "optional" : false,
           "description" : "The field to collect the top values for."
         },
@@ -26,7 +26,31 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -75,6 +99,30 @@
       ],
       "variadic" : false,
       "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "ip"
     },
     {
       "params" : [

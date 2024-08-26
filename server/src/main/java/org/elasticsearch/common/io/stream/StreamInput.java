@@ -104,6 +104,10 @@ public abstract class StreamInput extends InputStream {
      */
     public abstract void readBytes(byte[] b, int offset, int len) throws IOException;
 
+    // force implementing bulk reads to avoid accidentally slow implementations
+    @Override
+    public abstract int read(byte[] b, int off, int len) throws IOException;
+
     /**
      * Reads a bytes reference from this stream, copying any bytes read to a new {@code byte[]}. Use {@link #readReleasableBytesReference()}
      * when reading large bytes references where possible top avoid needless allocations and copying.
@@ -902,7 +906,16 @@ public abstract class StreamInput extends InputStream {
 
     private ZonedDateTime readZonedDateTime() throws IOException {
         final String timeZoneId = readString();
-        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(readLong()), ZoneId.of(timeZoneId));
+        final Instant instant;
+        if (getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT_BROKEN)) {
+            // epoch seconds can be negative, but it was incorrectly first written as vlong
+            boolean zlong = getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT);
+            long seconds = zlong ? readZLong() : readVLong();
+            instant = Instant.ofEpochSecond(seconds, readInt());
+        } else {
+            instant = Instant.ofEpochMilli(readLong());
+        }
+        return ZonedDateTime.ofInstant(instant, ZoneId.of(timeZoneId));
     }
 
     private OffsetTime readOffsetTime() throws IOException {
@@ -1295,14 +1308,16 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads an enum with type E that was serialized based on the value of its ordinal
+     * Reads an enum with type {@code E} that was serialized based on the value of its ordinal. Enums serialized like this must have a
+     * corresponding test which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> E readEnum(Class<E> enumClass) throws IOException {
         return readEnum(enumClass, enumClass.getEnumConstants());
     }
 
     /**
-     * Reads an optional enum with type E that was serialized based on the value of its ordinal
+     * Reads an optional enum with type {@code E} that was serialized based on the value of its ordinal. Enums serialized like this must
+     * have a corresponding test which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     @Nullable
     public <E extends Enum<E>> E readOptionalEnum(Class<E> enumClass) throws IOException {
@@ -1322,7 +1337,8 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads an enum with type E that was serialized based on the value of it's ordinal
+     * Reads a set of enums with type {@code E} that were serialized based on the value of their ordinals. Enums serialized like this must
+     * have a corresponding test which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> EnumSet<E> readEnumSet(Class<E> enumClass) throws IOException {
         int size = readVInt();

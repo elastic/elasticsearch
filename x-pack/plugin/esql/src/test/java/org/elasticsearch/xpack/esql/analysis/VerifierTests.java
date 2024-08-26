@@ -10,14 +10,23 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
@@ -46,6 +55,189 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testUnsupportedAndMultiTypedFields() {
+        final String unsupported = "unsupported";
+        final String multiTyped = "multi_typed";
+
+        EsField unsupportedField = new UnsupportedEsField(unsupported, "flattened");
+        // Use linked maps/sets to fix the order in the error message.
+        LinkedHashSet<String> ipIndices = new LinkedHashSet<>();
+        ipIndices.add("test1");
+        ipIndices.add("test2");
+        ipIndices.add("test3");
+        ipIndices.add("test4");
+        ipIndices.add("test5");
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("ip", ipIndices);
+        typesToIndices.put("keyword", Set.of("test6"));
+        EsField multiTypedField = new InvalidMappedField(multiTyped, typesToIndices);
+
+        // Also add an unsupported/multityped field under the names `int` and `double` so we can use `LOOKUP int_number_names ...` and
+        // `LOOKUP double_number_names` without renaming the fields first.
+        IndexResolution indexWithUnsupportedAndMultiTypedField = IndexResolution.valid(
+            new EsIndex(
+                "test*",
+                Map.of(unsupported, unsupportedField, multiTyped, multiTypedField, "int", unsupportedField, "double", multiTypedField)
+            )
+        );
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnsupportedAndMultiTypedField);
+
+        assertEquals(
+            "1:22: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | dissect unsupported \"%{foo}\"", analyzer)
+        );
+        assertEquals(
+            "1:22: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | dissect multi_typed \"%{foo}\"", analyzer)
+        );
+
+        assertEquals(
+            "1:19: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | grok unsupported \"%{WORD:foo}\"", analyzer)
+        );
+        assertEquals(
+            "1:19: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | grok multi_typed \"%{WORD:foo}\"", analyzer)
+        );
+
+        assertEquals(
+            "1:36: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | enrich client_cidr on unsupported", analyzer)
+        );
+        assertEquals(
+            "1:36: Unsupported type [unsupported] for enrich matching field [multi_typed];"
+                + " only [keyword, text, ip, long, integer, float, double, datetime] allowed for type [range]",
+            error("from test* | enrich client_cidr on multi_typed", analyzer)
+        );
+
+        assertEquals(
+            "1:23: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | eval x = unsupported", analyzer)
+        );
+        assertEquals(
+            "1:23: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | eval x = multi_typed", analyzer)
+        );
+
+        assertEquals(
+            "1:32: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | eval x = to_lower(unsupported)", analyzer)
+        );
+        assertEquals(
+            "1:32: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | eval x = to_lower(multi_typed)", analyzer)
+        );
+
+        assertEquals(
+            "1:32: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | stats count(1) by unsupported", analyzer)
+        );
+        assertEquals(
+            "1:32: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | stats count(1) by multi_typed", analyzer)
+        );
+        if (EsqlCapabilities.Cap.INLINESTATS.isEnabled()) {
+            assertEquals(
+                "1:38: Cannot use field [unsupported] with unsupported type [flattened]",
+                error("from test* | inlinestats count(1) by unsupported", analyzer)
+            );
+            assertEquals(
+                "1:38: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+                error("from test* | inlinestats count(1) by multi_typed", analyzer)
+            );
+        }
+
+        assertEquals(
+            "1:27: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | stats values(unsupported)", analyzer)
+        );
+        assertEquals(
+            "1:27: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | stats values(multi_typed)", analyzer)
+        );
+        if (EsqlCapabilities.Cap.INLINESTATS.isEnabled()) {
+            assertEquals(
+                "1:33: Cannot use field [unsupported] with unsupported type [flattened]",
+                error("from test* | inlinestats values(unsupported)", analyzer)
+            );
+            assertEquals(
+                "1:33: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+                error("from test* | inlinestats values(multi_typed)", analyzer)
+            );
+        }
+
+        assertEquals(
+            "1:27: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | stats values(unsupported)", analyzer)
+        );
+        assertEquals(
+            "1:27: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | stats values(multi_typed)", analyzer)
+        );
+
+        if (EsqlCapabilities.Cap.LOOKUP_V4.isEnabled()) {
+            // LOOKUP with unsupported type
+            assertEquals(
+                "1:41: column type mismatch, table column was [integer] and original column was [unsupported]",
+                error("from test* | lookup int_number_names on int", analyzer)
+            );
+            // LOOKUP with multi-typed field
+            assertEquals(
+                "1:44: column type mismatch, table column was [double] and original column was [unsupported]",
+                error("from test* | lookup double_number_names on double", analyzer)
+            );
+        }
+
+        assertEquals(
+            "1:24: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | mv_expand unsupported", analyzer)
+        );
+        assertEquals(
+            "1:24: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | mv_expand multi_typed", analyzer)
+        );
+
+        assertEquals(
+            "1:21: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | rename unsupported as x", analyzer)
+        );
+        assertEquals(
+            "1:21: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | rename multi_typed as x", analyzer)
+        );
+
+        assertEquals(
+            "1:19: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | sort unsupported asc", analyzer)
+        );
+        assertEquals(
+            "1:19: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | sort multi_typed desc", analyzer)
+        );
+
+        assertEquals(
+            "1:20: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | where unsupported is null", analyzer)
+        );
+        assertEquals(
+            "1:20: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | where multi_typed is not null", analyzer)
+        );
+    }
+
     public void testRoundFunctionInvalidInputs() {
         assertEquals(
             "1:31: first argument of [round(b, 3)] must be [numeric], found value [b] type [keyword]",
@@ -63,9 +255,29 @@ public class VerifierTests extends ESTestCase {
             "1:31: second argument of [round(a, 3.5)] must be [integer], found value [3.5] type [double]",
             error("row a = 1, b = \"c\" | eval x = round(a, 3.5)")
         );
+    }
+
+    public void testImplicitCastingErrorMessages() {
         assertEquals(
             "1:23: Cannot convert string [c] to [INTEGER], error [Cannot parse number [c]]",
             error("row a = round(123.45, \"c\")")
+        );
+        assertEquals(
+            "1:27: Cannot convert string [c] to [DOUBLE], error [Cannot parse number [c]]",
+            error("row a = 1 | eval x = acos(\"c\")")
+        );
+        assertEquals(
+            "1:33: Cannot convert string [c] to [DOUBLE], error [Cannot parse number [c]]\n"
+                + "line 1:38: Cannot convert string [a] to [INTEGER], error [Cannot parse number [a]]",
+            error("row a = 1 | eval x = round(acos(\"c\"),\"a\")")
+        );
+        assertEquals(
+            "1:63: Cannot convert string [x] to [INTEGER], error [Cannot parse number [x]]",
+            error("row ip4 = to_ip(\"1.2.3.4\") | eval ip4_prefix = ip_prefix(ip4, \"x\", 0)")
+        );
+        assertEquals(
+            "1:42: Cannot convert string [a] to [DOUBLE], error [Cannot parse number [a]]",
+            error("ROW a=[3, 5, 1, 6] | EVAL avg_a = MV_AVG(\"a\")")
         );
     }
 
@@ -179,6 +391,66 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:40: cannot nest grouping functions; found [bucket(emp_no, 5.)] inside [bucket(bucket(emp_no, 5.), 6.)]",
             error("from test| stats max(emp_no) by bucket(bucket(emp_no, 5.), 6.)")
+        );
+    }
+
+    public void testInvalidBucketCalls() {
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(emp_no, 5, \"2000-01-01\")"),
+            containsString(
+                "function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(emp_no, 1 week, \"2000-01-01\")"),
+            containsString(
+                "second argument of [bucket(emp_no, 1 week, \"2000-01-01\")] must be [numeric], found value [1 week] type [date_period]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, 5.5, \"2000-01-01\")"),
+            containsString(
+                "second argument of [bucket(hire_date, 5.5, \"2000-01-01\")] must be [integral, date_period or time_duration], "
+                    + "found value [5.5] type [double]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, 5, 1 day, 1 month)"),
+            containsString(
+                "third argument of [bucket(hire_date, 5, 1 day, 1 month)] must be [datetime or string], "
+                    + "found value [1 day] type [date_period]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, 5, \"2000-01-01\", 1 month)"),
+            containsString(
+                "fourth argument of [bucket(hire_date, 5, \"2000-01-01\", 1 month)] must be [datetime or string], "
+                    + "found value [1 month] type [date_period]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, 5, \"2000-01-01\")"),
+            containsString(
+                "function expects exactly four arguments when the first one is of type [DATETIME] and the second of type [INTEGER]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(emp_no, \"5\")"),
+            containsString("second argument of [bucket(emp_no, \"5\")] must be [numeric], found value [\"5\"] type [keyword]")
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, \"5\")"),
+            containsString(
+                "second argument of [bucket(hire_date, \"5\")] must be [integral, date_period or time_duration], "
+                    + "found value [\"5\"] type [keyword]"
+            )
         );
     }
 
@@ -313,7 +585,7 @@ public class VerifierTests extends ESTestCase {
     public void testUnsignedLongTypeMixInComparisons() {
         List<String> types = DataType.types()
             .stream()
-            .filter(dt -> dt.isNumeric() && EsqlDataTypes.isRepresentable(dt) && dt != UNSIGNED_LONG)
+            .filter(dt -> dt.isNumeric() && DataType.isRepresentable(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
             .toList();
         for (var type : types) {
@@ -351,7 +623,7 @@ public class VerifierTests extends ESTestCase {
     public void testUnsignedLongTypeMixInArithmetics() {
         List<String> types = DataType.types()
             .stream()
-            .filter(dt -> dt.isNumeric() && EsqlDataTypes.isRepresentable(dt) && dt != UNSIGNED_LONG)
+            .filter(dt -> dt.isNumeric() && DataType.isRepresentable(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
             .toList();
         for (var type : types) {
@@ -494,8 +766,8 @@ public class VerifierTests extends ESTestCase {
             error("FROM tests | STATS min(network.bytes_in)", tsdb),
             equalTo(
                 "1:20: argument of [min(network.bytes_in)] must be"
-                    + " [boolean, datetime or numeric except unsigned_long or counter types],"
-                    + " found value [min(network.bytes_in)] type [counter_long]"
+                    + " [representable except unsigned_long and spatial types],"
+                    + " found value [network.bytes_in] type [counter_long]"
             )
         );
 
@@ -503,8 +775,8 @@ public class VerifierTests extends ESTestCase {
             error("FROM tests | STATS max(network.bytes_in)", tsdb),
             equalTo(
                 "1:20: argument of [max(network.bytes_in)] must be"
-                    + " [boolean, datetime or numeric except unsigned_long or counter types],"
-                    + " found value [max(network.bytes_in)] type [counter_long]"
+                    + " [representable except unsigned_long and spatial types],"
+                    + " found value [network.bytes_in] type [counter_long]"
             )
         );
 
@@ -536,9 +808,9 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(error("FROM tests | STATS " + agg_func + "(foobar) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
         assertThat(
-            error("FROM tests | STATS " + agg_func + "(foobar) by BUCKET(languages, 10)"),
+            error("FROM tests | STATS " + agg_func + "(foobar) by BUCKET(hire_date, 10)"),
             matchesRegex(
-                "1:\\d+: function expects exactly four arguments when the first one is of type \\[INTEGER]"
+                "1:\\d+: function expects exactly four arguments when the first one is of type \\[DATETIME]"
                     + " and the second of type \\[INTEGER]\n"
                     + "line 1:\\d+: Unknown column \\[foobar]"
             )
@@ -626,6 +898,56 @@ public class VerifierTests extends ESTestCase {
             "1:27: SECOND argument of [weighted_avg(salary, 0.0)] cannot be null or 0, received [0.0]",
             error("from test | stats w_avg = weighted_avg(salary, 0.0)")
         );
+    }
+
+    public void testMatchInsideEval() throws Exception {
+        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+
+        assertEquals("1:36: EVAL does not support MATCH expressions", error("row title = \"brown fox\" | eval x = title match \"fox\" "));
+    }
+
+    public void testMatchFilter() throws Exception {
+        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+
+        assertEquals(
+            "1:63: MATCH requires a mapped index field, found [name]",
+            error("from test | eval name = concat(first_name, last_name) | where name match \"Anna\"")
+        );
+
+        assertEquals(
+            "1:19: MATCH requires a text or keyword field, but [salary] has type [integer]",
+            error("from test | where salary match \"100\"")
+        );
+
+        assertEquals(
+            "1:19: Invalid condition using MATCH",
+            error("from test | where first_name match \"Anna\" or starts_with(first_name, \"Anne\")")
+        );
+
+        assertEquals(
+            "1:51: Invalid condition using MATCH",
+            error("from test | eval new_salary = salary + 10 | where first_name match \"Anna\" OR new_salary > 100")
+        );
+
+        assertEquals(
+            "1:45: MATCH requires a mapped index field, found [fn]",
+            error("from test | rename first_name as fn | where fn match \"Anna\"")
+        );
+    }
+
+    public void testMatchCommand() throws Exception {
+        assumeTrue("skipping because MATCH_COMMAND is not enabled", EsqlCapabilities.Cap.MATCH_COMMAND.isEnabled());
+        assertEquals("1:24: MATCH cannot be used after LIMIT", error("from test | limit 10 | match \"Anna\""));
+        assertEquals("1:13: MATCH cannot be used after SHOW", error("show info | match \"8.16.0\""));
+        assertEquals("1:17: MATCH cannot be used after ROW", error("row a= \"Anna\" | match \"Anna\""));
+        assertEquals("1:26: MATCH cannot be used after EVAL", error("from test | eval z = 2 | match \"Anna\""));
+        assertEquals("1:43: MATCH cannot be used after DISSECT", error("from test | dissect first_name \"%{foo}\" | match \"Connection\""));
+        assertEquals("1:27: MATCH cannot be used after DROP", error("from test | drop emp_no | match \"Anna\""));
+        assertEquals("1:35: MATCH cannot be used after EVAL", error("from test | eval n = emp_no * 3 | match \"Anna\""));
+        assertEquals("1:44: MATCH cannot be used after GROK", error("from test | grok last_name \"%{WORD:foo}\" | match \"Anna\""));
+        assertEquals("1:27: MATCH cannot be used after KEEP", error("from test | keep emp_no | match \"Anna\""));
+
+        // TODO Keep adding tests for all unsupported commands
     }
 
     private String error(String query) {

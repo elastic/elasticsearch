@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.session.Configuration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 /**
  * Strategy indicating the type of resolution to apply for resolving the actual function definition in a pluggable way.

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
@@ -42,7 +43,12 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
 
     private static final String invalidWeightError = "{} argument of [{}] cannot be null or 0, received [{}]";
 
-    @FunctionInfo(returnType = "double", description = "The weighted average of a numeric field.", isAggregation = true)
+    @FunctionInfo(
+        returnType = "double",
+        description = "The weighted average of a numeric expression.",
+        isAggregation = true,
+        examples = @Example(file = "stats", tag = "weighted-avg")
+    )
     public WeightedAvg(
         Source source,
         @Param(name = "number", type = { "double", "integer", "long" }, description = "A numeric value.") Expression field,

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -426,6 +427,55 @@ public class GeoIpDownloaderTests extends ESTestCase {
         assertEquals(0, stats.getFailedDownloads());
     }
 
+    public void testCleanDatabases() throws IOException {
+        ByteArrayInputStream bais = new ByteArrayInputStream(new byte[0]);
+        when(httpClient.get("http://a.b/t1")).thenReturn(bais);
+
+        final AtomicInteger count = new AtomicInteger(0);
+
+        geoIpDownloader = new GeoIpDownloader(
+            client,
+            httpClient,
+            clusterService,
+            threadPool,
+            Settings.EMPTY,
+            1,
+            "",
+            "",
+            "",
+            EMPTY_TASK_ID,
+            Map.of(),
+            () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            () -> true
+        ) {
+            @Override
+            void updateDatabases() throws IOException {
+                // noop
+            }
+
+            @Override
+            void deleteOldChunks(String name, int firstChunk) {
+                count.incrementAndGet();
+                assertEquals("test.mmdb", name);
+                assertEquals(21, firstChunk);
+            }
+
+            @Override
+            void updateTaskState() {
+                // noop
+            }
+        };
+
+        geoIpDownloader.setState(GeoIpTaskState.EMPTY.put("test.mmdb", new GeoIpTaskState.Metadata(10, 10, 20, "md5", 20)));
+        geoIpDownloader.runDownloader();
+        geoIpDownloader.runDownloader();
+        GeoIpDownloaderStats stats = geoIpDownloader.getStatus();
+        assertEquals(1, stats.getExpiredDatabases());
+        assertEquals(2, count.get()); // somewhat surprising, not necessarily wrong
+        assertEquals(18, geoIpDownloader.state.getDatabases().get("test.mmdb").lastCheck()); // highly surprising, seems wrong
+    }
+
     @SuppressWarnings("unchecked")
     public void testUpdateTaskState() {
         geoIpDownloader = new GeoIpDownloader(
@@ -541,7 +591,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
                 "index ["
                     + geoIpIndex
                     + "] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, "
-                    + "index has read-only-allow-delete block];"
+                    + "index has read-only-allow-delete block; for more information, see "
+                    + ReferenceDocs.FLOOD_STAGE_WATERMARK
+                    + "];"
             )
         );
         verifyNoInteractions(httpClient);

@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -177,11 +176,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static RepositoryData getRepositoryData(Repository repository) {
-        return PlainActionFuture.get(
-            listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener),
-            10,
-            TimeUnit.SECONDS
-        );
+        return safeAwait(listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener));
     }
 
     public static long getFailureCount(String repository) {
@@ -429,20 +424,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(repoName, parser);
         }
         final BlobStoreRepository blobStoreRepository = getRepositoryOnMaster(repoName);
-        PlainActionFuture.get(
-            f -> blobStoreRepository.threadPool()
-                .generic()
-                .execute(
-                    ActionRunnable.run(
-                        f,
-                        () -> BlobStoreRepository.SNAPSHOT_FORMAT.write(
-                            downgradedSnapshotInfo,
-                            blobStoreRepository.blobStore().blobContainer(blobStoreRepository.basePath()),
-                            snapshotInfo.snapshotId().getUUID(),
-                            randomBoolean()
-                        )
-                    )
-                )
+        BlobStoreRepository.SNAPSHOT_FORMAT.write(
+            downgradedSnapshotInfo,
+            blobStoreRepository.blobStore().blobContainer(blobStoreRepository.basePath()),
+            snapshotInfo.snapshotId().getUUID(),
+            randomBoolean()
         );
 
         final RepositoryMetadata repoMetadata = blobStoreRepository.getMetadata();
@@ -554,15 +540,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             SnapshotState.FAILED,
             Collections.emptyMap()
         );
-        PlainActionFuture.<RepositoryData, Exception>get(
-            f -> repo.finalizeSnapshot(
+        safeAwait(
+            (ActionListener<RepositoryData> listener) -> repo.finalizeSnapshot(
                 new FinalizeSnapshotContext(
                     ShardGenerations.EMPTY,
                     getRepositoryData(repoName).getGenId(),
                     state.metadata(),
                     snapshotInfo,
                     SnapshotsService.OLD_SNAPSHOT_FORMAT,
-                    f,
+                    listener,
                     info -> {}
                 )
             )

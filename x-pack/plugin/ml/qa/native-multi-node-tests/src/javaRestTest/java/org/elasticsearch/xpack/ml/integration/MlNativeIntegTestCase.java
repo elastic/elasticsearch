@@ -118,8 +118,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.test.XContentTestUtils.convertToMap;
-import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.monitoring.MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED;
@@ -408,45 +406,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             entries.add(
                 new NamedWriteableRegistry.Entry(AutoscalingDeciderResult.Reason.class, MlScalingReason.NAME, MlScalingReason::new)
             );
-            final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
-            ClusterState masterClusterState = clusterAdmin().prepareState().all().get().getState();
-            byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
-            // remove local node reference
-            masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
-            Map<String, Object> masterStateMap = convertToMap(masterClusterState);
-            int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
-            String masterId = masterClusterState.nodes().getMasterNodeId();
-            for (Client client : cluster().getClients()) {
-                ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
-                byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
-                // remove local node reference
-                localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null, namedWriteableRegistry);
-                final Map<String, Object> localStateMap = convertToMap(localClusterState);
-                final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
-                // Check that the non-master node has the same version of the cluster state as the master and
-                // that the master node matches the master (otherwise there is no requirement for the cluster state to match)
-                if (masterClusterState.version() == localClusterState.version()
-                    && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
-                    try {
-                        assertEquals("clusterstate UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
-                        // We cannot compare serialization bytes since serialization order of maps is not guaranteed
-                        // but we can compare serialization sizes - they should be the same
-                        assertEquals("clusterstate size does not match", masterClusterStateSize, localClusterStateSize);
-                        // Compare JSON serialization
-                        assertNull(
-                            "clusterstate JSON serialization does not match",
-                            differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap)
-                        );
-                    } catch (AssertionError error) {
-                        logger.error(
-                            "Cluster state from master:\n{}\nLocal cluster state:\n{}",
-                            masterClusterState.toString(),
-                            localClusterState.toString()
-                        );
-                        throw error;
-                    }
-                }
-            }
+            doEnsureClusterStateConsistency(new NamedWriteableRegistry(entries));
         }
     }
 
@@ -461,7 +421,10 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                     .build()
             )
         ).actionGet();
-        client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
+        client().execute(
+            CreateDataStreamAction.INSTANCE,
+            new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
+        ).actionGet();
     }
 
     public static class MockPainlessScriptEngine extends MockScriptEngine {

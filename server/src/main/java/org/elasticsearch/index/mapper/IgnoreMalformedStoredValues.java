@@ -99,7 +99,6 @@ public abstract class IgnoreMalformedStoredValues {
     private static class Stored extends IgnoreMalformedStoredValues {
         private final String fieldName;
 
-        private int docId = -1;
         private List<Object> values = emptyList();
 
         Stored(String fieldName) {
@@ -108,11 +107,17 @@ public abstract class IgnoreMalformedStoredValues {
 
         @Override
         public Stream<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of(Map.entry(name(fieldName), this::load));
-        }
+            return Stream.of(Map.entry(name(fieldName), new SourceLoader.SyntheticFieldLoader.StoredFieldLoader() {
+                @Override
+                public void advanceToDoc(int docId) {
+                    values = emptyList();
+                }
 
-        private void load(List<Object> values) {
-            this.values = values;
+                @Override
+                public void load(List<Object> newValues) {
+                    values = newValues;
+                }
+            }));
         }
 
         @Override

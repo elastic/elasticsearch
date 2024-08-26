@@ -32,7 +32,8 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
     private final String leafFieldName;
     private final String fullFieldName;
     private final Collection<SyntheticFieldLoaderLayer> parts;
-    private boolean hasValue;
+    private boolean storedFieldLoadersHaveValues;
+    private boolean docValuesLoadersHaveValues;
 
     public CompositeSyntheticFieldLoader(String leafFieldName, String fullFieldName, SyntheticFieldLoaderLayer... parts) {
         this(leafFieldName, fullFieldName, Arrays.asList(parts));
@@ -42,15 +43,27 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
         this.leafFieldName = leafFieldName;
         this.fullFieldName = fullFieldName;
         this.parts = parts;
-        this.hasValue = false;
+        this.storedFieldLoadersHaveValues = false;
+        this.docValuesLoadersHaveValues = false;
     }
 
     @Override
     public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        return parts.stream().flatMap(SyntheticFieldLoaderLayer::storedFieldLoaders).map(e -> Map.entry(e.getKey(), (values) -> {
-            hasValue = true;
-            e.getValue().load(values);
-        }));
+        return parts.stream()
+            .flatMap(SyntheticFieldLoaderLayer::storedFieldLoaders)
+            .map(e -> Map.entry(e.getKey(), new StoredFieldLoader() {
+                @Override
+                public void advanceToDoc(int docId) {
+                    storedFieldLoadersHaveValues = false;
+                    e.getValue().advanceToDoc(docId);
+                }
+
+                @Override
+                public void load(List<Object> newValues) {
+                    storedFieldLoadersHaveValues = true;
+                    e.getValue().load(newValues);
+                }
+            }));
     }
 
     @Override
@@ -68,24 +81,26 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
         }
 
         return docId -> {
+            docValuesLoadersHaveValues = false;
+
             boolean hasDocs = false;
             for (var loader : loaders) {
                 hasDocs |= loader.advanceToDoc(docId);
             }
 
-            this.hasValue |= hasDocs;
+            this.docValuesLoadersHaveValues |= hasDocs;
             return hasDocs;
         };
     }
 
     @Override
     public boolean hasValue() {
-        return hasValue;
+        return storedFieldLoadersHaveValues || docValuesLoadersHaveValues;
     }
 
     @Override
     public void write(XContentBuilder b) throws IOException {
-        var totalCount = parts.stream().mapToLong(l -> l.valueCount()).sum();
+        var totalCount = parts.stream().mapToLong(SyntheticFieldLoaderLayer::valueCount).sum();
 
         if (totalCount == 0) {
             return;
@@ -150,12 +165,10 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
      */
     public abstract static class StoredFieldLayer implements SyntheticFieldLoaderLayer {
         private final String fieldName;
-        private int docId;
         private List<Object> values;
 
         public StoredFieldLayer(String fieldName) {
             this.fieldName = fieldName;
-            this.docId = -1;
             this.values = emptyList();
         }
 
@@ -166,9 +179,16 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
 
         @Override
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of(Map.entry(fieldName, (values) -> {
-                this.docId = docId;
-                this.values = values;
+            return Stream.of(Map.entry(fieldName, new SourceLoader.SyntheticFieldLoader.StoredFieldLoader() {
+                @Override
+                public void advanceToDoc(int docId) {
+                    values = emptyList();
+                }
+
+                @Override
+                public void load(List<Object> newValues) {
+                    values = newValues;
+                }
             }));
         }
 
@@ -187,13 +207,10 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
             for (Object v : values) {
                 writeValue(v, b);
             }
-            values = emptyList();
         }
 
         /**
-         * Convert a {@link BytesRef} read from the source into bytes to write
-         * to the xcontent. This shouldn't make a deep copy if the conversion
-         * process itself doesn't require one.
+         * Write a value read from stored field using appropriate format.
          */
         protected abstract void writeValue(Object value, XContentBuilder b) throws IOException;
 

@@ -23,7 +23,6 @@ public abstract class StringStoredFieldFieldLoader implements SourceLoader.Synth
     private final String name;
     private final String simpleName;
 
-    private int docId = -1;
     private List<Object> values = emptyList();
 
     @Nullable
@@ -38,16 +37,34 @@ public abstract class StringStoredFieldFieldLoader implements SourceLoader.Synth
 
     @Override
     public final Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        Stream<Map.Entry<String, StoredFieldLoader>> standard = Stream.of(Map.entry(name, (values) -> {
-            this.docId = docId;
-            this.values = values;
-        }));
+        Stream<Map.Entry<String, StoredFieldLoader>> standard = Stream.of(
+            Map.entry(name, new SourceLoader.SyntheticFieldLoader.StoredFieldLoader() {
+                @Override
+                public void advanceToDoc(int docId) {
+                    values = emptyList();
+                }
+
+                @Override
+                public void load(List<Object> newValues) {
+                    values = newValues;
+                }
+            })
+        );
+
         if (extraStoredName == null) {
             return standard;
         }
-        return Stream.concat(standard, Stream.of(Map.entry(extraStoredName, (values) -> {
-            this.docId = docId;
-            this.extraValues = values;
+
+        return Stream.concat(standard, Stream.of(Map.entry(extraStoredName, new SourceLoader.SyntheticFieldLoader.StoredFieldLoader() {
+            @Override
+            public void advanceToDoc(int docId) {
+                extraValues = emptyList();
+            }
+
+            @Override
+            public void load(List<Object> newValues) {
+                extraValues = newValues;
+            }
         })));
     }
 

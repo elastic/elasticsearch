@@ -1065,22 +1065,10 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            switch (docValueCount) {
-                case 0:
-                    return;
-                case 1:
-                    b.field(leafName());
-                    break;
-                default:
-                    b.startArray(leafName());
-            }
             for (int i = 0; i < docValueCount; i++) {
                 int length = docValuesStream.readVInt();
                 b.utf8Value(docValueBytes.bytes, docValuesStream.getPosition(), length);
                 docValuesStream.skipBytes(length);
-            }
-            if (docValueCount > 1) {
-                b.endArray();
             }
         }
 

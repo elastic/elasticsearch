@@ -725,8 +725,72 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
     }
 
-    public void testWildcard() throws IOException {
+    public void testRegexp() throws IOException {
+        String json = Strings.format("""
+            {
+              "intervals": {
+                "%s": {
+                  "regexp": {
+                    "pattern": "Te.*m"
+                  }
+                }
+              }
+            }""", TEXT_FIELD_NAME);
 
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.regexp(new BytesRef("te.*m")));
+        assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
+
+        String no_positions_json = Strings.format("""
+            {
+              "intervals": {
+                "%s": {
+                  "regexp": {
+                    "pattern": "Te.*m"
+                  }
+                }
+              }
+            }
+            """, NO_POSITIONS_FIELD);
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(no_positions_json);
+            builder1.toQuery(createSearchExecutionContext());
+        });
+
+        String fixed_field_json = Strings.format("""
+            {
+              "intervals": {
+                "%s": {
+                  "regexp": {
+                    "pattern": "Te.*m",
+                    "use_field": "masked_field"
+                  }
+                }
+              }
+            }""", TEXT_FIELD_NAME);
+
+        builder = (IntervalQueryBuilder) parseQuery(fixed_field_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.fixField(MASKED_FIELD, Intervals.regexp(new BytesRef("te.*m"))));
+        assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
+
+        String fixed_field_json_no_positions = Strings.format("""
+            {
+              "intervals": {
+                "%s": {
+                  "regexp": {
+                    "pattern": "Te.*m",
+                    "use_field": "%s"
+                  }
+                }
+              }
+            }""", TEXT_FIELD_NAME, NO_POSITIONS_FIELD);
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(fixed_field_json_no_positions);
+            builder1.toQuery(createSearchExecutionContext());
+        });
+    }
+
+    public void testWildcard() throws IOException {
         String json = Strings.format("""
             {
               "intervals": {
@@ -931,7 +995,71 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             Intervals.fixField(MASKED_FIELD, buildFuzzySource("term", "term", 2, true, Fuzziness.ONE.asDistance("term")))
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
-
     }
 
+    public void testRange() throws IOException {
+        String json = Strings.format("""
+            {
+              "intervals": {
+                "%s": {
+                  "range": {
+                    "gte": "aaa",
+                    "lte": "aab"
+                  }
+                }
+              }
+            }""", TEXT_FIELD_NAME);
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.range(new BytesRef("aaa"), new BytesRef("aab"), true, true));
+        assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
+
+        json = Strings.format("""
+            {
+              "intervals": {
+                "%s": {
+                  "range": {
+                    "gt": "aaa",
+                    "lt": "aab"
+                  }
+                }
+              }
+            }""", TEXT_FIELD_NAME);
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.range(new BytesRef("aaa"), new BytesRef("aab"), false, false));
+        assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
+
+        String incomplete_range = Strings.format("""
+            {
+              "intervals": {
+                "%s": {
+                  "range": {
+                    "gt": "aaa"
+                  }
+                }
+              }
+            }
+            """, TEXT_FIELD_NAME);
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(incomplete_range);
+            builder1.toQuery(createSearchExecutionContext());
+        });
+        assertEquals("Either [lte] or [lt], one of them must be provided", exc.getCause().getMessage());
+
+        String incomplete_range2 = Strings.format("""
+            {
+              "intervals": {
+                "%s": {
+                  "range": {
+                    "lt": "aaa"
+                  }
+                }
+              }
+            }
+            """, TEXT_FIELD_NAME);
+        exc = expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(incomplete_range2);
+            builder1.toQuery(createSearchExecutionContext());
+        });
+        assertEquals("Either [gte] or [gt], one of them must be provided", exc.getCause().getMessage());
+    }
 }

@@ -1,0 +1,5 @@
+pr: 111465
+summary: Add range and regexp Intervals
+area: Search
+type: enhancement
+issues: []

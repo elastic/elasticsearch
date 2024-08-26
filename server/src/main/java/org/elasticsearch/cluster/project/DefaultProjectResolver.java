@@ -23,4 +23,5 @@ public class DefaultProjectResolver implements ProjectResolver {
         // TODO-multi-project assert no specific project id is requested, and/or that a sole project exists in the cluster state
         return metadata.getProject();
     }
+
 }

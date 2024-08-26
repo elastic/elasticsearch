@@ -16,15 +16,6 @@ import java.util.Set;
 
 public class InjectorTests extends ESTestCase {
 
-    public void testInjectionOfRecordComponents() {
-        var first = new First();
-        var second = new Second(first);
-        Injector injector = Injector.create().addRecordContents(new ExistingInstances(first, second));
-        Third third = (Third) injector.inject(List.of(Third.class)).get(Third.class);
-        assertSame(first, third.first);
-        assertSame(second, third.second);
-    }
-
     public record First() {}
 
     public record Second(First first) {}

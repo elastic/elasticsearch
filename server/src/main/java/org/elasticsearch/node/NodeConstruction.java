@@ -80,6 +80,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -227,6 +228,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.lang.invoke.MethodHandles.lookup;
 import static java.util.Collections.newSetFromMap;
 import static java.util.function.Predicate.not;
 import static org.elasticsearch.core.Types.forciblyCast;
@@ -866,7 +868,7 @@ class NodeConstruction {
                 logger.debug("Using injector to instantiate classes for {}: {}", plugin.getClass().getSimpleName(), classes);
                 var injector = org.elasticsearch.injection.Injector.create();
                 injector.addInstances(componentObjects);
-                injector.addRecordContents(pluginServices);
+                addRecordContents(injector, pluginServices);
                 var resultMap = injector.inject(classes);
                 // For now, assume we want all components added to the Guice injector
                 var distinctObjects = newSetFromMap(new IdentityHashMap<>());
@@ -1175,6 +1177,22 @@ class NodeConstruction {
         injector = modules.createInjector();
 
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
+    }
+
+    /**
+     * For each "component" (getter) <em>c</em> of a {@link Record},
+     * calls {@link org.elasticsearch.injection.Injector#addInstance(Object) Injector.addInstance}
+     * to register the value with the component's declared type.
+     */
+    @SuppressForbidden(reason = "Can't call invokeExact because we don't know the exact Record subtype statically")
+    private static void addRecordContents(org.elasticsearch.injection.Injector injector, Record r) {
+        for (var c : r.getClass().getRecordComponents()) {
+            try {
+                injector.addInstance(lookup().unreflect(c.getAccessor()).invoke(r));
+            } catch (Throwable e) {
+                throw new IllegalStateException("Unable to read record component " + c, e);
+            }
+        }
     }
 
     private ClusterService createClusterService(SettingsModule settingsModule, ThreadPool threadPool, TaskManager taskManager) {

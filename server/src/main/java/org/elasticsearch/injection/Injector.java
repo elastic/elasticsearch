@@ -8,7 +8,6 @@
 
 package org.elasticsearch.injection;
 
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.injection.api.Inject;
 import org.elasticsearch.injection.spec.ExistingInstanceSpec;
 import org.elasticsearch.injection.spec.InjectionSpec;
@@ -125,24 +124,6 @@ public final class Injector {
         var existing = seedSpecs.put(type, new ExistingInstanceSpec(type, object));
         if (existing != null) {
             throw new IllegalStateException("There's already an object for " + type);
-        }
-        return this;
-    }
-
-    /**
-     * For each "component" (getter) <em>c</em> of a {@link Record}, calls {@link #addInstance(Class, Object)} to register the
-     * value with the component's declared type.
-     */
-    @SuppressForbidden(reason = "Can't call invokeExact because we don't know the exact Record subtype statically")
-    public <T> Injector addRecordContents(Record r) {
-        for (var c : r.getClass().getRecordComponents()) {
-            try {
-                @SuppressWarnings("unchecked")
-                Class<T> type = (Class<T>) c.getType();
-                addInstance(type, type.cast(lookup().unreflect(c.getAccessor()).invoke(r)));
-            } catch (Throwable e) {
-                throw new IllegalStateException("Unable to read record component " + c, e);
-            }
         }
         return this;
     }

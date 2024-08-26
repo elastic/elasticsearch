@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -69,10 +68,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLSession;
@@ -90,13 +89,11 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     private ThreadPool threadPool;
     private ResourceWatcherService resourceWatcherService;
 
-    private static final TimeValue RESOURCE_WATCHER_RELOAD_INTERVAL = TimeValue.timeValueMillis(500);
-
     @Before
     public void setup() {
         threadPool = new TestThreadPool("reload tests");
         resourceWatcherService = new ResourceWatcherService(
-            Settings.builder().put("resource.reload.interval.high", RESOURCE_WATCHER_RELOAD_INTERVAL.millis() + "ms").build(),
+            Settings.builder().put("resource.reload.interval.high", "1s").build(),
             threadPool
         );
     }
@@ -579,29 +576,33 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         List<Runnable> modifierFunctions,
         Consumer<SSLContext> postChecks
     ) throws Exception {
-        final CountDownLatch reloadLatch = new CountDownLatch(modifierFunctions.size());
+        final CyclicBarrier reloadBarrier = new CyclicBarrier(2);
         final SSLService sslService = new SSLService(env);
         final SslConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         final Consumer<SslConfiguration> reloadConsumer = sslConfiguration -> {
             try {
                 sslService.reloadSSLContext(sslConfiguration);
             } finally {
-                reloadLatch.countDown();
+                try {
+                    reloadBarrier.await();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
         new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
         // Baseline checks
         preChecks.accept(sslService.sslContextHolder(config).sslContext());
 
-        assertEquals("nothing should have called reload", modifierFunctions.size(), reloadLatch.getCount());
+        assertEquals("nothing should have called reload", 0, reloadBarrier.getNumberWaiting());
 
         // modify
         for (var modifierFunction : modifierFunctions) {
             modifierFunction.run();
-            Thread.sleep(RESOURCE_WATCHER_RELOAD_INTERVAL.millis() + 1);
+            reloadBarrier.await();
+            reloadBarrier.reset();
         }
 
-        reloadLatch.await();
         // checks after reload
         postChecks.accept(sslService.sslContextHolder(config).sslContext());
     }

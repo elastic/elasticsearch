@@ -169,6 +169,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {mv_percentile.FromIndex ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/112193
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testDeleteJobAsync
+  issue: https://github.com/elastic/elasticsearch/issues/112212
 
 # Examples:
 #

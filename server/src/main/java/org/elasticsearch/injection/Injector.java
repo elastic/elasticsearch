@@ -195,7 +195,7 @@ public final class Injector {
 
         // For convenience, we pretend there's a gigantic method out there that takes
         // all the seed types as parameters.
-        Queue<ParameterSpec> queue = seedMap.values()
+        Queue<ParameterSpec> workQueue = seedMap.values()
             .stream()
             .map(InjectionSpec::requestedType)
             .map(Injector::syntheticParameterSpec)
@@ -205,7 +205,7 @@ public final class Injector {
         Map<Class<?>, InjectionSpec> result = new LinkedHashMap<>();
 
         ParameterSpec p;
-        while ((p = queue.poll()) != null) {
+        while ((p = workQueue.poll()) != null) {
             Class<?> c = p.injectableType();
             InjectionSpec existingResult = result.get(c);
             if (existingResult != null) {
@@ -234,7 +234,7 @@ public final class Injector {
             logger.trace("Inspecting parameters for constructor of {}", c);
             for (var ps : methodHandleSpec.parameters()) {
                 logger.trace("Enqueue {}", ps);
-                queue.add(ps);
+                workQueue.add(ps);
             }
 
             registerSpec(spec, result);

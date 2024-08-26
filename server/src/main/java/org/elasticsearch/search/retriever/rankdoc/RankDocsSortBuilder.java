@@ -51,6 +51,10 @@ public class RankDocsSortBuilder extends SortBuilder<RankDocsSortBuilder> {
         return this;
     }
 
+    public RankDoc[] rankDocs() {
+        return this.rankDocs;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeArray(StreamOutput::writeNamedWriteable, rankDocs);

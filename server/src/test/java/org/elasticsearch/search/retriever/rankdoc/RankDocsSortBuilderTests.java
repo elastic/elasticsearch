@@ -28,8 +28,7 @@ public class RankDocsSortBuilderTests extends AbstractSortTestCase<RankDocsSortB
     }
 
     private RankDocsSortBuilder randomRankDocsSortBuulder() {
-        int totalDocs = randomInt(10);
-        RankDoc[] rankDocs = randomRankDocs(totalDocs);
+        RankDoc[] rankDocs = randomRankDocs(randomInt(100));
         return new RankDocsSortBuilder(rankDocs);
     }
 
@@ -45,7 +44,7 @@ public class RankDocsSortBuilderTests extends AbstractSortTestCase<RankDocsSortB
     @Override
     protected RankDocsSortBuilder mutate(RankDocsSortBuilder original) throws IOException {
         RankDocsSortBuilder mutated = new RankDocsSortBuilder(original);
-        mutated.rankDocs(randomRankDocs(randomInt(10)));
+        mutated.rankDocs(randomRankDocs(original.rankDocs().length + randomInt(100)));
         return mutated;
     }
 

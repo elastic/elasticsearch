@@ -35,16 +35,16 @@ public class RankDocTests extends AbstractWireSerializingTestCase<RankDoc> {
     protected RankDoc mutateInstance(RankDoc instance) throws IOException {
         RankDoc mutated = new RankDoc(instance.doc, instance.score, instance.shardIndex);
         mutated.rank = instance.rank;
-        if (rarely()) {
+        if (frequently()) {
             mutated.doc = randomNonNegativeInt();
         }
-        if (rarely()) {
+        if (frequently()) {
             mutated.score = randomFloat();
         }
         if (frequently()) {
-            mutated.shardIndex = mutated.shardIndex == -1 ? randomNonNegativeInt() : -1;
+            mutated.shardIndex = randomNonNegativeInt();
         }
-        if (rarely()) {
+        if (frequently()) {
             mutated.rank = randomNonNegativeInt();
         }
         return mutated;

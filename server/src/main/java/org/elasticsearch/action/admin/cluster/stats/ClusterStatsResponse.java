@@ -136,7 +136,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         repositoryUsageStats.toXContent(builder, params);
 
         if (CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
+            builder.startObject("ccs");
             ccsMetrics.toXContent(builder, params);
+            builder.endObject();
         }
 
         return builder;

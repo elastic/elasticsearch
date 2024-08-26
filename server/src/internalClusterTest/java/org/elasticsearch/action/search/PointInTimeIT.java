@@ -608,8 +608,8 @@ public class PointInTimeIT extends ESIntegTestCase {
 
             // verify that not all documents can now be retrieved
             assertResponse(prepareSearch().setQuery(new MatchAllQueryBuilder()), resp -> {
-                assertThat(resp.getSuccessfulShards(), equalTo(numShards));
-                assertThat(resp.getShardFailures(), equalTo(0));
+                assertThat(resp.getSuccessfulShards(), equalTo(numShards - shardsRemoved));
+                assertThat(resp.getFailedShards(), equalTo(shardsRemoved));
                 assertNotNull(resp.getHits().getTotalHits());
                 assertThat(resp.getHits().getTotalHits().value, lessThan((long) numDocs));
             });
@@ -623,8 +623,8 @@ public class PointInTimeIT extends ESIntegTestCase {
             try {
                 // assert that some shards are indeed missing from PIT
                 assertThat(pointInTimeResponseOneNodeDown.getTotalShards(), equalTo(numShards));
-                assertThat(pointInTimeResponseOneNodeDown.getSuccessfulShards(), equalTo(numShards - shardsToRelocate.size()));
-                assertThat(pointInTimeResponseOneNodeDown.getFailedShards(), equalTo(shardsToRelocate.size()));
+                assertThat(pointInTimeResponseOneNodeDown.getSuccessfulShards(), equalTo(numShards - shardsRemoved));
+                assertThat(pointInTimeResponseOneNodeDown.getFailedShards(), equalTo(shardsRemoved));
                 assertThat(pointInTimeResponseOneNodeDown.getSkippedShards(), equalTo(0));
 
                 // ensure that the response now contains fewer documents than the total number of indexed documents
@@ -632,8 +632,8 @@ public class PointInTimeIT extends ESIntegTestCase {
                     prepareSearch().setQuery(new MatchAllQueryBuilder())
                         .setPointInTime(new PointInTimeBuilder(pointInTimeResponseOneNodeDown.getPointInTimeId())),
                     resp -> {
-                        assertThat(resp.getSuccessfulShards(), equalTo(numShards - shardsToRelocate.size()));
-                        assertThat(resp.getShardFailures(), equalTo(shardsToRelocate.size()));
+                        assertThat(resp.getSuccessfulShards(), equalTo(numShards - shardsRemoved));
+                        assertThat(resp.getFailedShards(), equalTo(shardsRemoved));
                         assertThat(resp.pointInTimeId(), equalTo(pointInTimeResponseOneNodeDown.getPointInTimeId()));
                         assertNotNull(resp.getHits().getTotalHits());
                         assertThat(resp.getHits().getTotalHits().value, lessThan((long) numDocs));

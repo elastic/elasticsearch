@@ -21,7 +21,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -101,7 +100,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -109,7 +107,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -186,7 +183,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -212,7 +208,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -1204,23 +1199,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
     @Nullable
     public static DiscoveryNode waitAndGetHealthNode(InternalTestCluster internalCluster) {
         DiscoveryNode[] healthNode = new DiscoveryNode[1];
-        try {
-            waitUntil(() -> {
-                ClusterState state = internalCluster.client()
-                    .admin()
-                    .cluster()
-                    .prepareState()
-                    .clear()
-                    .setMetadata(true)
-                    .setNodes(true)
-                    .get()
-                    .getState();
-                healthNode[0] = HealthNode.findHealthNode(state);
-                return healthNode[0] != null;
-            }, 15, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        waitUntil(() -> {
+            ClusterState state = internalCluster.client()
+                .admin()
+                .cluster()
+                .prepareState()
+                .clear()
+                .setMetadata(true)
+                .setNodes(true)
+                .get()
+                .getState();
+            healthNode[0] = HealthNode.findHealthNode(state);
+            return healthNode[0] != null;
+        }, 15, TimeUnit.SECONDS);
         return healthNode[0];
     }
 
@@ -1652,7 +1643,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return admin().indices();
     }
 
-    public void indexRandom(boolean forceRefresh, String index, int numDocs) throws InterruptedException {
+    public void indexRandom(boolean forceRefresh, String index, int numDocs) {
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
             builders[i] = prepareIndex(index).setSource("field", "value");
@@ -1663,11 +1654,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Convenience method that forwards to {@link #indexRandom(boolean, List)}.
      */
-    public void indexRandom(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+    public void indexRandom(boolean forceRefresh, IndexRequestBuilder... builders) {
         indexRandom(forceRefresh, Arrays.asList(builders));
     }
 
-    public void indexRandom(boolean forceRefresh, boolean dummyDocuments, IndexRequestBuilder... builders) throws InterruptedException {
+    public void indexRandom(boolean forceRefresh, boolean dummyDocuments, IndexRequestBuilder... builders) {
         indexRandom(forceRefresh, dummyDocuments, Arrays.asList(builders));
     }
 
@@ -1686,7 +1677,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param builders     the documents to index.
      * @see #indexRandom(boolean, boolean, java.util.List)
      */
-    public void indexRandom(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException {
+    public void indexRandom(boolean forceRefresh, List<IndexRequestBuilder> builders) {
         indexRandom(forceRefresh, forceRefresh, builders);
     }
 
@@ -1702,7 +1693,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *                       all documents are indexed. This is useful to produce deleted documents on the server side.
      * @param builders       the documents to index.
      */
-    public void indexRandom(boolean forceRefresh, boolean dummyDocuments, List<IndexRequestBuilder> builders) throws InterruptedException {
+    public void indexRandom(boolean forceRefresh, boolean dummyDocuments, List<IndexRequestBuilder> builders) {
         indexRandom(forceRefresh, dummyDocuments, true, builders);
     }
 
@@ -1719,8 +1710,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param maybeFlush     if {@code true} this method may randomly execute full flushes after index operations.
      * @param builders       the documents to index.
      */
-    public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders)
-        throws InterruptedException {
+    public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders) {
         Random random = random();
         Set<String> indices = new HashSet<>();
         builders = new ArrayList<>(builders);
@@ -1742,7 +1732,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         Collections.shuffle(builders, random());
-        final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Exception>> errors = new CopyOnWriteArrayList<>();
         List<CountDownLatch> inFlightAsyncOperations = new ArrayList<>();
         // If you are indexing just a few documents then frequently do it one at a time. If many then frequently in bulk.
         final String[] indicesArray = indices.toArray(new String[] {});
@@ -1751,7 +1740,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 logger.info("Index [{}] docs async: [{}] bulk: [{}]", builders.size(), true, false);
                 for (IndexRequestBuilder indexRequestBuilder : builders) {
                     indexRequestBuilder.execute(
-                        new PayloadLatchedActionListener<>(indexRequestBuilder, newLatch(inFlightAsyncOperations), errors)
+                        new LatchedActionListener<DocWriteResponse>(newLatch(inFlightAsyncOperations)).delegateResponse((l, e) -> fail(e))
                     );
                     postIndexAsyncActions(indicesArray, inFlightAsyncOperations, maybeFlush);
                 }
@@ -1778,19 +1767,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         for (CountDownLatch operation : inFlightAsyncOperations) {
-            operation.await();
+            safeAwait(operation);
         }
-        final List<Exception> actualErrors = new ArrayList<>();
-        for (Tuple<IndexRequestBuilder, Exception> tuple : errors) {
-            Throwable t = ExceptionsHelper.unwrapCause(tuple.v2());
-            if (t instanceof EsRejectedExecutionException) {
-                logger.debug("Error indexing doc: " + t.getMessage() + ", reindexing.");
-                tuple.v1().get(); // re-index if rejected
-            } else {
-                actualErrors.add(tuple.v2());
-            }
-        }
-        assertThat(actualErrors, emptyIterable());
         if (bogusIds.isEmpty() == false) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
             for (List<String> doc : bogusIds) {
@@ -1846,8 +1824,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Maybe refresh, force merge, or flush then always make sure there aren't too many in flight async operations.
      */
-    private void postIndexAsyncActions(String[] indices, List<CountDownLatch> inFlightAsyncOperations, boolean maybeFlush)
-        throws InterruptedException {
+    private void postIndexAsyncActions(String[] indices, List<CountDownLatch> inFlightAsyncOperations, boolean maybeFlush) {
         if (rarely()) {
             if (rarely()) {
                 indicesAdmin().prepareRefresh(indices)
@@ -1867,7 +1844,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         while (inFlightAsyncOperations.size() > MAX_IN_FLIGHT_ASYNC_INDEXES) {
             int waitFor = between(0, inFlightAsyncOperations.size() - 1);
-            inFlightAsyncOperations.remove(waitFor).await();
+            safeAwait(inFlightAsyncOperations.remove(waitFor));
         }
     }
 
@@ -1961,23 +1938,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
 
         protected void addError(Exception e) {}
-
-    }
-
-    private class PayloadLatchedActionListener<Response, T> extends LatchedActionListener<Response> {
-        private final CopyOnWriteArrayList<Tuple<T, Exception>> errors;
-        private final T builder;
-
-        PayloadLatchedActionListener(T builder, CountDownLatch latch, CopyOnWriteArrayList<Tuple<T, Exception>> errors) {
-            super(latch);
-            this.errors = errors;
-            this.builder = builder;
-        }
-
-        @Override
-        protected void addError(Exception e) {
-            errors.add(new Tuple<>(builder, e));
-        }
 
     }
 

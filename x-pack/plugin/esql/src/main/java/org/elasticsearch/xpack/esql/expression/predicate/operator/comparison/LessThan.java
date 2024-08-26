@@ -34,6 +34,7 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
         Map.entry(DataType.LONG, LessThanLongsEvaluator.Factory::new),
         Map.entry(DataType.UNSIGNED_LONG, LessThanLongsEvaluator.Factory::new),
         Map.entry(DataType.DATETIME, LessThanLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATE_NANOS, LessThanLongsEvaluator.Factory::new),
         Map.entry(DataType.KEYWORD, LessThanKeywordsEvaluator.Factory::new),
         Map.entry(DataType.TEXT, LessThanKeywordsEvaluator.Factory::new),
         Map.entry(DataType.VERSION, LessThanKeywordsEvaluator.Factory::new),

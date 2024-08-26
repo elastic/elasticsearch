@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.ToXContent;
@@ -74,14 +75,9 @@ public record InferenceChunkedTextEmbeddingFloatResults(List<InferenceFloatEmbed
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         // TODO add isTruncated flag
-        builder.startArray(FIELD_NAME);
-        for (var embedding : chunks) {
-            embedding.toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
+        return ChunkedToXContentHelper.array(FIELD_NAME, chunks.iterator());
     }
 
     @Override

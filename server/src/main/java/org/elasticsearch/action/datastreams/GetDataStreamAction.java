@@ -556,7 +556,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             for (DataStreamInfo dataStream : dataStreams) {
                 dataStream.toXContent(
                     builder,
-                    DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
+                    DataStreamLifecycle.addEffectiveRetentionParams(params),
                     rolloverConfiguration,
                     globalRetention
                 );

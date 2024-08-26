@@ -261,6 +261,11 @@ public class CircuitBreakerTests extends ESTestCase {
                     }
 
                     @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        return 0;
+                    }
+
+                    @Override
                     public void close() throws IOException {
 
                     }

@@ -189,9 +189,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             var libraryPath = (Supplier<String>) () -> TestUtil.getTestLibraryPath(nativeConfigFiles.getAsPath());
 
             test.dependsOn(nativeConfigFiles);
-            // we may use JNA or the JDK's foreign function api to load libraries, so we set both sysprops
-            systemProperties.systemProperty("java.library.path", libraryPath);
-            systemProperties.systemProperty("jna.library.path", libraryPath);
+            systemProperties.systemProperty("es.nativelibs.path", libraryPath);
         });
     }
 

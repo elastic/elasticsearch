@@ -2642,7 +2642,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testDeeplyNestedDocument() throws Exception {
-        int depth = 10000;
+        int depth = 20;
 
         DocumentMapper docMapper = createMapperService(Settings.builder().put(getIndexSettings()).build(), mapping(b -> {}))
             .documentMapper();

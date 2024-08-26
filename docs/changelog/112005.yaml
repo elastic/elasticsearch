@@ -1,0 +1,6 @@
+pr: 112005
+summary: Check for valid `parentDoc` before retrieving its previous
+area: Mapping
+type: bug
+issues:
+ - 111990

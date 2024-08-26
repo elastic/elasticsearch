@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.inference.results;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.ToXContent;
@@ -77,13 +78,8 @@ public class InferenceChunkedSparseEmbeddingResults implements ChunkedInferenceS
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(FIELD_NAME);
-        for (MlChunkedTextExpansionResults.ChunkedResult chunk : chunkedResults) {
-            chunk.toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContentHelper.array(FIELD_NAME, chunkedResults.iterator());
     }
 
     @Override

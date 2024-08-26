@@ -42,7 +42,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     }
 
     private final SpatialTypeResolver spatialTypeResolver;
-    protected SpatialCrsType crsType;
+    private SpatialCrsType crsType;
     protected final boolean leftDocValues;
     protected final boolean rightDocValues;
 

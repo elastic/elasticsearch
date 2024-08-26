@@ -83,7 +83,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             XContentDataHelper.decodeAndWrite(builder, value());
         }
 
-        private String getFieldName() {
+        String getFieldName() {
             return parentOffset() == 0 ? name() : name().substring(parentOffset());
         }
     }

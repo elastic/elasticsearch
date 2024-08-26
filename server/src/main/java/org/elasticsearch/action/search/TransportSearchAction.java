@@ -1914,12 +1914,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     extractCCSTelemetry(searchResponse);
                     recordTelemetry();
                 }
-                // This is last because we want to collect telemetry before returning the response.
-                // We rely on the fact that onResponse would never throw so the increment won't happen more than once.
-                listener.onResponse(searchResponse);
             } catch (Exception e) {
                 onFailure(e);
+                return;
             }
+            // This is last because we want to collect telemetry before returning the response.
+            listener.onResponse(searchResponse);
         }
 
         @Override
@@ -1934,6 +1934,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         private void recordTelemetry() {
             usageService.getCcsUsageHolder().updateUsage(usageBuilder.build());
+            usageBuilder.setRemotesCount(0); // prevent double recording
         }
 
         /**

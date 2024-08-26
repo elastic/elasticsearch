@@ -47,6 +47,10 @@ public class MultiTypeEsField extends EsField {
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
     }
 
+    public String getWriteableName() {
+        return "MultiTypeEsField";
+    }
+
     public Map<String, Expression> getIndexToConversionExpressions() {
         return indexToConversionExpressions;
     }

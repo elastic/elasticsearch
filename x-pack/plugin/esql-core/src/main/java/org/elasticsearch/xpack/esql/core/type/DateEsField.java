@@ -36,4 +36,8 @@ public class DateEsField extends EsField {
         out.writeBoolean(isAggregatable());
     }
 
+    public String getWriteableName() {
+        return "DateEsField";
+    }
+
 }

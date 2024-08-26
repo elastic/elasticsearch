@@ -66,6 +66,10 @@ public class InvalidMappedField extends EsField {
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
     }
 
+    public String getWriteableName() {
+        return "InvalidMappedField";
+    }
+
     public String errorMessage() {
         return errorMessage;
     }

@@ -101,6 +101,9 @@ public class EsField implements Writeable {
         }
     }
 
+    /**
+     * This needs to be overridden by subclasses for specific serialization
+     */
     protected void writeContent(StreamOutput out) throws IOException {
         out.writeString(name);
         esDataType.writeTo(out);
@@ -109,8 +112,11 @@ public class EsField implements Writeable {
         out.writeBoolean(isAlias);
     }
 
+    /**
+     * This needs to be overridden by subclasses for specific serialization
+     */
     public String getWriteableName() {
-        return getClass().getSimpleName();
+        return "EsField";
     }
 
     /**

@@ -43,6 +43,10 @@ public class TextEsField extends EsField {
         out.writeBoolean(isAlias());
     }
 
+    public String getWriteableName() {
+        return "TextEsField";
+    }
+
     @Override
     public EsField getExactField() {
         Tuple<EsField, String> findExact = findExact();

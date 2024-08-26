@@ -45,6 +45,10 @@ public class UnsupportedEsField extends EsField {
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
     }
 
+    public String getWriteableName() {
+        return "UnsupportedEsField";
+    }
+
     public String getOriginalType() {
         return originalType;
     }

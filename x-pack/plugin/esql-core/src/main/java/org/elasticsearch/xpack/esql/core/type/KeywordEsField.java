@@ -79,6 +79,10 @@ public class KeywordEsField extends EsField {
         out.writeBoolean(isAlias());
     }
 
+    public String getWriteableName() {
+        return "KeywordEsField";
+    }
+
     public int getPrecision() {
         return precision;
     }

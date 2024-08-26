@@ -32,6 +32,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -39,6 +40,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Objects;
 
 /**
  * A {@link CacheBlobReader} that fetches page-aligned data from the indexing node. May throw
@@ -88,8 +90,10 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
         return ByteRange.of(start, end);
     }
 
+    @Override
     public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
-        // TODO ideally do not use ShardReadThread pool here, do it in-thread. (ES-8155)
+        assert Objects.equals(EsExecutors.executorName(Thread.currentThread().getName()), Stateless.SHARD_READ_THREAD_POOL) == false
+            : Thread.currentThread().getName() + " is a shard read thread";
         getVirtualBatchedCompoundCommitChunk(bccTermAndGen, position, length, preferredNodeId, listener.delegateFailureAndWrap((l, rbr) -> {
             // The InboundHandler decrements the GetVirtualBatchedCompoundCommitChunkResponse (and thus the data). So we need to retain the
             // data, which is later decrementing in the close function of the getRangeInputStream()'s InputStream.

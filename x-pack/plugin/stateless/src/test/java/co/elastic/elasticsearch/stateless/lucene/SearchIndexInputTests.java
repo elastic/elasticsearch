@@ -40,6 +40,9 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.SparseFileTracker;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -146,10 +149,34 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             final byte[] input = randomChecksumBytes((int) fileSize.getBytes()).v2();
             final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonNegativeLong());
 
+            final var blobContainer = new FilterBlobContainer(TestUtils.singleBlobContainer(fileName, input)) {
+                @Override
+                protected BlobContainer wrapChild(BlobContainer child) {
+                    return child;
+                }
+
+                @Override
+                public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+                    if (blobName.contains(StatelessCompoundCommit.PREFIX)) {
+                        assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
+                    }
+                    return super.readBlob(purpose, blobName);
+                }
+
+                @Override
+                public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+                    if (blobName.contains(StatelessCompoundCommit.PREFIX)) {
+                        assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
+                    }
+                    return super.readBlob(purpose, blobName, position, length);
+                }
+            };
+
             final ObjectStoreCacheBlobReader objectStoreReader = new ObjectStoreCacheBlobReader(
-                TestUtils.singleBlobContainer(fileName, input),
+                blobContainer,
                 fileName,
-                sharedBlobCacheService.getRangeSize()
+                sharedBlobCacheService.getRangeSize(),
+                threadPool.executor(Stateless.SHARD_READ_THREAD_POOL)
             );
             final var indexShardReader = new IndexingShardCacheBlobReader(null, null, null, null, fileSize, threadPool) {
                 @Override
@@ -171,6 +198,14 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                         assertThat(range.length(), equalTo(rangeSize.getBytes()));
                     }
                     return range;
+                }
+
+                @Override
+                public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                    // Assert that it's the test thread trying to fetch and not some executor thread.
+                    String threadName = Thread.currentThread().getName();
+                    assert (threadName.startsWith("TEST-") || threadName.startsWith("LuceneTestCase")) : threadName;
+                    super.getRangeInputStream(position, length, listener);
                 }
             };
             assertFalse(tracker.getLatestUploadInfo(termAndGen).isUploaded());
@@ -248,7 +283,8 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             final var objectStoreCacheBlobReader = new ObjectStoreCacheBlobReader(
                 TestUtils.singleBlobContainer(blobName, data),
                 blobName,
-                sharedBlobCacheService.getRangeSize()
+                sharedBlobCacheService.getRangeSize(),
+                threadPool.executor(Stateless.SHARD_READ_THREAD_POOL)
             ) {
                 @Override
                 public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
@@ -501,7 +537,8 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
         ObjectStoreCacheBlobReader objectStore = new ObjectStoreCacheBlobReader(
             TestUtils.singleBlobContainer(fileName, input),
             fileName,
-            sharedBlobCacheService.getRangeSize()
+            sharedBlobCacheService.getRangeSize(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         if (randomBoolean()) {
             return objectStore;

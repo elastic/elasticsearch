@@ -28,6 +28,7 @@ import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedExcept
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.Executor;
 
 /**
  * A {@link CacheBlobReader} that fetches region-aligned data from the object store.
@@ -37,11 +38,13 @@ public class ObjectStoreCacheBlobReader implements CacheBlobReader {
     private final BlobContainer blobContainer;
     private final String blobName;
     private final long cacheRangeSize;
+    private final Executor fetchExecutor;
 
-    public ObjectStoreCacheBlobReader(BlobContainer blobContainer, String blobName, long cacheRangeSize) {
+    public ObjectStoreCacheBlobReader(BlobContainer blobContainer, String blobName, long cacheRangeSize, Executor fetchExecutor) {
         this.blobContainer = blobContainer;
         this.blobName = blobName;
         this.cacheRangeSize = cacheRangeSize;
+        this.fetchExecutor = fetchExecutor;
     }
 
     @Override
@@ -49,7 +52,7 @@ public class ObjectStoreCacheBlobReader implements CacheBlobReader {
         return BlobCacheUtils.computeRange(cacheRangeSize, position, length);
     }
 
-    private InputStream getRangeInputStream(long position, int length) throws IOException {
+    protected InputStream getRangeInputStream(long position, int length) throws IOException {
         try {
             return blobContainer.readBlob(OperationPurpose.INDICES, blobName, position, length);
         } catch (RequestedRangeNotSatisfiedException e) {
@@ -59,7 +62,8 @@ public class ObjectStoreCacheBlobReader implements CacheBlobReader {
 
     @Override
     public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
-        ActionListener.completeWith(listener, () -> getRangeInputStream(position, length));
+        // This is intended to be run in-thread in case of pre-warming, otherwise inside a SHARD_READ_THREAD_POOL thread.
+        fetchExecutor.execute(() -> ActionListener.completeWith(listener, () -> getRangeInputStream(position, length)));
     }
 
     @Override

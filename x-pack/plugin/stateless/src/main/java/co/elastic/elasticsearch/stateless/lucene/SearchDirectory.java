@@ -19,6 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
@@ -40,6 +41,7 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
@@ -47,6 +49,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -300,12 +303,14 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             objectStoreUploadTracker,
             totalBytesReadFromObjectStore::add,
             totalBytesReadFromIndexing::add,
-            BlobCacheMetrics.CachePopulationReason.CacheMiss
+            BlobCacheMetrics.CachePopulationReason.CacheMiss,
+            cacheService.getShardReadThreadPoolExecutor()
         );
     }
 
     @Override
     public CacheBlobReader getCacheBlobReaderForWarming(BlobLocation blobLocation) {
+        assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL, ThreadPool.Names.GENERIC);
         return cacheBlobReaderService.getCacheBlobReader(
             shardId,
             this::getBlobContainer,
@@ -313,7 +318,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             objectStoreUploadTracker,
             totalBytesWarmedFromObjectStore::add,
             totalBytesWarmedFromIndexing::add,
-            BlobCacheMetrics.CachePopulationReason.Warming
+            BlobCacheMetrics.CachePopulationReason.Warming,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }
 

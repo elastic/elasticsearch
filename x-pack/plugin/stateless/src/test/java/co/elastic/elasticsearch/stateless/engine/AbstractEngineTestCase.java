@@ -352,7 +352,6 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             nodeEnvironment,
             indexSettings.getSettings(),
             threadPool,
-            SHARD_READ_THREAD_POOL,
             BlobCacheMetrics.NOOP,
             System::nanoTime
         );

@@ -644,7 +644,7 @@ public class Stateless extends Plugin
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics
     ) {
-        return new StatelessSharedBlobCacheService(nodeEnvironment, settings, threadPool, SHARD_READ_THREAD_POOL, blobCacheMetrics);
+        return new StatelessSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics);
     }
 
     public SharedBlobCacheWarmingService getSharedBlobCacheWarmingService() {

@@ -83,8 +83,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
         throw new ParsingException(
             parser.getTokenLocation(),
-            "Unknown interval type [" + parser.currentName() +
-            "], expecting one of [match, any_of, all_of, prefix, wildcard, regexp, range]"
+            "Unknown interval type ["
+                + parser.currentName()
+                + "], expecting one of [match, any_of, all_of, prefix, wildcard, regexp, range]"
         );
     }
 

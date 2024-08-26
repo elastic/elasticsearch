@@ -35,8 +35,8 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
         assertEquals(BOOLEAN, commonType(NULL, BOOLEAN));
         assertEquals(BOOLEAN, commonType(BOOLEAN, BOOLEAN));
         assertEquals(NULL, commonType(NULL, NULL));
-        assertEquals(INTEGER, commonType(INTEGER, KEYWORD));
-        assertEquals(LONG, commonType(TEXT, LONG));
+        assertEquals(null, commonType(INTEGER, KEYWORD));
+        assertEquals(null, commonType(TEXT, LONG));
         assertEquals(SHORT, commonType(SHORT, BYTE));
         assertEquals(FLOAT, commonType(BYTE, FLOAT));
         assertEquals(FLOAT, commonType(FLOAT, INTEGER));

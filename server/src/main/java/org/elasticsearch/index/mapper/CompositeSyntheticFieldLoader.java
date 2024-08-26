@@ -81,7 +81,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
         }
 
         return docId -> {
-            docValuesLoadersHaveValues = false;
+            this.docValuesLoadersHaveValues = false;
 
             boolean hasDocs = false;
             for (var loader : loaders) {

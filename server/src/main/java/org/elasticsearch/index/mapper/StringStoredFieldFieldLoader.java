@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -25,86 +24,46 @@ public abstract class StringStoredFieldFieldLoader implements SourceLoader.Synth
 
     private List<Object> values = emptyList();
 
-    @Nullable
-    private final String extraStoredName;
-    private List<Object> extraValues = emptyList();
-
-    public StringStoredFieldFieldLoader(String name, String simpleName, @Nullable String extraStoredName) {
+    public StringStoredFieldFieldLoader(String name, String simpleName) {
         this.name = name;
         this.simpleName = simpleName;
-        this.extraStoredName = extraStoredName;
     }
 
     @Override
     public final Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        Stream<Map.Entry<String, StoredFieldLoader>> standard = Stream.of(
-            Map.entry(name, new SourceLoader.SyntheticFieldLoader.StoredFieldLoader() {
-                @Override
-                public void advanceToDoc(int docId) {
-                    values = emptyList();
-                }
-
-                @Override
-                public void load(List<Object> newValues) {
-                    values = newValues;
-                }
-            })
-        );
-
-        if (extraStoredName == null) {
-            return standard;
-        }
-
-        return Stream.concat(standard, Stream.of(Map.entry(extraStoredName, new SourceLoader.SyntheticFieldLoader.StoredFieldLoader() {
+        return Stream.of(Map.entry(name, new SourceLoader.SyntheticFieldLoader.StoredFieldLoader() {
             @Override
             public void advanceToDoc(int docId) {
-                extraValues = emptyList();
+                values = emptyList();
             }
 
             @Override
             public void load(List<Object> newValues) {
-                extraValues = newValues;
+                values = newValues;
             }
-        })));
+        }));
     }
 
     @Override
     public final boolean hasValue() {
-        return values.isEmpty() == false || extraValues.isEmpty() == false;
+        return values.isEmpty() == false;
     }
 
     @Override
     public final void write(XContentBuilder b) throws IOException {
-        int size = values.size() + extraValues.size();
-        switch (size) {
+        switch (values.size()) {
             case 0:
                 return;
             case 1:
                 b.field(simpleName);
-                if (values.size() > 0) {
-                    assert values.size() == 1;
-                    assert extraValues.isEmpty();
-                    write(b, values.get(0));
-                } else {
-                    assert values.isEmpty();
-                    assert extraValues.size() == 1;
-                    write(b, extraValues.get(0));
-                }
-                values = emptyList();
-                extraValues = emptyList();
+                write(b, values.get(0));
                 return;
             default:
                 b.startArray(simpleName);
                 for (Object value : values) {
                     write(b, value);
                 }
-                for (Object value : extraValues) {
-                    write(b, value);
-                }
                 b.endArray();
-                values = emptyList();
-                extraValues = emptyList();
-                return;
         }
     }
 

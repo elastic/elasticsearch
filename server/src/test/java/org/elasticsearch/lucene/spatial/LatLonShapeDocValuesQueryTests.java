@@ -62,14 +62,16 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         // No merges
         iwc.setMergeScheduler(NoMergeScheduler.INSTANCE);
         Directory dir = newDirectory();
-        // RandomIndexWriter is too slow here:
         IndexWriter w = new IndexWriter(dir, iwc);
-        final int numDocs = randomIntBetween(10, 1000);
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, FIELD_NAME);
-        Document document = new Document();
-        BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO);
         Geometry geometry = new org.elasticsearch.geometry.Point(0, 0);
-        docVal.add(indexer.indexShape(geometry), geometry);
+        Document document = new Document();
+        List<IndexableField> fields = indexer.indexShape(geometry);
+        for (IndexableField field : fields) {
+            document.add(field);
+        }
+        BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO);
+        docVal.add(fields, geometry);
         document.add(docVal);
         w.addDocument(document);
         w.flush();
@@ -80,9 +82,12 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         w.close();
 
         IndexSearcher s = newSearcher(r);
-        Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.DISJOINT, new Point(0, 0));
-        Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.DISJOINT, new Point(0, 0));
-        assertQueries(s, indexQuery, docValQuery, numDocs);
+        Rectangle rectangle = new Rectangle(-10, 10, -10, 10);
+        for (ShapeField.QueryRelation relation : ShapeField.QueryRelation.values()) {
+            Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, relation, rectangle);
+            Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, relation, rectangle);
+            assertQueries(s, indexQuery, docValQuery, 1);
+        }
         IOUtils.close(r, dir);
     }
 

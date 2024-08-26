@@ -283,21 +283,6 @@ public class EsqlDataTypeConverter {
             // promote the highest rational
             return lsize > rsize ? left : right;
         }
-        if (isString(left)) {
-            if (right.isNumeric()) {
-                return right;
-            }
-        }
-        if (isString(right)) {
-            if (left.isNumeric()) {
-                return left;
-            }
-        }
-
-        if (isDateTime(left) && isDateTime(right)) {
-            return DATETIME;
-        }
-
         // none found
         return null;
     }

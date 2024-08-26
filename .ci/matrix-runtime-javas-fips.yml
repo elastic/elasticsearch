@@ -2,4 +2,4 @@
 # values below are included as an axis of the matrix.
 
 ES_RUNTIME_JAVA:
-  - openjdk17
+  - openjdk21

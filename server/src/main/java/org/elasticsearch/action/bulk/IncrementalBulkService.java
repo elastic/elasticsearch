@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -23,9 +24,11 @@ import java.util.List;
 public class IncrementalBulkService {
 
     private final Client client;
+    private final ThreadContext threadContext;
 
-    public IncrementalBulkService(Client client) {
+    public IncrementalBulkService(Client client, ThreadContext threadContext) {
         this.client = client;
+        this.threadContext = threadContext;
     }
 
     public Handler newBulkRequest() {
@@ -33,12 +36,13 @@ public class IncrementalBulkService {
     }
 
     public Handler newBulkRequest(@Nullable String waitForActiveShards, @Nullable TimeValue timeout, @Nullable String refresh) {
-        return new Handler(client, waitForActiveShards, timeout, refresh);
+        return new Handler(client, threadContext, waitForActiveShards, timeout, refresh);
     }
 
     public static class Handler implements Releasable {
 
         private final Client client;
+        private final ThreadContext threadContext;
         private final ActiveShardCount waitForActiveShards;
         private final TimeValue timeout;
         private final String refresh;
@@ -50,8 +54,15 @@ public class IncrementalBulkService {
         private Exception bulkActionLevelFailure = null;
         private BulkRequest bulkRequest = null;
 
-        private Handler(Client client, @Nullable String waitForActiveShards, @Nullable TimeValue timeout, @Nullable String refresh) {
+        private Handler(
+            Client client,
+            ThreadContext threadContext,
+            @Nullable String waitForActiveShards,
+            @Nullable TimeValue timeout,
+            @Nullable String refresh
+        ) {
             this.client = client;
+            this.threadContext = threadContext;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
             this.refresh = refresh;
@@ -102,6 +113,8 @@ public class IncrementalBulkService {
             } else {
                 assert bulkRequest != null;
                 internalAddItems(items, releasable);
+
+                threadContext.addResponseHeader("X-elastic-product", "Elasticsearch");
 
                 client.bulk(bulkRequest, new ActionListener<>() {
 

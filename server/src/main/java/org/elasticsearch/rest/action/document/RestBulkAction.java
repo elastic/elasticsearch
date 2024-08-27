@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -51,10 +52,16 @@ public class RestBulkAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in bulk requests is deprecated.";
 
     private final boolean allowExplicitIndex;
+    private final ThreadContext threadContext;
     private volatile IncrementalBulkService bulkHandler;
 
     public RestBulkAction(Settings settings) {
+        this(settings, new ThreadContext(settings));
+    }
+
+    public RestBulkAction(Settings settings, ThreadContext threadContext) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
+        this.threadContext = threadContext;
     }
 
     @Override
@@ -78,7 +85,7 @@ public class RestBulkAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         // TODO: Move this to CTOR and hook everything up
         if (bulkHandler == null) {
-            bulkHandler = new IncrementalBulkService(client);
+            bulkHandler = new IncrementalBulkService(client, threadContext);
         }
 
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {

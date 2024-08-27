@@ -73,6 +73,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1658,6 +1659,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    @TestLogging(value = "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:TRACE", reason = "Investigate #2577")
     public void testAllCommitsAreDeletedWhenIndexIsDeleted() throws Exception {
         Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
@@ -1719,6 +1721,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // Wait for sending all new commit notification requests, to be able to respond to them.
             assertBusy(() -> assertThat(fakeSearchNode.generationPendingListeners.size(), equalTo(numberOfCommits)));
 
+            logger.info("--> Deleting shard {}", shardId);
             testHarness.commitService.delete(testHarness.shardId);
             testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
@@ -1728,6 +1731,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     primaryTerm,
                     initialCommit.getGeneration()
                 );
+                logger.info("--> Responding to new commit notification {}", primaryTermAndGeneration);
                 fakeSearchNode.respondWithUsedCommits(primaryTermAndGeneration, primaryTermAndGeneration);
             }
 

@@ -1965,7 +1965,7 @@ public class TokenService {
     }
 
     private boolean isEnabled() {
-        return enabled && Security.TOKEN_SERVICE_FEATURE.check(licenseState);
+        return enabled && Security.TOKEN_SERVICE_FEATURE.checkWithoutTracking(licenseState);
     }
 
     private void ensureEnabled() {

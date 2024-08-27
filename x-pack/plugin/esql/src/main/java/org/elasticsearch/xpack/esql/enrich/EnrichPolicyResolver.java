@@ -337,7 +337,7 @@ public class EnrichPolicyResolver {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             PlanStreamOutput pso = new PlanStreamOutput(out, new PlanNameRegistry(), null);
-            pso.writeMap(policies, (o, v) -> v.writeTo(o));
+            pso.writeMap(policies, StreamOutput::writeWriteable);
             pso.writeMap(failures, StreamOutput::writeString);
         }
     }

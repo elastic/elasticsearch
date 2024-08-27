@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.geometry.Geometry;
@@ -370,7 +370,7 @@ public final class EsqlExpressionTranslators {
             return doTranslate(bc, handler);
         }
 
-        public static void checkSpatialRelatesFunction(Expression constantExpression, ShapeField.QueryRelation queryRelation) {
+        public static void checkSpatialRelatesFunction(Expression constantExpression, ShapeRelation queryRelation) {
             Check.isTrue(
                 constantExpression.foldable(),
                 "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [ST_{}]",

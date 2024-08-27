@@ -100,6 +100,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset DISTANCES = new TestsDataset("distances", "mapping-distances.json", "distances.csv");
     private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv", "k8s-settings.json", true);
     private static final TestsDataset ADDRESSES = new TestsDataset("addresses", "mapping-addresses.json", "addresses.csv", null, true);
+    private static final TestsDataset BOOKS = new TestsDataset("books", "mapping-books.json", "books.csv", null, true);
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -126,7 +127,8 @@ public class CsvTestsDataLoader {
         Map.entry(DATE_NANOS.indexName, DATE_NANOS),
         Map.entry(K8S.indexName, K8S),
         Map.entry(DISTANCES.indexName, DISTANCES),
-        Map.entry(ADDRESSES.indexName, ADDRESSES)
+        Map.entry(ADDRESSES.indexName, ADDRESSES),
+        Map.entry(BOOKS.indexName, BOOKS)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

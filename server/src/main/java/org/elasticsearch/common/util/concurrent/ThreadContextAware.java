@@ -10,6 +10,8 @@ package org.elasticsearch.common.util.concurrent;
 
 public interface ThreadContextAware {
     ThreadContext threadContext();
+
     void stashContext();
+
     void restoreContext();
 }

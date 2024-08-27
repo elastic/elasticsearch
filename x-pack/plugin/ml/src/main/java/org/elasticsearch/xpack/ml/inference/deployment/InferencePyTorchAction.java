@@ -84,12 +84,13 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             logger.debug(() -> format("[%s] skipping inference on request [%s] as it has timed out", getDeploymentId(), getRequestId()));
             return;
         }
+        final String requestIdStr = String.valueOf(getRequestId());
         if (isCancelled()) {
+            getProcessContext().getTimeoutCount().incrementAndGet();
+            getProcessContext().getResultProcessor().ignoreResponseWithoutNotifying(requestIdStr);
             onFailure("inference task cancelled");
             return;
         }
-
-        final String requestIdStr = String.valueOf(getRequestId());
         try {
             String inputText = input.extractInput(getProcessContext().getModelInput().get());
             if (prefixType != TrainedModelPrefixStrings.PrefixType.NONE) {
@@ -141,6 +142,8 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
 
             // Tokenization is non-trivial, so check for cancellation one last time before sending request to the native process
             if (isCancelled()) {
+                getProcessContext().getTimeoutCount().incrementAndGet();
+                getProcessContext().getResultProcessor().ignoreResponseWithoutNotifying(requestIdStr);
                 onFailure("inference task cancelled");
                 return;
             }
@@ -196,9 +199,13 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             return;
         }
         if (isCancelled()) {
+            getProcessContext().getTimeoutCount().incrementAndGet();
+            getProcessContext().getResultProcessor().ignoreResponseWithoutNotifying(String.valueOf(pyTorchResult.requestId()));
             onFailure("inference task cancelled");
             return;
         }
+
+        getProcessContext().getResultProcessor().updateStats(pyTorchResult.timeMs(), Boolean.TRUE.equals(pyTorchResult.isCacheHit()));
         InferenceResults results = inferenceResultsProcessor.processResult(
             tokenization,
             pyTorchResult.inferenceResult(),

@@ -12,14 +12,21 @@ import org.elasticsearch.compute.ann.MvCombiner;
 /**
  * This multivalue combiner supports combining boolean types, where any true value will result in a true result.
  */
-public class AnyCombiner implements MvCombiner<Boolean> {
+public class AnyCombiner implements MvCombiner<Boolean, Boolean> {
+    boolean result = false;
+
     @Override
-    public Boolean initial() {
-        return false;
+    public void initialize() {
+        result = false;
     }
 
     @Override
-    public Boolean combine(Boolean previous, Boolean value) {
-        return previous || value;
+    public void add(Boolean value) {
+        result |= value;
+    }
+
+    @Override
+    public Boolean result() {
+        return result;
     }
 }

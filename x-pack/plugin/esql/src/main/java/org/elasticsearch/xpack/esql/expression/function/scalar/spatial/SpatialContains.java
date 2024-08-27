@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.MvCombiner;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -74,33 +75,49 @@ public class SpatialContains extends SpatialRelatesFunction {
     /**
      * We override the normal behaviour for CONTAINS because we need to test each component separately.
      * This applies to multi-component geometries (MultiPolygon, etc.) as well as polygons that cross the dateline.
+     * In addition, in order to conform to Lucene behaviour, we need to maintain knowledge of both whether a geometry
+     * contains the other geometry, but also whether other components of the geometry do not contain the other geometry,
+     * but do intersect with it. While normal spatial relationships would still consider this as valid contains,
+     * due to the triangle-tree implementation, this will be considered as "intersects but not contains".
+     * The use of the triangle-tree in the single-geometry-contains-single-geometry code already considered this case,
+     * but we need to expand that behaviour to collections and multi-value fields as well.
      */
     static final class SpatialRelationsContains extends SpatialRelations {
+        private final SpatialRelations intersects;
+
         SpatialRelationsContains(SpatialCoordinateTypes spatialCoordinateType, CoordinateEncoder encoder, ShapeIndexer shapeIndexer) {
             super(ShapeField.QueryRelation.CONTAINS, spatialCoordinateType, encoder, shapeIndexer);
+            this.intersects = new SpatialRelations(ShapeField.QueryRelation.INTERSECTS, spatialCoordinateType, encoder, shapeIndexer);
         }
 
         @Override
         protected boolean geometryRelatesGeometry(BytesRef left, BytesRef right) throws IOException {
             Component2D[] rightComponent2Ds = asLuceneComponent2Ds(crsType, fromBytesRef(right));
-            return geometryRelatesGeometries(left, rightComponent2Ds);
+            ContainsResult result = geometryRelatesGeometries(left, rightComponent2Ds);
+            return result.contains && result.intersectsButNotContains == false;
         }
 
-        private boolean geometryRelatesGeometries(BytesRef left, Component2D[] rightComponent2Ds) throws IOException {
+        private ContainsResult geometryRelatesGeometries(BytesRef left, Component2D[] rightComponent2Ds) throws IOException {
             Geometry leftGeom = fromBytesRef(left);
             GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, leftGeom);
-            return geometryRelatesGeometries(leftDocValueReader, rightComponent2Ds);
+            ContainsResult answer = geometryRelatesGeometries(leftDocValueReader, rightComponent2Ds);
+            return answer;
         }
 
-        private boolean geometryRelatesGeometries(GeometryDocValueReader leftDocValueReader, Component2D[] rightComponent2Ds)
+        private ContainsResult geometryRelatesGeometries(GeometryDocValueReader leftDocValueReader, Component2D[] rightComponent2Ds)
             throws IOException {
+            ContainsResult result = new ContainsResult(true, false);
             for (Component2D rightComponent2D : rightComponent2Ds) {
+                boolean contains = geometryRelatesGeometry(leftDocValueReader, rightComponent2D);
+                boolean intersectsButNotContains = contains == false
+                    && intersects.geometryRelatesGeometry(leftDocValueReader, rightComponent2D);
                 // Every component of the right geometry must be contained within the left geometry for this to pass
-                if (geometryRelatesGeometry(leftDocValueReader, rightComponent2D) == false) {
-                    return false;
-                }
+                result.contains &= contains;
+                // But if any geometry intersects, but is not contained, then the overall result is false
+                result.intersectsButNotContains |= intersectsButNotContains;
+                // Note, we cannot exit early, since we need all the results for combining in multi-valued cases
             }
-            return true;
+            return result;
         }
 
         private boolean pointRelatesGeometries(long encoded, Component2D[] rightComponent2Ds) {
@@ -273,9 +290,10 @@ public class SpatialContains extends SpatialRelatesFunction {
     @Evaluator(
         extraName = "GeoSourceAndConstant",
         warnExceptions = { IllegalArgumentException.class, IOException.class },
-        mvCombiner = AnyCombiner.class
+        mvCombiner = SpatialContainsCombiner.class,
+        mvCombinerResultType = Boolean.class
     )
-    static boolean processGeoSourceAndConstant(BytesRef leftValue, @Fixed Component2D[] rightValue) throws IOException {
+    static ContainsResult processGeoSourceAndConstant(BytesRef leftValue, @Fixed Component2D[] rightValue) throws IOException {
         return GEO.geometryRelatesGeometries(leftValue, rightValue);
     }
 
@@ -310,9 +328,10 @@ public class SpatialContains extends SpatialRelatesFunction {
     @Evaluator(
         extraName = "CartesianSourceAndConstant",
         warnExceptions = { IllegalArgumentException.class, IOException.class },
-        mvCombiner = AnyCombiner.class
+        mvCombiner = SpatialContainsCombiner.class,
+        mvCombinerResultType = Boolean.class
     )
-    static boolean processCartesianSourceAndConstant(BytesRef leftValue, @Fixed Component2D[] rightValue) throws IOException {
+    static ContainsResult processCartesianSourceAndConstant(BytesRef leftValue, @Fixed Component2D[] rightValue) throws IOException {
         return CARTESIAN.geometryRelatesGeometries(leftValue, rightValue);
     }
 
@@ -338,5 +357,49 @@ public class SpatialContains extends SpatialRelatesFunction {
     static boolean processCartesianPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
         Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
         return CARTESIAN.pointRelatesGeometry(leftValue, geometry);
+    }
+
+    public static class SpatialContainsCombiner implements MvCombiner<ContainsResult, Boolean> {
+        ContainsResult result = new ContainsResult();
+
+        @Override
+        public void initialize() {
+            result.initialize();
+        }
+
+        @Override
+        public void add(ContainsResult value) {
+            result.add(value);
+        }
+
+        @Override
+        public Boolean result() {
+            return result.contains && result.intersectsButNotContains == false;
+        }
+    }
+
+    public static class ContainsResult {
+        private boolean contains;
+        private boolean intersectsButNotContains;
+
+        public ContainsResult(boolean contains, boolean intersectsButNotContains) {
+            this.contains = contains;
+            this.intersectsButNotContains = intersectsButNotContains;
+        }
+
+        public ContainsResult() {
+            this(false, false);
+        }
+
+        public void initialize() {
+            contains = false;
+            intersectsButNotContains = false;
+        }
+
+        public void add(ContainsResult value) {
+            // When looking at multi-value fields, if any value contains the parameter, then the multi-value contains the parameter
+            contains |= value.contains;
+            intersectsButNotContains |= value.intersectsButNotContains;
+        }
     }
 }

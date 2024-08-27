@@ -68,7 +68,7 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
         assertPushedDownQueries(true);
     }
 
-    private void assertPushedDownQueries(boolean multiValue) throws RuntimeException {
+    protected void initIndexes() {
         assertAcked(prepareCreate("indexed").setMapping(String.format(Locale.ROOT, """
             {
               "properties" : {
@@ -84,15 +84,15 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
               }
             }
             """, fieldType())));
-        int countSingleValues = 0;
+    }
+
+    private void assertPushedDownQueries(boolean multiValue) throws RuntimeException {
+        initIndexes();
         for (int i = 0; i < random().nextInt(50, 100); i++) {
             if (multiValue) {
                 final String[] values = new String[randomIntBetween(1, 5)];
                 for (int j = 0; j < values.length; j++) {
                     values[j] = "\"" + WellKnownText.toWKT(getIndexGeometry()) + "\"";
-                }
-                if (values.length == 1) {
-                    countSingleValues++;
                 }
                 index("indexed", i + "", "{\"location\" : " + Arrays.toString(values) + " }");
                 index("not-indexed", i + "", "{\"location\" : " + Arrays.toString(values) + " }");

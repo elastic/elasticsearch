@@ -4,12 +4,10 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
-import java.lang.Boolean;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.geo.Component2D;
-import org.elasticsearch.compute.ann.MvCombiner;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -34,7 +32,7 @@ public final class SpatialDisjointGeoPointDocValuesAndConstantEvaluator implemen
 
   private final DriverContext driverContext;
 
-  private final MvCombiner<Boolean> multiValuesCombiner = new AllCombiner();
+  private final org.elasticsearch.xpack.esql.expression.function.scalar.spatial.AllCombiner multiValuesCombiner = new AllCombiner();
 
   public SpatialDisjointGeoPointDocValuesAndConstantEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, Component2D rightValue,
@@ -70,11 +68,11 @@ public final class SpatialDisjointGeoPointDocValuesAndConstantEvaluator implemen
         }
         int leftValueBlockFirst = leftValueBlock.getFirstValueIndex(p);
         try {
-          Boolean mvResult = multiValuesCombiner.initial();
+          multiValuesCombiner.initialize();
           for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
-            mvResult = multiValuesCombiner.combine(mvResult, SpatialDisjoint.processGeoPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), this.rightValue));
+            multiValuesCombiner.add(SpatialDisjoint.processGeoPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), this.rightValue));
           }
-          result.appendBoolean(mvResult);
+          result.appendBoolean(multiValuesCombiner.result());
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();

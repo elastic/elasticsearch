@@ -36,8 +36,6 @@ import javax.lang.model.util.Elements;
 import static org.elasticsearch.compute.gen.Methods.appendMethod;
 import static org.elasticsearch.compute.gen.Methods.buildFromFactory;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
-import static org.elasticsearch.compute.gen.Methods.mvInitType;
-import static org.elasticsearch.compute.gen.Methods.mvInitTypeString;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
@@ -63,6 +61,7 @@ public class EvaluatorImplementer {
     private final TypeElement declarationType;
     private final TypeMirror multiValuesCombiner;
     private final boolean multiValuesSupported;
+    private final TypeMirror mvCombinerResultType;
     private final ProcessFunction processFunction;
     private final ClassName implementation;
     private final boolean processOutputsMultivalued;
@@ -73,12 +72,15 @@ public class EvaluatorImplementer {
         ExecutableElement processFunction,
         String extraName,
         List<TypeMirror> warnExceptions,
-        TypeMirror multiValuesCombiner
+        TypeMirror multiValuesCombiner,
+        TypeMirror mvCombinerResultType
     ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
         this.multiValuesCombiner = multiValuesCombiner;
         this.multiValuesSupported = multiValuesCombiner != null && (multiValuesCombiner.toString().contains("MvUnsupported") == false);
-        this.processFunction = new ProcessFunction(elements, types, processFunction, warnExceptions);
+        this.mvCombinerResultType = mvCombinerResultType;
+        TypeName returnType = returnType(processFunction, mvCombinerResultType);
+        this.processFunction = new ProcessFunction(elements, types, processFunction, warnExceptions, returnType);
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -109,12 +111,8 @@ public class EvaluatorImplementer {
         processFunction.args.stream().forEach(a -> a.declareField(builder));
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
         if (multiValuesSupported) {
-            ClassName mvCombinerClassName = ClassName.get("org.elasticsearch.compute.ann", "MvCombiner");
-            ParameterizedTypeName mvCombinerParameterized = ParameterizedTypeName.get(
-                mvCombinerClassName,
-                mvInitType(processFunction.resultDataType(true))
-            );
-            FieldSpec fieldSpec = FieldSpec.builder(mvCombinerParameterized, "multiValuesCombiner", Modifier.PRIVATE, Modifier.FINAL)
+            ClassName mvCombinerClassName = ClassName.get(implementation.packageName(), multiValuesCombiner.toString());
+            FieldSpec fieldSpec = FieldSpec.builder(mvCombinerClassName, "multiValuesCombiner", Modifier.PRIVATE, Modifier.FINAL)
                 .initializer("new $T()", multiValuesCombiner)
                 .build();
             builder.addField(fieldSpec);
@@ -255,7 +253,11 @@ public class EvaluatorImplementer {
                 if (processFunction.builderArg != null) {
                     builtPattern = pattern.toString();
                 } else if (supportMultiValued) {
-                    builtPattern = "mvResult = multiValuesCombiner.combine(mvResult, " + pattern + ")";
+                    // When we support proper multi-values within blocks
+                    builtPattern = "multiValuesCombiner.add(" + pattern + ")";
+                } else if (mvCombinerResultType != null) {
+                    // When the annotations specify and overriding result type, we need to extract the final result
+                    builtPattern = "multiValuesCombiner.add(" + pattern + ")";
                 } else {
                     builtPattern = vectorize ? "result.$L(p, " + pattern + ")" : "result.$L(" + pattern + ")";
                     args.add(0, appendMethod(resultDataType));
@@ -264,7 +266,8 @@ public class EvaluatorImplementer {
                     builder.beginControlFlow("try");
                 }
                 if (supportMultiValued) {
-                    builder.addStatement(mvInitTypeString(resultDataType) + " mvResult = multiValuesCombiner.initial()");
+                    // When we support proper multi-values within blocks, we need to initialize the accumulator and iterate over values
+                    builder.addStatement("multiValuesCombiner.initialize()");
                     List<ProcessFunctionArg> mvParams = processFunction.args.stream().filter(a -> a.paramName(blockStyle) != null).toList();
                     mvParams.forEach(a -> {
                         String paramName = a.paramName(blockStyle);
@@ -275,7 +278,18 @@ public class EvaluatorImplementer {
                     });
                     builder.addStatement(builtPattern, args.toArray());
                     mvParams.forEach(a -> builder.endControlFlow());
-                    builder.addStatement(vectorize ? "result.$L(p, mvResult)" : "result.$L(mvResult)", appendMethod(resultDataType));
+                    builder.addStatement(
+                        vectorize ? "result.$L(p, multiValuesCombiner.result())" : "result.$L(multiValuesCombiner.result())",
+                        appendMethod(resultDataType)
+                    );
+                } else if (mvCombinerResultType != null) {
+                    // When the annotations specify and overriding result type, we need to use the accumulator, even for a single result
+                    builder.addStatement("multiValuesCombiner.initialize()");
+                    builder.addStatement(builtPattern, args.toArray());
+                    builder.addStatement(
+                        vectorize ? "result.$L(p, multiValuesCombiner.result())" : "result.$L(multiValuesCombiner.result())",
+                        appendMethod(resultDataType)
+                    );
                 } else {
                     builder.addStatement(builtPattern, args.toArray());
                 }
@@ -342,6 +356,13 @@ public class EvaluatorImplementer {
         } else {
             initMultiValued(builder, value);
         }
+    }
+
+    private static TypeName returnType(ExecutableElement processFunction, TypeMirror mvCombinerResultType) {
+        if (mvCombinerResultType == null || mvCombinerResultType.toString().contains("Object")) {
+            return TypeName.get(processFunction.getReturnType());
+        }
+        return TypeName.get(mvCombinerResultType);
     }
 
     private MethodSpec toStringMethod() {
@@ -1044,6 +1065,7 @@ public class EvaluatorImplementer {
         private final List<ProcessFunctionArg> args;
         private final BuilderProcessFunctionArg builderArg;
         private final List<TypeMirror> warnExceptions;
+        private final TypeName returnType;
 
         private boolean hasBlockType;
 
@@ -1051,7 +1073,8 @@ public class EvaluatorImplementer {
             Elements elements,
             javax.lang.model.util.Types types,
             ExecutableElement function,
-            List<TypeMirror> warnExceptions
+            List<TypeMirror> warnExceptions,
+            TypeName returnType
         ) {
             this.function = function;
             args = new ArrayList<>();
@@ -1101,6 +1124,7 @@ public class EvaluatorImplementer {
             }
             this.builderArg = builderArg;
             this.warnExceptions = warnExceptions;
+            this.returnType = returnType;
         }
 
         private ClassName resultDataType(boolean blockStyle) {
@@ -1108,7 +1132,7 @@ public class EvaluatorImplementer {
                 return builderArg.type.enclosingClassName();
             }
             boolean useBlockStyle = blockStyle || warnExceptions.isEmpty() == false;
-            return useBlockStyle ? blockType(TypeName.get(function.getReturnType())) : vectorType(TypeName.get(function.getReturnType()));
+            return useBlockStyle ? blockType(returnType) : vectorType(returnType);
         }
     }
 

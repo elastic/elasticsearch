@@ -4,11 +4,9 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
-import java.lang.Boolean;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.ann.MvCombiner;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -36,7 +34,7 @@ public final class SpatialDisjointCartesianPointDocValuesAndSourceEvaluator impl
 
   private final DriverContext driverContext;
 
-  private final MvCombiner<Boolean> multiValuesCombiner = new AllCombiner();
+  private final org.elasticsearch.xpack.esql.expression.function.scalar.spatial.AllCombiner multiValuesCombiner = new AllCombiner();
 
   public SpatialDisjointCartesianPointDocValuesAndSourceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
@@ -89,13 +87,13 @@ public final class SpatialDisjointCartesianPointDocValuesAndSourceEvaluator impl
           continue position;
         }
         int rightValueBlockFirst = rightValueBlock.getFirstValueIndex(p);
-        Boolean mvResult = multiValuesCombiner.initial();
+        multiValuesCombiner.initialize();
         for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
           for (int rightValueBlockIndex = rightValueBlockFirst; rightValueBlockIndex < rightValueBlockFirst + rightValueBlockCount; rightValueBlockIndex++) {
-            mvResult = multiValuesCombiner.combine(mvResult, SpatialDisjoint.processCartesianPointDocValuesAndSource(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlockIndex, rightValueScratch)));
+            multiValuesCombiner.add(SpatialDisjoint.processCartesianPointDocValuesAndSource(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlockIndex, rightValueScratch)));
           }
         }
-        result.appendBoolean(mvResult);
+        result.appendBoolean(multiValuesCombiner.result());
       }
       return result.build();
     }

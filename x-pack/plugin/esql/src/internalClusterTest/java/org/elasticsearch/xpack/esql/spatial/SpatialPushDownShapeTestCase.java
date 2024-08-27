@@ -11,44 +11,36 @@ import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Locale;
 
-/**
- * Base class to check that a query than can be pushed down gives the same result
- * if it is actually pushed down and when it is executed by the compute engine,
- *
- * For doing that we create two indices, one fully indexed and another with index
- * and doc values disabled. Then we index the same data in both indices and we check
- * that the same ES|QL queries produce the same results in both.
- */
-public abstract class SpatialPushDownPointsTestCase extends SpatialPushDownTestCase {
-    public void testSimplePointInPolygon() {
-        assumeTrue("Test for points only", fieldType().contains("point"));
+public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCase {
+
+    public void testSimpleShapeContainsPolygon() {
+        assumeTrue("Test for shapes only", fieldType().contains("shape"));
         initIndexes();
 
-        ArrayList<MultiPointTest> data = new ArrayList<>();
-        // data that intersects and is within the polygon
-        data.add(new MultiPointTest("[[5,-5],[-5,5]]", true, true));
-        data.add(new MultiPointTest("[\"0,0\",\"1,0\"]", true, true));
-        data.add(new MultiPointTest("\"POINT(9 9)\"", true, true));
-        data.add(new MultiPointTest("[\"POINT(-9 -9)\",\"POINT(9 9)\"]", true, true));
-        // data that intersects but is not within the polygon
-        data.add(new MultiPointTest("[[5,5],[15,15]]", true, false));
-        data.add(new MultiPointTest("[\"0,0\",\"11,0\"]", true, false));
-        data.add(new MultiPointTest("[\"POINT(-9 -19)\",\"POINT(9 9)\"]", true, false));
+        ArrayList<ShapeContainsTest> data = new ArrayList<>();
+        // data that intersects and contains the polygon
+        data.add(new ShapeContainsTest(true, true, square(0, 0, 15)));
+        data.add(new ShapeContainsTest(true, true, square(0, 0, 15), square(20, 20, 5)));
+        // data that intersects but does not contain the polygon
+        data.add(new ShapeContainsTest(true, false, square(0, 0, 5)));
+        data.add(new ShapeContainsTest(true, false, square(0, 0, 5), square(20, 20, 5)));
         // data that does not intersect
-        data.add(new MultiPointTest("[[5,15],[15,5]]", false, false));
-        data.add(new MultiPointTest("[\"0,11\",\"11,0\"]", false, false));
-        data.add(new MultiPointTest("\"POINT(19 9)\"", false, false));
-        data.add(new MultiPointTest("[\"POINT(-9 -19)\",\"POINT(19 9)\"]", false, false));
+        data.add(new ShapeContainsTest(false, false, square(20, 20, 5)));
+        data.add(new ShapeContainsTest(false, false, square(-20, -20, 5), square(20, 20, 5)));
+        data.clear();
+        // data that geometrically contains the polygon but due to lucene's triangle-tree implementation, it cannot
+        data.add(new ShapeContainsTest(true, false, square(0, 0, 15), square(10, 10, 5)));
 
         int expectedIntersects = 0;
-        int expectedWithin = 0;
+        int expectedContains = 0;
         for (int i = 0; i < data.size(); i++) {
-            index("indexed", i + "", "{\"location\" : " + data.get(i).data + " }");
-            index("not-indexed", i + "", "{\"location\" : " + data.get(i).data + " }");
+            index("indexed", i + "", "{\"location\" : " + Arrays.toString(data.get(i).data) + " }");
+            index("not-indexed", i + "", "{\"location\" : " + Arrays.toString(data.get(i).data) + " }");
             expectedIntersects += data.get(i).intersects ? 1 : 0;
-            expectedWithin += data.get(i).within ? 1 : 0;
+            expectedContains += data.get(i).contains ? 1 : 0;
         }
         refresh("indexed", "not-indexed");
         int expectedDisjoint = data.size() - expectedIntersects;
@@ -56,7 +48,7 @@ public abstract class SpatialPushDownPointsTestCase extends SpatialPushDownTestC
         for (String polygon : new String[] {
             "POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))",
             "POLYGON ((-10 -10, 10 -10, 10 10, -10 10, -10 -10))" }) {
-            assertFunction("ST_WITHIN", polygon, expectedWithin);
+            assertFunction("ST_CONTAINS", polygon, expectedContains);
             assertFunction("ST_INTERSECTS", polygon, expectedIntersects);
             assertFunction("ST_DISJOINT", polygon, expectedDisjoint);
         }
@@ -80,5 +72,22 @@ public abstract class SpatialPushDownPointsTestCase extends SpatialPushDownTestC
         }
     }
 
-    private record MultiPointTest(String data, boolean intersects, boolean within) {}
+    private String square(double x, double y, double size) {
+        return String.format(
+            Locale.ROOT,
+            "\"POLYGON ((%f %f, %f %f, %f %f, %f %f, %f %f))\"",
+            x - size,
+            y - size,
+            x + size,
+            y - size,
+            x + size,
+            y + size,
+            x - size,
+            y + size,
+            x - size,
+            y - size
+        );
+    }
+
+    private record ShapeContainsTest(boolean intersects, boolean contains, String... data) {}
 }

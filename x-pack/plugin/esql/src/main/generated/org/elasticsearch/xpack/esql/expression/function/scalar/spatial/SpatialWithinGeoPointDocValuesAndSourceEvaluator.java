@@ -4,12 +4,10 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
-import java.lang.Boolean;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.ann.MvCombiner;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -36,7 +34,7 @@ public final class SpatialWithinGeoPointDocValuesAndSourceEvaluator implements E
 
   private final DriverContext driverContext;
 
-  private final MvCombiner<Boolean> multiValuesCombiner = new AllCombiner();
+  private final org.elasticsearch.xpack.esql.expression.function.scalar.spatial.AllCombiner multiValuesCombiner = new AllCombiner();
 
   public SpatialWithinGeoPointDocValuesAndSourceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
@@ -90,13 +88,13 @@ public final class SpatialWithinGeoPointDocValuesAndSourceEvaluator implements E
         }
         int rightValueBlockFirst = rightValueBlock.getFirstValueIndex(p);
         try {
-          Boolean mvResult = multiValuesCombiner.initial();
+          multiValuesCombiner.initialize();
           for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
             for (int rightValueBlockIndex = rightValueBlockFirst; rightValueBlockIndex < rightValueBlockFirst + rightValueBlockCount; rightValueBlockIndex++) {
-              mvResult = multiValuesCombiner.combine(mvResult, SpatialWithin.processGeoPointDocValuesAndSource(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlockIndex, rightValueScratch)));
+              multiValuesCombiner.add(SpatialWithin.processGeoPointDocValuesAndSource(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlockIndex, rightValueScratch)));
             }
           }
-          result.appendBoolean(mvResult);
+          result.appendBoolean(multiValuesCombiner.result());
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();

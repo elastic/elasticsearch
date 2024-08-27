@@ -5,13 +5,11 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import java.io.IOException;
-import java.lang.Boolean;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.ann.MvCombiner;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -36,7 +34,7 @@ public final class SpatialDisjointGeoSourceAndConstantEvaluator implements EvalO
 
   private final DriverContext driverContext;
 
-  private final MvCombiner<Boolean> multiValuesCombiner = new AllCombiner();
+  private final org.elasticsearch.xpack.esql.expression.function.scalar.spatial.AllCombiner multiValuesCombiner = new AllCombiner();
 
   public SpatialDisjointGeoSourceAndConstantEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, Component2D rightValue,
@@ -73,11 +71,11 @@ public final class SpatialDisjointGeoSourceAndConstantEvaluator implements EvalO
         }
         int leftValueBlockFirst = leftValueBlock.getFirstValueIndex(p);
         try {
-          Boolean mvResult = multiValuesCombiner.initial();
+          multiValuesCombiner.initialize();
           for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
-            mvResult = multiValuesCombiner.combine(mvResult, SpatialDisjoint.processGeoSourceAndConstant(leftValueBlock.getBytesRef(leftValueBlockIndex, leftValueScratch), this.rightValue));
+            multiValuesCombiner.add(SpatialDisjoint.processGeoSourceAndConstant(leftValueBlock.getBytesRef(leftValueBlockIndex, leftValueScratch), this.rightValue));
           }
-          result.appendBoolean(mvResult);
+          result.appendBoolean(multiValuesCombiner.result());
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();

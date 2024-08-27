@@ -46,5 +46,10 @@ public @interface Evaluator {
     /**
      * Class to use for combining the results of multivalued fields, or MvUnsupported.class if multivalued fields are not supported.
      */
-    Class<? extends MvCombiner<?>> mvCombiner() default MvCombiner.MvUnsupported.class;
+    Class<? extends MvCombiner<?, ?>> mvCombiner() default MvCombiner.MvUnsupported.class;
+
+    /**
+     * Advanced MvCombiners can use a different accumulator type than the result type.
+     */
+    Class<?> mvCombinerResultType() default Object.class;
 }

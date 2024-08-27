@@ -9,13 +9,16 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestParser;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
@@ -37,6 +40,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -51,9 +55,12 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestBulkAction extends BaseRestHandler {
+
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in bulk requests is deprecated.";
+    public static final Setting<Boolean> INCREMENTAL_BULK = boolSetting("rest.incremental_bulk", true, Setting.Property.NodeScope);
 
     private final boolean allowExplicitIndex;
+    private final boolean incrementalBulk;
     private final ThreadContext threadContext;
     private volatile IncrementalBulkService bulkHandler;
 
@@ -64,6 +71,7 @@ public class RestBulkAction extends BaseRestHandler {
     public RestBulkAction(Settings settings, ThreadContext threadContext) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.threadContext = threadContext;
+        this.incrementalBulk = INCREMENTAL_BULK.get(settings);
     }
 
     @Override
@@ -85,26 +93,61 @@ public class RestBulkAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        // TODO: Move this to CTOR and hook everything up
-        synchronized (this) {
-            if (bulkHandler == null) {
-                bulkHandler = new IncrementalBulkService(client, threadContext);
+        if (incrementalBulk == false) {
+            if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
+                request.param("type");
             }
-        }
+            BulkRequest bulkRequest = new BulkRequest();
+            String defaultIndex = request.param("index");
+            String defaultRouting = request.param("routing");
+            FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
+            String defaultPipeline = request.param("pipeline");
+            boolean defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", false);
+            String waitForActiveShards = request.param("wait_for_active_shards");
+            if (waitForActiveShards != null) {
+                bulkRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
+            }
+            Boolean defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false);
+            boolean defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
+            bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
+            bulkRequest.setRefreshPolicy(request.param("refresh"));
+            bulkRequest.add(
+                request.requiredContent(),
+                defaultIndex,
+                defaultRouting,
+                defaultFetchSourceContext,
+                defaultPipeline,
+                defaultRequireAlias,
+                defaultRequireDataStream,
+                defaultListExecutedPipelines,
+                allowExplicitIndex,
+                request.getXContentType(),
+                request.getRestApiVersion()
+            );
 
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            request.param("type");
-        }
+            return channel -> client.bulk(bulkRequest, new RestRefCountedChunkedToXContentListener<>(channel));
+        } else {
+            // TODO: Move this to CTOR and hook everything up
+            synchronized (this) {
+                if (bulkHandler == null) {
+                    bulkHandler = new IncrementalBulkService(client, threadContext);
+                }
+            }
 
-        return new ChunkHandler(
-            allowExplicitIndex,
-            request,
-            bulkHandler.newBulkRequest(
-                request.param("wait_for_active_shards"),
-                request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT),
-                request.param("refresh")
-            )
-        );
+            if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
+                request.param("type");
+            }
+
+            return new ChunkHandler(
+                allowExplicitIndex,
+                request,
+                bulkHandler.newBulkRequest(
+                    request.param("wait_for_active_shards"),
+                    request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT),
+                    request.param("refresh")
+                )
+            );
+        }
     }
 
     private static class ChunkHandler implements BaseRestHandler.RequestBodyChunkConsumer {
@@ -195,8 +238,10 @@ public class RestBulkAction extends BaseRestHandler {
                 handler.lastItems(new ArrayList<>(items), releasable, new RestRefCountedChunkedToXContentListener<>(channel));
                 items.clear();
             } else if (items.isEmpty() == false) {
-                handler.addItems(new ArrayList<>(items), releasable, () -> request.contentStream().next());
+                handler.addItems(new ArrayList<>(items), releasable, () -> { request.contentStream().next(); });
                 items.clear();
+            } else {
+                releasable.close();
             }
         }
 
@@ -214,7 +259,6 @@ public class RestBulkAction extends BaseRestHandler {
                 releasables.add(reference);
                 if (bytesConsumed >= reference.length()) {
                     bytesConsumed -= reference.length();
-                    releasables.add(reference);
                 } else {
                     unParsedChunks.addFirst(reference.retainedSlice(bytesConsumed, reference.length() - bytesConsumed));
                     bytesConsumed = 0;

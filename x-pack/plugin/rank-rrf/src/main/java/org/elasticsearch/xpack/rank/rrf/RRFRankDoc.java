@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.apache.lucene.search.Explanation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -55,6 +57,32 @@ public class RRFRankDoc extends RankDoc {
     }
 
     @Override
+    public Explanation explain() {
+        // ideally we'd need access to the rank constant to provide score info for this one
+        int queries = positions.length;
+        Explanation[] details = new Explanation[queries];
+        for (int i = 0; i < queries; i++) {
+            final String queryIndex = "at index [" + i + "]";
+            if (positions[i] == RRFRankDoc.NO_RANK) {
+                final String description = "rrf score: [0], result not found in query " + queryIndex;
+                details[i] = Explanation.noMatch(description);
+            } else {
+                final int rank = positions[i] + 1;
+                details[i] = Explanation.match(rank, "rank [" + (rank) + "] in query " + queryIndex);
+            }
+        }
+        return Explanation.match(
+            score,
+            "rrf score: ["
+                + score
+                + "] computed for initial ranks "
+                + Arrays.toString(Arrays.stream(positions).map(x -> x + 1).toArray())
+                + "] as sum of [1 / (rank + rankConstant)] for each query",
+            details
+        );
+    }
+
+    @Override
     public void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(rank);
         out.writeIntArray(positions);
@@ -95,5 +123,11 @@ public class RRFRankDoc extends RankDoc {
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("positions", positions);
+        builder.field("scores", scores);
     }
 }

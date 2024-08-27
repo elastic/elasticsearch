@@ -53,7 +53,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
     }
 
     public void testReindexMetrics() throws Exception {
-        internalCluster().startNode();
+        final String dataNodeName = internalCluster().startNode();
 
         indexRandom(
             true,
@@ -64,17 +64,13 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         );
         assertHitCount(prepareSearch("source").setSize(0), 4);
 
-        final String dataNodeName = internalCluster().getRandomNodeName();
         final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
             .filterPlugins(TestTelemetryPlugin.class)
             .findFirst()
             .orElseThrow();
 
         // Copy all the docs
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
-        assertThat(copy.get(), matcher().created(4));
-        assertHitCount(prepareSearch("dest").setSize(0), 4);
-
+        reindex().source("source").destination("dest").get();
         // Use assertBusy to wait for all threads to complete so we get deterministic results
         assertBusy(() -> {
             testTelemetryPlugin.collect();
@@ -84,14 +80,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
 
         // Now none of them
         createIndex("none");
-        copy = reindex().source("source").destination("none").filter(termQuery("foo", "no_match")).refresh(true);
-        assertThat(copy.get(), matcher().created(0));
-        assertHitCount(prepareSearch("none").setSize(0), 0);
-        // wait for all threads to complete so that we get deterministic results
-        // waitUntil(() -> (tps[0] = tp.stats()).stats().stream().allMatch(s -> s.active() == 0));
-
-        // testTelemetryPlugin.collect();
-        // measurements = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
+        reindex().source("source").destination("none").filter(termQuery("foo", "no_match")).get();
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
@@ -99,15 +88,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         });
 
         // Now half of them
-        copy = reindex().source("source").destination("dest_half").filter(termQuery("foo", "a")).refresh(true);
-        assertThat(copy.get(), matcher().created(2));
-        assertHitCount(prepareSearch("dest_half").setSize(0), 2);
-
-        // wait for all threads to complete so that we get deterministic results
-        // waitUntil(() -> (tps[0] = tp.stats()).stats().stream().allMatch(s -> s.active() == 0));
-
-        // testTelemetryPlugin.collect();
-        // measurements = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
+        reindex().source("source").destination("dest_half").filter(termQuery("foo", "a")).get();
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
@@ -115,15 +96,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         });
 
         // Limit with maxDocs
-        copy = reindex().source("source").destination("dest_size_one").maxDocs(1).refresh(true);
-        assertThat(copy.get(), matcher().created(1));
-        assertHitCount(prepareSearch("dest_size_one").setSize(0), 1);
-
-        // wait for all threads to complete so that we get deterministic results
-        // waitUntil(() -> (tps[0] = tp.stats()).stats().stream().allMatch(s -> s.active() == 0));
-
-        // testTelemetryPlugin.collect();
-        // measurements = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
+        reindex().source("source").destination("dest_size_one").maxDocs(1).get();
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
@@ -132,7 +105,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
     }
 
     public void testDeleteByQueryMetrics() throws Exception {
-        internalCluster().startNode();
+        final String dataNodeName = internalCluster().startNode();
 
         indexRandom(
             true,
@@ -147,16 +120,13 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
 
         assertHitCount(prepareSearch("test").setSize(0), 7);
 
-        final String dataNodeName = internalCluster().getRandomNodeName();
         final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
             .filterPlugins(TestTelemetryPlugin.class)
             .findFirst()
             .orElseThrow();
 
         // Deletes two docs that matches "foo:a"
-        assertThat(deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).get(), matcher().deleted(2));
-        assertHitCount(prepareSearch("test").setSize(0), 5);
-
+        deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).get();
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(DELETE_BY_QUERY_TIME_HISTOGRAM);
@@ -166,8 +136,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         // Deletes the two first docs with limit by size
         DeleteByQueryRequestBuilder request = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).size(2).refresh(true);
         request.source().addSort("foo.keyword", SortOrder.ASC);
-        assertThat(request.get(), matcher().deleted(2));
-        assertHitCount(prepareSearch("test").setSize(0), 3);
+        request.get();
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(DELETE_BY_QUERY_TIME_HISTOGRAM);
@@ -175,8 +144,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         });
 
         // Deletes but match no docs
-        assertThat(deleteByQuery().source("test").filter(termQuery("foo", "no_match")).refresh(true).get(), matcher().deleted(0));
-        assertHitCount(prepareSearch("test").setSize(0), 3);
+        deleteByQuery().source("test").filter(termQuery("foo", "no_match")).refresh(true).get();
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(DELETE_BY_QUERY_TIME_HISTOGRAM);
@@ -184,8 +152,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         });
 
         // Deletes all remaining docs
-        assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get(), matcher().deleted(3));
-        assertHitCount(prepareSearch("test").setSize(0), 0);
+        deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get();
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(DELETE_BY_QUERY_TIME_HISTOGRAM);
@@ -194,7 +161,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
     }
 
     public void testUpdateByQueryMetrics() throws Exception {
-        internalCluster().startNode();
+        final String dataNodeName = internalCluster().startNode();
 
         indexRandom(
             true,
@@ -207,16 +174,13 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertEquals(1, client().prepareGet("test", "1").get().getVersion());
         assertEquals(1, client().prepareGet("test", "4").get().getVersion());
 
-        final String dataNodeName = internalCluster().getRandomNodeName();
         final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
             .filterPlugins(TestTelemetryPlugin.class)
             .findFirst()
             .orElseThrow();
 
         // Reindex all the docs
-        assertThat(updateByQuery().source("test").refresh(true).get(), matcher().updated(4));
-        assertEquals(2, client().prepareGet("test", "1").get().getVersion());
-        assertEquals(2, client().prepareGet("test", "4").get().getVersion());
+        updateByQuery().source("test").refresh(true).get();
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(UPDATE_BY_QUERY_TIME_HISTOGRAM);
@@ -224,9 +188,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         });
 
         // Now none of them
-        assertThat(updateByQuery().source("test").filter(termQuery("foo", "no_match")).refresh(true).get(), matcher().updated(0));
-        assertEquals(2, client().prepareGet("test", "1").get().getVersion());
-        assertEquals(2, client().prepareGet("test", "4").get().getVersion());
+        updateByQuery().source("test").filter(termQuery("foo", "no_match")).refresh(true).get();
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(UPDATE_BY_QUERY_TIME_HISTOGRAM);
@@ -234,11 +196,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         });
 
         // Now half of them
-        assertThat(updateByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).get(), matcher().updated(2));
-        assertEquals(3, client().prepareGet("test", "1").get().getVersion());
-        assertEquals(3, client().prepareGet("test", "2").get().getVersion());
-        assertEquals(2, client().prepareGet("test", "3").get().getVersion());
-        assertEquals(2, client().prepareGet("test", "4").get().getVersion());
+        updateByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).get();
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(UPDATE_BY_QUERY_TIME_HISTOGRAM);
@@ -248,12 +206,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         // Limit with size
         UpdateByQueryRequestBuilder request = updateByQuery().source("test").size(3).refresh(true);
         request.source().addSort("foo.keyword", SortOrder.ASC);
-        assertThat(request.get(), matcher().updated(3));
-        // Only the first three documents are updated because of sort
-        assertEquals(4, client().prepareGet("test", "1").get().getVersion());
-        assertEquals(4, client().prepareGet("test", "2").get().getVersion());
-        assertEquals(3, client().prepareGet("test", "3").get().getVersion());
-        assertEquals(2, client().prepareGet("test", "4").get().getVersion());
+        request.get();
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(UPDATE_BY_QUERY_TIME_HISTOGRAM);

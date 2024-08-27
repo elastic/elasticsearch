@@ -38,7 +38,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
@@ -167,8 +166,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             long startTimeNanos,
             ActionListener<BulkResponse> listener,
             Executor executor,
-            AtomicArray<BulkItemResponse> responses,
-            Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+            AtomicArray<BulkItemResponse> responses
         ) {
             assertTrue(indexCreated);
             isExecuted = true;

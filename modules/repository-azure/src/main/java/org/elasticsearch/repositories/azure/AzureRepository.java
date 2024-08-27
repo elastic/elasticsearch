@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
@@ -174,5 +175,10 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     @Override
     public boolean isReadOnly() {
         return readonly;
+    }
+
+    @Override
+    protected Set<String> getExtraUsageFeatures() {
+        return storageService.getExtraUsageFeatures(Repository.CLIENT_NAME.get(getMetadata().settings()));
     }
 }

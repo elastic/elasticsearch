@@ -288,7 +288,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    public static void waitForBlockOnAnyDataNode(String repository) throws InterruptedException {
+    public static void waitForBlockOnAnyDataNode(String repository) {
         final boolean blocked = waitUntil(() -> {
             for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
                 MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
@@ -475,13 +475,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return createSnapshot(repositoryName, snapshot, indices, Collections.singletonList(NO_FEATURE_STATES_VALUE));
     }
 
-    protected void createIndexWithRandomDocs(String indexName, int docCount) throws InterruptedException {
+    protected void createIndexWithRandomDocs(String indexName, int docCount) {
         createIndex(indexName);
         ensureGreen();
         indexRandomDocs(indexName, docCount);
     }
 
-    protected void indexRandomDocs(String index, int numdocs) throws InterruptedException {
+    protected void indexRandomDocs(String index, int numdocs) {
         logger.info("--> indexing [{}] documents into [{}]", numdocs, index);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {

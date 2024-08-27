@@ -60,6 +60,7 @@ setup:
           text: "Sun Moon Lake is a lake in Nantou County, Taiwan. It is the largest lake in Taiwan."
           topic: [ "geography" ]
         refresh: true
+
 ---
 "Simple text similarity rank retriever":
 

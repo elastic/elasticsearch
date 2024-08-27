@@ -13,10 +13,12 @@ import org.elasticsearch.action.bulk.BulkRequestParser;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -94,11 +96,20 @@ public class RestBulkAction extends BaseRestHandler {
             request.param("type");
         }
 
-        return new ChunkHandler(request);
+        return new ChunkHandler(
+            allowExplicitIndex,
+            request,
+            bulkHandler.newBulkRequest(
+                request.param("wait_for_active_shards"),
+                request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT),
+                request.param("refresh")
+            )
+        );
     }
 
-    private class ChunkHandler implements BaseRestHandler.RequestBodyChunkConsumer {
+    private static class ChunkHandler implements BaseRestHandler.RequestBodyChunkConsumer {
 
+        private final boolean allowExplicitIndex;
         private final RestRequest request;
 
         private final Map<String, String> stringDeduplicator = new HashMap<>();
@@ -116,7 +127,8 @@ public class RestBulkAction extends BaseRestHandler {
         private final ArrayDeque<ReleasableBytesReference> unParsedChunks = new ArrayDeque<>(4);
         private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
 
-        private ChunkHandler(RestRequest request) {
+        private ChunkHandler(boolean allowExplicitIndex, RestRequest request, IncrementalBulkService.Handler handler) {
+            this.allowExplicitIndex = allowExplicitIndex;
             this.request = request;
             this.defaultIndex = request.param("index");
             this.defaultRouting = request.param("routing");
@@ -126,11 +138,7 @@ public class RestBulkAction extends BaseRestHandler {
             this.defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false);
             this.defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
             this.parser = new BulkRequestParser(true, request.getRestApiVersion());
-            handler = bulkHandler.newBulkRequest(
-                request.param("wait_for_active_shards"),
-                request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT),
-                request.param("refresh")
-            );
+            this.handler = handler;
         }
 
         @Override
@@ -142,7 +150,8 @@ public class RestBulkAction extends BaseRestHandler {
         public void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast) {
             assert channel == restChannel;
 
-            final ReleasableBytesReference data;
+            final BytesReference data;
+            final Releasable releasable;
             try {
                 // TODO: Check that the behavior here vs. globalRouting, globalPipeline, globalRequireAlias, globalRequireDatsStream in
                 // BulkRequest#add is fine
@@ -150,11 +159,7 @@ public class RestBulkAction extends BaseRestHandler {
                 unParsedChunks.add(chunk);
 
                 if (unParsedChunks.size() > 1) {
-                    ReleasableBytesReference[] bytesReferences = unParsedChunks.toArray(new ReleasableBytesReference[0]);
-                    data = new ReleasableBytesReference(
-                        CompositeBytesReference.of(bytesReferences),
-                        () -> Releasables.close(bytesReferences)
-                    );
+                    data = CompositeBytesReference.of(unParsedChunks.toArray(new ReleasableBytesReference[0]));
                 } else {
                     data = chunk;
                 }
@@ -177,7 +182,7 @@ public class RestBulkAction extends BaseRestHandler {
                     stringDeduplicator
                 );
 
-                accountParsing(bytesConsumed);
+                releasable = accountParsing(bytesConsumed);
 
             } catch (IOException e) {
                 // TODO: Exception Handling
@@ -187,10 +192,10 @@ public class RestBulkAction extends BaseRestHandler {
             if (isLast) {
                 assert unParsedChunks.isEmpty();
                 assert channel != null;
-                handler.lastItems(new ArrayList<>(items), data, new RestRefCountedChunkedToXContentListener<>(channel));
+                handler.lastItems(new ArrayList<>(items), releasable, new RestRefCountedChunkedToXContentListener<>(channel));
                 items.clear();
             } else if (items.isEmpty() == false) {
-                handler.addItems(new ArrayList<>(items), data, () -> request.contentStream().next());
+                handler.addItems(new ArrayList<>(items), releasable, () -> request.contentStream().next());
                 items.clear();
             }
         }
@@ -202,16 +207,20 @@ public class RestBulkAction extends BaseRestHandler {
             RequestBodyChunkConsumer.super.close();
         }
 
-        private void accountParsing(int bytesConsumed) {
+        private Releasable accountParsing(int bytesConsumed) {
+            ArrayList<Releasable> releasables = new ArrayList<>(unParsedChunks.size());
             while (bytesConsumed > 0) {
                 ReleasableBytesReference reference = unParsedChunks.removeFirst();
+                releasables.add(reference);
                 if (bytesConsumed >= reference.length()) {
                     bytesConsumed -= reference.length();
+                    releasables.add(reference);
                 } else {
                     unParsedChunks.addFirst(reference.retainedSlice(bytesConsumed, reference.length() - bytesConsumed));
                     bytesConsumed = 0;
                 }
             }
+            return () -> Releasables.close(releasables);
         }
     }
 

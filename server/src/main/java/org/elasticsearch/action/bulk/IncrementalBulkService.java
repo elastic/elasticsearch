@@ -103,7 +103,7 @@ public class IncrementalBulkService {
 
         private boolean shouldBackOff() {
             // TODO: Implement Real Memory Logic
-            return bulkRequest.requests().size() >= 16;
+            return false;
         }
 
         public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {

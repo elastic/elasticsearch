@@ -200,6 +200,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_ES_FIELD_CACHED_SERIALIZATION = def(8_730_00_0);
     public static final TransportVersion ADD_MANAGE_ROLES_PRIVILEGE = def(8_731_00_0);
     public static final TransportVersion REPOSITORIES_TELEMETRY = def(8_732_00_0);
+    public static final TransportVersion ML_INFERENCE_ALIBABACLOUD_SEARCH_ADDED = def(8_733_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

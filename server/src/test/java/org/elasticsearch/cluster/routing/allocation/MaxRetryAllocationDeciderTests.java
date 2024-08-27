@@ -17,7 +17,9 @@ import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -38,6 +40,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -320,8 +323,12 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         if (allocation.routingNodesChanged() == false) {
             return state;
         }
-        final RoutingTable newRoutingTable = RoutingTable.of(state.routingTable().version(), allocation.routingNodes());
-        final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
+
+        assertThat(state.metadata().projects(), aMapWithSize(1));
+        final ProjectId projectId = state.metadata().getProject().id();
+
+        final GlobalRoutingTable newRoutingTable = state.globalRoutingTable().rebuild(allocation.routingNodes());
+        final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable.routingTable(projectId));
         assert newRoutingTable.validate(newMetadata);
 
         return state.copyAndUpdate(builder -> builder.routingTable(newRoutingTable).metadata(newMetadata));

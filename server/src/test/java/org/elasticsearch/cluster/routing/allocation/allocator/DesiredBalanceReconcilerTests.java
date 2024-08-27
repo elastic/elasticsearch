@@ -19,10 +19,12 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -1180,6 +1182,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .build();
         final var index = indexMetadata.getIndex();
 
+        final var projectMetadata = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).put(indexMetadata, true).build();
         var discoveryNodeBuilder = DiscoveryNodes.builder().localNodeId("node-0").masterNodeId("node-0");
         for (int n = 0; n < numberOfNodes; n++) {
             discoveryNodeBuilder.add(newNode("node-" + n));
@@ -1201,8 +1204,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         var balance = new DesiredBalance(1, assignments);
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodeBuilder)
-            .metadata(Metadata.builder().put(indexMetadata, true))
-            .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder))
+            .metadata(Metadata.builder().put(projectMetadata))
+            .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
             .build();
 
         var clusterSettings = createBuiltInClusterSettings();
@@ -1247,10 +1250,13 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 lessThanOrEqualTo(1)
             );
 
-            totalOutgoingMoves.keySet().removeIf(nodeId -> isReconciled(allocation.routingNodes().node(nodeId), balance));
-            clusterState = ClusterState.builder(clusterState)
-                .routingTable(RoutingTable.of(allocation.routingTable().version(), allocation.routingNodes()))
+            // TODO Remove this once RoutingAllocation works with the global routing table
+            GlobalRoutingTable globalRoutingTable = GlobalRoutingTable.builder()
+                .version(allocation.routingTable().version())
+                .put(allocation.metadata().getProject().id(), allocation.routingTable())
                 .build();
+            totalOutgoingMoves.keySet().removeIf(nodeId -> isReconciled(allocation.routingNodes().node(nodeId), balance));
+            clusterState = ClusterState.builder(clusterState).routingTable(globalRoutingTable.rebuild(allocation.routingNodes())).build();
         }
     }
 

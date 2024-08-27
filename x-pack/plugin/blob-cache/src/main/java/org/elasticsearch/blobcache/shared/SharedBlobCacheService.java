@@ -912,6 +912,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             return io;
         }
 
+        // for use in tests *only*
+        SharedBytes.IO testOnlyNonVolatileIO() {
+            return io;
+        }
+
         /**
          * Optimistically try to read from the region
          * @return true if successful, i.e., not evicted and data available, false if evicted

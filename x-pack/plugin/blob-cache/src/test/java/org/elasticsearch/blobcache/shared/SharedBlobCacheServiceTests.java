@@ -497,6 +497,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                                     if (yield[i] == 0) {
                                         Thread.yield();
                                     }
+                                    assertNotNull(cacheFileRegion.testOnlyNonVolatileIO());
                                     cacheFileRegion.decRef();
                                 }
                                 if (evict[i] == 0) {

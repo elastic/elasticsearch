@@ -264,7 +264,7 @@ setup:
       features: headers
 
   - requires:
-      cluster_features: ["simulate.mapping.validation"]
+      cluster_features: ["simulate.mapping.validation.templates"]
       reason: "ingest simulate index mapping validation added in 8.16"
 
   - do:
@@ -396,7 +396,7 @@ setup:
        - allowed_warnings
 
   - requires:
-      cluster_features: ["simulate.mapping.validation"]
+      cluster_features: ["simulate.mapping.validation.templates"]
       reason: "ingest simulate index mapping validation added in 8.16"
 
   - do:

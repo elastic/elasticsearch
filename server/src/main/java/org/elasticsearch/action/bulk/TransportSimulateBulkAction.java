@@ -65,6 +65,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.fi
  */
 public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     public static final NodeFeature SIMULATE_MAPPING_VALIDATION = new NodeFeature("simulate.mapping.validation");
+    public static final NodeFeature SIMULATE_MAPPING_VALIDATION_TEMPLATES = new NodeFeature("simulate.mapping.validation.templates");
     private final IndicesService indicesService;
     private final NamedXContentRegistry xContentRegistry;
     private final Set<IndexSettingProvider> indexSettingProviders;

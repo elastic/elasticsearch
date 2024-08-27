@@ -14,9 +14,10 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Set;
 
 import static org.elasticsearch.action.bulk.TransportSimulateBulkAction.SIMULATE_MAPPING_VALIDATION;
+import static org.elasticsearch.action.bulk.TransportSimulateBulkAction.SIMULATE_MAPPING_VALIDATION_TEMPLATES;
 
 public class BulkFeatures implements FeatureSpecification {
     public Set<NodeFeature> getFeatures() {
-        return Set.of(SIMULATE_MAPPING_VALIDATION);
+        return Set.of(SIMULATE_MAPPING_VALIDATION, SIMULATE_MAPPING_VALIDATION_TEMPLATES);
     }
 }

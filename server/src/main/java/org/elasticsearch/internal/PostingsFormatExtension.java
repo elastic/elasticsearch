@@ -19,4 +19,6 @@ public interface PostingsFormatExtension {
      * Returns the name of the  {@link CompletionPostingsFormat} that Elasticsearch should use.
      */
     String getCompletionPostingsFormatName();
+
+    void setFeatureEnabled(boolean isFeatureEnabled);
 }

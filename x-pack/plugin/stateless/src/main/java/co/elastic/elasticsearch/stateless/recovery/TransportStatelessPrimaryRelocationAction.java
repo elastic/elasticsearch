@@ -40,6 +40,7 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -70,6 +71,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -310,7 +312,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
                         logger.debug("[{}] primary context handoff succeeded", request.shardId());
                         if (relocationDuration.getMillis() >= slowRelocationWarningThreshold.getMillis()) {
-                            logger.warn(
+
+                            final TimeValue secondFlushDuration = getTimeBetween(beforeFinalFlush, beforeSendingContext.get());
+                            final TimeValue handOffDuration = getTimeSince(beforeSendingContext.get());
+                            final var message = new ESLogMessage(
                                 "[{}] primary shard relocation took [{}] (shutting down={})"
                                     + "(including [{}] to flush, [{}] to acquire permits, [{}] to flush again and [{}] to handoff context) "
                                     + "which is above the warn threshold of [{}]",
@@ -319,10 +324,26 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                                 isShuttingDown(),
                                 initialFlushDuration,
                                 acquirePermitsDuration,
-                                getTimeBetween(beforeFinalFlush, beforeSendingContext.get()),
-                                getTimeSince(beforeSendingContext.get()),
+                                secondFlushDuration,
+                                handOffDuration,
                                 slowRelocationWarningThreshold
+                            ).withFields(
+                                Map.of(
+                                    "elasticsearch.primary.relocation.shard",
+                                    request.shardId().toString(),
+                                    "elasticsearch.primary.relocation.duration",
+                                    relocationDuration.millis(),
+                                    "elasticsearch.primary.relocation.initial_flush_duration",
+                                    initialFlushDuration.millis(),
+                                    "elasticsearch.primary.relocation.acquire_permits_duration",
+                                    acquirePermitsDuration.millis(),
+                                    "elasticsearch.primary.relocation.second_flush_duration",
+                                    secondFlushDuration.millis(),
+                                    "elasticsearch.primary.relocation.handoff_duration",
+                                    handOffDuration.millis()
+                                )
                             );
+                            logger.log(Level.WARN, message);
                         }
 
                         try {

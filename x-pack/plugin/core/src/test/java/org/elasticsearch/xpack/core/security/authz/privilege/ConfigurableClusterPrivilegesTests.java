@@ -61,13 +61,15 @@ public class ConfigurableClusterPrivilegesTests extends ESTestCase {
     }
 
     private ConfigurableClusterPrivilege[] buildSecurityPrivileges() {
-        return switch (randomIntBetween(0, 3)) {
+        return switch (randomIntBetween(0, 4)) {
             case 0 -> new ConfigurableClusterPrivilege[0];
             case 1 -> new ConfigurableClusterPrivilege[] { ManageApplicationPrivilegesTests.buildPrivileges() };
             case 2 -> new ConfigurableClusterPrivilege[] { WriteProfileDataPrivilegesTests.buildPrivileges() };
-            case 3 -> new ConfigurableClusterPrivilege[] {
+            case 3 -> new ConfigurableClusterPrivilege[] { ManageRolesPrivilegesTests.buildPrivileges() };
+            case 4 -> new ConfigurableClusterPrivilege[] {
                 ManageApplicationPrivilegesTests.buildPrivileges(),
-                WriteProfileDataPrivilegesTests.buildPrivileges() };
+                WriteProfileDataPrivilegesTests.buildPrivileges(),
+                ManageRolesPrivilegesTests.buildPrivileges() };
             default -> throw new IllegalStateException("Unexpected value");
         };
     }

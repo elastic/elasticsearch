@@ -492,6 +492,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
         checkCancelled.run();
     }
+
     @Override
     public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
         TermStatistics termStatistics = termStatisticsFromDfs(term);

@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
+import java.util.concurrent.Flow;
+
 /**
  * A contract for clients to specify behavior for handling http responses. Clients can pass this contract to the retry sender to parse
  * the response and help with logging.
@@ -65,6 +67,7 @@ public interface ResponseHandler {
      * set to true
      */
     default InferenceServiceResults parseResult(Request request, HttpResult result, Flow.Publisher<HttpResult> flow) {
-        throw new UnsupportedOperationException("Implemented as part of stream processing");
+        assert canHandleStreamingResponses() == false : "This must be implemented when canHandleStreamingResponses() == true";
+        throw new UnsupportedOperationException("This must be implemented when canHandleStreamingResponses() == true");
     }
 }

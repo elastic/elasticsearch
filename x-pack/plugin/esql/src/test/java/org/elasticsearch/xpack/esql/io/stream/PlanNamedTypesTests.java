@@ -269,7 +269,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         };
     }
 
-    static EsField randomEsField() {
+    public static EsField randomEsField() {
         return randomEsField(0);
     }
 

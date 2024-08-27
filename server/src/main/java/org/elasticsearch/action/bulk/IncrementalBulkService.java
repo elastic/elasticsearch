@@ -124,7 +124,8 @@ public class IncrementalBulkService {
                     public void onResponse(BulkResponse bulkResponse) {
                         responses.add(bulkResponse);
                         releaseCurrentReferences();
-                        listener.onResponse(combineResponses());
+                        BulkResponse response = combineResponses();
+                        listener.onResponse(response);
                     }
 
                     @Override

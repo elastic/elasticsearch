@@ -84,8 +84,10 @@ public class RestBulkAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         // TODO: Move this to CTOR and hook everything up
-        if (bulkHandler == null) {
-            bulkHandler = new IncrementalBulkService(client, threadContext);
+        synchronized (this) {
+            if (bulkHandler == null) {
+                bulkHandler = new IncrementalBulkService(client, threadContext);
+            }
         }
 
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
@@ -171,6 +173,7 @@ public class RestBulkAction extends BaseRestHandler {
                     (request, type) -> items.add(request),
                     items::add,
                     items::add,
+                    isLast == false,
                     stringDeduplicator
                 );
 

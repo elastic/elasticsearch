@@ -85,13 +85,13 @@ public final class BulkRequestParser {
             .withRestApiVersion(restApiVersion);
     }
 
-    private static int findNextMarker(byte marker, int from, BytesReference data) {
+    private static int findNextMarker(byte marker, int from, BytesReference data, boolean isIncremental) {
         final int res = data.indexOf(marker, from);
         if (res != -1) {
             assert res >= 0;
             return res;
         }
-        if (from != data.length()) {
+        if (from != data.length() && isIncremental == false) {
             throw new IllegalArgumentException("The bulk request must be terminated by a newline [\\n]");
         }
         return res;
@@ -155,6 +155,7 @@ public final class BulkRequestParser {
             indexRequestConsumer,
             updateRequestConsumer,
             deleteRequestConsumer,
+            false,
             stringDeduplicator
         );
     }
@@ -173,6 +174,7 @@ public final class BulkRequestParser {
         BiConsumer<IndexRequest, String> indexRequestConsumer,
         Consumer<UpdateRequest> updateRequestConsumer,
         Consumer<DeleteRequest> deleteRequestConsumer,
+        boolean isIncremental,
         Map<String, String> stringDeduplicator
     ) throws IOException {
         XContent xContent = xContentType.xContent();
@@ -183,7 +185,7 @@ public final class BulkRequestParser {
         int from = 0;
 
         while (true) {
-            int nextMarker = findNextMarker(marker, from, data);
+            int nextMarker = findNextMarker(marker, from, data, isIncremental);
             if (nextMarker == -1) {
                 break;
             }
@@ -369,7 +371,7 @@ public final class BulkRequestParser {
                             .setIfPrimaryTerm(ifPrimaryTerm)
                     );
                 } else {
-                    nextMarker = findNextMarker(marker, from, data);
+                    nextMarker = findNextMarker(marker, from, data, isIncremental);
                     if (nextMarker == -1) {
                         break;
                     }

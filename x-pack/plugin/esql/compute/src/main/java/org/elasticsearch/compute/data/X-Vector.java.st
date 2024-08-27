@@ -51,8 +51,15 @@ $if(BytesRef)$
      * returns null. Callers must not release the returned vector as no extra reference is retained by this method.
      */
     OrdinalBytesRefVector asOrdinals();
-$endif$
 
+$elseif(boolean)$
+    /**
+     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
+     * passing to {@link #keepMask}.
+     */
+    ToMask toMask();
+
+$endif$
     @Override
     $Type$Vector filter(int... positions);
 

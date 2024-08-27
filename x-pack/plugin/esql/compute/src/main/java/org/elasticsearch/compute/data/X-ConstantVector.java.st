@@ -59,8 +59,19 @@ $if(BytesRef)$
     public OrdinalBytesRefVector asOrdinals() {
         return null;
     }
-$endif$
 
+$elseif(boolean)$
+    /**
+     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
+     * passing to {@link #keepMask}.
+     */
+    @Override
+    public ToMask toMask() {
+        incRef();
+        return new ToMask(this, false);
+    }
+
+$endif$
     @Override
     public $Type$Vector filter(int... positions) {
         return blockFactory().newConstant$Type$Vector(value, positions.length);

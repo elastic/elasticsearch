@@ -26,6 +26,12 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     @Override
     BooleanBlock asBlock();
 
+    /**
+     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
+     * passing to {@link #keepMask}.
+     */
+    ToMask toMask();
+
     @Override
     BooleanVector filter(int... positions);
 

@@ -63,8 +63,15 @@ $if(BytesRef)$
      * returns null. Callers must not release the returned block as no extra reference is retained by this method.
      */
     OrdinalBytesRefBlock asOrdinals();
-$endif$
 
+$elseif(boolean)$
+    /**
+     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
+     * passing to {@link #keepMask}.
+     */
+    ToMask toMask();
+
+$endif$
     @Override
     $Type$Block filter(int... positions);
 

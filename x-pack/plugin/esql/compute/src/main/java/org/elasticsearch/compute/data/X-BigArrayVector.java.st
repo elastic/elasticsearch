@@ -84,6 +84,18 @@ $endif$
         return new $Type$VectorBlock(this);
     }
 
+$if(boolean)$
+    /**
+     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
+     * passing to {@link #keepMask}.
+     */
+    @Override
+    public ToMask toMask() {
+        incRef();
+        return new ToMask(this, false);
+    }
+$endif$
+
     @Override
     public $type$ get$Type$(int position) {
         return values.get(position);

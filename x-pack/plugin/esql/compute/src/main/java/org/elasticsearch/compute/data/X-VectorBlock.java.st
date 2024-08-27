@@ -44,8 +44,18 @@ $if(BytesRef)$
             return null;
         }
     }
-$endif$
 
+$elseif(boolean)$
+    /**
+     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
+     * passing to {@link #keepMask}.
+     */
+    @Override
+    public ToMask toMask() {
+        return vector.toMask();
+    }
+
+$endif$
     @Override
 $if(BytesRef)$
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {

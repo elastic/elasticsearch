@@ -68,6 +68,16 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
         return new BooleanVectorBlock(this);
     }
 
+    /**
+     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
+     * passing to {@link #keepMask}.
+     */
+    @Override
+    public ToMask toMask() {
+        incRef();
+        return new ToMask(this, false);
+    }
+
     @Override
     public boolean getBoolean(int position) {
         return values[position];

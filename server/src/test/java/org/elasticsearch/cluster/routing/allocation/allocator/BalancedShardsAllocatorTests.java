@@ -539,10 +539,26 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     private static ClusterState stateWithStartedIndices(IndexMetadata.Builder... indices) {
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        for (var index : indices) {
-            var build = index.build();
-            metadataBuilder.put(build, false);
-            routingTableBuilder.addAsNew(build);
+        if (randomBoolean()) {
+            for (var index : indices) {
+                var build = index.build();
+                metadataBuilder.put(build, false);
+                routingTableBuilder.addAsNew(build);
+            }
+        } else {
+            for (var index : indices) {
+                var inSyncId = UUIDs.randomBase64UUID();
+                var build = index.putInSyncAllocationIds(0, Set.of(inSyncId)).build();
+                metadataBuilder.put(build, false);
+                routingTableBuilder.add(
+                    IndexRoutingTable.builder(build.getIndex())
+                        .addShard(
+                            shardRoutingBuilder(new ShardId(build.getIndex(), 0), "node-1", true, ShardRoutingState.STARTED)
+                                .withAllocationId(AllocationId.newInitializing(inSyncId))
+                                .build()
+                        )
+                );
+            }
         }
 
         return ClusterState.builder(ClusterName.DEFAULT)

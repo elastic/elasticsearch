@@ -107,6 +107,17 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
     CollapseBuilder collapseBuilder;
 
     @Override
+    public QueryBuilder topDocsQuery() {
+        // TODO: for compound retrievers this will have to be reworked as queries like knn could be executed twice
+        if (preFilterQueryBuilders.isEmpty()) {
+            return queryBuilder;
+        }
+        var ret = new BoolQueryBuilder().filter(queryBuilder);
+        preFilterQueryBuilders.stream().forEach(ret::filter);
+        return ret;
+    }
+
+    @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         if (preFilterQueryBuilders.isEmpty() == false) {
             BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();

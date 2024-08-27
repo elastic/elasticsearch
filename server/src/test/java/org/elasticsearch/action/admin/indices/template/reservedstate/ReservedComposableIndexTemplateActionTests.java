@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -75,7 +76,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
     ClusterService clusterService;
     IndexScopedSettings indexScopedSettings;
     IndicesService indicesService;
-    private DataStreamGlobalRetentionResolver globalRetentionResolver;
+    private DataStreamGlobalRetentionSettings globalRetentionSettings;
 
     @Before
     public void setup() throws IOException {
@@ -92,7 +93,10 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         doReturn(mapperService).when(indexService).mapperService();
         doReturn(indexService).when(indicesService).createIndex(any(), any(), anyBoolean());
 
-        globalRetentionResolver = new DataStreamGlobalRetentionResolver(DataStreamFactoryRetention.emptyFactoryRetention());
+        globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
+            ClusterSettings.createBuiltInClusterSettings(),
+            DataStreamFactoryRetention.emptyFactoryRetention()
+        );
         templateService = new MetadataIndexTemplateService(
             clusterService,
             mock(MetadataCreateIndexService.class),
@@ -101,7 +105,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             mock(NamedXContentRegistry.class),
             mock(SystemIndices.class),
             new IndexSettingProviders(Set.of()),
-            globalRetentionResolver
+            globalRetentionSettings
         );
     }
 
@@ -896,7 +900,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             mock(NamedXContentRegistry.class),
             mock(SystemIndices.class),
             new IndexSettingProviders(Set.of()),
-            globalRetentionResolver
+            globalRetentionSettings
         );
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).metadata(metadata).build();

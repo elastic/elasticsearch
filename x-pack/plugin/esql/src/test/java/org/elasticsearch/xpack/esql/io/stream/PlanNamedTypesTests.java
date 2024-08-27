@@ -12,8 +12,6 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.dissect.DissectParser;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -23,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.ArithmeticOperation;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -88,12 +85,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PlanNamedTypesTests extends ESTestCase {
@@ -204,86 +198,6 @@ public class PlanNamedTypesTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
-    public void testEsIndexSimple() throws IOException {
-        var orig = new EsIndex("test*", Map.of("first_name", new KeywordEsField("first_name")), Set.of("test1", "test2"));
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeEsIndex(out, orig);
-        var deser = PlanNamedTypes.readEsIndex(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testDissectParserSimple() throws IOException {
-        String pattern = "%{b} %{c}";
-        var orig = new Dissect.Parser(pattern, ",", new DissectParser(pattern, ","));
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeDissectParser(out, orig);
-        var deser = PlanNamedTypes.readDissectParser(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testEsRelation() throws IOException {
-        var orig = new EsRelation(
-            Source.EMPTY,
-            randomEsIndex(),
-            List.of(randomFieldAttribute()),
-            randomFrom(IndexMode.values()),
-            randomBoolean()
-        );
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeEsRelation(out, orig);
-        var deser = PlanNamedTypes.readEsRelation(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testEsqlProject() throws IOException {
-        var orig = new EsqlProject(
-            Source.EMPTY,
-            new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomFrom(IndexMode.values()), randomBoolean()),
-            List.of(randomFieldAttribute())
-        );
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeEsqlProject(out, orig);
-        var deser = PlanNamedTypes.readEsqlProject(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testMvExpand() throws IOException {
-        var esRelation = new EsRelation(
-            Source.EMPTY,
-            randomEsIndex(),
-            List.of(randomFieldAttribute()),
-            randomFrom(IndexMode.values()),
-            randomBoolean()
-        );
-        var orig = new MvExpand(Source.EMPTY, esRelation, randomFieldAttribute(), randomFieldAttribute());
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeMvExpand(out, orig);
-        var deser = PlanNamedTypes.readMvExpand(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    private static <T> void assertNamedType(Class<T> type, T origObj) {
-        var deserObj = serializeDeserialize(origObj, (o, v) -> o.writeNamed(type, origObj), i -> i.readNamed(type));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(origObj, unused -> deserObj);
-    }
-
-    static EsIndex randomEsIndex() {
-        Set<String> concreteIndices = new TreeSet<>();
-        while (concreteIndices.size() < 2) {
-            concreteIndices.add(randomAlphaOfLengthBetween(1, 25));
-        }
-        return new EsIndex(
-            randomAlphaOfLengthBetween(1, 25),
-            Map.of(randomAlphaOfLengthBetween(1, 25), randomKeywordEsField()),
-            concreteIndices
-        );
-    }
-
     static FieldAttribute randomFieldAttributeOrNull() {
         return randomBoolean() ? randomFieldAttribute() : null;
     }
@@ -295,7 +209,6 @@ public class PlanNamedTypesTests extends ESTestCase {
             randomAlphaOfLength(randomIntBetween(1, 25)), // name
             randomDataType(),
             randomEsField(),
-            randomStringOrNull(), // qualifier
             randomNullability(),
             nameIdOrNull(),
             randomBoolean() // synthetic
@@ -356,7 +269,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         };
     }
 
-    static EsField randomEsField() {
+    public static EsField randomEsField() {
         return randomEsField(0);
     }
 

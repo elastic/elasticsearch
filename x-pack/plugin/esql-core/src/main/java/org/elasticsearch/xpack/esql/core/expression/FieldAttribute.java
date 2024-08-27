@@ -49,7 +49,7 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field) {
-        this(source, parent, name, field, null, Nullability.TRUE, null, false);
+        this(source, parent, name, field, Nullability.TRUE, null, false);
     }
 
     public FieldAttribute(
@@ -57,15 +57,34 @@ public class FieldAttribute extends TypedAttribute {
         FieldAttribute parent,
         String name,
         EsField field,
-        String qualifier,
         Nullability nullability,
         NameId id,
         boolean synthetic
     ) {
-        this(source, parent, name, field.getDataType(), field, qualifier, nullability, id, synthetic);
+        this(source, parent, name, field.getDataType(), field, nullability, id, synthetic);
     }
 
     public FieldAttribute(
+        Source source,
+        FieldAttribute parent,
+        String name,
+        DataType type,
+        EsField field,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
+        super(source, name, type, nullability, id, synthetic);
+        this.path = parent != null ? parent.name() : StringUtils.EMPTY;
+        this.parent = parent;
+        this.field = field;
+    }
+
+    @Deprecated
+    /**
+     * Old constructor from when this had a qualifier string. Still needed to not break serialization.
+     */
+    private FieldAttribute(
         Source source,
         FieldAttribute parent,
         String name,
@@ -76,10 +95,7 @@ public class FieldAttribute extends TypedAttribute {
         NameId id,
         boolean synthetic
     ) {
-        super(source, name, type, qualifier, nullability, id, synthetic);
-        this.path = parent != null ? parent.fieldName() : StringUtils.EMPTY;
-        this.parent = parent;
-        this.field = field;
+        this(source, parent, name, type, field, nullability, id, synthetic);
     }
 
     private FieldAttribute(StreamInput in) throws IOException {
@@ -96,7 +112,7 @@ public class FieldAttribute extends TypedAttribute {
             in.readOptionalWriteable(FieldAttribute::readFrom),
             in.readString(),
             DataType.readFrom(in),
-            in.readNamedWriteable(EsField.class),
+            EsField.readFrom(in),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
             NameId.readFrom((StreamInput & PlanStreamInput) in),
@@ -111,8 +127,9 @@ public class FieldAttribute extends TypedAttribute {
             out.writeOptionalWriteable(parent);
             out.writeString(name());
             dataType().writeTo(out);
-            out.writeNamedWriteable(field);
-            out.writeOptionalString(qualifier());
+            field.writeTo(out);
+            // We used to write the qualifier here. We can still do if needed in the future.
+            out.writeOptionalString(null);
             out.writeEnum(nullable());
             id().writeTo(out);
             out.writeBoolean(synthetic());
@@ -130,7 +147,28 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(this, FieldAttribute::new, parent, name(), dataType(), field, qualifier(), nullable(), id(), synthetic());
+        return NodeInfo.create(
+            this,
+            (source, parent1, name, type, field1, qualifier, nullability, id, synthetic) -> new FieldAttribute(
+                source,
+                parent1,
+                name,
+                type,
+                field1,
+                qualifier,
+                nullability,
+                id,
+                synthetic
+            ),
+            parent,
+            name(),
+            dataType(),
+            field,
+            (String) null,
+            nullable(),
+            id(),
+            synthetic()
+        );
     }
 
     public FieldAttribute parent() {
@@ -155,11 +193,6 @@ public class FieldAttribute extends TypedAttribute {
         return Strings.hasText(path) ? path + "." + field.getName() : field.getName();
     }
 
-    public String qualifiedPath() {
-        // return only the qualifier is there's no path
-        return qualifier() != null ? qualifier() + (Strings.hasText(path) ? "." + path : StringUtils.EMPTY) : path;
-    }
-
     public EsField.Exact getExactInfo() {
         return field.getExactInfo();
     }
@@ -173,21 +206,12 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     private FieldAttribute innerField(EsField type) {
-        return new FieldAttribute(source(), this, name() + "." + type.getName(), type, qualifier(), nullable(), id(), synthetic());
+        return new FieldAttribute(source(), this, name() + "." + type.getName(), type, nullable(), id(), synthetic());
     }
 
     @Override
-    protected Attribute clone(
-        Source source,
-        String name,
-        DataType type,
-        String qualifier,
-        Nullability nullability,
-        NameId id,
-        boolean synthetic
-    ) {
-        FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;
-        return new FieldAttribute(source, qualifiedParent, name, field, qualifier, nullability, id, synthetic);
+    protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
+        return new FieldAttribute(source, parent, name, field, nullability, id, synthetic);
     }
 
     @Override

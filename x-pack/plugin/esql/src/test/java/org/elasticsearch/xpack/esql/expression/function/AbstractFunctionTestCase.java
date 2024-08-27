@@ -10,12 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function;
 import com.carrotsearch.randomizedtesting.ClassModel;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.document.InetAddressPoint;
-import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -27,8 +24,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.geo.GeometryTestUtils;
-import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -43,7 +38,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -71,21 +65,18 @@ import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.versionfield.Version;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -97,16 +88,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -140,46 +129,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         entry("is_null", IsNull.class),
         entry("is_not_null", IsNotNull.class)
     );
-
-    /**
-     * Generate a random value of the appropriate type to fit into blocks of {@code e}.
-     */
-    public static Literal randomLiteral(DataType type) {
-        return new Literal(Source.EMPTY, switch (type) {
-            case BOOLEAN -> randomBoolean();
-            case BYTE -> randomByte();
-            case SHORT -> randomShort();
-            case INTEGER, COUNTER_INTEGER -> randomInt();
-            case UNSIGNED_LONG, LONG, COUNTER_LONG -> randomLong();
-            case DATE_PERIOD -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
-            case DATETIME -> randomMillisUpToYear9999();
-            case DOUBLE, SCALED_FLOAT, COUNTER_DOUBLE -> randomDouble();
-            case FLOAT -> randomFloat();
-            case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
-            case KEYWORD -> new BytesRef(randomAlphaOfLength(5));
-            case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-            case TIME_DURATION -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
-            case TEXT -> new BytesRef(randomAlphaOfLength(50));
-            case VERSION -> randomVersion().toBytesRef();
-            case GEO_POINT -> GEO.asWkb(GeometryTestUtils.randomPoint());
-            case CARTESIAN_POINT -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
-            case GEO_SHAPE -> GEO.asWkb(GeometryTestUtils.randomGeometry(randomBoolean()));
-            case CARTESIAN_SHAPE -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()));
-            case NULL -> null;
-            case SOURCE -> {
-                try {
-                    yield BytesReference.bytes(
-                        JsonXContent.contentBuilder().startObject().field(randomAlphaOfLength(3), randomAlphaOfLength(10)).endObject()
-                    ).toBytesRef();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-            case UNSUPPORTED, OBJECT, NESTED, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
-                "can't make random values for [" + type.typeName() + "]"
-            );
-        }, type);
-    }
 
     protected TestCaseSupplier.TestCase testCase;
 
@@ -481,7 +430,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                  */
                 return false;
             }
-            if (t == DataType.OBJECT || t == DataType.NESTED) {
+            if (t == DataType.OBJECT) {
                 // Object and nested fields aren't supported by any functions yet
                 return false;
             }
@@ -491,6 +440,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             if (t == DataType.DATE_PERIOD || t == DataType.TIME_DURATION) {
                 // We don't test that functions don't take date_period or time_duration. We should.
+                return false;
+            }
+            if (DataType.UNDER_CONSTRUCTION.containsKey(t)) {
+                /*
+                 * Types under construction aren't checked because we're actively
+                 * adding support for them to functions. That's *why* they are
+                 * under construction.
+                 */
                 return false;
             }
             if (t.isCounter()) {
@@ -662,11 +619,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return result;
     }
 
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        // TODO remove me in favor of cases containing null
-        assertTrue("argument " + nullBlock + " is null", value.isNull(0));
-    }
-
     /**
      * Modifies suppliers to generate BytesRefs with random offsets.
      */
@@ -728,6 +680,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertSerialization(buildFieldExpression(testCase));
     }
 
+    /**
+     * This test is meant to validate that the params annotations for the function being tested align with the supported types the
+     * test framework has detected.
+     */
     @AfterClass
     public static void testFunctionInfo() {
         Logger log = LogManager.getLogger(getTestClass());
@@ -755,25 +711,33 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (int i = 0; i < args.size(); i++) {
             typesFromSignature.add(new HashSet<>());
         }
-        Function<DataType, String> typeName = dt -> dt.esType() != null ? dt.esType() : dt.typeName();
         for (Map.Entry<List<DataType>, DataType> entry : signatures().entrySet()) {
             List<DataType> types = entry.getKey();
             for (int i = 0; i < args.size() && i < types.size(); i++) {
-                typesFromSignature.get(i).add(typeName.apply(types.get(i)));
+                typesFromSignature.get(i).add(types.get(i).esNameIfPossible());
             }
-            returnFromSignature.add(typeName.apply(entry.getValue()));
+            returnFromSignature.add(entry.getValue().esNameIfPossible());
         }
 
         for (int i = 0; i < args.size(); i++) {
             EsqlFunctionRegistry.ArgSignature arg = args.get(i);
-            Set<String> annotationTypes = Arrays.stream(arg.type()).collect(Collectors.toCollection(TreeSet::new));
-            Set<String> signatureTypes = typesFromSignature.get(i);
+            Set<String> annotationTypes = Arrays.stream(arg.type())
+                .filter(DataType.UNDER_CONSTRUCTION::containsKey)
+                .collect(Collectors.toCollection(TreeSet::new));
+            Set<String> signatureTypes = typesFromSignature.get(i)
+                .stream()
+                .filter(DataType.UNDER_CONSTRUCTION::containsKey)
+                .collect(Collectors.toCollection(TreeSet::new));
             if (signatureTypes.isEmpty()) {
                 log.info("{}: skipping", arg.name());
                 continue;
             }
             log.info("{}: tested {} vs annotated {}", arg.name(), signatureTypes, annotationTypes);
-            assertEquals(signatureTypes, annotationTypes);
+            assertEquals(
+                "Missmatch between actual and declared parameter types. You probably need to update your @params annotations.",
+                signatureTypes,
+                annotationTypes
+            );
         }
 
         Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toCollection(TreeSet::new));
@@ -910,20 +874,23 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
         List<String> table = new ArrayList<>();
         for (Map.Entry<List<DataType>, DataType> sig : signatures().entrySet()) { // TODO flip to using sortedSignatures
+            if (shouldHideSignature(sig.getKey(), sig.getValue())) {
+                continue;
+            }
             if (sig.getKey().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
                 continue;
             }
             StringBuilder b = new StringBuilder();
             for (DataType arg : sig.getKey()) {
-                b.append(arg.typeName()).append(" | ");
+                b.append(arg.esNameIfPossible()).append(" | ");
             }
             b.append("| ".repeat(argNames.size() - sig.getKey().size()));
-            b.append(sig.getValue().typeName());
+            b.append(sig.getValue().esNameIfPossible());
             table.add(b.toString());
         }
         Collections.sort(table);
         if (table.isEmpty()) {
-            table.add(signatures.values().iterator().next().typeName());
+            table.add(signatures.values().iterator().next().esNameIfPossible());
         }
 
         String rendered = DOCS_WARNING + """
@@ -1129,7 +1096,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.startArray("params");
             builder.endArray();
             // There should only be one return type so just use that as the example
-            builder.field("returnType", signatures().values().iterator().next().typeName());
+            builder.field("returnType", signatures().values().iterator().next().esNameIfPossible());
             builder.endObject();
         } else {
             int minArgCount = (int) args.stream().filter(a -> false == a.optional()).count();
@@ -1141,20 +1108,23 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 if (sig.getKey().size() < minArgCount) {
                     throw new IllegalArgumentException("signature " + sig.getKey() + " is missing non-optional arg for " + args);
                 }
+                if (shouldHideSignature(sig.getKey(), sig.getValue())) {
+                    continue;
+                }
                 builder.startObject();
                 builder.startArray("params");
                 for (int i = 0; i < sig.getKey().size(); i++) {
                     EsqlFunctionRegistry.ArgSignature arg = args.get(i);
                     builder.startObject();
                     builder.field("name", arg.name());
-                    builder.field("type", sig.getKey().get(i).typeName());
+                    builder.field("type", sig.getKey().get(i).esNameIfPossible());
                     builder.field("optional", arg.optional());
                     builder.field("description", arg.description());
                     builder.endObject();
                 }
                 builder.endArray();
                 builder.field("variadic", variadic);
-                builder.field("returnType", sig.getValue().typeName());
+                builder.field("returnType", sig.getValue().esNameIfPossible());
                 builder.endObject();
             }
         }
@@ -1190,12 +1160,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     if (rhs.getKey().size() <= i) {
                         return 1;
                     }
-                    int c = lhs.getKey().get(i).typeName().compareTo(rhs.getKey().get(i).typeName());
+                    int c = lhs.getKey().get(i).esNameIfPossible().compareTo(rhs.getKey().get(i).esNameIfPossible());
                     if (c != 0) {
                         return c;
                     }
                 }
-                return lhs.getValue().typeName().compareTo(rhs.getValue().typeName());
+                return lhs.getValue().esNameIfPossible().compareTo(rhs.getValue().esNameIfPossible());
             }
         });
         return sortedSignatures;
@@ -1299,16 +1269,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    static Version randomVersion() {
-        // TODO degenerate versions and stuff
-        return switch (between(0, 2)) {
-            case 0 -> new Version(Integer.toString(between(0, 100)));
-            case 1 -> new Version(between(0, 100) + "." + between(0, 100));
-            case 2 -> new Version(between(0, 100) + "." + between(0, 100) + "." + between(0, 100));
-            default -> throw new IllegalArgumentException();
-        };
-    }
-
     /**
      * All string types (keyword, text, match_only_text, etc).
      */
@@ -1335,5 +1295,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     private static boolean isAggregation() {
         return AbstractAggregationTestCase.class.isAssignableFrom(getTestClass());
+    }
+
+    /**
+     * Should this particular signature be hidden from the docs even though we test it?
+     */
+    private static boolean shouldHideSignature(List<DataType> argTypes, DataType returnType) {
+        for (DataType dt : DataType.UNDER_CONSTRUCTION.keySet()) {
+            if (returnType == dt) {
+                return true;
+            }
+            return argTypes.contains(dt);
+        }
+        return false;
     }
 }

@@ -39,16 +39,15 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -57,7 +56,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -83,6 +81,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final OriginSettingClient rolloverClient;
+    private final FailureStoreMetrics failureStoreMetrics;
 
     @Inject
     public TransportBulkAction(
@@ -95,7 +94,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        FailureStoreMetrics failureStoreMetrics
     ) {
         this(
             threadPool,
@@ -108,7 +108,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
-            System::nanoTime
+            threadPool::relativeTimeInNanos,
+            failureStoreMetrics
         );
     }
 
@@ -123,7 +124,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        LongSupplier relativeTimeProvider
+        LongSupplier relativeTimeProvider,
+        FailureStoreMetrics failureStoreMetrics
     ) {
         this(
             TYPE,
@@ -138,7 +140,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
-            relativeTimeProvider
+            relativeTimeProvider,
+            failureStoreMetrics
         );
     }
 
@@ -155,7 +158,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        LongSupplier relativeTimeProvider
+        LongSupplier relativeTimeProvider,
+        FailureStoreMetrics failureStoreMetrics
     ) {
         super(
             bulkAction,
@@ -174,6 +178,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
+        this.failureStoreMetrics = failureStoreMetrics;
     }
 
     public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> unwrappingSingleItemBulkResponse(
@@ -198,8 +203,10 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         BulkRequest bulkRequest,
         Executor executor,
         ActionListener<BulkResponse> listener,
-        long relativeStartTime
+        long relativeStartTimeNanos
     ) {
+        trackIndexRequests(bulkRequest);
+
         Map<String, CreateIndexRequest> indicesToAutoCreate = new HashMap<>();
         Set<String> dataStreamsToBeRolledOver = new HashSet<>();
         Set<String> failureStoresToBeRolledOver = new HashSet<>();
@@ -213,8 +220,29 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             indicesToAutoCreate,
             dataStreamsToBeRolledOver,
             failureStoresToBeRolledOver,
-            relativeStartTime
+            relativeStartTimeNanos
         );
+    }
+
+    /**
+     * Track the number of index requests in our APM metrics. We'll track almost all docs here (pipeline or no pipeline,
+     * failure store or original), but some docs don't reach this place (dropped and rejected docs), so we increment for those docs in
+     * different places.
+     */
+    private void trackIndexRequests(BulkRequest bulkRequest) {
+        final Metadata metadata = clusterService.state().metadata();
+        for (DocWriteRequest<?> request : bulkRequest.requests) {
+            if (request instanceof IndexRequest == false) {
+                continue;
+            }
+            String resolvedIndexName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
+            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(resolvedIndexName);
+            DataStream dataStream = DataStream.resolveDataStream(indexAbstraction, metadata);
+            // We only track index requests into data streams.
+            if (dataStream != null) {
+                failureStoreMetrics.incrementTotal(dataStream.getName());
+            }
+        }
     }
 
     /**
@@ -310,12 +338,12 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Map<String, CreateIndexRequest> indicesToAutoCreate,
         Set<String> dataStreamsToBeRolledOver,
         Set<String> failureStoresToBeRolledOver,
-        long startTime
+        long startTimeNanos
     ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         // Optimizing when there are no prerequisite actions
         if (indicesToAutoCreate.isEmpty() && dataStreamsToBeRolledOver.isEmpty() && failureStoresToBeRolledOver.isEmpty()) {
-            executeBulk(task, bulkRequest, startTime, listener, executor, responses, Map.of());
+            executeBulk(task, bulkRequest, startTimeNanos, listener, executor, responses, Map.of());
             return;
         }
         final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
@@ -323,7 +351,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Runnable executeBulkRunnable = () -> executor.execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
-                executeBulk(task, bulkRequest, startTime, listener, executor, responses, indicesThatCannotBeCreated);
+                executeBulk(task, bulkRequest, startTimeNanos, listener, executor, responses, indicesThatCannotBeCreated);
             }
         });
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
@@ -537,31 +565,31 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             responses,
             indicesThatCannotBeCreated,
             indexNameExpressionResolver,
-            relativeTimeProvider,
+            relativeTimeNanosProvider,
             startTimeNanos,
-            listener
+            listener,
+            failureStoreMetrics
         ).run();
     }
 
     /**
-     * Determines if an index name is associated with either an existing data stream or a template
-     * for one that has the failure store enabled.
-     * @param indexName The index name to check.
-     * @param metadata Cluster state metadata.
-     * @param epochMillis A timestamp to use when resolving date math in the index name.
-     * @return true if the given index name corresponds to a data stream with a failure store,
-     * or if it matches a template that has a data stream failure store enabled.
+     * See {@link #resolveFailureStore(String, Metadata, long)}
      */
-    static boolean shouldStoreFailureInternal(String indexName, Metadata metadata, long epochMillis) {
-        return DataStream.isFailureStoreFeatureFlagEnabled()
-            && resolveFailureStoreFromMetadata(indexName, metadata, epochMillis).or(
-                () -> resolveFailureStoreFromTemplate(indexName, metadata)
-            ).orElse(false);
+    // Visibility for testing
+    static Boolean resolveFailureInternal(String indexName, Metadata metadata, long epochMillis) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
+            return null;
+        }
+        var resolution = resolveFailureStoreFromMetadata(indexName, metadata, epochMillis);
+        if (resolution != null) {
+            return resolution;
+        }
+        return resolveFailureStoreFromTemplate(indexName, metadata);
     }
 
     @Override
-    protected boolean shouldStoreFailure(String indexName, Metadata metadata, long time) {
-        return shouldStoreFailureInternal(indexName, metadata, time);
+    protected Boolean resolveFailureStore(String indexName, Metadata metadata, long time) {
+        return resolveFailureInternal(indexName, metadata, time);
     }
 
     /**
@@ -571,30 +599,24 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * @param epochMillis A timestamp to use when resolving date math in the index name.
      * @return true if the given index name corresponds to an existing data stream with a failure store enabled.
      */
-    private static Optional<Boolean> resolveFailureStoreFromMetadata(String indexName, Metadata metadata, long epochMillis) {
+    private static Boolean resolveFailureStoreFromMetadata(String indexName, Metadata metadata, long epochMillis) {
         if (indexName == null) {
-            return Optional.empty();
+            return null;
         }
 
         // Get index abstraction, resolving date math if it exists
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup()
             .get(IndexNameExpressionResolver.resolveDateMathExpression(indexName, epochMillis));
+        if (indexAbstraction == null || indexAbstraction.isDataStreamRelated() == false) {
+            return null;
+        }
 
         // We only store failures if the failure is being written to a data stream,
         // not when directly writing to backing indices/failure stores
-        if (indexAbstraction == null || indexAbstraction.isDataStreamRelated() == false) {
-            return Optional.empty();
-        }
-
-        // Locate the write index for the abstraction, and check if it has a data stream associated with it.
-        // This handles alias resolution as well as data stream resolution.
-        Index writeIndex = indexAbstraction.getWriteIndex();
-        assert writeIndex != null : "Could not resolve write index for resource [" + indexName + "]";
-        IndexAbstraction writeAbstraction = metadata.getIndicesLookup().get(writeIndex.getName());
-        DataStream targetDataStream = writeAbstraction.getParentDataStream();
+        DataStream targetDataStream = DataStream.resolveDataStream(indexAbstraction, metadata);
 
         // We will store the failure if the write target belongs to a data stream with a failure store.
-        return Optional.of(targetDataStream != null && targetDataStream.isFailureStoreEnabled());
+        return targetDataStream != null && targetDataStream.isFailureStoreEnabled();
     }
 
     /**
@@ -603,9 +625,9 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * @param metadata Cluster state metadata.
      * @return true if the given index name corresponds to an index template with a data stream failure store enabled.
      */
-    private static Optional<Boolean> resolveFailureStoreFromTemplate(String indexName, Metadata metadata) {
+    private static Boolean resolveFailureStoreFromTemplate(String indexName, Metadata metadata) {
         if (indexName == null) {
-            return Optional.empty();
+            return null;
         }
 
         // Check to see if the index name matches any templates such that an index would have been attributed
@@ -616,11 +638,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(template);
             if (composableIndexTemplate.getDataStreamTemplate() != null) {
                 // Check if the data stream has the failure store enabled
-                return Optional.of(composableIndexTemplate.getDataStreamTemplate().hasFailureStore());
+                return composableIndexTemplate.getDataStreamTemplate().hasFailureStore();
             }
         }
 
         // Could not locate a failure store via template
-        return Optional.empty();
+        return null;
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,10 +47,15 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         private final boolean wildcardExpressionsOriginallySpecified;
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
 
-        public Request(String... names) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, String... names) {
+            super(masterNodeTimeout);
             this.names = Objects.requireNonNull(names);
             this.wildcardExpressionsOriginallySpecified = Arrays.stream(names).anyMatch(Regex::isSimpleMatchPattern);
+        }
+
+        @Deprecated(forRemoval = true) // temporary compatibility shim
+        public Request(String... names) {
+            this(MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, names);
         }
 
         public String[] getNames() {
@@ -107,7 +113,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             return indicesOptions;
         }
 
-        public IndicesRequest indicesOptions(IndicesOptions options) {
+        public Request indicesOptions(IndicesOptions options) {
             this.indicesOptions = options;
             return this;
         }

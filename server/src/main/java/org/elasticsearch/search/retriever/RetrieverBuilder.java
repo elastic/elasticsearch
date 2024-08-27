@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
@@ -191,6 +192,34 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         return false;
     }
 
+    protected RankDoc[] rankDocs = null;
+
+    public RetrieverBuilder() {}
+
+    protected final List<QueryBuilder> rewritePreFilters(QueryRewriteContext ctx) throws IOException {
+        List<QueryBuilder> newFilters = new ArrayList<>(preFilterQueryBuilders.size());
+        boolean changed = false;
+        for (var filter : preFilterQueryBuilders) {
+            var newFilter = filter.rewrite(ctx);
+            changed |= filter != newFilter;
+            newFilters.add(newFilter);
+        }
+        if (changed) {
+            return newFilters;
+        }
+        return preFilterQueryBuilders;
+    }
+
+    /**
+     * This function is called by compound {@link RetrieverBuilder} to return the original query that
+     * was used by this retriever to compute its top documents.
+     */
+    public abstract QueryBuilder topDocsQuery();
+
+    public void setRankDocs(RankDoc[] rankDocs) {
+        this.rankDocs = rankDocs;
+    }
+
     /**
      * Gets the filters for this retriever.
      */
@@ -252,6 +281,10 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    public String retrieverName() {
+        return retrieverName;
     }
 
     // ---- END FOR TESTING ----

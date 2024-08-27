@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-package org.elasticsearch.xpack.spatial.index.query;
+
+package org.elasticsearch.lucene.spatial;
 
 import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.document.XYPointField;
+import org.apache.lucene.document.XYShape;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.XYGeometry;
 import org.apache.lucene.geo.XYPoint;
@@ -25,23 +28,25 @@ import org.elasticsearch.geometry.Geometry;
 
 import java.util.Arrays;
 
-/** Generates a lucene query for a spatial query over a point field.
- *
- * Note that lucene only supports intersects spatial relation so we build other relations
- * using just that one.
- * */
-public class ShapeQueryPointProcessor {
+/** Utility methods that generate a lucene query for a spatial query over a cartesian field.* */
+public class XYQueriesUtils {
 
-    public Query shapeQuery(Geometry geometry, String fieldName, ShapeRelation relation, boolean isIndexed, boolean hasDocValues) {
-        assert isIndexed || hasDocValues;
+    /** Generates a lucene query for a field that has been previously indexed using {@link XYPoint}.It expects
+     * either {code indexed} or {@code has docValues} to be true or or both to be true.
+     *
+     *  Note that lucene only supports intersects spatial relation so we build other relations
+     *  using just that one.
+     * */
+    public static Query toXYPointQuery(Geometry geometry, String fieldName, ShapeRelation relation, boolean indexed, boolean hasDocValues) {
+        assert indexed || hasDocValues;
         final XYGeometry[] luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
         // XYPointField only supports intersects query so we build all the relationships using that logic.
         // it is not very efficient but it works.
         return switch (relation) {
-            case INTERSECTS -> buildIntersectsQuery(fieldName, isIndexed, hasDocValues, luceneGeometries);
-            case DISJOINT -> buildDisjointQuery(fieldName, isIndexed, hasDocValues, luceneGeometries);
-            case CONTAINS -> buildContainsQuery(fieldName, isIndexed, hasDocValues, luceneGeometries);
-            case WITHIN -> buildWithinQuery(fieldName, isIndexed, hasDocValues, luceneGeometries);
+            case INTERSECTS -> buildIntersectsQuery(fieldName, indexed, hasDocValues, luceneGeometries);
+            case DISJOINT -> buildDisjointQuery(fieldName, indexed, hasDocValues, luceneGeometries);
+            case CONTAINS -> buildContainsQuery(fieldName, indexed, hasDocValues, luceneGeometries);
+            case WITHIN -> buildWithinQuery(fieldName, indexed, hasDocValues, luceneGeometries);
         };
     }
 
@@ -275,5 +280,26 @@ public class ShapeQueryPointProcessor {
         public int hashCode() {
             return Arrays.hashCode(geometries);
         }
+    }
+
+    /** Generates a lucene query for a field that has been previously indexed using {@link XYShape}.It expects
+     * either {code indexed} or {@code has docValues} to be true or both to be true. */
+    public static Query toXYShapeQuery(Geometry geometry, String fieldName, ShapeRelation relation, boolean indexed, boolean hasDocValues) {
+        assert indexed || hasDocValues;
+        if (geometry == null || geometry.isEmpty()) {
+            return new MatchNoDocsQuery();
+        }
+        final XYGeometry[] luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
+        Query query;
+        if (indexed) {
+            query = XYShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+            if (hasDocValues) {
+                final Query queryDocValues = new CartesianShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+                query = new IndexOrDocValuesQuery(query, queryDocValues);
+            }
+        } else {
+            query = new CartesianShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+        }
+        return query;
     }
 }

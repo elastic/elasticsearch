@@ -23,6 +23,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -436,15 +437,22 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     protected MappedFieldType.Relation getRelation(final CoordinatorRewriteContext coordinatorRewriteContext) {
         final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
         if (fieldType instanceof final DateFieldMapper.DateFieldType dateFieldType) {
-            if (coordinatorRewriteContext.hasTimestampData() == false) {
+            IndexLongFieldRange fieldRange = coordinatorRewriteContext.getFieldRange(fieldName);
+            if (fieldRange.isComplete() == false || fieldRange == IndexLongFieldRange.EMPTY) {
+                // if not all shards for this (frozen) index have reported ranges to cluster state, OR if they
+                // have reported in and the range is empty (no data for that field), then return DISJOINT in order
+                // to rewrite the query to MatchNone
                 return MappedFieldType.Relation.DISJOINT;
             }
-            long minTimestamp = coordinatorRewriteContext.getMinTimestamp();
-            long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp();
+            if (fieldRange == IndexLongFieldRange.UNKNOWN) {
+                // do a full search if UNKNOWN for whatever reason (e.g., event.ingested is UNKNOWN in a
+                // mixed-cluster where nodes with a version before event.ingested was added to cluster state)
+                return MappedFieldType.Relation.INTERSECTS;
+            }
             DateMathParser dateMathParser = getForceDateParser();
             return dateFieldType.isFieldWithinQuery(
-                minTimestamp,
-                maxTimestamp,
+                fieldRange.getMin(),
+                fieldRange.getMax(),
                 from,
                 to,
                 includeLower,

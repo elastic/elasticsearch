@@ -11,26 +11,30 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Stats;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Rule that removes Aggregate overrides in grouping, aggregates and across them inside.
- * The overrides appear when the same alias is used multiple times in aggregations and/or groupings:
- * STATS x = COUNT(*), x = MIN(a) BY x = b + 1, x = c + 10
+ * Removes {@link Stats} overrides in grouping, aggregates and across them inside.
+ * The overrides appear when the same alias is used multiple times in aggregations
+ * and/or groupings:
+ * {@code STATS x = COUNT(*), x = MIN(a) BY x = b + 1, x = c + 10}
  * becomes
- * STATS BY x = c + 10
- * That is the last declaration for a given alias, overrides all the other declarations, with
- * groups having priority vs aggregates.
+ * {@code STATS BY x = c + 10}
+ * and
+ * {@code INLINESTATS x = COUNT(*), x = MIN(a) BY x = b + 1, x = c + 10}
+ * becomes
+ * {@code INLINESTATS BY x = c + 10}
+ * This is "last one wins", with groups having priority over aggregates.
  * Separately, it replaces expressions used as group keys inside the aggregates with references:
- * STATS max(a + b + 1) BY a + b
+ * {@code STATS max(a + b + 1) BY a + b}
  * becomes
- * STATS max($x + 1) BY $x = a + b
+ * {@code STATS max($x + 1) BY $x = a + b}
  */
-public final class RemoveStatsOverride extends AnalyzerRules.AnalyzerRule<Aggregate> {
+public final class RemoveStatsOverride extends AnalyzerRules.AnalyzerRule<LogicalPlan> {
 
     @Override
     protected boolean skipResolved() {
@@ -38,19 +42,18 @@ public final class RemoveStatsOverride extends AnalyzerRules.AnalyzerRule<Aggreg
     }
 
     @Override
-    protected LogicalPlan rule(Aggregate agg) {
-        return agg.resolved() ? removeAggDuplicates(agg) : agg;
-    }
-
-    private static Aggregate removeAggDuplicates(Aggregate agg) {
-        var groupings = agg.groupings();
-        var aggregates = agg.aggregates();
-
-        groupings = removeDuplicateNames(groupings);
-        aggregates = removeDuplicateNames(aggregates);
-
-        // replace EsqlAggregate with Aggregate
-        return new Aggregate(agg.source(), agg.child(), agg.aggregateType(), groupings, aggregates);
+    protected LogicalPlan rule(LogicalPlan p) {
+        if (p.resolved() == false) {
+            return p;
+        }
+        if (p instanceof Stats stats) {
+            return (LogicalPlan) stats.with(
+                stats.child(),
+                removeDuplicateNames(stats.groupings()),
+                removeDuplicateNames(stats.aggregates())
+            );
+        }
+        return p;
     }
 
     private static <T extends Expression> List<T> removeDuplicateNames(List<T> list) {

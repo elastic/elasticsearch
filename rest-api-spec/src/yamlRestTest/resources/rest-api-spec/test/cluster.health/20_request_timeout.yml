@@ -54,15 +54,9 @@
 
 ---
 "cluster health request timeout on waiting for nodes - Without unassigned primary chard count added":
-  - requires:
-      test_runner_features: capabilities
   - skip:
-      capabilities:
-        - method: GET
-          path: /_cluster/health
-          capabilities: [ unassigned_pri_shard_count ]
-      reason:
-        Capability required to run test
+      cluster_features: gte_v8.15.0
+      reason: Capabilities skipping does not yet work in mixed clusters. This will disable the test in such scenarios.
   - do:
       catch: request_timeout
       cluster.health:
@@ -82,14 +76,9 @@
 
 ---
 "cluster health request timeout waiting for active shards - Without unassigned primary chard count added":
-  - requires:
-      test_runner_features: capabilities
   - skip:
-      capabilities:
-        - method: GET
-          path: /_cluster/health
-          capabilities: [ unassigned_pri_shard_count ]
-      reason: Capability required to run test
+      cluster_features: gte_v8.15.0
+      reason: Capabilities skipping does not yet work in mixed clusters. This will disable the test in such scenarios.
   - do:
       catch: request_timeout
       cluster.health:

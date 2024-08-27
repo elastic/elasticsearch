@@ -130,7 +130,7 @@ public class RestBulkAction extends BaseRestHandler {
             // TODO: Move this to CTOR and hook everything up
             synchronized (this) {
                 if (bulkHandler == null) {
-                    bulkHandler = new IncrementalBulkService(client);
+                    bulkHandler = new IncrementalBulkService(client, threadContext);
                 }
             }
 

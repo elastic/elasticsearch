@@ -183,6 +183,7 @@ public final class BulkRequestParser {
 
         int line = 0;
         int from = 0;
+        int consumed = 0;
 
         while (true) {
             int nextMarker = findNextMarker(marker, from, data, isIncremental);
@@ -444,10 +445,11 @@ public final class BulkRequestParser {
                     }
                     // move pointers
                     from = nextMarker + 1;
+                    consumed = from;
                 }
             }
         }
-        return from;
+        return isIncremental ? consumed : from;
     }
 
     @UpdateForV9

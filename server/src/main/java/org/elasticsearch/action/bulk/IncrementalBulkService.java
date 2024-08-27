@@ -24,9 +24,11 @@ import java.util.List;
 public class IncrementalBulkService {
 
     private final Client client;
+    private final ThreadContext threadContext;
 
-    public IncrementalBulkService(Client client) {
+    public IncrementalBulkService(Client client, ThreadContext threadContext) {
         this.client = client;
+        this.threadContext = threadContext;
     }
 
     public Handler newBulkRequest() {
@@ -39,13 +41,14 @@ public class IncrementalBulkService {
         @Nullable TimeValue timeout,
         @Nullable String refresh
     ) {
-        return new Handler(client, storedContext, waitForActiveShards, timeout, refresh);
+        return new Handler(client, threadContext, storedContext, waitForActiveShards, timeout, refresh);
     }
 
     public static class Handler implements Releasable {
 
         private final Client client;
-        private final ThreadContext.StoredContext storedContext;
+        private final ThreadContext threadContext;
+        private final ThreadContext.StoredContext requestContext;
         private final ActiveShardCount waitForActiveShards;
         private final TimeValue timeout;
         private final String refresh;
@@ -59,13 +62,15 @@ public class IncrementalBulkService {
 
         private Handler(
             Client client,
-            ThreadContext.StoredContext storedContext,
+            ThreadContext threadContext,
+            ThreadContext.StoredContext requestContext,
             @Nullable String waitForActiveShards,
             @Nullable TimeValue timeout,
             @Nullable String refresh
         ) {
             this.client = client;
-            this.storedContext = storedContext;
+            this.threadContext = threadContext;
+            this.requestContext = requestContext;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
             this.refresh = refresh;
@@ -84,21 +89,23 @@ public class IncrementalBulkService {
                     final boolean isFirstRequest = incrementalRequestSubmitted == false;
                     incrementalRequestSubmitted = true;
 
-                    storedContext.restore();
-                    client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
+                    try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                        requestContext.restore();
+                        client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
 
-                        @Override
-                        public void onResponse(BulkResponse bulkResponse) {
-                            responses.add(bulkResponse);
-                            releaseCurrentReferences();
-                            createNewBulkRequest(bulkResponse.getIncrementalState());
-                        }
+                            @Override
+                            public void onResponse(BulkResponse bulkResponse) {
+                                responses.add(bulkResponse);
+                                releaseCurrentReferences();
+                                createNewBulkRequest(bulkResponse.getIncrementalState());
+                            }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            handleBulkFailure(isFirstRequest, e);
-                        }
-                    }, nextItems::run));
+                            @Override
+                            public void onFailure(Exception e) {
+                                handleBulkFailure(isFirstRequest, e);
+                            }
+                        }, nextItems));
+                    }
                 } else {
                     nextItems.run();
                 }
@@ -107,7 +114,7 @@ public class IncrementalBulkService {
 
         private boolean shouldBackOff() {
             // TODO: Implement Real Memory Logic
-            return false;
+            return bulkRequest.requests().size() >= 16;
         }
 
         public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
@@ -118,25 +125,27 @@ public class IncrementalBulkService {
                 assert bulkRequest != null;
                 internalAddItems(items, releasable);
 
-                storedContext.restore();
-                client.bulk(bulkRequest, new ActionListener<>() {
+                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    requestContext.restore();
+                    client.bulk(bulkRequest, new ActionListener<>() {
 
-                    private final boolean isFirstRequest = incrementalRequestSubmitted == false;
+                        private final boolean isFirstRequest = incrementalRequestSubmitted == false;
 
-                    @Override
-                    public void onResponse(BulkResponse bulkResponse) {
-                        responses.add(bulkResponse);
-                        releaseCurrentReferences();
-                        BulkResponse response = combineResponses();
-                        listener.onResponse(response);
-                    }
+                        @Override
+                        public void onResponse(BulkResponse bulkResponse) {
+                            responses.add(bulkResponse);
+                            releaseCurrentReferences();
+                            BulkResponse response = combineResponses();
+                            listener.onResponse(response);
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        handleBulkFailure(isFirstRequest, e);
-                        errorResponse(listener);
-                    }
-                });
+                        @Override
+                        public void onFailure(Exception e) {
+                            handleBulkFailure(isFirstRequest, e);
+                            errorResponse(listener);
+                        }
+                    });
+                }
             }
         }
 

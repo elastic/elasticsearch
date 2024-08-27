@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class IncrementalBulkRestIT extends HttpSmokeTestCase {
 
     @SuppressWarnings("unchecked")
-    public void testIndexingPressureStats() throws IOException {
+    public void testIncrementalBulk() throws IOException {
         Request createRequest = new Request("PUT", "/index_name");
         createRequest.setJsonEntity("""
             {
@@ -41,56 +41,17 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
 
         Request successfulIndexingRequest = new Request("POST", "/index_name/_bulk");
 
-        successfulIndexingRequest.setJsonEntity("""
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value1" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value2" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value3" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value4" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value5" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value6" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value7" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value8" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value9" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value10" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value11" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value12" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value13" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value14" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value15" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value16" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value17" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value18" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value19" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value20" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value21" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value22" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value23" }
-            { "index" : { "_index" : "index_name" } }
-            { "field" : "value24" }
-            """);
+
+        // index documents for the rollup job
+        final StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            bulk.append("{\"index\":{\"_index\":\"index_name\"}}\n");
+            bulk.append("{\"field\":").append(i).append("}\n");
+        }
+        bulk.append("\r\n");
+
+        successfulIndexingRequest.setJsonEntity(bulk.toString());
+
         final Response indexSuccessFul = getRestClient().performRequest(successfulIndexingRequest);
         assertThat(indexSuccessFul.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
         Map<String, Object> responseMap = XContentHelper.convertToMap(

@@ -12,16 +12,22 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.stats.CCSTelemetrySnapshot;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.Result;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.SlowRunningQueryBuilder;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
@@ -576,6 +582,34 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(perCluster.size(), equalTo(0));
         Map<String, Long> expectedFailure = Map.of(Result.NOT_FOUND.getName(), 1L);
         assertThat(telemetry.getFailureReasons(), equalTo(expectedFailure));
+    }
+
+    public void testPITSearch() throws ExecutionException, InterruptedException {
+        Map<String, Object> testClusterInfo = setupClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        OpenPointInTimeRequest openPITRequest = new OpenPointInTimeRequest(localIndex, "*:" + remoteIndex).keepAlive(
+            TimeValue.timeValueMinutes(5)
+        );
+        String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
+        var client = cluster(LOCAL_CLUSTER).client(nodeName);
+        BytesReference pitID = client.execute(TransportOpenPointInTimeAction.TYPE, openPITRequest).actionGet().getPointInTimeId();
+        SearchRequest searchRequest = new SearchRequest().source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitID).setKeepAlive(TimeValue.timeValueMinutes(5)))
+                .sort("@timestamp")
+                .size(10)
+        );
+        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+
+        assertResponse(client.search(searchRequest), Assert::assertNotNull);
+        // do it again
+        assertResponse(client.search(searchRequest), Assert::assertNotNull);
+        client.execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitID)).actionGet();
+        CCSTelemetrySnapshot telemetry = getTelemetrySnapshot(nodeName);
+
+        assertThat(telemetry.getTotalCount(), equalTo(2L));
+        assertThat(telemetry.getSuccessCount(), equalTo(2L));
     }
 
     private CCSTelemetrySnapshot getTelemetrySnapshot(String nodeName) {

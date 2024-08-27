@@ -336,6 +336,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * and injects the RolloverConditions if they exist.
      * In order to request the effective retention you need to set {@link #INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME} to true
      * in the XContent params.
+     * NOTE: this is used for serialising user output and the result is never deserialised in elasticsearch.
      */
     public XContentBuilder toXContent(
         XContentBuilder builder,
@@ -376,6 +377,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         return builder;
     }
 
+    /**
+     * This method deserialises XContent format as it was generated ONLY by {@link DataStreamLifecycle#toXContent(XContentBuilder, Params)}.
+     * It does not support the output of
+     * {@link DataStreamLifecycle#toXContent(XContentBuilder, Params, RolloverConfiguration, DataStreamGlobalRetention, boolean)} because
+     * this output is enriched with derived fields we do not handle in this deserialisation.
+     */
     public static DataStreamLifecycle fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }

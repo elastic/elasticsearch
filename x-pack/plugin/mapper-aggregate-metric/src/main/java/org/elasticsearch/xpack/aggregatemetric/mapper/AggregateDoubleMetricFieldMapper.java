@@ -725,7 +725,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         );
     }
 
-    public static class AggregateMetricSyntheticFieldLoader implements CompositeSyntheticFieldLoader.SyntheticFieldLoaderLayer {
+    public static class AggregateMetricSyntheticFieldLoader implements CompositeSyntheticFieldLoader.Layer {
         private final String name;
         private final EnumSet<Metric> metrics;
         private final Map<Metric, SortedNumericDocValues> metricDocValues = new EnumMap<>(Metric.class);

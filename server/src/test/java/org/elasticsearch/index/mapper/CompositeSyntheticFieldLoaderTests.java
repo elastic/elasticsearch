@@ -88,72 +88,68 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
     }
 
     public void testComposingMultipleDocValuesFields() throws IOException {
-        var sut = new CompositeSyntheticFieldLoader(
-            "foo",
-            "bar.baz.foo",
-            List.of(new CompositeSyntheticFieldLoader.SyntheticFieldLoaderLayer() {
-                @Override
-                public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-                    return Stream.empty();
-                }
+        var sut = new CompositeSyntheticFieldLoader("foo", "bar.baz.foo", List.of(new CompositeSyntheticFieldLoader.Layer() {
+            @Override
+            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+                return Stream.empty();
+            }
 
-                @Override
-                public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-                    return (docId -> true);
-                }
+            @Override
+            public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+                return (docId -> true);
+            }
 
-                @Override
-                public boolean hasValue() {
-                    return true;
-                }
+            @Override
+            public boolean hasValue() {
+                return true;
+            }
 
-                @Override
-                public void write(XContentBuilder b) throws IOException {
-                    b.value(45L);
-                    b.value(46L);
-                }
+            @Override
+            public void write(XContentBuilder b) throws IOException {
+                b.value(45L);
+                b.value(46L);
+            }
 
-                @Override
-                public String fieldName() {
-                    return "";
-                }
+            @Override
+            public String fieldName() {
+                return "";
+            }
 
-                @Override
-                public long valueCount() {
-                    return 2;
-                }
-            }, new CompositeSyntheticFieldLoader.SyntheticFieldLoaderLayer() {
-                @Override
-                public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-                    return Stream.empty();
-                }
+            @Override
+            public long valueCount() {
+                return 2;
+            }
+        }, new CompositeSyntheticFieldLoader.Layer() {
+            @Override
+            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+                return Stream.empty();
+            }
 
-                @Override
-                public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-                    return (docId -> true);
-                }
+            @Override
+            public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+                return (docId -> true);
+            }
 
-                @Override
-                public boolean hasValue() {
-                    return true;
-                }
+            @Override
+            public boolean hasValue() {
+                return true;
+            }
 
-                @Override
-                public void write(XContentBuilder b) throws IOException {
-                    b.value(1L);
-                }
+            @Override
+            public void write(XContentBuilder b) throws IOException {
+                b.value(1L);
+            }
 
-                @Override
-                public String fieldName() {
-                    return "";
-                }
+            @Override
+            public String fieldName() {
+                return "";
+            }
 
-                @Override
-                public long valueCount() {
-                    return 1;
-                }
-            })
-        );
+            @Override
+            public long valueCount() {
+                return 1;
+            }
+        }));
 
         sut.docValuesLoader(null, new int[0]).advanceToDoc(0);
 
@@ -175,7 +171,7 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
                 protected void writeValue(Object value, XContentBuilder b) throws IOException {
                     b.value((long) value);
                 }
-            }, new CompositeSyntheticFieldLoader.SyntheticFieldLoaderLayer() {
+            }, new CompositeSyntheticFieldLoader.Layer() {
                 @Override
                 public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
                     return Stream.empty();

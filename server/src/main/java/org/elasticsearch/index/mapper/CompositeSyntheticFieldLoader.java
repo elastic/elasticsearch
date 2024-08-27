@@ -31,15 +31,15 @@ import static java.util.Collections.emptyList;
 public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
     private final String leafFieldName;
     private final String fullFieldName;
-    private final Collection<SyntheticFieldLoaderLayer> parts;
+    private final Collection<Layer> parts;
     private boolean storedFieldLoadersHaveValues;
     private boolean docValuesLoadersHaveValues;
 
-    public CompositeSyntheticFieldLoader(String leafFieldName, String fullFieldName, SyntheticFieldLoaderLayer... parts) {
+    public CompositeSyntheticFieldLoader(String leafFieldName, String fullFieldName, Layer... parts) {
         this(leafFieldName, fullFieldName, Arrays.asList(parts));
     }
 
-    public CompositeSyntheticFieldLoader(String leafFieldName, String fullFieldName, Collection<SyntheticFieldLoaderLayer> parts) {
+    public CompositeSyntheticFieldLoader(String leafFieldName, String fullFieldName, Collection<Layer> parts) {
         this.leafFieldName = leafFieldName;
         this.fullFieldName = fullFieldName;
         this.parts = parts;
@@ -49,21 +49,19 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
 
     @Override
     public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        return parts.stream()
-            .flatMap(SyntheticFieldLoaderLayer::storedFieldLoaders)
-            .map(e -> Map.entry(e.getKey(), new StoredFieldLoader() {
-                @Override
-                public void advanceToDoc(int docId) {
-                    storedFieldLoadersHaveValues = false;
-                    e.getValue().advanceToDoc(docId);
-                }
+        return parts.stream().flatMap(Layer::storedFieldLoaders).map(e -> Map.entry(e.getKey(), new StoredFieldLoader() {
+            @Override
+            public void advanceToDoc(int docId) {
+                storedFieldLoadersHaveValues = false;
+                e.getValue().advanceToDoc(docId);
+            }
 
-                @Override
-                public void load(List<Object> newValues) {
-                    storedFieldLoadersHaveValues = true;
-                    e.getValue().load(newValues);
-                }
-            }));
+            @Override
+            public void load(List<Object> newValues) {
+                storedFieldLoadersHaveValues = true;
+                e.getValue().load(newValues);
+            }
+        }));
     }
 
     @Override
@@ -88,7 +86,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
                 hasDocs |= loader.advanceToDoc(docId);
             }
 
-            this.docValuesLoadersHaveValues |= hasDocs;
+            this.docValuesLoadersHaveValues = hasDocs;
             return hasDocs;
         };
     }
@@ -100,7 +98,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
 
     @Override
     public void write(XContentBuilder b) throws IOException {
-        var totalCount = parts.stream().mapToLong(SyntheticFieldLoaderLayer::valueCount).sum();
+        var totalCount = parts.stream().mapToLong(Layer::valueCount).sum();
 
         if (totalCount == 0) {
             return;
@@ -133,7 +131,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
      * Note that the contract of {@link SourceLoader.SyntheticFieldLoader#write(XContentBuilder)}
      * is slightly different here since it only needs to write field values without encompassing object or array.
      */
-    public interface SyntheticFieldLoaderLayer extends SourceLoader.SyntheticFieldLoader {
+    public interface Layer extends SourceLoader.SyntheticFieldLoader {
         /**
          * Number of values that this loader will write for a given document.
          * @return
@@ -163,7 +161,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
     /**
      * Layer that loads field values from a provided stored field.
      */
-    public abstract static class StoredFieldLayer implements SyntheticFieldLoaderLayer {
+    public abstract static class StoredFieldLayer implements Layer {
         private final String fieldName;
         private List<Object> values;
 

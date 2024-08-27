@@ -1057,7 +1057,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return super.syntheticFieldLoader();
         }
 
-        var layers = new ArrayList<CompositeSyntheticFieldLoader.SyntheticFieldLoaderLayer>();
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
         if (fieldType.stored()) {
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fullPath()) {
                 @Override

@@ -627,7 +627,7 @@ public class IpFieldMapper extends FieldMapper {
             );
         }
 
-        var layers = new ArrayList<CompositeSyntheticFieldLoader.SyntheticFieldLoaderLayer>();
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
         layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
             @Override
             protected BytesRef convert(BytesRef value) {

@@ -1022,7 +1022,7 @@ public class WildcardFieldMapper extends FieldMapper {
         return new CompositeSyntheticFieldLoader(leafName(), fullPath(), loader);
     }
 
-    private class WildcardSyntheticFieldLoader implements CompositeSyntheticFieldLoader.SyntheticFieldLoaderLayer {
+    private class WildcardSyntheticFieldLoader implements CompositeSyntheticFieldLoader.Layer {
         private final ByteArrayStreamInput docValuesStream = new ByteArrayStreamInput();
         private int docValueCount;
         private BytesRef docValueBytes;

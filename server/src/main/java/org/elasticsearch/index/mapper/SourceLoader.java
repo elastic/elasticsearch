@@ -332,6 +332,9 @@ public interface SourceLoader {
              */
             void advanceToDoc(int docId);
 
+            /**
+             * Loads values read from a corresponding stored field into this loader.
+             */
             void load(List<Object> values);
         }
 

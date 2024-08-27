@@ -25,7 +25,7 @@ import java.util.stream.Stream;
 /**
  * Load {@code _source} fields from {@link SortedSetDocValues}.
  */
-public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.SyntheticFieldLoaderLayer {
+public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.Layer {
     private static final Logger logger = LogManager.getLogger(SortedSetDocValuesSyntheticFieldLoaderLayer.class);
 
     private final String name;

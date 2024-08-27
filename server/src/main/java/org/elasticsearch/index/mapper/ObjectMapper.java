@@ -887,7 +887,7 @@ public class ObjectMapper extends Mapper {
                     boolean leafHasValue = docValueLoader.advanceToDoc(docId);
                     anyLeafHasDocValues |= leafHasValue;
                 }
-                docValuesLoadersHaveValues |= anyLeafHasDocValues;
+                docValuesLoadersHaveValues = anyLeafHasDocValues;
                 return anyLeafHasDocValues;
             }
         }

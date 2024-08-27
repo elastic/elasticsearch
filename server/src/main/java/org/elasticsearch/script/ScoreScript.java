@@ -202,7 +202,7 @@ public abstract class ScoreScript extends DocBasedScript {
      * Accessed as _termStats in the painless script.
      */
     public ScriptTermStats get_termStats() {
-        assert termStats != null  : "termStats is not available";
+        assert termStats != null : "termStats is not available";
         return termStats;
     }
 

@@ -41,7 +41,6 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
 
         Request successfulIndexingRequest = new Request("POST", "/index_name/_bulk");
 
-
         // index documents for the rollup job
         final StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < 1000; i++) {

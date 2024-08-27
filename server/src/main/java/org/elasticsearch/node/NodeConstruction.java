@@ -876,6 +876,9 @@ class NodeConstruction {
             .map(TerminationHandlerProvider::handler);
         terminationHandler = getSinglePlugin(terminationHandlers, TerminationHandler.class).orElse(null);
 
+        final IndexingPressure indexingLimits = new IndexingPressure(settings);
+        final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(client, threadPool.getThreadContext());
+
         ActionModule actionModule = new ActionModule(
             settings,
             clusterModule.getIndexNameExpressionResolver(),
@@ -901,7 +904,8 @@ class NodeConstruction {
                 metadataCreateIndexService,
                 dataStreamGlobalRetentionSettings
             ),
-            pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll)
+            pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
+            incrementalBulkService
         );
         modules.add(actionModule);
 
@@ -964,8 +968,6 @@ class NodeConstruction {
             SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
         );
         final HttpServerTransport httpServerTransport = serviceProvider.newHttpTransport(pluginsService, networkModule);
-        final IndexingPressure indexingLimits = new IndexingPressure(settings);
-        final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(client, threadPool.getThreadContext());
 
         SnapshotsService snapshotsService = new SnapshotsService(
             settings,

@@ -159,6 +159,7 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.validate.query.TransportValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.bulk.SimulateBulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
@@ -475,7 +476,8 @@ public class ActionModule extends AbstractModule {
         ClusterService clusterService,
         RerouteService rerouteService,
         List<ReservedClusterStateHandler<?>> reservedStateHandlers,
-        RestExtension restExtension
+        RestExtension restExtension,
+        IncrementalBulkService bulkService
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

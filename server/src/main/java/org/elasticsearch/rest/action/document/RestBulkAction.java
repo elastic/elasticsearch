@@ -142,7 +142,6 @@ public class RestBulkAction extends BaseRestHandler {
                 allowExplicitIndex,
                 request,
                 bulkHandler.newBulkRequest(
-                    threadContext.newStoredContext(),
                     request.param("wait_for_active_shards"),
                     request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT),
                     request.param("refresh")

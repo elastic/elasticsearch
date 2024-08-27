@@ -371,6 +371,7 @@ public final class BulkRequestParser {
                             .setIfSeqNo(ifSeqNo)
                             .setIfPrimaryTerm(ifPrimaryTerm)
                     );
+                    consumed = from;
                 } else {
                     nextMarker = findNextMarker(marker, from, data, isIncremental);
                     if (nextMarker == -1) {

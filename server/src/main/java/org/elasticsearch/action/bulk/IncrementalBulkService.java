@@ -32,16 +32,11 @@ public class IncrementalBulkService {
     }
 
     public Handler newBulkRequest() {
-        return newBulkRequest(() -> {}, null, null, null);
+        return newBulkRequest(null, null, null);
     }
 
-    public Handler newBulkRequest(
-        ThreadContext.StoredContext storedContext,
-        @Nullable String waitForActiveShards,
-        @Nullable TimeValue timeout,
-        @Nullable String refresh
-    ) {
-        return new Handler(client, threadContext, storedContext, waitForActiveShards, timeout, refresh);
+    public Handler newBulkRequest(@Nullable String waitForActiveShards, @Nullable TimeValue timeout, @Nullable String refresh) {
+        return new Handler(client, threadContext, threadContext.newStoredContext(), waitForActiveShards, timeout, refresh);
     }
 
     public static class Handler implements Releasable {

@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -55,6 +56,11 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -80,7 +86,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -112,6 +117,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
@@ -943,6 +949,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return b;
     }
 
+    /**
+     * Cast string literals in ScalarFunction, EsqlArithmeticOperation, BinaryComparison and In to desired data types.
+     * For example, the string literals in the following expressions will be cast implicitly to the field data type on the left hand side.
+     * date > "2024-08-21"
+     * date in ("2024-08-21", "2024-08-22", "2024-08-23")
+     * date = "2024-08-21" + 3 days
+     * ip == "127.0.0.1"
+     * version != "1.0"
+     *
+     * If the inputs to Coalesce are mixed numeric types, cast the rest of the numeric field or value to the first numeric data type if
+     * applicable. For example, implicit casting converts:
+     * Coalesce(Long, Int) to Coalesce(Long, Long)
+     * Coalesce(null, Long, Int) to Coalesce(null, Long, Long)
+     * Coalesce(Double, Long, Int) to Coalesce(Double, Double, Double)
+     * Coalesce(null, Double, Long, Int) to Coalesce(null, Double, Double, Double)
+     *
+     * Coalesce(Int, Long) will NOT be converted to Coalesce(Long, Long) or Coalesce(Int, Int).
+     */
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
@@ -972,22 +996,38 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             boolean childrenChanged = false;
             DataType targetDataType = DataType.NULL;
             Expression arg;
+            DataType targetNumericType = null;
+            boolean castNumericArgs = true;
             for (int i = 0; i < args.size(); i++) {
                 arg = args.get(i);
-                if (arg.resolved() && arg.dataType() == KEYWORD && arg.foldable() && ((arg instanceof EsqlScalarFunction) == false)) {
-                    if (i < targetDataTypes.size()) {
-                        targetDataType = targetDataTypes.get(i);
-                    }
-                    if (targetDataType != DataType.NULL && targetDataType != DataType.UNSUPPORTED) {
-                        Expression e = castStringLiteral(arg, targetDataType);
-                        childrenChanged = true;
-                        newChildren.add(e);
-                        continue;
+                if (arg.resolved()) {
+                    var dataType = arg.dataType();
+                    if (dataType == KEYWORD) {
+                        if (arg.foldable() && ((arg instanceof EsqlScalarFunction) == false)) {
+                            if (i < targetDataTypes.size()) {
+                                targetDataType = targetDataTypes.get(i);
+                            }
+                            if (targetDataType != DataType.NULL && targetDataType != DataType.UNSUPPORTED) {
+                                Expression e = castStringLiteral(arg, targetDataType);
+                                childrenChanged = true;
+                                newChildren.add(e);
+                                continue;
+                            }
+                        }
+                    } else if (dataType.isNumeric() && canCastMixedNumericTypes(f) && castNumericArgs) {
+                        if (targetNumericType == null) {
+                            targetNumericType = dataType;  // target data type is the first numeric data type
+                        } else if (dataType != targetNumericType) {
+                            castNumericArgs = canCastNumeric(dataType, targetNumericType);
+                        }
                     }
                 }
                 newChildren.add(args.get(i));
             }
-            return childrenChanged ? f.replaceChildren(newChildren) : f;
+            Expression resultF = childrenChanged ? f.replaceChildren(newChildren) : f;
+            return targetNumericType != null && castNumericArgs
+                ? castMixedNumericTypes((EsqlScalarFunction) resultF, targetNumericType)
+                : resultF;
         }
 
         private static Expression processBinaryOperator(BinaryOperator<?, ?, ?, ?> o) {
@@ -1002,7 +1042,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression from = Literal.NULL;
 
             if (left.dataType() == KEYWORD && left.foldable() && (left instanceof EsqlScalarFunction == false)) {
-                if (supportsImplicitCasting(right.dataType())) {
+                if (supportsStringImplicitCasting(right.dataType())) {
                     targetDataType = right.dataType();
                     from = left;
                 } else if (supportsImplicitTemporalCasting(right, o)) {
@@ -1011,7 +1051,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             if (right.dataType() == KEYWORD && right.foldable() && (right instanceof EsqlScalarFunction == false)) {
-                if (supportsImplicitCasting(left.dataType())) {
+                if (supportsStringImplicitCasting(left.dataType())) {
                     targetDataType = left.dataType();
                     from = right;
                 } else if (supportsImplicitTemporalCasting(left, o)) {
@@ -1031,16 +1071,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static Expression processIn(In in) {
             Expression left = in.value();
             List<Expression> right = in.list();
+            DataType targetDataType = left.dataType();
 
-            if (left.resolved() == false || supportsImplicitCasting(left.dataType()) == false) {
+            if (left.resolved() == false || supportsStringImplicitCasting(targetDataType) == false) {
                 return in;
             }
+
             List<Expression> newChildren = new ArrayList<>(right.size() + 1);
             boolean childrenChanged = false;
 
             for (Expression value : right) {
-                if (value.dataType() == KEYWORD && value.foldable()) {
-                    Expression e = castStringLiteral(value, left.dataType());
+                if (value.resolved() && value.dataType() == KEYWORD && value.foldable()) {
+                    Expression e = castStringLiteral(value, targetDataType);
                     newChildren.add(e);
                     childrenChanged = true;
                 } else {
@@ -1051,11 +1093,47 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return childrenChanged ? in.replaceChildren(newChildren) : in;
         }
 
+        private static boolean canCastMixedNumericTypes(EsqlScalarFunction f) {
+            return f instanceof Coalesce;
+        }
+
+        private static boolean canCastNumeric(DataType from, DataType to) {
+            DataType commonType = EsqlDataTypeConverter.commonType(from, to);
+            return commonType == to;
+        }
+
+        private static Expression castMixedNumericTypes(EsqlScalarFunction f, DataType targetNumericType) {
+            List<Expression> newChildren = new ArrayList<>(f.children().size());
+            boolean childrenChanged = false;
+            DataType childDataType;
+
+            for (Expression e : f.children()) {
+                childDataType = e.dataType();
+                if (childDataType.isNumeric() == false
+                    || childDataType == targetNumericType
+                    || canCastNumeric(childDataType, targetNumericType) == false) {
+                    newChildren.add(e);
+                    continue;
+                }
+                childrenChanged = true;
+                // add a casting function
+                switch (targetNumericType) {
+                    case INTEGER -> newChildren.add(new ToInteger(e.source(), e));
+                    case LONG -> newChildren.add(new ToLong(e.source(), e));
+                    case DOUBLE -> newChildren.add(new ToDouble(e.source(), e));
+                    case UNSIGNED_LONG -> newChildren.add(new ToUnsignedLong(e.source(), e));
+                    default -> throw new EsqlIllegalArgumentException("unexpected data type: " + targetNumericType);
+                }
+
+            }
+            return childrenChanged ? f.replaceChildren(newChildren) : f;
+        }
+
         private static boolean supportsImplicitTemporalCasting(Expression e, BinaryOperator<?, ?, ?, ?> o) {
             return isTemporalAmount(e.dataType()) && (o instanceof DateTimeArithmeticOperation);
         }
 
-        private static boolean supportsImplicitCasting(DataType type) {
+        private static boolean supportsStringImplicitCasting(DataType type) {
             return type == DATETIME || type == IP || type == VERSION || type == BOOLEAN;
         }
 

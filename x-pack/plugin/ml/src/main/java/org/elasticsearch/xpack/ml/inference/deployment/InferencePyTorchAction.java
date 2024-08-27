@@ -205,7 +205,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             return;
         }
 
-        getProcessContext().getResultProcessor().updateStats(pyTorchResult.timeMs(), Boolean.TRUE.equals(pyTorchResult.isCacheHit()));
+        getProcessContext().getResultProcessor().updateStats(pyTorchResult);
         InferenceResults results = inferenceResultsProcessor.processResult(
             tokenization,
             pyTorchResult.inferenceResult(),

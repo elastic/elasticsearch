@@ -267,7 +267,13 @@ public class PyTorchResultProcessor {
         return new LongSummaryStatistics(stats.getCount(), stats.getMin(), stats.getMax(), stats.getSum());
     }
 
-    public synchronized void updateStats(long timeMs, boolean isCacheHit) {
+    public synchronized void updateStats(PyTorchResult result) {
+        Long timeMs = result.timeMs();
+        if (timeMs == null) {
+            assert false : "time_ms should be set for an inference result";
+            timeMs = 0L;
+        }
+        boolean isCacheHit = Boolean.TRUE.equals(result.isCacheHit());
         timingStats.accept(timeMs);
 
         lastResultTimeMs = currentTimeMsSupplier.getAsLong();

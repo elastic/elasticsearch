@@ -399,7 +399,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 responses.toArray(new BulkItemResponse[responses.length()]),
                 buildTookInMillis(startTimeNanos),
                 BulkResponse.NO_INGEST_TOOK,
-                new BulkRequest.IncrementalState(shortCircuitShardFailures)
+                new BulkRequest.IncrementalState(shortCircuitShardFailures, bulkRequest.incrementalState().indexingPressureAccounted())
             )
         );
         // Allow memory for bulk shard request items to be reclaimed before all items have been completed

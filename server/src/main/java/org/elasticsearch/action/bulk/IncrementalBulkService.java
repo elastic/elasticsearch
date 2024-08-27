@@ -16,16 +16,20 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexingPressure;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class IncrementalBulkService {
 
     private final Client client;
+    private final IndexingPressure indexingPressure;
 
-    public IncrementalBulkService(Client client) {
+    public IncrementalBulkService(Client client, IndexingPressure indexingPressure) {
         this.client = client;
+        this.indexingPressure = indexingPressure;
     }
 
     public Handler newBulkRequest() {
@@ -37,6 +41,8 @@ public class IncrementalBulkService {
     }
 
     public static class Handler {
+
+        public static final BulkRequest.IncrementalState EMPTY_STATE = new BulkRequest.IncrementalState(Collections.emptyMap(), true);
 
         private final Client client;
         private final ActiveShardCount waitForActiveShards;
@@ -55,7 +61,7 @@ public class IncrementalBulkService {
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
             this.refresh = refresh;
-            createNewBulkRequest(BulkRequest.IncrementalState.EMPTY);
+            createNewBulkRequest(EMPTY_STATE);
         }
 
         public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
@@ -76,7 +82,9 @@ public class IncrementalBulkService {
                         public void onResponse(BulkResponse bulkResponse) {
                             responses.add(bulkResponse);
                             releaseCurrentReferences();
-                            createNewBulkRequest(bulkResponse.getIncrementalState());
+                            createNewBulkRequest(
+                                new BulkRequest.IncrementalState(bulkResponse.getIncrementalState().shardLevelFailures(), true)
+                            );
                         }
 
                         @Override

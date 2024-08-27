@@ -188,6 +188,24 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         );
     }
 
+    public void testValidateInternalDataStreamRetentionWithoutWarning() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+        TimeValue defaultRetention = randomTimeValue(2, 100, TimeUnit.DAYS);
+        MetadataIndexTemplateService.validateLifecycle(
+            Metadata.builder().build(),
+            randomAlphaOfLength(10),
+            ComposableIndexTemplate.builder()
+                .template(new Template(null, null, null, DataStreamLifecycle.DEFAULT))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .indexPatterns(List.of("." + randomAlphaOfLength(10)))
+                .build(),
+            new DataStreamGlobalRetention(defaultRetention, null)
+        );
+        Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+        assertThat(responseHeaders.size(), is(0));
+    }
+
     /**
      * Make sure we still take into account component templates during validation (and not just the index template).
      */

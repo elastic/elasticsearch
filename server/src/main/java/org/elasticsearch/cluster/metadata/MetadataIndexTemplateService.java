@@ -816,8 +816,12 @@ public class MetadataIndexTemplateService {
                         + "] specifies lifecycle configuration that can only be used in combination with a data stream"
                 );
             }
-            // We do not know if this lifecycle will belong to an internal data stream, so we fall back to a non internal.
-            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention, false);
+            if (globalRetention != null) {
+                // We cannot know for sure if the template will apply to internal data streams, so we use a simpler heuristic:
+                // If all the index patterns start with a dot, we consider that all the connected data streams are internal.
+                boolean isInternalDataStream = template.indexPatterns().stream().allMatch(indexPattern -> indexPattern.charAt(0) == '.');
+                lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention, isInternalDataStream);
+            }
         }
     }
 

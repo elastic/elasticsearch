@@ -24,25 +24,28 @@ import java.util.List;
 public class IncrementalBulkService {
 
     private final Client client;
-    private final ThreadContext threadContext;
 
-    public IncrementalBulkService(Client client, ThreadContext threadContext) {
+    public IncrementalBulkService(Client client) {
         this.client = client;
-        this.threadContext = threadContext;
     }
 
     public Handler newBulkRequest() {
-        return newBulkRequest(null, null, null);
+        return newBulkRequest(() -> {}, null, null, null);
     }
 
-    public Handler newBulkRequest(@Nullable String waitForActiveShards, @Nullable TimeValue timeout, @Nullable String refresh) {
-        return new Handler(client, threadContext, waitForActiveShards, timeout, refresh);
+    public Handler newBulkRequest(
+        ThreadContext.StoredContext storedContext,
+        @Nullable String waitForActiveShards,
+        @Nullable TimeValue timeout,
+        @Nullable String refresh
+    ) {
+        return new Handler(client, storedContext, waitForActiveShards, timeout, refresh);
     }
 
     public static class Handler implements Releasable {
 
         private final Client client;
-        private final ThreadContext threadContext;
+        private final ThreadContext.StoredContext storedContext;
         private final ActiveShardCount waitForActiveShards;
         private final TimeValue timeout;
         private final String refresh;
@@ -56,13 +59,13 @@ public class IncrementalBulkService {
 
         private Handler(
             Client client,
-            ThreadContext threadContext,
+            ThreadContext.StoredContext storedContext,
             @Nullable String waitForActiveShards,
             @Nullable TimeValue timeout,
             @Nullable String refresh
         ) {
             this.client = client;
-            this.threadContext = threadContext;
+            this.storedContext = storedContext;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
             this.refresh = refresh;
@@ -81,6 +84,7 @@ public class IncrementalBulkService {
                     final boolean isFirstRequest = incrementalRequestSubmitted == false;
                     incrementalRequestSubmitted = true;
 
+                    storedContext.restore();
                     client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
 
                         @Override
@@ -114,8 +118,7 @@ public class IncrementalBulkService {
                 assert bulkRequest != null;
                 internalAddItems(items, releasable);
 
-                threadContext.addResponseHeader("X-elastic-product", "Elasticsearch");
-
+                storedContext.restore();
                 client.bulk(bulkRequest, new ActionListener<>() {
 
                     private final boolean isFirstRequest = incrementalRequestSubmitted == false;

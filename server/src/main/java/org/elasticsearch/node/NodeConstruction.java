@@ -965,7 +965,7 @@ class NodeConstruction {
         );
         final HttpServerTransport httpServerTransport = serviceProvider.newHttpTransport(pluginsService, networkModule);
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
-        final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(client, threadPool.getThreadContext());
+        final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(client);
 
         SnapshotsService snapshotsService = new SnapshotsService(
             settings,

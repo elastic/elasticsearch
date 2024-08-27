@@ -130,7 +130,7 @@ public class RestBulkAction extends BaseRestHandler {
             // TODO: Move this to CTOR and hook everything up
             synchronized (this) {
                 if (bulkHandler == null) {
-                    bulkHandler = new IncrementalBulkService(client, threadContext);
+                    bulkHandler = new IncrementalBulkService(client);
                 }
             }
 
@@ -142,6 +142,7 @@ public class RestBulkAction extends BaseRestHandler {
                 allowExplicitIndex,
                 request,
                 bulkHandler.newBulkRequest(
+                    threadContext.newStoredContext(),
                     request.param("wait_for_active_shards"),
                     request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT),
                     request.param("refresh")

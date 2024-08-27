@@ -718,7 +718,7 @@ public class OpenIdConnectAuthenticator {
                 connectionManager.setMaxTotal(realmConfig.getSetting(HTTP_MAX_CONNECTIONS));
                 final RequestConfig requestConfig = RequestConfig.custom()
                     .setConnectTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECT_TIMEOUT).getMillis()))
-                    .setConnectionRequestTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getSeconds()))
+                    .setConnectionRequestTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getMillis()))
                     .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_SOCKET_TIMEOUT).getMillis()))
                     .build();
 

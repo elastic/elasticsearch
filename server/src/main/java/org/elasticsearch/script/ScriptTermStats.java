@@ -15,9 +15,9 @@ import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermStates;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -98,9 +98,9 @@ public class ScriptTermStats {
 
         try {
             for (int i = 0; i < termContexts.length; i++) {
-                try {
-                    docFreqStats.accept(termStatistics(terms[i], termContexts[i]).docFreq());
-                } catch (IllegalArgumentException e) {
+                if (searcher instanceof ContextIndexSearcher contextIndexSearcher) {
+                    docFreqStats.accept(contextIndexSearcher.docFreq(terms[i], termContexts[i].docFreq()));
+                } else {
                     docFreqStats.accept(termContexts[i].docFreq());
                 }
             }
@@ -126,9 +126,9 @@ public class ScriptTermStats {
 
         try {
             for (int i = 0; i < termContexts.length; i++) {
-                try {
-                    totalTermFreqStats.accept(termStatistics(terms[i], termContexts[i]).totalTermFreq());
-                } catch (IllegalArgumentException e) {
+                if (searcher instanceof ContextIndexSearcher contextIndexSearcher) {
+                    totalTermFreqStats.accept(contextIndexSearcher.totalTermFreq(terms[i], termContexts[i].totalTermFreq()));
+                } else {
                     totalTermFreqStats.accept(termContexts[i].totalTermFreq());
                 }
             }
@@ -200,10 +200,6 @@ public class ScriptTermStats {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-    }
-
-    private TermStatistics termStatistics(Term term, TermStates termStates) throws IOException {
-        return searcher.termStatistics(term, termStates.docFreq(), termStates.totalTermFreq());
     }
 
     private PostingsEnum[] loadPostings() {

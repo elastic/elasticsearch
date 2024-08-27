@@ -32,6 +32,7 @@ import co.elastic.elasticsearch.stateless.utils.IndexingShardRecoveryComparator;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
@@ -388,7 +389,12 @@ public class SharedBlobCacheWarmingService {
                     totalBytesCopied.get()
                 );
             }).delegateResponse((l, e) -> {
-                logger.warn(() -> Strings.format("%s %s warming failed", indexShard.shardId(), description), e);
+                Supplier<String> logMessage = () -> Strings.format("%s %s warming failed", indexShard.shardId(), description);
+                if (logger.isDebugEnabled()) {
+                    logger.debug(logMessage, e);
+                } else {
+                    logger.info(logMessage);
+                }
                 l.onFailure(e);
             });
         }

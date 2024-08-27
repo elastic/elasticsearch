@@ -24,10 +24,10 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
     @Override
     @SuppressWarnings("rawtypes")
     public Map<String, ExecutorBuilder> getBuilders(Settings settings, int allocatedProcessors) {
-        final int halfProc = Util.halfAllocatedProcessors(allocatedProcessors);
-        final int halfProcMaxAt5 = Util.halfAllocatedProcessorsMaxFive(allocatedProcessors);
-        final int halfProcMaxAt10 = Util.halfAllocatedProcessorsMaxTen(allocatedProcessors);
-        final int genericThreadPoolMax = Util.boundedBy(4 * allocatedProcessors, 128, 512);
+        final int halfProc = ThreadPool.halfAllocatedProcessors(allocatedProcessors);
+        final int halfProcMaxAt5 = ThreadPool.halfAllocatedProcessorsMaxFive(allocatedProcessors);
+        final int halfProcMaxAt10 = ThreadPool.halfAllocatedProcessorsMaxTen(allocatedProcessors);
+        final int genericThreadPoolMax = ThreadPool.boundedBy(4 * allocatedProcessors, 128, 512);
 
         Map<String, ExecutorBuilder> result = new HashMap<>();
         result.put(
@@ -44,7 +44,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 new EsExecutors.TaskTrackingConfig(true, 0.1)
             )
         );
-        int searchOrGetThreadPoolSize = Util.searchOrGetThreadPoolSize(allocatedProcessors);
+        int searchOrGetThreadPoolSize = ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors);
         result.put(
             ThreadPool.Names.GET,
             new FixedExecutorBuilder(
@@ -108,7 +108,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
             new ScalingExecutorBuilder(
                 ThreadPool.Names.MANAGEMENT,
                 1,
-                Util.boundedBy(allocatedProcessors, 1, 5),
+                ThreadPool.boundedBy(allocatedProcessors, 1, 5),
                 TimeValue.timeValueMinutes(5),
                 false
             )
@@ -127,7 +127,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
             ThreadPool.Names.WARMER,
             new ScalingExecutorBuilder(ThreadPool.Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false)
         );
-        final int maxSnapshotCores = Util.getMaxSnapshotThreadPoolSize(allocatedProcessors);
+        final int maxSnapshotCores = ThreadPool.getMaxSnapshotThreadPoolSize(allocatedProcessors);
         result.put(
             ThreadPool.Names.SNAPSHOT,
             new ScalingExecutorBuilder(ThreadPool.Names.SNAPSHOT, 1, maxSnapshotCores, TimeValue.timeValueMinutes(5), false)
@@ -157,7 +157,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
             new FixedExecutorBuilder(
                 settings,
                 ThreadPool.Names.FORCE_MERGE,
-                Util.oneEighthAllocatedProcessors(allocatedProcessors),
+                ThreadPool.oneEighthAllocatedProcessors(allocatedProcessors),
                 -1,
                 EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             )

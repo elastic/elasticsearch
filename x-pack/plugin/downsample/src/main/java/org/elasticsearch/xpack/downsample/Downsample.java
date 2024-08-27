@@ -33,7 +33,6 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.Util;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
@@ -56,7 +55,7 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
         final FixedExecutorBuilder downsample = new FixedExecutorBuilder(
             settings,
             DOWNSAMPLE_TASK_THREAD_POOL_NAME,
-            Util.oneEighthAllocatedProcessors(EsExecutors.allocatedProcessors(settings)),
+            ThreadPool.oneEighthAllocatedProcessors(EsExecutors.allocatedProcessors(settings)),
             DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE,
             "xpack.downsample.thread_pool",
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK

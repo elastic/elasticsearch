@@ -45,7 +45,6 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.Util;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
@@ -216,7 +215,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             new FixedExecutorBuilder(
                 settings,
                 ESQL_WORKER_THREAD_POOL_NAME,
-                Util.searchOrGetThreadPoolSize(allocatedProcessors),
+                ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors),
                 1000,
                 ESQL_WORKER_THREAD_POOL_NAME,
                 EsExecutors.TaskTrackingConfig.DEFAULT

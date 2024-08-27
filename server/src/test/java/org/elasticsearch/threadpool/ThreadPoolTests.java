@@ -33,8 +33,8 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingC
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.assertCurrentMethodIsNotCalledRecursively;
-import static org.elasticsearch.threadpool.Util.getMaxSnapshotThreadPoolSize;
-import static org.elasticsearch.threadpool.Util.halfAllocatedProcessorsMaxFive;
+import static org.elasticsearch.threadpool.ThreadPool.getMaxSnapshotThreadPoolSize;
+import static org.elasticsearch.threadpool.ThreadPool.halfAllocatedProcessorsMaxFive;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -45,28 +45,28 @@ public class ThreadPoolTests extends ESTestCase {
         int min = randomIntBetween(0, 32);
         int max = randomIntBetween(min + 1, 64);
         int value = randomIntBetween(Integer.MIN_VALUE, min - 1);
-        assertThat(Util.boundedBy(value, min, max), equalTo(min));
+        assertThat(ThreadPool.boundedBy(value, min, max), equalTo(min));
     }
 
     public void testBoundedByAboveMax() {
         int min = randomIntBetween(0, 32);
         int max = randomIntBetween(min + 1, 64);
         int value = randomIntBetween(max + 1, Integer.MAX_VALUE);
-        assertThat(Util.boundedBy(value, min, max), equalTo(max));
+        assertThat(ThreadPool.boundedBy(value, min, max), equalTo(max));
     }
 
     public void testBoundedByBetweenMinAndMax() {
         int min = randomIntBetween(0, 32);
         int max = randomIntBetween(min + 1, 64);
         int value = randomIntBetween(min, max);
-        assertThat(Util.boundedBy(value, min, max), equalTo(value));
+        assertThat(ThreadPool.boundedBy(value, min, max), equalTo(value));
     }
 
     public void testOneEighthAllocatedProcessors() {
-        assertThat(Util.oneEighthAllocatedProcessors(1), equalTo(1));
-        assertThat(Util.oneEighthAllocatedProcessors(4), equalTo(1));
-        assertThat(Util.oneEighthAllocatedProcessors(8), equalTo(1));
-        assertThat(Util.oneEighthAllocatedProcessors(32), equalTo(4));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(1), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(4), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(8), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(32), equalTo(4));
     }
 
     public void testAbsoluteTime() throws Exception {

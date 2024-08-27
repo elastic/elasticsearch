@@ -86,9 +86,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         }
         final String requestIdStr = String.valueOf(getRequestId());
         if (isCancelled()) {
-            getProcessContext().getTimeoutCount().incrementAndGet();
-            getProcessContext().getResultProcessor().ignoreResponseWithoutNotifying(requestIdStr);
-            onFailure("inference task cancelled");
+            onCancel();
             return;
         }
         try {
@@ -142,9 +140,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
 
             // Tokenization is non-trivial, so check for cancellation one last time before sending request to the native process
             if (isCancelled()) {
-                getProcessContext().getTimeoutCount().incrementAndGet();
-                getProcessContext().getResultProcessor().ignoreResponseWithoutNotifying(requestIdStr);
-                onFailure("inference task cancelled");
+                onCancel();
                 return;
             }
             getProcessContext().getResultProcessor()
@@ -199,9 +195,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             return;
         }
         if (isCancelled()) {
-            getProcessContext().getTimeoutCount().incrementAndGet();
-            getProcessContext().getResultProcessor().ignoreResponseWithoutNotifying(String.valueOf(pyTorchResult.requestId()));
-            onFailure("inference task cancelled");
+            onCancel();
             return;
         }
 

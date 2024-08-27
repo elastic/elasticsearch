@@ -36,7 +36,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -85,7 +84,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
-import org.elasticsearch.xpack.esql.stats.PlanningMetricsManager;
+import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -412,7 +411,7 @@ public class CsvTests extends ESTestCase {
             new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration)),
             mapper,
             TEST_VERIFIER,
-            new PlanningMetricsManager(MeterRegistry.NOOP)
+            new PlanningMetrics()
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(testDataset);
 

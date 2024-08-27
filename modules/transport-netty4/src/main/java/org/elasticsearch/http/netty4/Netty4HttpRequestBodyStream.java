@@ -30,11 +30,12 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     private final Queue<HttpContent> chunkQueue = new ArrayDeque<>();
     private boolean requested = false;
     private boolean hasLast = false;
+    private boolean closing = false;
     private HttpBody.ChunkHandler handler;
 
     public Netty4HttpRequestBodyStream(Channel channel) {
         this.channel = channel;
-        channel.closeFuture().addListener((f) -> releaseQueuedChunks());
+        channel.closeFuture().addListener((f) -> doClose());
         channel.config().setAutoRead(false);
     }
 
@@ -70,6 +71,10 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     }
 
     public void handleNettyContent(HttpContent httpContent) {
+        if (closing) {
+            httpContent.release();
+            return;
+        }
         assert handler != null : "handler must be set before processing http content";
         if (requested && chunkQueue.isEmpty()) {
             sendChunk(httpContent);
@@ -111,4 +116,18 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
         }
     }
 
+    @Override
+    public void close() {
+        if (channel.eventLoop().inEventLoop()) {
+            doClose();
+        } else {
+            channel.eventLoop().submit(this::doClose);
+        }
+    }
+
+    private void doClose() {
+        closing = true;
+        releaseQueuedChunks();
+        channel.config().setAutoRead(true);
+    }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -48,9 +49,11 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
@@ -172,7 +175,13 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                     );
                 });
             } else {
-                // See MetadataCreateIndexService.applyCreateIndexRequest
+                /*
+                 * The index did not exist, so we put together the mappings from existing templates.
+                 * This reproduces a lot of the mapping resolution logic in MetadataCreateIndexService.applyCreateIndexRequest(). However,
+                 * it does not deal with aliases (since an alias cannot be created if an index does not exist, and this is the path for
+                 * when the index does not exist). And it does not deal with system indices since we do not intend for users to simulate
+                 * writing to system indices.
+                 */
                 String matchingTemplate = findV2Template(state.metadata(), request.index(), false);
                 if (matchingTemplate != null) {
                     final Template template = TransportSimulateIndexTemplateAction.resolveTemplate(
@@ -218,36 +227,45 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                     }
                 } else {
                     List<IndexTemplateMetadata> matchingTemplates = findV1Templates(state.metadata(), request.index(), false);
-                    for (IndexTemplateMetadata template : matchingTemplates) {
-                        MappingMetadata mappingMetadata = new MappingMetadata(template.mappings());
-                        Settings dummySettings = Settings.builder()
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                            .build();
-                        final IndexMetadata imd = IndexMetadata.builder(request.index())
-                            .putMapping(mappingMetadata)
-                            .settings(dummySettings)
-                            .build();
-                        indicesService.withTempIndexService(imd, indexService -> {
-                            indexService.mapperService().updateMapping(null, imd);
-                            return IndexShard.prepareIndex(
-                                indexService.mapperService(),
-                                sourceToParse,
-                                SequenceNumbers.UNASSIGNED_SEQ_NO,
-                                -1,
-                                -1,
-                                VersionType.INTERNAL,
-                                Engine.Operation.Origin.PRIMARY,
-                                Long.MIN_VALUE,
-                                false,
-                                request.ifSeqNo(),
-                                request.ifPrimaryTerm(),
-                                0
-                            );
-                        });
+                    final Map<String, Object> mappingsMap = MetadataCreateIndexService.parseV1Mappings(
+                        "{}",
+                        matchingTemplates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),
+                        xContentRegistry
+                    );
+                    final CompressedXContent combinedMappings;
+                    if (mappingsMap.isEmpty()) {
+                        combinedMappings = null;
+                    } else {
+                        combinedMappings = new CompressedXContent(mappingsMap);
                     }
+                    Settings dummySettings = Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                        .build();
+                    MappingMetadata mappingMetadata = combinedMappings == null ? null : new MappingMetadata(combinedMappings);
+                    final IndexMetadata imd = IndexMetadata.builder(request.index())
+                        .putMapping(mappingMetadata)
+                        .settings(dummySettings)
+                        .build();
+                    indicesService.withTempIndexService(imd, indexService -> {
+                        indexService.mapperService().updateMapping(null, imd);
+                        return IndexShard.prepareIndex(
+                            indexService.mapperService(),
+                            sourceToParse,
+                            SequenceNumbers.UNASSIGNED_SEQ_NO,
+                            -1,
+                            -1,
+                            VersionType.INTERNAL,
+                            Engine.Operation.Origin.PRIMARY,
+                            Long.MIN_VALUE,
+                            false,
+                            request.ifSeqNo(),
+                            request.ifPrimaryTerm(),
+                            0
+                        );
+                    });
                 }
             }
         } catch (Exception e) {

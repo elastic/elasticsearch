@@ -904,7 +904,7 @@ public class MetadataCreateIndexService {
      * {@link IndexTemplateMetadata#order()}). This merging makes no distinction between field
      * definitions, as may result in an invalid field definition
      */
-    static Map<String, Object> parseV1Mappings(
+    public static Map<String, Object> parseV1Mappings(
         String mappingsJson,
         List<CompressedXContent> templateMappings,
         NamedXContentRegistry xContentRegistry

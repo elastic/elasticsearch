@@ -768,7 +768,9 @@ public class ObjectMapper extends Mapper {
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final List<SourceLoader.SyntheticFieldLoader> fields;
         private final boolean isFragment;
-        private boolean hasValue;
+        private boolean storedFieldLoadersHaveValues;
+        private boolean docValuesLoadersHaveValues;
+        private boolean ignoredValuesPresent;
         private List<IgnoredSourceFieldMapper.NameValue> ignoredValues;
 
         private SyntheticSourceFieldLoader(List<SourceLoader.SyntheticFieldLoader> fields, boolean isFragment) {
@@ -778,10 +780,21 @@ public class ObjectMapper extends Mapper {
 
         @Override
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return fields.stream().flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders).map(e -> Map.entry(e.getKey(), values -> {
-                hasValue = true;
-                e.getValue().load(values);
-            }));
+            return fields.stream()
+                .flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders)
+                .map(e -> Map.entry(e.getKey(), new StoredFieldLoader() {
+                    @Override
+                    public void advanceToDoc(int docId) {
+                        storedFieldLoadersHaveValues = false;
+                        e.getValue().advanceToDoc(docId);
+                    }
+
+                    @Override
+                    public void load(List<Object> newValues) {
+                        storedFieldLoadersHaveValues = true;
+                        e.getValue().load(newValues);
+                    }
+                }));
         }
 
         @Override
@@ -808,24 +821,26 @@ public class ObjectMapper extends Mapper {
 
             @Override
             public boolean advanceToDoc(int docId) throws IOException {
+                docValuesLoadersHaveValues = false;
+
                 boolean anyLeafHasDocValues = false;
                 for (DocValuesLoader docValueLoader : loaders) {
                     boolean leafHasValue = docValueLoader.advanceToDoc(docId);
                     anyLeafHasDocValues |= leafHasValue;
                 }
-                hasValue |= anyLeafHasDocValues;
+                docValuesLoadersHaveValues = anyLeafHasDocValues;
                 return anyLeafHasDocValues;
             }
         }
 
         @Override
         public boolean hasValue() {
-            return hasValue;
+            return storedFieldLoadersHaveValues || docValuesLoadersHaveValues || ignoredValuesPresent;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            if (hasValue == false) {
+            if (hasValue() == false) {
                 return;
             }
             if (isRoot() && isEnabled() == false) {
@@ -872,19 +887,20 @@ public class ObjectMapper extends Mapper {
                     }
                 }
             }
-            hasValue = false;
             b.endObject();
         }
 
         @Override
         public boolean setIgnoredValues(Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields) {
+            ignoredValuesPresent = false;
+
             if (objectsWithIgnoredFields == null || objectsWithIgnoredFields.isEmpty()) {
                 return false;
             }
             ignoredValues = objectsWithIgnoredFields.remove(ObjectMapper.this.fullPath());
-            hasValue |= ignoredValues != null;
+            ignoredValuesPresent |= ignoredValues != null;
             for (SourceLoader.SyntheticFieldLoader loader : fields) {
-                hasValue |= loader.setIgnoredValues(objectsWithIgnoredFields);
+                ignoredValuesPresent |= loader.setIgnoredValues(objectsWithIgnoredFields);
             }
             return this.ignoredValues != null;
         }

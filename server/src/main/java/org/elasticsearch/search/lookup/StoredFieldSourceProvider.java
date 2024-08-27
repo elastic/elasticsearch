@@ -8,12 +8,13 @@
 
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 
 import java.io.IOException;
+import java.util.Map;
 
 // NB This is written under the assumption that individual segments are accessed by a single
 // thread, even if separate segments may be searched concurrently.  If we ever implement
@@ -21,7 +22,7 @@ import java.io.IOException;
 class StoredFieldSourceProvider implements SourceProvider {
 
     private final StoredFieldLoader storedFieldLoader;
-    private volatile LeafStoredFieldSourceProvider[] leaves;
+    private final Map<Object, LeafStoredFieldSourceProvider> leaves = ConcurrentCollections.newConcurrentMap();
 
     StoredFieldSourceProvider(StoredFieldLoader storedFieldLoader) {
         this.storedFieldLoader = storedFieldLoader;
@@ -29,32 +30,16 @@ class StoredFieldSourceProvider implements SourceProvider {
 
     @Override
     public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
-        LeafStoredFieldSourceProvider[] leaves = getLeavesUnderLock(findParentContext(ctx));
-        if (leaves[ctx.ord] == null) {
-            // individual segments are currently only accessed on one thread so there's no need
-            // for locking here.
-            leaves[ctx.ord] = new LeafStoredFieldSourceProvider(storedFieldLoader.getLoader(ctx, null));
-        }
-        return leaves[ctx.ord].getSource(doc);
-    }
-
-    private static IndexReaderContext findParentContext(LeafReaderContext ctx) {
-        if (ctx.parent != null) {
-            return ctx.parent;
-        }
-        assert ctx.isTopLevel;
-        return ctx;
-    }
-
-    private LeafStoredFieldSourceProvider[] getLeavesUnderLock(IndexReaderContext parentCtx) {
-        if (leaves == null) {
-            synchronized (this) {
-                if (leaves == null) {
-                    leaves = new LeafStoredFieldSourceProvider[parentCtx.leaves().size()];
-                }
+        final Object id = ctx.id();
+        var provider = leaves.get(ctx.id());
+        if (provider == null) {
+            provider = new LeafStoredFieldSourceProvider(storedFieldLoader.getLoader(ctx, null));
+            var existing = leaves.putIfAbsent(id, provider);
+            if (existing != null) {
+                provider = existing;
             }
         }
-        return leaves;
+        return provider.getSource(doc);
     }
 
     private static class LeafStoredFieldSourceProvider {

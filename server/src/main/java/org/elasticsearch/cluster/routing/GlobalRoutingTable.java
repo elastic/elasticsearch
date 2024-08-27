@@ -13,14 +13,20 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.DiffableUtils.KeySerializer;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -38,6 +44,83 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
     public GlobalRoutingTable(long version, ImmutableOpenMap<ProjectId, RoutingTable> routingTables) {
         this.version = version;
         this.routingTables = routingTables;
+    }
+
+    /**
+     * Constructs a new routing table with the same {@link #version()} as this table, with the project routing tables
+     * rebuilt based on the provided {@link RoutingNodes} parameter.
+     *
+     */
+    public GlobalRoutingTable rebuild(RoutingNodes routingNodes) {
+        // Step 1: Iterable over all ShardRouting entries in the nodes and split them by owning project-id
+        final Map<ProjectId, List<ShardRouting>> byProject = Maps.transformValues(this.routingTables, ignore -> new ArrayList<>());
+        final var lookup = new ProjectLookup();
+        for (RoutingNode routingNode : routingNodes) {
+            final String nodeContext = "Node [" + routingNode + "]";
+            for (ShardRouting shardRoutingEntry : routingNode) {
+                // every relocating shard has a double entry, ignore the target one.
+                if (shardRoutingEntry.initializing() && shardRoutingEntry.relocatingNodeId() != null) {
+                    continue;
+                }
+                collectProjectEntry(shardRoutingEntry, byProject, lookup, nodeContext);
+            }
+        }
+        for (ShardRouting shardRoutingEntry : routingNodes.unassigned()) {
+            collectProjectEntry(shardRoutingEntry, byProject, lookup, "unassigned-shards");
+        }
+        for (ShardRouting shardRoutingEntry : routingNodes.unassigned().ignored()) {
+            collectProjectEntry(shardRoutingEntry, byProject, lookup, "ignored-shards");
+        }
+
+        // Step 2: Where necessary, build a new routing table for each project based on the shard routing
+        final Builder builder = builder(this);
+        for (var entry : byProject.entrySet()) {
+            var project = entry.getKey();
+            final RoutingTable oldTable = this.routingTables.get(project);
+            final RoutingTable rebuiltTable = RoutingTable.of(oldTable.version(), entry.getValue());
+            if (oldTable.indicesRouting().equals(rebuiltTable.indicesRouting()) == false) {
+                // Only use the replacement routing table if it is different - this causes diffs to be smaller. This is necessary because
+                // RoutingTable instances with the same state are not considered "equal" (unless they are the same instance).
+                // This means that the MapDiff will treat the new instance as an update and produce a substantially larger diff than needed.
+                builder.put(project, rebuiltTable);
+            }
+        }
+        return builder.build();
+    }
+
+    /**
+     * For the provided {@link ShardRouting}, determine the correct project (using the {@link ProjectLookup}),
+     * and then add the {@link ShardRouting} to the correct list within the provided {@code Map}.
+     *
+     * @param shardRouting        The shard to add
+     * @param projectRoutingLists The map to add to
+     * @param lookup              The index lookup table
+     * @param context             The context in which the shard routing entry was found - used to build error messages
+     */
+    private static void collectProjectEntry(
+        ShardRouting shardRouting,
+        Map<ProjectId, List<ShardRouting>> projectRoutingLists,
+        ProjectLookup lookup,
+        String context
+    ) {
+        ProjectId project = lookup.project(shardRouting.index());
+        if (project == null) {
+            throw new IllegalStateException(
+                "Found shard [" + shardRouting.shardId() + "] in " + context + ", but the index does not belong to any project"
+            );
+        }
+        final List<ShardRouting> routingSet = projectRoutingLists.get(project);
+        if (routingSet == null) {
+            throw new IllegalStateException(
+                "Shard ["
+                    + shardRouting.shardId()
+                    + "] is part of project ["
+                    + project
+                    + "]"
+                    + " but the global routing table does not have an entry for that project-id"
+            );
+        }
+        routingSet.add(shardRouting);
     }
 
     public GlobalRoutingTable withIncrementedVersion() {
@@ -190,6 +273,43 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
         }
     }
 
+    /**
+     * Validates that this routing table is consistent with the set of projects that exist in the {@link Metadata}.
+     * @throws IllegalStateException if validation fails
+     * @return A {@code boolean} so that this method can be used in an {@code assert} statement.
+     * This will be {@code true} if the routing table and metadata are in-sync.
+     * Will never return {@code false} because validation execptions always throw an exception.
+     */
+    public boolean validate(Metadata metadata) {
+        Map<ProjectId, ProjectMetadata> metadataProjects = metadata.projects();
+        if (metadataProjects.size() != this.routingTables.size()) {
+            throw new IllegalStateException(
+                "routing table has ["
+                    + routingTables.size()
+                    + "] projects ["
+                    + routingTables.keySet()
+                    + "] but metadata has ["
+                    + metadataProjects.size()
+                    + "] ["
+                    + metadataProjects.keySet()
+                    + "]"
+            );
+        }
+
+        for (var entry : routingTables.entrySet()) {
+            final ProjectId projectId = entry.getKey();
+            final ProjectMetadata projectMetadata = metadataProjects.get(projectId);
+            if (projectMetadata == null) {
+                throw new IllegalStateException("Routing table has an entry for project [" + projectId + "] but metadata does not");
+            }
+            if (entry.getValue().validate(projectMetadata) == false) {
+                // should never happen - RoutingTable.validate will throw an exception rather than return false
+                throw new IllegalStateException("Routing table for project [" + projectId + "] is not valid");
+            }
+        }
+        return true;
+    }
+
     private static class GlobalRoutingTableDiff implements Diff<GlobalRoutingTable> {
 
         private static final KeySerializer<ProjectId> PROJECT_ID_KEY_SERIALIZER = DiffableUtils.getWriteableKeySerializer(ProjectId.READER);
@@ -325,5 +445,43 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
     @Override
     public String toString() {
         return "global_routing_table{v" + version + "," + routingTables + "}";
+    }
+
+    /**
+     * Builds a lookup table from {@link Index} to {@link ProjectId}.
+     * This relies on {@link Index#getUUID()} being unique across the cluster.
+     */
+    private class ProjectLookup {
+        private final Map<String, ProjectId> lookup;
+
+        ProjectLookup() {
+            this.lookup = Maps.newMapWithExpectedSize(totalIndexCount());
+            for (var entry : routingTables.entrySet()) {
+                final ProjectId projectId = entry.getKey();
+                for (var indexRouting : entry.getValue()) {
+                    final String uuid = indexRouting.getIndex().getUUID();
+                    final ProjectId previousProject = lookup.put(uuid, projectId);
+                    if (previousProject != null && previousProject != projectId) {
+                        throw new IllegalStateException(
+                            "Index UUID [" + uuid + "] exists in project [" + projectId + "] and [" + previousProject + "]"
+                        );
+                    }
+                }
+            }
+        }
+
+        /**
+         * Return the {@link ProjectId} for the provided {@link Index}.
+         * This requires that the {@link Index} exists within a project {@link RoutingTable} within the owning {@link GlobalRoutingTable}.
+         */
+        @Nullable
+        public ProjectId project(Index index) {
+            final ProjectId projectId = lookup.get(index.getUUID());
+            if (projectId != null && routingTables.get(projectId).hasIndex(index)) {
+                return projectId;
+            } else {
+                return null;
+            }
+        }
     }
 }

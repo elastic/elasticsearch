@@ -10,12 +10,24 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.DiffableTestUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -38,6 +50,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<GlobalRoutingTable> {
@@ -281,6 +294,108 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
             initial.routingTables().forEach((id, rt) -> assertThat(instance.routingTables(), hasEntry(id, rt)));
         }
 
+    }
+
+    public void testRoutingNodesRoundtrip() {
+        final ClusterState clusterState = buildClusterState(
+            Map.ofEntries(
+                Map.entry(new ProjectId(randomAlphaOfLength(11) + "1"), Set.of("test-a", "test-b", "test-c")),
+                Map.entry(new ProjectId(randomAlphaOfLength(11) + "2"), Set.of("test-a", "test-z"))
+            )
+        );
+
+        final GlobalRoutingTable originalTable = clusterState.globalRoutingTable();
+        final RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        final GlobalRoutingTable fromNodes = originalTable.rebuild(routingNodes);
+        final Diff<GlobalRoutingTable> routingTableDiff = fromNodes.diff(originalTable);
+        assertSame(originalTable, routingTableDiff.apply(originalTable));
+    }
+
+    public void testRebuildAfterShardInitialized() {
+        final ProjectId project1 = new ProjectId(randomAlphaOfLength(11) + "1");
+        final ProjectId project2 = new ProjectId(randomAlphaOfLength(11) + "2");
+        final ClusterState clusterState = buildClusterState(
+            Map.ofEntries(Map.entry(project1, Set.of("test-a", "test-b", "test-c")), Map.entry(project2, Set.of("test-b", "test-z")))
+        );
+
+        final GlobalRoutingTable originalTable = clusterState.globalRoutingTable();
+        final RoutingNodes routingNodes = clusterState.getRoutingNodes();
+
+        final RoutingNodes mutate = routingNodes.mutableCopy();
+        final DiscoveryNode targetNode = randomFrom(clusterState.nodes().getNodes().values());
+        final RoutingChangesObserver emptyObserver = new RoutingChangesObserver() {
+        };
+
+        final int unassigned = mutate.unassigned().size();
+        var unassignedItr = mutate.unassigned().iterator();
+        while (unassignedItr.hasNext()) {
+            var shard = unassignedItr.next();
+            assertThat(shard, notNullValue());
+            if (shard.index().getName().equals("test-a")) {
+                // "test-a" only exists in project 1, so we know which project routing table should change
+                // (and which one should stay the same)
+                unassignedItr.initialize(targetNode.getId(), null, 0L, emptyObserver);
+                break;
+            }
+        }
+        assertThat(mutate.unassigned().size(), equalTo(unassigned - 1));
+
+        final GlobalRoutingTable fromNodes = originalTable.rebuild(mutate);
+        final Diff<GlobalRoutingTable> routingTableDiff = fromNodes.diff(originalTable);
+        final GlobalRoutingTable updatedRouting = routingTableDiff.apply(originalTable);
+        assertThat(updatedRouting, not(sameInstance(originalTable)));
+
+        assertThat(updatedRouting.routingTable(project1), not(sameInstance(originalTable.routingTable(project1))));
+        assertThat(updatedRouting.routingTable(project2), sameInstance(originalTable.routingTable(project2)));
+    }
+
+    private ClusterState buildClusterState(Map<ProjectId, Set<String>> projectIndices) {
+        final Metadata.Builder mb = Metadata.builder();
+
+        projectIndices.forEach((projectId, indexNames) -> {
+            final ProjectMetadata.Builder project = ProjectMetadata.builder(projectId);
+            for (var indexName : indexNames) {
+                final IndexMetadata.Builder index = createIndexMetadata(indexName);
+                project.put(index);
+            }
+            mb.put(project);
+        });
+        final Metadata metadata = mb.build();
+
+        final ImmutableOpenMap.Builder<ProjectId, RoutingTable> routingTables = ImmutableOpenMap.builder(projectIndices.size());
+        projectIndices.forEach((projectId, indexNames) -> {
+            final RoutingTable.Builder rt = new RoutingTable.Builder();
+            for (var indexName : indexNames) {
+                final IndexMetadata indexMetadata = metadata.getProject(projectId).index(indexName);
+                final IndexRoutingTable indexRouting = new IndexRoutingTable.Builder(
+                    TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+                    indexMetadata.getIndex()
+                ).initializeAsNew(indexMetadata).build();
+                rt.add(indexRouting);
+            }
+            routingTables.put(projectId, rt.build());
+        });
+        GlobalRoutingTable globalRoutingTable = new GlobalRoutingTable(1, routingTables.build());
+
+        DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().add(buildRandomDiscoveryNode()).add(buildRandomDiscoveryNode());
+        return ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(globalRoutingTable).nodes(nodes).build();
+    }
+
+    private DiscoveryNode buildRandomDiscoveryNode() {
+        return DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID(random()))
+            .name(randomAlphaOfLength(10))
+            .ephemeralId(UUIDs.randomBase64UUID(random()))
+            .build();
+    }
+
+    private IndexMetadata.Builder createIndexMetadata(String indexName) {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_INDEX_UUID, randomUUID())
+            .build();
+        return new IndexMetadata.Builder(indexName).settings(indexSettings)
+            .numberOfReplicas(randomIntBetween(0, 2))
+            .numberOfShards(randomIntBetween(1, 5));
     }
 
     @Override

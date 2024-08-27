@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -533,7 +534,13 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     private void assertClusterHealthStatus(RoutingAllocation allocation, ClusterHealthStatus expectedStatus) {
         RoutingTable oldRoutingTable = allocation.routingTable();
         RoutingNodes newRoutingNodes = allocation.routingNodes();
-        final RoutingTable newRoutingTable = RoutingTable.of(oldRoutingTable.version(), newRoutingNodes);
+        // TODO Remove this once RoutingAllocation works with the global routing table
+        GlobalRoutingTable globalRoutingTable = GlobalRoutingTable.builder()
+            .version(allocation.routingTable().version())
+            .put(allocation.metadata().getProject().id(), allocation.routingTable())
+            .build();
+        final GlobalRoutingTable newRoutingTable = globalRoutingTable.rebuild(newRoutingNodes);
+
         ClusterState clusterState = ClusterState.builder(new ClusterName("test-cluster")).routingTable(newRoutingTable).build();
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState);
         assertThat(clusterStateHealth.getStatus().ordinal(), lessThanOrEqualTo(expectedStatus.ordinal()));

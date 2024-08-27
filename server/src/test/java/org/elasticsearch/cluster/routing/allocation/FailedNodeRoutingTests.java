@@ -214,6 +214,9 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             allNodes.add(createNode());
         }
         ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[allNodes.size()]));
+
+        // Check that the internal state of the routing table is correct. If this fails then everything else is likely to be broken too
+        assertTrue(state.globalRoutingTable().validate(state.metadata()));
         return state;
     }
 

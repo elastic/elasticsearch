@@ -430,9 +430,7 @@ public class RoutingAllocation {
         return new RoutingAllocation(
             deciders,
             routingNodesChanged()
-                ? ClusterState.builder(clusterState)
-                    .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
-                    .build()
+                ? ClusterState.builder(clusterState).routingTable(clusterState.globalRoutingTable().rebuild(routingNodes)).build()
                 : clusterState,
             clusterInfo,
             shardSizeInfo,

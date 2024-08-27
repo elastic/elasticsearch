@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -376,7 +378,8 @@ public class RoutingTableTests extends ESAllocationTestCase {
         final RoutingTableGenerator.ShardCounter counter = new RoutingTableGenerator.ShardCounter();
         final IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetadata, counter);
         indexMetadata = updateActiveAllocations(indexRoutingTable, indexMetadata);
-        Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
+        var projectId = new ProjectId(randomUUID());
+        ProjectMetadata metadata = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
         // test no validation errors
         assertTrue(indexRoutingTable.validate(metadata));
         // test wrong number of shards causes validation errors
@@ -385,7 +388,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
             .numberOfShards(numShards + 1)
             .numberOfReplicas(numReplicas)
             .build();
-        final Metadata metadata2 = Metadata.builder().put(indexMetadata, true).build();
+        final ProjectMetadata metadata2 = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
         expectThrows(IllegalStateException.class, () -> indexRoutingTable.validate(metadata2));
         // test wrong number of replicas causes validation errors
         indexMetadata = IndexMetadata.builder(indexName)
@@ -393,7 +396,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
             .numberOfShards(numShards)
             .numberOfReplicas(numReplicas + 1)
             .build();
-        final Metadata metadata3 = Metadata.builder().put(indexMetadata, true).build();
+        final ProjectMetadata metadata3 = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
         expectThrows(IllegalStateException.class, () -> indexRoutingTable.validate(metadata3));
         // test wrong number of shards and replicas causes validation errors
         indexMetadata = IndexMetadata.builder(indexName)
@@ -401,7 +404,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
             .numberOfShards(numShards + 1)
             .numberOfReplicas(numReplicas + 1)
             .build();
-        final Metadata metadata4 = Metadata.builder().put(indexMetadata, true).build();
+        final ProjectMetadata metadata4 = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
         expectThrows(IllegalStateException.class, () -> indexRoutingTable.validate(metadata4));
     }
 
@@ -497,11 +500,11 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     public void testRoutingNodesRoundtrip() {
-        final RoutingTable originalTable = clusterState.getRoutingTable();
+        final GlobalRoutingTable originalTable = clusterState.globalRoutingTable();
         final RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        final RoutingTable fromNodes = RoutingTable.of(originalTable.version(), routingNodes);
+        final GlobalRoutingTable fromNodes = originalTable.rebuild(routingNodes);
         // we don't have an equals implementation for the routing table so we assert equality by checking for a noop diff
-        final Diff<RoutingTable> routingTableDiff = fromNodes.diff(originalTable);
+        final Diff<GlobalRoutingTable> routingTableDiff = fromNodes.diff(originalTable);
         assertSame(originalTable, routingTableDiff.apply(originalTable));
     }
 

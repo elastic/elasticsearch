@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -760,10 +761,11 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         if (allocation.routingNodesChanged() == false) {
             return oldState;
         }
-        final RoutingTable oldRoutingTable = oldState.routingTable();
+        final GlobalRoutingTable oldRoutingTable = oldState.globalRoutingTable();
         final RoutingNodes newRoutingNodes = allocation.routingNodes();
-        final RoutingTable newRoutingTable = RoutingTable.of(oldRoutingTable.version(), newRoutingNodes);
-        final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
+        final GlobalRoutingTable newRoutingTable = oldRoutingTable.rebuild(newRoutingNodes);
+        // TODO : This should use the global routing table
+        final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable.getRoutingTable());
         assert newRoutingTable.validate(newMetadata); // validates the routing table is coherent with the cluster state metadata
 
         return ClusterState.builder(oldState).routingTable(newRoutingTable).metadata(newMetadata).build();

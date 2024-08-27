@@ -388,10 +388,13 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testApiKeyWithManageRoles() throws IOException {
+        RoleDescriptor role = roleWithManageRoles("manage-roles-role", new String[] { "manage_own_api_key" }, "allowed-prefix*");
+        getSecurityClient().putRole(role);
+        createUser("test-user", END_USER_PASSWORD, List.of("manage-roles-role"));
+
         final Request createApiKeyrequest = new Request("POST", "_security/api_key");
         createApiKeyrequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder()
-                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(MANAGE_SECURITY_USER, END_USER_PASSWORD))
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue("test-user", END_USER_PASSWORD))
         );
         final Map<String, Object> requestBody = Map.of(
             "name",
@@ -399,26 +402,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             "role_descriptors",
             Map.of(
                 "test-role",
-                XContentTestUtils.convertToMap(
-                    new RoleDescriptor(
-                        "test-role",
-                        null,
-                        null,
-                        null,
-                        new ConfigurableClusterPrivilege[] {
-                            new ConfigurableClusterPrivileges.ManageRolesPrivilege(
-                                List.of(
-                                    new ConfigurableClusterPrivileges.ManageRolesPrivilege.ManageRolesIndexPermissionGroup(
-                                        new String[] { "allowed-prefix*" },
-                                        new String[] { "read" }
-                                    )
-                                )
-                            ) },
-                        null,
-                        null,
-                        null
-                    )
-                )
+                XContentTestUtils.convertToMap(roleWithManageRoles("test-role", new String[0], "allowed-prefix*")),
+                "another-test-role",
+                // This is not allowed by the limited-by-role (creator of the api key), so should not grant access to not-allowed=prefix*
+                XContentTestUtils.convertToMap(roleWithManageRoles("another-test-role", new String[0], "not-allowed-prefix*"))
             )
         );
 
@@ -2450,6 +2437,27 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             null
         );
         getSecurityClient().putRole(role);
+    }
+
+    private RoleDescriptor roleWithManageRoles(String name, String[] clusterPrivileges, String indexPattern) {
+        return new RoleDescriptor(
+            name,
+            clusterPrivileges,
+            null,
+            null,
+            new ConfigurableClusterPrivilege[] {
+                new ConfigurableClusterPrivileges.ManageRolesPrivilege(
+                    List.of(
+                        new ConfigurableClusterPrivileges.ManageRolesPrivilege.ManageRolesIndexPermissionGroup(
+                            new String[] { indexPattern },
+                            new String[] { "read" }
+                        )
+                    )
+                ) },
+            null,
+            null,
+            null
+        );
     }
 
     protected void createRoleWithDescription(String name, Collection<String> clusterPrivileges, String description) throws IOException {

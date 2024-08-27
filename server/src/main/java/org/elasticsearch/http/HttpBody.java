@@ -13,11 +13,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 
 /**
  * A super-interface for different HTTP content implementations
  */
-public sealed interface HttpBody permits HttpBody.Full, HttpBody.Stream {
+public sealed interface HttpBody extends Releasable permits HttpBody.Full, HttpBody.Stream {
 
     static Full fromBytesReference(BytesReference bytesRef) {
         return new ByteRefHttpBody(bytesRef);
@@ -56,6 +57,9 @@ public sealed interface HttpBody permits HttpBody.Full, HttpBody.Stream {
      */
     non-sealed interface Full extends HttpBody {
         BytesReference bytes();
+
+        @Override
+        default void close() {}
     }
 
     /**

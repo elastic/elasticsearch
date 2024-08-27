@@ -117,7 +117,7 @@ public class Configuration implements Writeable {
             out.writeBoolean(profile);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REQUEST_TABLES)) {
-            out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, (o2, column) -> column.writeTo(o2)));
+            out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, StreamOutput::writeWriteable));
         }
     }
 

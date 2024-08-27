@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Geometry;
@@ -50,7 +51,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         super(in, leftDocValues, rightDocValues, false);
     }
 
-    public abstract ShapeField.QueryRelation queryRelation();
+    public abstract ShapeRelation queryRelation();
 
     @Override
     public DataType dataType() {

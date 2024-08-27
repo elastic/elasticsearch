@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
@@ -40,6 +41,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Flow;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -389,6 +391,24 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public InferenceServiceResults getResults() {
             return results;
+        }
+
+        /**
+         * Returns {@code true} if these results are streamed as chunks, or {@code false} if these results contain the entire payload.
+         * Currently set to false while it is being implemented.
+         */
+        public boolean isStreaming() {
+            return false;
+        }
+
+        /**
+         * When {@link #isStreaming()} is {@code true}, the RestHandler will subscribe to this publisher.
+         * When the RestResponse is finished with the current chunk, it will request the next chunk using the subscription.
+         * If the RestResponse is closed, it will cancel the subscription.
+         */
+        public Flow.Publisher<ChunkedToXContent> publisher() {
+            assert isStreaming() == false : "This must be implemented when isStreaming() == true";
+            throw new UnsupportedOperationException("This must be implemented when isStreaming() == true");
         }
 
         @Override

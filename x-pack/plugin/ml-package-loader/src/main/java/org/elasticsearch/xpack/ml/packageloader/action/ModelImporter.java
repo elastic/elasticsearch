@@ -46,13 +46,14 @@ import static org.elasticsearch.core.Strings.format;
  */
 class ModelImporter {
     private static final int DEFAULT_CHUNK_SIZE = 1024 * 1024; // 1MB
-    private static final int MAX_IN_FLIGHT_REQUESTS = 5;
+    private static final int MAX_IN_FLIGHT_REQUESTS = 3;
     private static final Logger logger = LogManager.getLogger(ModelImporter.class);
     private final Client client;
     private final String modelId;
     private final ModelPackageConfig config;
     private final ModelDownloadTask task;
-    private final ExecutorService executorService;
+    private final ExecutorService downloadExecutor;
+    private final ExecutorService writePartExecutor;
     private final AtomicBoolean listenerIsClosed = new AtomicBoolean(false);
 
     ModelImporter(Client client, String modelId, ModelPackageConfig packageConfig, ModelDownloadTask task, ThreadPool threadPool) {
@@ -60,11 +61,12 @@ class ModelImporter {
         this.modelId = Objects.requireNonNull(modelId);
         this.config = Objects.requireNonNull(packageConfig);
         this.task = Objects.requireNonNull(task);
-        this.executorService = threadPool.executor(MachineLearningPackageLoader.MODEL_DOWNLOAD_THREADPOOL_NAME);
+        this.downloadExecutor = threadPool.executor(MachineLearningPackageLoader.MODEL_DOWNLOAD_THREADPOOL_NAME);
+        this.writePartExecutor = threadPool.executor(MachineLearningPackageLoader.ML_UTILITY_THREADPOOL_NAME);
     }
 
     public void doImport(ActionListener<AcknowledgedResponse> listener) {
-        executorService.execute(() -> doImportInternal(listener));
+        downloadExecutor.execute(() -> doImportInternal(listener));
     }
 
     private void doImportInternal(ActionListener<AcknowledgedResponse> finalListener) {
@@ -166,7 +168,7 @@ class ModelImporter {
             // thread preventing concurrent access to the model stream while
             // allowing multiple index requests to be in flight.
             indexPart(chunkIterator.getCurrentPart().get(), chunkIterator.getTotalParts(), size, definition, countingListener.acquire(r -> {
-                executorService.execute(() -> doNextPart(size, chunkIterator, countingListener));
+                downloadExecutor.execute(() -> doNextPart(size, chunkIterator, countingListener));
             }));
         } catch (Exception e) {
             countingListener.acquire().onFailure(e);
@@ -198,7 +200,7 @@ class ModelImporter {
             true
         );
 
-        client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest, listener);
+        writePartExecutor.execute(() -> client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest, listener));
     }
 
     private void checkDownloadComplete(ModelLoaderUtils.InputStreamChunker chunkIterator) {

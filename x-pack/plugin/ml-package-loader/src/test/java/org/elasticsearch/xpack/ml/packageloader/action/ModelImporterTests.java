@@ -15,8 +15,10 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
@@ -35,6 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -48,7 +51,10 @@ public class ModelImporterTests extends ESTestCase {
 
     @Before
     public void createThreadPool() {
-        threadPool = createThreadPool(MachineLearningPackageLoader.modelDownloadExecutor(Settings.EMPTY));
+        threadPool = createThreadPool(
+            MachineLearningPackageLoader.modelDownloadExecutor(Settings.EMPTY),
+            new ScalingExecutorBuilder("ml_utility", 1, 4, TimeValue.timeValueMinutes(10), false, "xpack.ml.utility_thread_pool")
+        );
     }
 
     @After
@@ -162,7 +168,7 @@ public class ModelImporterTests extends ESTestCase {
 
         latch.await();
         assertThat(exceptionHolder.get().getMessage(), containsString("put model part failed"));
-        verify(client, times(1)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
+        verify(client, atLeastOnce()).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
     }
 
     public void testReadFailure() throws IOException, InterruptedException {

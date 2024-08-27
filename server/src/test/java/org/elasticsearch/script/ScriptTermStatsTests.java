@@ -353,6 +353,6 @@ public class ScriptTermStatsTests extends ESTestCase {
             isReservedTerm,
             () -> new Term("field", randomAlphaOfLengthBetween(1, 5))
         );
-        return randomSet(1, randomInt(10), termSupplier);
+        return randomSet(1, randomIntBetween(1, 10), termSupplier);
     }
 }

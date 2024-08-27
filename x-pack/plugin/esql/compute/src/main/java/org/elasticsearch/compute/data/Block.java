@@ -140,7 +140,7 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     Block filter(int... positions);
 
     /**
-     * Build a {@link Block} the same values as this {@linkplain Block}, but replacing
+     * Build a {@link Block} with the same values as this {@linkplain Block}, but replacing
      * all values for which {@code mask.getBooleanValue(position)} returns
      * {@code false} with {@code null}. The {@code mask} vector must be at least
      * as long as this {@linkplain Block}.

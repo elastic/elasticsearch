@@ -10,7 +10,9 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.core.Releasable;
 
 /**
- * Result from calling {@link BooleanBlock#toMask}.
+ * Result from calling {@link BooleanBlock#toMask}. {@link #close closing} this will
+ * close the contained {@link #mask()}. If you want to keep a reference to it then you'll
+ * have to {@link Block#incRef()} it.
  */
 public record ToMask(BooleanVector mask, boolean hadMultivaluedFields) implements Releasable {
     @Override

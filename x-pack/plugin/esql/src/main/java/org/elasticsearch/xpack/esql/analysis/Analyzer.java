@@ -996,8 +996,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             boolean childrenChanged = false;
             DataType targetDataType = DataType.NULL;
             Expression arg;
-            DataType targetNumericType = DataType.NULL;
-            boolean castNumericArgs = false;
+            DataType targetNumericType = null;
+            boolean castNumericArgs = true;
             for (int i = 0; i < args.size(); i++) {
                 arg = args.get(i);
                 if (arg.resolved()) {
@@ -1014,8 +1014,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 continue;
                             }
                         }
-                    } else if (dataType.isNumeric() && canCastMixedNumericTypes(f)) {
-                        if (targetNumericType.isNumeric() == false) {
+                    } else if (dataType.isNumeric() && canCastMixedNumericTypes(f) && castNumericArgs) {
+                        if (targetNumericType == null) {
                             targetNumericType = dataType;  // target data type is the first numeric data type
                         } else if (dataType != targetNumericType) {
                             castNumericArgs = canCastNumeric(dataType, targetNumericType);
@@ -1025,7 +1025,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newChildren.add(args.get(i));
             }
             Expression resultF = childrenChanged ? f.replaceChildren(newChildren) : f;
-            return castNumericArgs && targetNumericType.isNumeric()
+            return targetNumericType != null && castNumericArgs
                 ? castMixedNumericTypes((EsqlScalarFunction) resultF, targetNumericType)
                 : resultF;
         }

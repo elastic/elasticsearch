@@ -23,24 +23,9 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
-import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.TopN;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -132,25 +117,7 @@ public final class PlanNamedTypes {
             of(PhysicalPlan.class, ProjectExec.class, PlanNamedTypes::writeProjectExec, PlanNamedTypes::readProjectExec),
             of(PhysicalPlan.class, RowExec.class, PlanNamedTypes::writeRowExec, PlanNamedTypes::readRowExec),
             of(PhysicalPlan.class, ShowExec.class, PlanNamedTypes::writeShowExec, PlanNamedTypes::readShowExec),
-            of(PhysicalPlan.class, TopNExec.class, PlanNamedTypes::writeTopNExec, PlanNamedTypes::readTopNExec),
-            // Logical Plan Nodes - a subset of plans that end up being actually serialized
-            of(LogicalPlan.class, Aggregate.ENTRY),
-            of(LogicalPlan.class, Dissect.ENTRY),
-            of(LogicalPlan.class, EsRelation.ENTRY),
-            of(LogicalPlan.class, Eval.ENTRY),
-            of(LogicalPlan.class, Enrich.ENTRY),
-            of(LogicalPlan.class, EsqlProject.ENTRY),
-            of(LogicalPlan.class, Filter.ENTRY),
-            of(LogicalPlan.class, Grok.ENTRY),
-            of(LogicalPlan.class, InlineStats.ENTRY),
-            of(LogicalPlan.class, Join.ENTRY),
-            of(LogicalPlan.class, Limit.ENTRY),
-            of(LogicalPlan.class, LocalRelation.ENTRY),
-            of(LogicalPlan.class, Lookup.ENTRY),
-            of(LogicalPlan.class, MvExpand.ENTRY),
-            of(LogicalPlan.class, OrderBy.ENTRY),
-            of(LogicalPlan.class, Project.ENTRY),
-            of(LogicalPlan.class, TopN.ENTRY)
+            of(PhysicalPlan.class, TopNExec.class, PlanNamedTypes::writeTopNExec, PlanNamedTypes::readTopNExec)
         );
         return declared;
     }

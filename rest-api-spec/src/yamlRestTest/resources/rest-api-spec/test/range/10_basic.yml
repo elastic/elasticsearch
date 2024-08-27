@@ -449,7 +449,7 @@ setup:
 ---
 "Date range edge cases":
   - requires:
-      cluster_features: [ "gte_v8.15.0" ]
+      cluster_features: [ "gte_v8.16.0" ]
       reason: "tests rounding fixes that previously caused non-intuitive indexing and query"
 
   - do:

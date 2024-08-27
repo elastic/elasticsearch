@@ -40,6 +40,7 @@ import java.util.Objects;
  * <br>
  */
 public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment {
+    public static final String CCS_TELEMETRY_FIELD_NAME = "_search";
     private long totalCount;
     private long successCount;
     private final Map<String, Long> failureReasons;
@@ -326,7 +327,7 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("ccs_telemetry");
+        builder.startObject(CCS_TELEMETRY_FIELD_NAME);
         {
             builder.field("total", totalCount);
             builder.field("success", successCount);

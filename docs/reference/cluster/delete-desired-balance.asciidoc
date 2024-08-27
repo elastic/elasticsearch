@@ -6,7 +6,7 @@
 
 NOTE: {cloud-only}
 
-Discards the current desired balance and computes a new desired balance starting from the current allocation of shards.
+Discards the current <<shards-rebalancing-heuristics,desired balance>> and computes a new desired balance starting from the current allocation of shards.
 This can sometimes help {es} find a desired balance which needs fewer shard movements to achieve, especially if the
 cluster has experienced changes so substantial that the current desired balance is no longer optimal without {es} having
 detected that the current desired balance will take more shard movements to achieve than needed. However, this API

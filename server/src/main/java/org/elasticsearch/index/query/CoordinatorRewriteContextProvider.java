@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.function.Function;
@@ -25,14 +26,14 @@ public class CoordinatorRewriteContextProvider {
     private final Client client;
     private final LongSupplier nowInMillis;
     private final Supplier<ClusterState> clusterStateSupplier;
-    private final Function<Index, DateFieldMapper.DateFieldType> mappingSupplier;
+    private final Function<Index, DateFieldRangeInfo> mappingSupplier;
 
     public CoordinatorRewriteContextProvider(
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
         Supplier<ClusterState> clusterStateSupplier,
-        Function<Index, DateFieldMapper.DateFieldType> mappingSupplier
+        Function<Index, DateFieldRangeInfo> mappingSupplier
     ) {
         this.parserConfig = parserConfig;
         this.client = client;
@@ -49,18 +50,30 @@ public class CoordinatorRewriteContextProvider {
         if (indexMetadata == null) {
             return null;
         }
-        DateFieldMapper.DateFieldType dateFieldType = mappingSupplier.apply(index);
-        if (dateFieldType == null) {
+        DateFieldRangeInfo dateFieldRangeInfo = mappingSupplier.apply(index);
+        if (dateFieldRangeInfo == null) {
             return null;
         }
+        DateFieldMapper.DateFieldType timestampFieldType = dateFieldRangeInfo.timestampFieldType();
         IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
+        IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
+
         if (timestampRange.containsAllShardRanges() == false) {
-            timestampRange = indexMetadata.getTimeSeriesTimestampRange(dateFieldType);
-            if (timestampRange == null) {
+            // if @timestamp range is not present or not ready in cluster state, fallback to using time series range (if present)
+            timestampRange = indexMetadata.getTimeSeriesTimestampRange(timestampFieldType);
+            // if timestampRange in the time series is null AND the eventIngestedRange is not ready for use, return null (no coord rewrite)
+            if (timestampRange == null && eventIngestedRange.containsAllShardRanges() == false) {
                 return null;
             }
         }
 
-        return new CoordinatorRewriteContext(parserConfig, client, nowInMillis, timestampRange, dateFieldType);
+        // the DateFieldRangeInfo from the mappingSupplier only has field types, but not ranges
+        // so create a new object with ranges pulled from cluster state
+        return new CoordinatorRewriteContext(
+            parserConfig,
+            client,
+            nowInMillis,
+            new DateFieldRangeInfo(timestampFieldType, timestampRange, dateFieldRangeInfo.eventIngestedFieldType(), eventIngestedRange)
+        );
     }
 }

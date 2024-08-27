@@ -11,6 +11,7 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
@@ -106,8 +107,8 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
     }
 
     @Override
-    public ShapeField.QueryRelation queryRelation() {
-        return ShapeField.QueryRelation.DISJOINT;
+    public ShapeRelation queryRelation() {
+        return ShapeRelation.DISJOINT;
     }
 
     @Override
@@ -131,9 +132,9 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
     @Override
     public Object fold() {
         try {
-            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType, left());
-            Component2D component2D = asLuceneComponent2D(crsType, right());
-            return (crsType == SpatialCrsType.GEO)
+            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType(), left());
+            Component2D component2D = asLuceneComponent2D(crsType(), right());
+            return (crsType() == SpatialCrsType.GEO)
                 ? GEO.geometryRelatesGeometry(docValueReader, component2D)
                 : CARTESIAN.geometryRelatesGeometry(docValueReader, component2D);
         } catch (IOException e) {

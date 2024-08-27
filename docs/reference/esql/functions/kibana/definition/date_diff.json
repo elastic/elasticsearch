@@ -14,13 +14,13 @@
         },
         {
           "name" : "startTimestamp",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "A string representing a start timestamp"
         },
         {
           "name" : "endTimestamp",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "A string representing an end timestamp"
         }
@@ -38,13 +38,13 @@
         },
         {
           "name" : "startTimestamp",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "A string representing a start timestamp"
         },
         {
           "name" : "endTimestamp",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "A string representing an end timestamp"
         }

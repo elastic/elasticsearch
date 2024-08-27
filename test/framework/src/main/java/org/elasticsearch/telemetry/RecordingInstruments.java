@@ -24,6 +24,7 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -53,7 +54,7 @@ public class RecordingInstruments {
         }
     }
 
-    protected interface NumberWithAttributesObserver extends Supplier<Tuple<Number, Map<String, Object>>> {
+    protected interface NumberWithAttributesObserver extends Supplier<Collection<Tuple<Number, Map<String, Object>>>> {
 
     }
 
@@ -74,7 +75,7 @@ public class RecordingInstruments {
                     return;
                 }
                 var observation = observer.get();
-                call(observation.v1(), observation.v2());
+                observation.forEach(o -> call(o.v1(), o.v2()));
             }
         }
 
@@ -109,10 +110,10 @@ public class RecordingInstruments {
     }
 
     public static class RecordingDoubleGauge extends CallbackRecordingInstrument implements DoubleGauge {
-        public RecordingDoubleGauge(String name, Supplier<DoubleWithAttributes> observer, MetricRecorder<Instrument> recorder) {
+        public RecordingDoubleGauge(String name, Supplier<Collection<DoubleWithAttributes>> observer, MetricRecorder<Instrument> recorder) {
             super(name, () -> {
                 var observation = observer.get();
-                return new Tuple<>(observation.value(), observation.attributes());
+                return observation.stream().map(o -> new Tuple<>((Number) o.value(), o.attributes())).toList();
             }, recorder);
         }
     }
@@ -172,10 +173,14 @@ public class RecordingInstruments {
 
     public static class RecordingAsyncLongCounter extends CallbackRecordingInstrument implements LongAsyncCounter {
 
-        public RecordingAsyncLongCounter(String name, Supplier<LongWithAttributes> observer, MetricRecorder<Instrument> recorder) {
+        public RecordingAsyncLongCounter(
+            String name,
+            Supplier<Collection<LongWithAttributes>> observer,
+            MetricRecorder<Instrument> recorder
+        ) {
             super(name, () -> {
                 var observation = observer.get();
-                return new Tuple<>(observation.value(), observation.attributes());
+                return observation.stream().map(o -> new Tuple<>((Number) o.value(), o.attributes())).toList();
             }, recorder);
         }
 
@@ -183,10 +188,14 @@ public class RecordingInstruments {
 
     public static class RecordingAsyncDoubleCounter extends CallbackRecordingInstrument implements DoubleAsyncCounter {
 
-        public RecordingAsyncDoubleCounter(String name, Supplier<DoubleWithAttributes> observer, MetricRecorder<Instrument> recorder) {
+        public RecordingAsyncDoubleCounter(
+            String name,
+            Supplier<Collection<DoubleWithAttributes>> observer,
+            MetricRecorder<Instrument> recorder
+        ) {
             super(name, () -> {
                 var observation = observer.get();
-                return new Tuple<>(observation.value(), observation.attributes());
+                return observation.stream().map(o -> new Tuple<>((Number) o.value(), o.attributes())).toList();
             }, recorder);
         }
 
@@ -194,10 +203,10 @@ public class RecordingInstruments {
 
     public static class RecordingLongGauge extends CallbackRecordingInstrument implements LongGauge {
 
-        public RecordingLongGauge(String name, Supplier<LongWithAttributes> observer, MetricRecorder<Instrument> recorder) {
+        public RecordingLongGauge(String name, Supplier<Collection<LongWithAttributes>> observer, MetricRecorder<Instrument> recorder) {
             super(name, () -> {
                 var observation = observer.get();
-                return new Tuple<>(observation.value(), observation.attributes());
+                return observation.stream().map(o -> new Tuple<>((Number) o.value(), o.attributes())).toList();
             }, recorder);
         }
     }

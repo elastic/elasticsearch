@@ -5,7 +5,7 @@
 <titleabbrev>Explain lifecycle</titleabbrev>
 ++++
 
-Retrieves the current lifecycle status for one or more indices. For data
+Retrieves the current <<index-lifecycle-management,lifecycle>> status for one or more indices. For data
 streams, the API retrieves the current lifecycle status for the stream's backing
 indices.
 

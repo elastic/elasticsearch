@@ -70,7 +70,7 @@ public final class SpatialWithinCartesianPointDocValuesAndConstantEvaluator impl
         try {
           multiValuesCombiner.initialize();
           for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
-            multiValuesCombiner.add(SpatialWithin.processCartesianPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), this.rightValue));
+            multiValuesCombiner.add(SpatialWithin.processCartesianPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlockIndex), this.rightValue));
           }
           result.appendBoolean(multiValuesCombiner.result());
         } catch (IllegalArgumentException e) {

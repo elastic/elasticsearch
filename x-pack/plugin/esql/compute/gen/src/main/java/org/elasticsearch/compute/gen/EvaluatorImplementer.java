@@ -627,11 +627,14 @@ public class EvaluatorImplementer {
                 return;
             }
             if (blockStyle) {
-                // TODO: Support multiValued for non-BytesRefBlock types
                 if (isBlockType()) {
                     pattern.append("$L");
                 } else {
-                    pattern.append("$L.$L($L.getFirstValueIndex(p))");
+                    if (multiValued) {
+                        pattern.append("$L.$L($LIndex)");
+                    } else {
+                        pattern.append("$L.$L($L.getFirstValueIndex(p))");
+                    }
                 }
             } else {
                 pattern.append("$L.$L(p)");

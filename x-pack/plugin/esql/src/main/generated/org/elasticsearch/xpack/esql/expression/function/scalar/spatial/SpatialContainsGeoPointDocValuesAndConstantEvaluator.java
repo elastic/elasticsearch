@@ -70,7 +70,7 @@ public final class SpatialContainsGeoPointDocValuesAndConstantEvaluator implemen
         try {
           multiValuesCombiner.initialize();
           for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
-            multiValuesCombiner.add(SpatialContains.processGeoPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), this.rightValue));
+            multiValuesCombiner.add(SpatialContains.processGeoPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlockIndex), this.rightValue));
           }
           result.appendBoolean(multiValuesCombiner.result());
         } catch (IllegalArgumentException e) {

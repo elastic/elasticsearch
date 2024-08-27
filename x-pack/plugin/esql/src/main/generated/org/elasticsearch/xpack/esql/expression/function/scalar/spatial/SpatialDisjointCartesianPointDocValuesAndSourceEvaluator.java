@@ -90,7 +90,7 @@ public final class SpatialDisjointCartesianPointDocValuesAndSourceEvaluator impl
         multiValuesCombiner.initialize();
         for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
           for (int rightValueBlockIndex = rightValueBlockFirst; rightValueBlockIndex < rightValueBlockFirst + rightValueBlockCount; rightValueBlockIndex++) {
-            multiValuesCombiner.add(SpatialDisjoint.processCartesianPointDocValuesAndSource(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlockIndex, rightValueScratch)));
+            multiValuesCombiner.add(SpatialDisjoint.processCartesianPointDocValuesAndSource(leftValueBlock.getLong(leftValueBlockIndex), rightValueBlock.getBytesRef(rightValueBlockIndex, rightValueScratch)));
           }
         }
         result.appendBoolean(multiValuesCombiner.result());

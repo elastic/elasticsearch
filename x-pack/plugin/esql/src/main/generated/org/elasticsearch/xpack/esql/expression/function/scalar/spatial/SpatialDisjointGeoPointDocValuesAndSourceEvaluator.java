@@ -91,7 +91,7 @@ public final class SpatialDisjointGeoPointDocValuesAndSourceEvaluator implements
           multiValuesCombiner.initialize();
           for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
             for (int rightValueBlockIndex = rightValueBlockFirst; rightValueBlockIndex < rightValueBlockFirst + rightValueBlockCount; rightValueBlockIndex++) {
-              multiValuesCombiner.add(SpatialDisjoint.processGeoPointDocValuesAndSource(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlockIndex, rightValueScratch)));
+              multiValuesCombiner.add(SpatialDisjoint.processGeoPointDocValuesAndSource(leftValueBlock.getLong(leftValueBlockIndex), rightValueBlock.getBytesRef(rightValueBlockIndex, rightValueScratch)));
             }
           }
           result.appendBoolean(multiValuesCombiner.result());

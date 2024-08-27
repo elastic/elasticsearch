@@ -70,7 +70,7 @@ public final class SpatialWithinGeoPointDocValuesAndConstantEvaluator implements
         try {
           multiValuesCombiner.initialize();
           for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
-            multiValuesCombiner.add(SpatialWithin.processGeoPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), this.rightValue));
+            multiValuesCombiner.add(SpatialWithin.processGeoPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlockIndex), this.rightValue));
           }
           result.appendBoolean(multiValuesCombiner.result());
         } catch (IllegalArgumentException e) {

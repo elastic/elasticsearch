@@ -91,7 +91,7 @@ public final class SpatialIntersectsGeoPointDocValuesAndSourceEvaluator implemen
           multiValuesCombiner.initialize();
           for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
             for (int rightValueBlockIndex = rightValueBlockFirst; rightValueBlockIndex < rightValueBlockFirst + rightValueBlockCount; rightValueBlockIndex++) {
-              multiValuesCombiner.add(SpatialIntersects.processGeoPointDocValuesAndSource(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlockIndex, rightValueScratch)));
+              multiValuesCombiner.add(SpatialIntersects.processGeoPointDocValuesAndSource(leftValueBlock.getLong(leftValueBlockIndex), rightValueBlock.getBytesRef(rightValueBlockIndex, rightValueScratch)));
             }
           }
           result.appendBoolean(multiValuesCombiner.result());

@@ -70,7 +70,7 @@ public final class SpatialDisjointCartesianPointDocValuesAndConstantEvaluator im
         try {
           multiValuesCombiner.initialize();
           for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
-            multiValuesCombiner.add(SpatialDisjoint.processCartesianPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), this.rightValue));
+            multiValuesCombiner.add(SpatialDisjoint.processCartesianPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlockIndex), this.rightValue));
           }
           result.appendBoolean(multiValuesCombiner.result());
         } catch (IllegalArgumentException e) {

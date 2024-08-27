@@ -1,8 +1,18 @@
 ################################################################################
-# This Dockerfile was generated from the template at distribution/src/docker/Dockerfile
+# This Dockerfile was generated from the template at distribution/docker/src/docker/Dockerfile.wolfi
 #
 # Beginning of multi stage Dockerfile
 ################################################################################
+
+<% /*
+  This file is passed through Groovy's SimpleTemplateEngine, so dollars and backslashes
+  have to be escaped in order for them to appear in the final Dockerfile. You
+  can also comment out blocks, like this one. See:
+
+  https://docs.groovy-lang.org/latest/html/api/groovy/text/SimpleTemplateEngine.html
+  Note that this file is also filtered to squash together newlines, so we can
+  add as many newlines here as necessary to improve legibility.
+*/ %>
 
 ################################################################################
 # Build stage 1 `builder`:
@@ -113,12 +123,24 @@ ENV ELASTIC_CONTAINER=true
 
 WORKDIR /usr/share/elasticsearch
 
-COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
-COPY --from=builder --chown=0:0 /bin/tini /bin/tini
+EXPOSE 9200 9300
+
+# Our actual entrypoint is `tini`, a minimal but functional init program. It
+# calls the entrypoint we provide, while correctly forwarding signals.
+ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
+
+# Dummy overridable parameter parsed by entrypoint
+CMD ["eswrapper"]
 
 ENV PATH=/usr/share/elasticsearch/bin:\$PATH
 
+# Update "cacerts" bundle to use Chainguard's CA certificates (and make sure it
+# stays up-to-date with changes to Chainguard's store)
+COPY bin/docker-openjdk /etc/ca-certificates/update.d/docker-openjdk
+
 COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY --from=builder --chown=0:0 /bin/tini /bin/tini
+COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 
 # 1. Sync the user and group permissions of /etc/passwd
 # 2. Set correct permissions of the entrypoint
@@ -137,12 +159,7 @@ RUN chmod g=u /etc/passwd && \
     chmod 0775 /usr/share/elasticsearch && \
     chown elasticsearch bin config config/jvm.options.d data logs plugins
 
-# Update "cacerts" bundle to use Chainguard's CA certificates (and make sure it
-# stays up-to-date with changes to Chainguard's store)
-COPY bin/docker-openjdk /etc/ca-certificates/update.d/docker-openjdk
 RUN /etc/ca-certificates/update.d/docker-openjdk
-
-EXPOSE 9200 9300
 
 LABEL org.label-schema.build-date="${build_date}" \
   org.label-schema.license="${license}" \
@@ -164,11 +181,6 @@ LABEL org.label-schema.build-date="${build_date}" \
   org.opencontainers.image.vendor="Elastic" \
   org.opencontainers.image.version="${version}"
 
-# Our actual entrypoint is `tini`, a minimal but functional init program. It
-# calls the entrypoint we provide, while correctly forwarding signals.
-ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
-# Dummy overridable parameter parsed by entrypoint
-CMD ["eswrapper"]
 
 USER 1000:0
 

@@ -120,7 +120,7 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
                             value = globalOrds.nextOrd();
                             // Check there isn't a second value for this
                             // document
-                            if (globalOrds.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
+                            if (globalOrds.docValueCount() > 1) {
                                 throw new IllegalArgumentException("Sample diversifying key must be a single valued-field");
                             }
                             return true;

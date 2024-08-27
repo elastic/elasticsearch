@@ -174,11 +174,8 @@ public class MultiOrdinals extends Ordinals {
 
         @Override
         public long nextOrd() {
-            if (currentOffset == currentEndOffset) {
-                return SortedSetDocValues.NO_MORE_ORDS;
-            } else {
-                return ords.get(currentOffset++);
-            }
+            assert currentOffset != currentEndOffset;
+            return ords.get(currentOffset++);
         }
 
         @Override

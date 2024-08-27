@@ -101,7 +101,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
             public void collect(int docId, long owningBucketOrd) throws IOException {
                 if (parentDocs.get(docId) && globalOrdinals.advanceExact(docId)) {
                     int globalOrdinal = (int) globalOrdinals.nextOrd();
-                    assert globalOrdinal != -1 && globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
+                    assert globalOrdinal != -1 && globalOrdinals.docValueCount() == 1;
                     collectionStrategy.add(owningBucketOrd, globalOrdinal);
                 }
             }
@@ -149,7 +149,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                     continue;
                 }
                 int globalOrdinal = (int) globalOrdinals.nextOrd();
-                assert globalOrdinal != -1 && globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
+                assert globalOrdinal != -1 && globalOrdinals.docValueCount() == 1;
                 /*
                  * Check if we contain every ordinal. It's almost certainly be
                  * faster to replay all the matching ordinals and filter them down

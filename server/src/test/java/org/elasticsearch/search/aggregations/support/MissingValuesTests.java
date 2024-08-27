@@ -123,11 +123,8 @@ public class MissingValuesTests extends ESTestCase {
 
             @Override
             public long nextOrd() {
-                if (i < ords[doc].length) {
-                    return ords[doc][i++];
-                } else {
-                    return NO_MORE_ORDS;
-                }
+                assert i < ords[doc].length;
+                return ords[doc][i++];
             }
 
             @Override
@@ -152,10 +149,8 @@ public class MissingValuesTests extends ESTestCase {
                     for (int ord : ords[i]) {
                         assertEquals(values[ord], withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
                     }
-                    assertEquals(SortedSetDocValues.NO_MORE_ORDS, withMissingReplaced.nextOrd());
                 } else {
                     assertEquals(missing, withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
-                    assertEquals(SortedSetDocValues.NO_MORE_ORDS, withMissingReplaced.nextOrd());
                 }
             }
         }

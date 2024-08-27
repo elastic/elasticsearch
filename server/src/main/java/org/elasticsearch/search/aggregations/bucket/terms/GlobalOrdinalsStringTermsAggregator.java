@@ -52,7 +52,6 @@ import java.util.function.Function;
 import java.util.function.LongPredicate;
 import java.util.function.LongUnaryOperator;
 
-import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
 
 /**
@@ -166,7 +165,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     if (false == globalOrds.advanceExact(doc)) {
                         return;
                     }
-                    for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_ORDS; globalOrd = globalOrds.nextOrd()) {
+                    for (int i = 0; i < globalOrds.docValueCount(); i++) {
+                        long globalOrd = globalOrds.nextOrd();
                         collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
                     }
                 }
@@ -178,7 +178,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 if (false == globalOrds.advanceExact(doc)) {
                     return;
                 }
-                for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_ORDS; globalOrd = globalOrds.nextOrd()) {
+                for (int i = 0; i < globalOrds.docValueCount(); i++) {
+                    long globalOrd = globalOrds.nextOrd();
                     if (false == acceptedGlobalOrdinals.test(globalOrd)) {
                         continue;
                     }
@@ -349,7 +350,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     if (false == segmentOrds.advanceExact(doc)) {
                         return;
                     }
-                    for (long segmentOrd = segmentOrds.nextOrd(); segmentOrd != NO_MORE_ORDS; segmentOrd = segmentOrds.nextOrd()) {
+                    for (int i = 0; i < segmentOrds.docValueCount(); i++) {
+                        long segmentOrd = segmentOrds.nextOrd();
                         int docCount = docCountProvider.getDocCount(doc);
                         segmentDocCounts.increment(segmentOrd + 1, docCount);
                     }
@@ -523,7 +525,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         if (liveDocs == null || liveDocs.get(docId)) {  // document is not deleted
                             globalOrds = globalOrds == null ? valuesSource.globalOrdinalsValues(ctx) : globalOrds;
                             if (globalOrds.advanceExact(docId)) {
-                                for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_ORDS; globalOrd = globalOrds.nextOrd()) {
+                                for (int i = 0; i < globalOrds.docValueCount(); i++) {
+                                    long globalOrd = globalOrds.nextOrd();
                                     if (accepted.find(globalOrd) >= 0) {
                                         continue;
                                     }
@@ -633,7 +636,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         if (liveDocs == null || liveDocs.get(docId)) {  // document is not deleted
                             globalOrds = globalOrds == null ? valuesSource.globalOrdinalsValues(ctx) : globalOrds;
                             if (globalOrds.advanceExact(docId)) {
-                                for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_ORDS; globalOrd = globalOrds.nextOrd()) {
+                                for (int i = 0; i < globalOrds.docValueCount(); i++) {
+                                    long globalOrd = globalOrds.nextOrd();
                                     if (accepted.find(globalOrd) >= 0) {
                                         continue;
                                     }

@@ -22,8 +22,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
-
 public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
     private LeafOrdinalsFieldData delegate;
 
@@ -120,7 +118,8 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
         docValues.advanceExact(0);
 
         int retrievedOrds = 0;
-        for (long ord = docValues.nextOrd(); ord != NO_MORE_ORDS; ord = docValues.nextOrd()) {
+        for (int i = 0; i < docValues.docValueCount(); i++) {
+            long ord = docValues.nextOrd();
             assertTrue(0 <= ord && ord < 10);
             retrievedOrds++;
 
@@ -193,9 +192,7 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
 
         @Override
         public long nextOrd() {
-            if (index == documentOrds.length) {
-                return NO_MORE_ORDS;
-            }
+            assert index == documentOrds.length;
             return documentOrds[index++];
         }
 

@@ -615,7 +615,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         assertNotNull(dv);
         assertTrue(dv.advanceExact(0));
         assertEquals(0, dv.nextOrd());
-        assertEquals(SortedSetDocValues.NO_MORE_ORDS, dv.nextOrd());
         assertEquals(new BytesRef("testA"), dv.lookupOrd(0));
         assertNull(segmentReader.getSortedSetDocValues("fieldB"));
 

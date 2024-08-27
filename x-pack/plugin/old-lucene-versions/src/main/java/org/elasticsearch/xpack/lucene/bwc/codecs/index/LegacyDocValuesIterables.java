@@ -182,10 +182,7 @@ public class LegacyDocValuesIterables {
                         try {
                             if (nextDocID > values.docID()) {
                                 if (values.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                                    ordCount = 0;
-                                    while (values.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
-                                        ordCount++;
-                                    }
+                                    ordCount = values.docValueCount();
                                 }
                             }
                             int result;

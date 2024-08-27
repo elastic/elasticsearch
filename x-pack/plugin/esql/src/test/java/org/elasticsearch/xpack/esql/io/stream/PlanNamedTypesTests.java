@@ -23,24 +23,6 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Dissect;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Grok;
-import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.TopN;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -111,40 +93,6 @@ public class PlanNamedTypesTests extends ESTestCase {
             .stream()
             .filter(e -> e.categoryClass().isAssignableFrom(PhysicalPlan.class))
             .map(PlanNameRegistry.Entry::name)
-            .toList();
-        assertMap(actual, matchesList(expected));
-    }
-
-    // List of known serializable logical plan nodes - this should be kept up to date or retrieved
-    // programmatically.
-    public static final List<Class<? extends LogicalPlan>> LOGICAL_PLAN_NODE_CLS = List.of(
-        Aggregate.class,
-        Dissect.class,
-        Enrich.class,
-        EsRelation.class,
-        EsqlProject.class,
-        Eval.class,
-        Filter.class,
-        Grok.class,
-        InlineStats.class,
-        Join.class,
-        Limit.class,
-        LocalRelation.class,
-        Lookup.class,
-        MvExpand.class,
-        OrderBy.class,
-        Project.class,
-        TopN.class
-    );
-
-    // Tests that all logical plan nodes have a suitably named serialization entry.
-    public void testLogicalPlanEntries() {
-        var expected = LOGICAL_PLAN_NODE_CLS.stream().map(Class::getSimpleName).toList();
-        var actual = PlanNamedTypes.namedTypeEntries()
-            .stream()
-            .filter(e -> e.categoryClass().isAssignableFrom(LogicalPlan.class))
-            .map(PlanNameRegistry.Entry::name)
-            .sorted()
             .toList();
         assertMap(actual, matchesList(expected));
     }

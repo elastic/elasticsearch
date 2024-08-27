@@ -69,7 +69,7 @@ abstract class AbstractPyTorchAction<T> extends AbstractInitializableRunnable {
     }
 
     void onCancel() {
-        onTimeout(new ElasticsearchStatusException("inference task cancelled", RestStatus.INTERNAL_SERVER_ERROR));
+        onTimeout(new ElasticsearchStatusException("inference task cancelled", RestStatus.BAD_REQUEST));
     }
 
     void onTimeout(Exception e) {

@@ -173,10 +173,14 @@ public class RecordingInstruments {
 
     public static class RecordingAsyncLongCounter extends CallbackRecordingInstrument implements LongAsyncCounter {
 
-        public RecordingAsyncLongCounter(String name, Supplier<LongWithAttributes> observer, MetricRecorder<Instrument> recorder) {
+        public RecordingAsyncLongCounter(
+            String name,
+            Supplier<Collection<LongWithAttributes>> observer,
+            MetricRecorder<Instrument> recorder
+        ) {
             super(name, () -> {
                 var observation = observer.get();
-                return Collections.singletonList(new Tuple<>(observation.value(), observation.attributes()));
+                return observation.stream().map(o -> new Tuple<>((Number) o.value(), o.attributes())).toList();
             }, recorder);
         }
 
@@ -184,10 +188,14 @@ public class RecordingInstruments {
 
     public static class RecordingAsyncDoubleCounter extends CallbackRecordingInstrument implements DoubleAsyncCounter {
 
-        public RecordingAsyncDoubleCounter(String name, Supplier<DoubleWithAttributes> observer, MetricRecorder<Instrument> recorder) {
+        public RecordingAsyncDoubleCounter(
+            String name,
+            Supplier<Collection<DoubleWithAttributes>> observer,
+            MetricRecorder<Instrument> recorder
+        ) {
             super(name, () -> {
                 var observation = observer.get();
-                return Collections.singletonList(new Tuple<>(observation.value(), observation.attributes()));
+                return observation.stream().map(o -> new Tuple<>((Number) o.value(), o.attributes())).toList();
             }, recorder);
         }
 

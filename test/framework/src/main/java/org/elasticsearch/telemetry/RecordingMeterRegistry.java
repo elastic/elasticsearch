@@ -127,9 +127,7 @@ public class RecordingMeterRegistry implements MeterRegistry {
 
     @Override
     public LongAsyncCounter registerLongAsyncCounter(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
-        LongAsyncCounter instrument = new RecordingInstruments.RecordingAsyncLongCounter(name, observer, recorder);
-        recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
-        return instrument;
+        return registerLongsAsyncCounter(name, description, unit, () -> Collections.singleton(observer.get()));
     }
 
     @Override
@@ -139,7 +137,9 @@ public class RecordingMeterRegistry implements MeterRegistry {
         String unit,
         Supplier<Collection<LongWithAttributes>> observer
     ) {
-        throw new UnsupportedOperationException("not implemented");
+        LongAsyncCounter instrument = new RecordingInstruments.RecordingAsyncLongCounter(name, observer, recorder);
+        recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
+        return instrument;
     }
 
     @Override
@@ -154,9 +154,7 @@ public class RecordingMeterRegistry implements MeterRegistry {
         String unit,
         Supplier<DoubleWithAttributes> observer
     ) {
-        DoubleAsyncCounter instrument = new RecordingInstruments.RecordingAsyncDoubleCounter(name, observer, recorder);
-        recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
-        return instrument;
+        return registerDoublesAsyncCounter(name, description, unit, () -> Collections.singleton(observer.get()));
     }
 
     @Override
@@ -166,7 +164,9 @@ public class RecordingMeterRegistry implements MeterRegistry {
         String unit,
         Supplier<Collection<DoubleWithAttributes>> observer
     ) {
-        throw new UnsupportedOperationException("not implemented");
+        DoubleAsyncCounter instrument = new RecordingInstruments.RecordingAsyncDoubleCounter(name, observer, recorder);
+        recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
+        return instrument;
     }
 
     @Override

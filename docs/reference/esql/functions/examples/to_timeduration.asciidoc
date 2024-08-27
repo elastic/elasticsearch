@@ -2,7 +2,6 @@
 
 *Example*
 
-Converts an input value into a time_duration value.
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/convert.csv-spec[tag=castToTimeDuration]

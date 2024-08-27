@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-field | result
+string | result
 date_period | date_period
 keyword | date_period
 text | date_period

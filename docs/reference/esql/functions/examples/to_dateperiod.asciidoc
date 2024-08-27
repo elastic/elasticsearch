@@ -2,7 +2,6 @@
 
 *Example*
 
-Converts an input value into a date_period value.
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/convert.csv-spec[tag=castToDatePeriod]

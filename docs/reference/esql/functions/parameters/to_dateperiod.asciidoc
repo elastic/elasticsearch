@@ -2,5 +2,5 @@
 
 *Parameters*
 
-`field`::
-Input value.
+`string`::
+A string.

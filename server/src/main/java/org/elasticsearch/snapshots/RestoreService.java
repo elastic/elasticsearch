@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -56,8 +57,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -93,8 +92,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -188,6 +188,8 @@ public final class RestoreService implements ClusterStateApplier {
 
     private final ThreadPool threadPool;
 
+    private final Executor snapshotMetaExecutor;
+
     private volatile boolean refreshRepositoryUuidOnRestore;
 
     public RestoreService(
@@ -216,6 +218,7 @@ public final class RestoreService implements ClusterStateApplier {
         this.indicesService = indicesService;
         this.fileSettingsService = fileSettingsService;
         this.threadPool = threadPool;
+        this.snapshotMetaExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT_META);
         this.refreshRepositoryUuidOnRestore = REFRESH_REPO_UUID_ON_RESTORE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(REFRESH_REPO_UUID_ON_RESTORE_SETTING, this::setRefreshRepositoryUuidOnRestore);
@@ -244,59 +247,67 @@ public final class RestoreService implements ClusterStateApplier {
         final ActionListener<RestoreCompletionResponse> listener,
         final BiConsumer<ClusterState, Metadata.Builder> updater
     ) {
-        try {
-            // Try and fill in any missing repository UUIDs in case they're needed during the restore
-            final var repositoryUuidRefreshStep = new ListenableFuture<Void>();
-            refreshRepositoryUuids(refreshRepositoryUuidOnRestore, repositoriesService, () -> repositoryUuidRefreshStep.onResponse(null));
+        assert Repository.assertSnapshotMetaThread();
 
-            // Read snapshot info and metadata from the repository
-            final String repositoryName = request.repository();
-            Repository repository = repositoriesService.repository(repositoryName);
-            final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
-            repository.getRepositoryData(
-                EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading here, do we need to fork, see #101445?
-                repositoryDataListener
-            );
+        // Try and fill in any missing repository UUIDs in case they're needed during the restore
+        final var repositoryUuidRefreshStep = SubscribableListener.newForked(
+            l -> refreshRepositoryUuids(refreshRepositoryUuidOnRestore, repositoriesService, () -> l.onResponse(null), snapshotMetaExecutor)
+        );
 
-            repositoryDataListener.addListener(
-                listener.delegateFailureAndWrap(
-                    (delegate, repositoryData) -> repositoryUuidRefreshStep.addListener(
-                        delegate.delegateFailureAndWrap((subDelegate, ignored) -> {
-                            final String snapshotName = request.snapshot();
-                            final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds()
-                                .stream()
-                                .filter(s -> snapshotName.equals(s.getName()))
-                                .findFirst();
-                            if (matchingSnapshotId.isPresent() == false) {
-                                throw new SnapshotRestoreException(repositoryName, snapshotName, "snapshot does not exist");
-                            }
+        // AtomicReference just so we have somewhere to hold these objects, there's no interesting concurrency here
+        final AtomicReference<Repository> repositoryRef = new AtomicReference<>();
+        final AtomicReference<RepositoryData> repositoryDataRef = new AtomicReference<>();
 
-                            final SnapshotId snapshotId = matchingSnapshotId.get();
-                            if (request.snapshotUuid() != null && request.snapshotUuid().equals(snapshotId.getUUID()) == false) {
-                                throw new SnapshotRestoreException(
-                                    repositoryName,
-                                    snapshotName,
-                                    "snapshot UUID mismatch: expected ["
-                                        + request.snapshotUuid()
-                                        + "] but got ["
-                                        + snapshotId.getUUID()
-                                        + "]"
-                                );
-                            }
-                            repository.getSnapshotInfo(
-                                snapshotId,
-                                subDelegate.delegateFailureAndWrap(
-                                    (l, snapshotInfo) -> startRestore(snapshotInfo, repository, request, repositoryData, updater, l)
-                                )
-                            );
-                        })
-                    )
+        SubscribableListener
+
+            .<Void>newForked(repositorySetListener -> {
+                // do this within newForked for exception handling
+                repositoryRef.set(repositoriesService.repository(request.repository()));
+                repositorySetListener.onResponse(null);
+            })
+
+            .<RepositoryData>andThen(
+                repositoryDataListener -> repositoryRef.get().getRepositoryData(snapshotMetaExecutor, repositoryDataListener)
+            )
+            .andThenAccept(repositoryDataRef::set)
+            .andThen(repositoryUuidRefreshStep::addListener)
+
+            .<SnapshotInfo>andThen(snapshotInfoListener -> {
+                assert Repository.assertSnapshotMetaThread();
+                final String snapshotName = request.snapshot();
+                final SnapshotId snapshotId = repositoryDataRef.get()
+                    .getSnapshotIds()
+                    .stream()
+                    .filter(s -> snapshotName.equals(s.getName()))
+                    .findFirst()
+                    .orElseThrow(() -> new SnapshotRestoreException(request.repository(), snapshotName, "snapshot does not exist"));
+
+                if (request.snapshotUuid() != null && request.snapshotUuid().equals(snapshotId.getUUID()) == false) {
+                    throw new SnapshotRestoreException(
+                        request.repository(),
+                        snapshotName,
+                        "snapshot UUID mismatch: expected [" + request.snapshotUuid() + "] but got [" + snapshotId.getUUID() + "]"
+                    );
+                }
+
+                repositoryRef.get().getSnapshotInfo(snapshotId, snapshotInfoListener);
+            })
+
+            .<RestoreCompletionResponse>andThen(
+                (responseListener, snapshotInfo) -> startRestore(
+                    snapshotInfo,
+                    repositoryRef.get(),
+                    request,
+                    repositoryDataRef.get(),
+                    updater,
+                    responseListener
                 )
-            );
-        } catch (Exception e) {
-            logger.warn(() -> "[" + request.repository() + ":" + request.snapshot() + "] failed to restore snapshot", e);
-            listener.onFailure(e);
-        }
+            )
+
+            .addListener(listener.delegateResponse((delegate, e) -> {
+                logger.warn(() -> "[" + request.repository() + ":" + request.snapshot() + "] failed to restore snapshot", e);
+                delegate.onFailure(e);
+            }));
     }
 
     /**
@@ -511,12 +522,18 @@ public final class RestoreService implements ClusterStateApplier {
      * Best-effort attempt to make sure that we know all the repository UUIDs. Calls {@link Repository#getRepositoryData} on every
      * {@link BlobStoreRepository} with a missing UUID.
      *
-     * @param enabled If {@code false} this method completes the listener immediately
+     * @param enabled             If {@code false} this method completes the listener immediately
      * @param repositoriesService Supplies the repositories to check
-     * @param onCompletion Action that is executed when all repositories have been refreshed.
+     * @param onCompletion        Action that is executed when all repositories have been refreshed.
+     * @param responseExecutor    Executor on which to execute {@code onCompletion} if not using the calling thread.
      */
     // Exposed for tests
-    static void refreshRepositoryUuids(boolean enabled, RepositoriesService repositoriesService, Runnable onCompletion) {
+    static void refreshRepositoryUuids(
+        boolean enabled,
+        RepositoriesService repositoriesService,
+        Runnable onCompletion,
+        Executor responseExecutor
+    ) {
         try (var refs = new RefCountingRunnable(onCompletion)) {
             if (enabled == false) {
                 logger.debug("repository UUID refresh is disabled");
@@ -530,20 +547,17 @@ public final class RestoreService implements ClusterStateApplier {
                 if (repository instanceof BlobStoreRepository && repository.getMetadata().uuid().equals(RepositoryData.MISSING_UUID)) {
                     final var repositoryName = repository.getMetadata().name();
                     logger.info("refreshing repository UUID for repository [{}]", repositoryName);
-                    repository.getRepositoryData(
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading here, do we need to fork, see #101445?
-                        ActionListener.releaseAfter(new ActionListener<>() {
-                            @Override
-                            public void onResponse(RepositoryData repositoryData) {
-                                logger.debug(() -> format("repository UUID [%s] refresh completed", repositoryName));
-                            }
+                    repository.getRepositoryData(responseExecutor, ActionListener.releaseAfter(new ActionListener<>() {
+                        @Override
+                        public void onResponse(RepositoryData repositoryData) {
+                            logger.debug(() -> format("repository UUID [%s] refresh completed", repositoryName));
+                        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.debug(() -> format("repository UUID [%s] refresh failed", repositoryName), e);
-                            }
-                        }, refs.acquire())
-                    );
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.debug(() -> format("repository UUID [%s] refresh failed", repositoryName), e);
+                        }
+                    }, refs.acquire()));
                 }
             }
         }

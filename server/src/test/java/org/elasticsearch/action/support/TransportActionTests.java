@@ -20,6 +20,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -41,7 +42,8 @@ public class TransportActionTests extends ESTestCase {
     public void init() throws Exception {
         threadPool = new ThreadPool(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "TransportActionTests").build(),
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
         );
     }
 

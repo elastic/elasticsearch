@@ -167,9 +167,12 @@ public class AzureStorageService {
         // clients are built lazily by {@link client(String, LocationMode)}
     }
 
+    /**
+     * For Azure repositories, we report the different kinds of credentials in use in the telemetry.
+     */
     public Set<String> getExtraUsageFeatures(String clientName) {
         try {
-            return getClientSettings(clientName).usageFeatures();
+            return getClientSettings(clientName).credentialsUsageFeatures();
         } catch (Exception e) {
             return Set.of();
         }

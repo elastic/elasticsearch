@@ -1281,6 +1281,28 @@ They are included here for expert users, but should otherwise be ignored.
 ======
 
 =====
+`repositories`::
+(object) Contains statistics about the <<snapshot-restore,snapshot>> repositories defined in the cluster, broken down
+by repository type.
++
+.Properties of `repositories`
+[%collapsible%open]
+======
+
+`count`:::
+(integer) The number of repositories of this type in the cluster.
+
+`read_only`:::
+(integer) The number of repositories of this type in the cluster which are registered read-only.
+
+`read_write`:::
+(integer) The number of repositories of this type in the cluster which are not registered as read-only.
+
+Each repository type may also include other statistics about the repositories of that type here.
+
+======
+
+=====
 
 [[cluster-stats-api-example]]
 ==== {api-examples-title}

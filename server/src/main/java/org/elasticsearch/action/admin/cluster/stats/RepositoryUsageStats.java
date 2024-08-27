@@ -17,6 +17,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Stats on repository feature usage exposed in cluster stats for telemetry.
+ *
+ * @param statsByType a count of the repositories using various named features, keyed by repository type and then by feature name.
+ */
 public record RepositoryUsageStats(Map<String, Map<String, Long>> statsByType) implements Writeable, ToXContentObject {
 
     public static final RepositoryUsageStats EMPTY = new RepositoryUsageStats(Map.of());

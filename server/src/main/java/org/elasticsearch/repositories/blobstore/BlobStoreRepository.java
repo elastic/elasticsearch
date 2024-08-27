@@ -3958,6 +3958,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         );
     }
 
+    /**
+     * All blob-store repositories include the counts of read-only and read-write repositories in their telemetry. This method returns other
+     * features of the repositories in use.
+     *
+     * @return a set of the names of the extra features that this repository instance uses, for reporting in the cluster stats for telemetry
+     *         collection.
+     */
     protected Set<String> getExtraUsageFeatures() {
         return Set.of();
     }

@@ -131,7 +131,7 @@ final class AzureStorageSettings {
     private final int maxRetries;
     private final Proxy proxy;
     private final boolean hasCredentials;
-    private final Set<String> usageFeatures;
+    private final Set<String> credentialsUsageFeatures;
 
     private AzureStorageSettings(
         String account,
@@ -152,7 +152,7 @@ final class AzureStorageSettings {
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
-        this.usageFeatures = Strings.hasText(key) ? Set.of("uses_key_credentials")
+        this.credentialsUsageFeatures = Strings.hasText(key) ? Set.of("uses_key_credentials")
             : Strings.hasText(sasToken) ? Set.of("uses_sas_token")
             : SocketAccess.doPrivilegedException(() -> System.getenv("AZURE_FEDERATED_TOKEN_FILE")) == null
                 ? Set.of("uses_default_credentials", "uses_managed_identity")
@@ -375,7 +375,7 @@ final class AzureStorageSettings {
         }
     }
 
-    public Set<String> usageFeatures() {
-        return usageFeatures;
+    public Set<String> credentialsUsageFeatures() {
+        return credentialsUsageFeatures;
     }
 }

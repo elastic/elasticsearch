@@ -29,6 +29,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -479,10 +480,13 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 new EsqlQueryResponse.Profile(
                     List.of(
                         new DriverProfile(
+                            1723489812649L,
+                            1723489819929L,
                             20021,
                             20000,
                             12,
-                            List.of(new DriverStatus.OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10)))
+                            List.of(new DriverStatus.OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10))),
+                            DriverSleeps.empty()
                         )
                     )
                 ),
@@ -509,6 +513,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "profile" : {
                     "drivers" : [
                       {
+                        "start_millis" : 1723489812649,
+                        "stop_millis" : 1723489819929,
                         "took_nanos" : 20021,
                         "cpu_nanos" : 20000,
                         "iterations" : 12,
@@ -520,7 +526,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                               "pages_processed" : 10
                             }
                           }
-                        ]
+                        ],
+                        "sleeps" : {
+                          "counts" : { },
+                          "first" : [ ],
+                          "last" : [ ]
+                        }
                       }
                     ]
                   }

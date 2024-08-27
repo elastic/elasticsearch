@@ -5,9 +5,9 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 lhs | rhs | result
+date | date_period | date
+date | time_duration | date
 date_period | date_period | date_period
-datetime | date_period | datetime
-datetime | time_duration | datetime
 double | double | double
 double | integer | double
 double | long | double

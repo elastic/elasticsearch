@@ -5,5 +5,5 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 result
-datetime
+date
 |===

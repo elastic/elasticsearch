@@ -120,6 +120,7 @@ public abstract class BaseRestHandler implements RestHandler {
                 assert action instanceof RequestBodyChunkConsumer;
                 var chunkConsumer = (RequestBodyChunkConsumer) action;
                 request.contentStream().setHandler((chunk, isLast) -> chunkConsumer.handleChunk(channel, chunk, isLast));
+                channel.stashContext();
             }
 
             usageCount.increment();

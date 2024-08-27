@@ -9,6 +9,8 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.ThreadContextAware;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -19,7 +21,7 @@ import java.io.OutputStream;
 /**
  * A channel used to construct bytes / builder based outputs, and send responses.
  */
-public interface RestChannel {
+public interface RestChannel extends ThreadContextAware {
 
     XContentBuilder newBuilder() throws IOException;
 
@@ -53,4 +55,20 @@ public interface RestChannel {
     boolean detailedErrorsEnabled();
 
     void sendResponse(RestResponse response);
+
+    @Override
+    default ThreadContext threadContext() {
+        throw new IllegalStateException();
+    }
+
+    @Override
+    default void stashContext() {
+        throw new IllegalStateException();
+    }
+
+    @Override
+    default void restoreContext() {
+        throw new IllegalStateException();
+    }
+
 }

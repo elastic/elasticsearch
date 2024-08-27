@@ -338,6 +338,27 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
+    // ensures that response has transient headers, for example from ThreadContext
+    public void testTransientResponseHeaders() throws Exception {
+        try (var ctx = setupClientCtx()) {
+            var id = opaqueId(0);
+            var contentSize = randomIntBetween(0, maxContentLength());
+            var req = httpRequest(id, contentSize);
+            var content = randomContent(contentSize, true);
+
+            ctx.clientChannel.writeAndFlush(req);
+            ctx.clientChannel.writeAndFlush(content);
+
+            var handler = ctx.awaitRestChannelAccepted(id);
+            handler.readAllBytes();
+            handler.sendResponse(new RestResponse(RestStatus.OK, ""));
+
+            var resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
+            var headers = resp.headers();
+            assertEquals(RestController.ELASTIC_PRODUCT_HTTP_HEADER_VALUE, headers.get(RestController.ELASTIC_PRODUCT_HTTP_HEADER));
+        }
+    }
+
     private int maxContentLength() {
         return HttpHandlingSettings.fromSettings(internalCluster().getInstance(Settings.class)).maxContentLength();
     }

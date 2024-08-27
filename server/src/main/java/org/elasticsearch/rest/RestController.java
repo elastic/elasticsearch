@@ -84,8 +84,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
      */
     static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of("application/x-www-form-urlencoded", "multipart/form-data", "text/plain");
 
-    static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
-    static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
+    public static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
+    public static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
     static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
     private static final BytesReference FAVICON_RESPONSE;
     public static final String STATUS_CODE_KEY = "es_rest_status_code";
@@ -879,6 +879,21 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public void sendResponse(RestResponse response) {
             delegate.sendResponse(response);
+        }
+
+        @Override
+        public ThreadContext threadContext() {
+            return delegate.threadContext();
+        }
+
+        @Override
+        public void stashContext() {
+            delegate.stashContext();
+        }
+
+        @Override
+        public void restoreContext() {
+            delegate.restoreContext();
         }
     }
 

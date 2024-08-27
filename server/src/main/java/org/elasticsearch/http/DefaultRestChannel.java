@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.ThreadContextAware;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -38,7 +39,7 @@ import static org.elasticsearch.tasks.Task.X_OPAQUE_ID_HTTP_HEADER;
  * The default rest channel for incoming requests. This class implements the basic logic for sending a rest
  * response. It will set necessary headers nad ensure that bytes are released after the response is sent.
  */
-public class DefaultRestChannel extends AbstractRestChannel {
+public class DefaultRestChannel extends AbstractRestChannel implements ThreadContextAware {
 
     static final String CLOSE = "close";
     static final String CONNECTION = "connection";
@@ -51,6 +52,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
     private final Recycler<BytesRef> recycler;
     private final HttpHandlingSettings settings;
     private final ThreadContext threadContext;
+    private ThreadContext.StoredContext storedContext;
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
     private final Tracer tracer;
@@ -155,6 +157,9 @@ public class DefaultRestChannel extends AbstractRestChannel {
 
             // Add all custom headers
             addCustomHeaders(httpResponse, restResponse.getHeaders());
+            if (storedContext != null) {
+                restoreContext();
+            }
             addCustomHeaders(httpResponse, restResponse.filterHeaders(threadContext.getResponseHeaders()));
 
             // If our response doesn't specify a content-type header, set one
@@ -226,5 +231,23 @@ public class DefaultRestChannel extends AbstractRestChannel {
                 }
             }
         }
+    }
+
+    @Override
+    public void stashContext() {
+        assert storedContext == null;
+        storedContext = threadContext.stashContext();
+    }
+
+    @Override
+    public void restoreContext() {
+        assert storedContext != null;
+        storedContext.close();
+        storedContext = null;
+    }
+
+    @Override
+    public ThreadContext threadContext() {
+        return threadContext;
     }
 }

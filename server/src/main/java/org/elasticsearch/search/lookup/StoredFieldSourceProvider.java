@@ -31,7 +31,7 @@ class StoredFieldSourceProvider implements SourceProvider {
     @Override
     public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
         final Object id = ctx.id();
-        var provider = leaves.get(ctx.id());
+        var provider = leaves.get(id);
         if (provider == null) {
             provider = new LeafStoredFieldSourceProvider(storedFieldLoader.getLoader(ctx, null));
             var existing = leaves.putIfAbsent(id, provider);

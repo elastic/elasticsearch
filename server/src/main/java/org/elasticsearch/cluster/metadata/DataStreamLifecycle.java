@@ -65,6 +65,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME,
         "true"
     );
+    public static final Tuple<TimeValue, RetentionSource> INFINITE_RETENTION = Tuple.tuple(null, RetentionSource.DATA_STREAM_CONFIGURATION);
 
     /**
      * Check if {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME} is present and set to {@code true}, indicating that
@@ -172,7 +173,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     ) {
         // If lifecycle is disabled there is no effective retention
         if (enabled == false) {
-            return Tuple.tuple(null, RetentionSource.DATA_STREAM_CONFIGURATION);
+            return INFINITE_RETENTION;
         }
         var dataStreamRetention = getDataStreamRetention();
         if (globalRetention == null || isInternalDataStream) {

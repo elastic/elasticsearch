@@ -990,3 +990,65 @@ subobjects auto:
   - match: { hits.hits.3._source.id: 4  }
   - match: { hits.hits.3._source.auto_obj.foo: 40 }
   - match: { hits.hits.3._source.auto_obj.foo\.bar: 400 }
+
+---
+synthetic_source with copy_to:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_copy_to"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              number:
+                type: integer
+                copy_to: number_copy
+              number_copy:
+                type: keyword
+              boolean:
+                type: boolean
+                copy_to: boolean_copy
+              boolean_copy:
+                type: keyword
+              keyword:
+                type: keyword
+                copy_to: keyword_copy
+              keyword_copy:
+                type: keyword
+              date:
+                type: date
+                copy_to: date_copy
+              date_copy:
+                type: keyword
+              text:
+                type: text
+                copy_to: text_copy
+              text_copy:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "number": 100, "boolean": false, "keyword": "hello_keyword", "date": "2015-01-01T12:10:30Z", "text": "hello_text" }'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        fields: ["number_copy", "boolean_copy", "keyword_copy", "date_copy", "date_copy", "text_copy"]
+
+
+  - match: { hits.hits.0._source.number: 100 }
+  - match: { hits.hits.0._source.boolean: false }
+  - match: { hits.hits.0._source.keyword: "hello_keyword" }
+  - match: { hits.hits.0._source.date: "2015-01-01T12:10:30Z" }
+  - match: { hits.hits.0._source.text: "hello_text" }

@@ -992,15 +992,7 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasScript) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
                 "field ["
@@ -1010,16 +1002,12 @@ public final class DateFieldMapper extends FieldMapper {
                     + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        return new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed) {
+
+        return new SyntheticSourceSupport.Native(new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed) {
             @Override
             protected void writeValue(XContentBuilder b, long value) throws IOException {
                 b.value(fieldType().format(value, fieldType().dateTimeFormatter()));
             }
-        };
+        });
     }
 }

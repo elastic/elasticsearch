@@ -1026,36 +1026,21 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        if (hasNormalizer()) {
-            // NOTE: no matter if we have doc values or not we use a stored field to reconstruct the original value
-            // whose doc values would be altered by the normalizer
-            return SyntheticSourceMode.FALLBACK;
-        }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType.stored() || hasDocValues) {
-            return SyntheticSourceMode.NATIVE;
+            return new SyntheticSourceSupport.Native(syntheticFieldLoader(leafName()));
         }
 
-        return SyntheticSourceMode.FALLBACK;
+        return super.syntheticSourceSupport();
     }
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return syntheticFieldLoader(leafName());
-    }
+    private SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
+        assert fieldType.stored() || hasDocValues;
 
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
-        if (hasScript()) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
-        if (copyTo.copyToFields().isEmpty() != true) {
+        if (hasNormalizer()) {
             throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
             );
-        }
-
-        if (syntheticSourceMode() != SyntheticSourceMode.NATIVE) {
-            return super.syntheticFieldLoader();
         }
 
         var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();

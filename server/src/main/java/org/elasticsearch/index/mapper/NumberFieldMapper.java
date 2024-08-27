@@ -1987,30 +1987,14 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            return SyntheticSourceMode.NATIVE;
+            return new SyntheticSourceSupport.Native(type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()));
         }
 
-        return SyntheticSourceMode.FALLBACK;
+        return super.syntheticSourceSupport();
     }
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasScript()) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        if (hasDocValues) {
-            return type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value());
-        }
-
-        return super.syntheticFieldLoader();
-    }
 
     // For testing only:
     void setAllowMultipleValues(boolean allowMultipleValues) {

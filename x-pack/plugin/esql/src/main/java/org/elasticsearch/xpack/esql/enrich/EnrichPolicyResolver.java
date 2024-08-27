@@ -332,7 +332,7 @@ public class EnrichPolicyResolver {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(policies, (o, v) -> v.writeTo(o));
+            out.writeMap(policies, StreamOutput::writeWriteable);
             out.writeMap(failures, StreamOutput::writeString);
         }
     }

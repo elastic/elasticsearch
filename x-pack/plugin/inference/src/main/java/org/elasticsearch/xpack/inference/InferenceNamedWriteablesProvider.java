@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloa
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettings;
@@ -117,6 +118,8 @@ public class InferenceNamedWriteablesProvider {
         addAnthropicNamedWritables(namedWriteables);
         addAmazonBedrockNamedWriteables(namedWriteables);
         addEisNamedWriteables(namedWriteables);
+
+        namedWriteables.addAll(StreamingTaskManager.namedWriteables());
 
         return namedWriteables;
     }

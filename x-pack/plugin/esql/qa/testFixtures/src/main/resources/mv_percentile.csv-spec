@@ -95,15 +95,15 @@ FROM employees
     integer = MV_PERCENTILE(salary_change.int, 75),
     long = MV_PERCENTILE(salary_change.long, 75),
     double = MV_PERCENTILE(salary_change, 75)
-| KEEP integer, long, double
+| KEEP emp_no, integer, long, double
 | SORT double
 | LIMIT 3
 ;
 
-integer:integer | long:long | double:double
--8              | -8        | -8.46
--7              | -7        | -7.08
--6              | -6        | -6.9
+emp_no:integer | integer:integer | long:long | double:double
+10034          | -8              | -8        | -8.46
+10037          | -7              | -7        | -7.08
+10039          | -6              | -6        | -6.9
 ;
 
 fromIndexPercentile

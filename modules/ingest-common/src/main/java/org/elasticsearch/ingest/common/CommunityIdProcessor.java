@@ -225,7 +225,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         }
         flow.protocol = Transport.fromObject(protocol);
 
-        switch (flow.protocol) {
+        switch (flow.protocol.getType()) {
             case Tcp, Udp, Sctp -> {
                 flow.sourcePort = parseIntFromObjectOrString(sourcePort.get(), "source port");
                 if (flow.sourcePort < 1 || flow.sourcePort > 65535) {
@@ -336,12 +336,12 @@ public final class CommunityIdProcessor extends AbstractProcessor {
      */
     public static final class Flow {
 
-        private static final List<Transport> TRANSPORTS_WITH_PORTS = List.of(
-            Transport.Tcp,
-            Transport.Udp,
-            Transport.Sctp,
-            Transport.Icmp,
-            Transport.IcmpIpV6
+        private static final List<Transport.Type> TRANSPORTS_WITH_PORTS = List.of(
+            Transport.Type.Tcp,
+            Transport.Type.Udp,
+            Transport.Type.Sctp,
+            Transport.Type.Icmp,
+            Transport.Type.IcmpIpV6
         );
 
         InetAddress source;
@@ -362,20 +362,21 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         }
 
         byte[] toBytes() {
-            boolean hasPort = TRANSPORTS_WITH_PORTS.contains(protocol);
+            Transport.Type protoType = protocol.getType();
+            boolean hasPort = TRANSPORTS_WITH_PORTS.contains(protoType);
             int len = source.getAddress().length + destination.getAddress().length + 2 + (hasPort ? 4 : 0);
             ByteBuffer bb = ByteBuffer.allocate(len);
 
             boolean isOneWay = false;
-            if (protocol == Transport.Icmp || protocol == Transport.IcmpIpV6) {
+            if (protoType == Transport.Type.Icmp || protoType == Transport.Type.IcmpIpV6) {
                 // ICMP protocols populate port fields with ICMP data
-                Integer equivalent = IcmpType.codeEquivalent(icmpType, protocol == Transport.IcmpIpV6);
+                Integer equivalent = IcmpType.codeEquivalent(icmpType, protoType == Transport.Type.IcmpIpV6);
                 isOneWay = equivalent == null;
                 sourcePort = icmpType;
                 destinationPort = equivalent == null ? icmpCode : equivalent;
             }
 
-            boolean keepOrder = isOrdered() || ((protocol == Transport.Icmp || protocol == Transport.IcmpIpV6) && isOneWay);
+            boolean keepOrder = isOrdered() || ((protoType == Transport.Type.Icmp || protoType == Transport.Type.IcmpIpV6) && isOneWay);
             bb.put(keepOrder ? source.getAddress() : destination.getAddress());
             bb.put(keepOrder ? destination.getAddress() : source.getAddress());
             bb.put(toUint16(protocol.getTransportNumber() << 8));
@@ -397,39 +398,63 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         }
     }
 
-    public enum Transport {
-        Icmp(1),
-        Igmp(2),
-        Tcp(6),
-        Udp(17),
-        Gre(47),
-        IcmpIpV6(58),
-        Eigrp(88),
-        Ospf(89),
-        Pim(103),
-        Sctp(132);
+    static class Transport {
+        public enum Type {
+            Unknown(-1),
+            Icmp(1),
+            Igmp(2),
+            Tcp(6),
+            Udp(17),
+            Gre(47),
+            IcmpIpV6(58),
+            Eigrp(88),
+            Ospf(89),
+            Pim(103),
+            Sctp(132);
 
-        private final int transportNumber;
+            private final int transportNumber;
 
-        private static final Map<String, Transport> TRANSPORT_NAMES;
+            private static final Map<String, Type> TRANSPORT_NAMES;
 
-        static {
-            TRANSPORT_NAMES = new HashMap<>();
-            TRANSPORT_NAMES.put("icmp", Icmp);
-            TRANSPORT_NAMES.put("igmp", Igmp);
-            TRANSPORT_NAMES.put("tcp", Tcp);
-            TRANSPORT_NAMES.put("udp", Udp);
-            TRANSPORT_NAMES.put("gre", Gre);
-            TRANSPORT_NAMES.put("ipv6-icmp", IcmpIpV6);
-            TRANSPORT_NAMES.put("icmpv6", IcmpIpV6);
-            TRANSPORT_NAMES.put("eigrp", Eigrp);
-            TRANSPORT_NAMES.put("ospf", Ospf);
-            TRANSPORT_NAMES.put("pim", Pim);
-            TRANSPORT_NAMES.put("sctp", Sctp);
+            static {
+                TRANSPORT_NAMES = new HashMap<>();
+                TRANSPORT_NAMES.put("icmp", Icmp);
+                TRANSPORT_NAMES.put("igmp", Igmp);
+                TRANSPORT_NAMES.put("tcp", Tcp);
+                TRANSPORT_NAMES.put("udp", Udp);
+                TRANSPORT_NAMES.put("gre", Gre);
+                TRANSPORT_NAMES.put("ipv6-icmp", IcmpIpV6);
+                TRANSPORT_NAMES.put("icmpv6", IcmpIpV6);
+                TRANSPORT_NAMES.put("eigrp", Eigrp);
+                TRANSPORT_NAMES.put("ospf", Ospf);
+                TRANSPORT_NAMES.put("pim", Pim);
+                TRANSPORT_NAMES.put("sctp", Sctp);
+            }
+
+            Type(int transportNumber) {
+                this.transportNumber = transportNumber;
+            }
+
+            public int getTransportNumber() {
+                return transportNumber;
+            }
         }
 
-        Transport(int transportNumber) {
+        private Type type;
+        private int transportNumber;
+
+        Transport(int transportNumber, Type type) { // Change constructor to public
             this.transportNumber = transportNumber;
+            this.type = type;
+        }
+
+        Transport(Type type) { // Change constructor to public
+            this.transportNumber = type.getTransportNumber();
+            this.type = type;
+        }
+
+        public Type getType() {
+            return this.type;
         }
 
         public int getTransportNumber() {
@@ -437,19 +462,26 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         }
 
         public static Transport fromNumber(int transportNumber) {
-            return switch (transportNumber) {
-                case 1 -> Icmp;
-                case 2 -> Igmp;
-                case 6 -> Tcp;
-                case 17 -> Udp;
-                case 47 -> Gre;
-                case 58 -> IcmpIpV6;
-                case 88 -> Eigrp;
-                case 89 -> Ospf;
-                case 103 -> Pim;
-                case 132 -> Sctp;
-                default -> throw new IllegalArgumentException("unknown transport protocol number [" + transportNumber + "]");
+            if (transportNumber < 0 || transportNumber >= 255) {
+                // transport numbers range https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
+                throw new IllegalArgumentException("invalid transport protocol number [" + transportNumber + "]");
+            }
+
+            Type type = switch (transportNumber) {
+                case 1 -> Type.Icmp;
+                case 2 -> Type.Igmp;
+                case 6 -> Type.Tcp;
+                case 17 -> Type.Udp;
+                case 47 -> Type.Gre;
+                case 58 -> Type.IcmpIpV6;
+                case 88 -> Type.Eigrp;
+                case 89 -> Type.Ospf;
+                case 103 -> Type.Pim;
+                case 132 -> Type.Sctp;
+                default -> Type.Unknown;
             };
+
+            return new Transport(transportNumber, type);
         }
 
         public static Transport fromObject(Object o) {
@@ -457,8 +489,8 @@ public final class CommunityIdProcessor extends AbstractProcessor {
                 return fromNumber(number.intValue());
             } else if (o instanceof String protocolStr) {
                 // check if matches protocol name
-                if (TRANSPORT_NAMES.containsKey(protocolStr.toLowerCase(Locale.ROOT))) {
-                    return TRANSPORT_NAMES.get(protocolStr.toLowerCase(Locale.ROOT));
+                if (Type.TRANSPORT_NAMES.containsKey(protocolStr.toLowerCase(Locale.ROOT))) {
+                    return new Transport(Type.TRANSPORT_NAMES.get(protocolStr.toLowerCase(Locale.ROOT)));
                 }
 
                 // check if convertible to protocol number

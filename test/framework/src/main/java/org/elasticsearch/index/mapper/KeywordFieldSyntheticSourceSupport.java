@@ -130,8 +130,8 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     public List<MapperTestCase.SyntheticSourceInvalidExample> invalidExample() throws IOException {
         return List.of(
             new MapperTestCase.SyntheticSourceInvalidExample(
-                equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares a normalizer"),
-                b -> b.field("type", "keyword").field("normalizer", "lowercase")
+                equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares copy_to"),
+                b -> b.field("type", "keyword").field("copy_to", "copy_field")
             )
         );
     }

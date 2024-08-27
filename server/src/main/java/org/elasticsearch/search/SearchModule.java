@@ -237,6 +237,8 @@ import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
+import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
+import org.elasticsearch.search.retriever.rankdoc.RankDocsSortBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -851,10 +853,12 @@ public class SearchModule {
     }
 
     private void registerRankers() {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankDoc.class, RankDoc.NAME, RankDoc::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(RankDoc.class, RankFeatureDoc.NAME, RankFeatureDoc::new));
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(RankShardResult.class, RankFeatureShardResult.NAME, RankFeatureShardResult::new)
         );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, RankDocsQueryBuilder.NAME, RankDocsQueryBuilder::new));
     }
 
     private void registerSorts() {
@@ -862,6 +866,7 @@ public class SearchModule {
         namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, ScoreSortBuilder.NAME, ScoreSortBuilder::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, ScriptSortBuilder.NAME, ScriptSortBuilder::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, RankDocsSortBuilder.NAME, RankDocsSortBuilder::new));
     }
 
     private static <T> void registerFromPlugin(List<SearchPlugin> plugins, Function<SearchPlugin, List<T>> producer, Consumer<T> consumer) {

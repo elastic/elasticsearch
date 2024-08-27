@@ -111,9 +111,9 @@ import org.elasticsearch.search.query.NonCountingTermQuery;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.TestRankBuilder;
-import org.elasticsearch.search.rank.TestRankDoc;
 import org.elasticsearch.search.rank.TestRankShardResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
@@ -504,9 +504,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                         // we know we have just 1 query, so return all the docs from it
                                         return new TestRankShardResult(
                                             Arrays.stream(rankResults.get(0).scoreDocs)
-                                                .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                 .limit(rankWindowSize())
-                                                .toArray(TestRankDoc[]::new)
+                                                .toArray(RankDoc[]::new)
                                         );
                                     }
                                 };
@@ -553,7 +553,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             queryResult = (QuerySearchResult) queryPhaseResults.get();
 
             // these are the matched docs from the query phase
-            final TestRankDoc[] queryRankDocs = ((TestRankShardResult) queryResult.getRankShardResult()).testRankDocs;
+            final RankDoc[] queryRankDocs = ((TestRankShardResult) queryResult.getRankShardResult()).testRankDocs;
 
             // assume that we have cut down to these from the coordinator node as the top-docs to run the rank feature phase upon
             List<Integer> topRankWindowSizeDocs = randomNonEmptySubsetOf(Arrays.stream(queryRankDocs).map(x -> x.doc).toList());
@@ -709,18 +709,18 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             List<QuerySearchResult> querySearchResults,
                                             SearchPhaseController.TopDocsStats topDocStats
                                         ) {
-                                            List<TestRankDoc> rankDocs = new ArrayList<>();
+                                            List<RankDoc> rankDocs = new ArrayList<>();
                                             for (int i = 0; i < querySearchResults.size(); i++) {
                                                 QuerySearchResult querySearchResult = querySearchResults.get(i);
                                                 TestRankShardResult shardResult = (TestRankShardResult) querySearchResult
                                                     .getRankShardResult();
-                                                for (TestRankDoc trd : shardResult.testRankDocs) {
+                                                for (RankDoc trd : shardResult.testRankDocs) {
                                                     trd.shardIndex = i;
                                                     rankDocs.add(trd);
                                                 }
                                             }
-                                            rankDocs.sort(Comparator.comparing((TestRankDoc doc) -> doc.score).reversed());
-                                            TestRankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(TestRankDoc[]::new);
+                                            rankDocs.sort(Comparator.comparing((RankDoc doc) -> doc.score).reversed());
+                                            RankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(RankDoc[]::new);
                                             topDocStats.fetchHits = topResults.length;
                                             return topResults;
                                         }
@@ -741,9 +741,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             // we know we have just 1 query, so return all the docs from it
                                             return new TestRankShardResult(
                                                 Arrays.stream(rankResults.get(0).scoreDocs)
-                                                    .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                    .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                     .limit(rankWindowSize())
-                                                    .toArray(TestRankDoc[]::new)
+                                                    .toArray(RankDoc[]::new)
                                             );
                                         }
                                     };
@@ -868,9 +868,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                         // we know we have just 1 query, so return all the docs from it
                                         return new TestRankShardResult(
                                             Arrays.stream(rankResults.get(0).scoreDocs)
-                                                .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                 .limit(rankWindowSize())
-                                                .toArray(TestRankDoc[]::new)
+                                                .toArray(RankDoc[]::new)
                                         );
                                     }
                                 };
@@ -969,18 +969,18 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             List<QuerySearchResult> querySearchResults,
                                             SearchPhaseController.TopDocsStats topDocStats
                                         ) {
-                                            List<TestRankDoc> rankDocs = new ArrayList<>();
+                                            List<RankDoc> rankDocs = new ArrayList<>();
                                             for (int i = 0; i < querySearchResults.size(); i++) {
                                                 QuerySearchResult querySearchResult = querySearchResults.get(i);
                                                 TestRankShardResult shardResult = (TestRankShardResult) querySearchResult
                                                     .getRankShardResult();
-                                                for (TestRankDoc trd : shardResult.testRankDocs) {
+                                                for (RankDoc trd : shardResult.testRankDocs) {
                                                     trd.shardIndex = i;
                                                     rankDocs.add(trd);
                                                 }
                                             }
-                                            rankDocs.sort(Comparator.comparing((TestRankDoc doc) -> doc.score).reversed());
-                                            TestRankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(TestRankDoc[]::new);
+                                            rankDocs.sort(Comparator.comparing((RankDoc doc) -> doc.score).reversed());
+                                            RankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(RankDoc[]::new);
                                             topDocStats.fetchHits = topResults.length;
                                             return topResults;
                                         }
@@ -1001,9 +1001,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             // we know we have just 1 query, so return all the docs from it
                                             return new TestRankShardResult(
                                                 Arrays.stream(rankResults.get(0).scoreDocs)
-                                                    .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                    .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                     .limit(rankWindowSize())
-                                                    .toArray(TestRankDoc[]::new)
+                                                    .toArray(RankDoc[]::new)
                                             );
                                         }
                                     };
@@ -1097,18 +1097,18 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             List<QuerySearchResult> querySearchResults,
                                             SearchPhaseController.TopDocsStats topDocStats
                                         ) {
-                                            List<TestRankDoc> rankDocs = new ArrayList<>();
+                                            List<RankDoc> rankDocs = new ArrayList<>();
                                             for (int i = 0; i < querySearchResults.size(); i++) {
                                                 QuerySearchResult querySearchResult = querySearchResults.get(i);
                                                 TestRankShardResult shardResult = (TestRankShardResult) querySearchResult
                                                     .getRankShardResult();
-                                                for (TestRankDoc trd : shardResult.testRankDocs) {
+                                                for (RankDoc trd : shardResult.testRankDocs) {
                                                     trd.shardIndex = i;
                                                     rankDocs.add(trd);
                                                 }
                                             }
-                                            rankDocs.sort(Comparator.comparing((TestRankDoc doc) -> doc.score).reversed());
-                                            TestRankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(TestRankDoc[]::new);
+                                            rankDocs.sort(Comparator.comparing((RankDoc doc) -> doc.score).reversed());
+                                            RankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(RankDoc[]::new);
                                             topDocStats.fetchHits = topResults.length;
                                             return topResults;
                                         }
@@ -1129,9 +1129,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             // we know we have just 1 query, so return all the docs from it
                                             return new TestRankShardResult(
                                                 Arrays.stream(rankResults.get(0).scoreDocs)
-                                                    .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                    .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                     .limit(rankWindowSize())
-                                                    .toArray(TestRankDoc[]::new)
+                                                    .toArray(RankDoc[]::new)
                                             );
                                         }
                                     };

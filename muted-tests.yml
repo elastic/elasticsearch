@@ -163,6 +163,9 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.create/20_synthetic_source/stored field under object with store_array_source}
   issue: https://github.com/elastic/elasticsearch/issues/112264
+- class: org.elasticsearch.search.query.ScriptScoreQueryTests
+  method: testScriptTermStatsAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/112278
 
 # Examples:
 #

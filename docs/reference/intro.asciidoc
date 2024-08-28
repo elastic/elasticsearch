@@ -1,7 +1,7 @@
 [[elasticsearch-intro]]
 == What is {es}?
 
-https://github.com/elastic/elasticsearch[{es}] is a distributed search and analytics engine, scalable data store, and vector database built on Apache Lucene.
+{es-repo}[{es}] is a distributed search and analytics engine, scalable data store, and vector database built on Apache Lucene.
 It's optimized for speed and relevance on production-scale workloads.
 Use {es} to search, index, store, and analyze data of all shapes and sizes in near real time.
 
@@ -10,7 +10,7 @@ Use {es} to search, index, store, and analyze data of all shapes and sizes in ne
 {es} has a lot of features. Explore the full list on the https://www.elastic.co/elasticsearch/features[product webpage^].
 ====
 
-{es} is the heart of the <<elasticsearch-intro-elastic-stack,{stack}>> and powers the Elastic https://www.elastic.co/enterprise-search[Search], https://www.elastic.co/observability[Observability] and https://www.elastic.co/security[Security] solutions.
+{es} is the heart of the {estc-welcome-current}/stack-components.html[Elastic Stack] and powers the Elastic https://www.elastic.co/enterprise-search[Search], https://www.elastic.co/observability[Observability] and https://www.elastic.co/security[Security] solutions.
 
 {es} is used for a wide and growing range of use cases. Here are a few examples:
 
@@ -30,14 +30,6 @@ Refer to our https://www.elastic.co/customers/success-stories[customer success s
 .What is the Elastic Stack?
 *******************************
 {es} is the core component of the Elastic Stack, a suite of products for collecting, storing, searching, and visualizing data.
-
-* https://www.elastic.co/guide/en/kibana/current/index.html[Kibana]. A UI for visualizing and exploring data in {es}.
-* https://www.elastic.co/guide/en/elasticsearch/client/index.html[Client libraries]. Work with {es} in your preferred programming language.
-* https://www.elastic.co/guide/en/logstash/current/introduction.html[Logstash]. A server-side data processing pipeline for ingesting and transforming data from multiple sources and indexing into {es}.
-* https://www.elastic.co/guide/en/fleet/current/fleet-overview.html[Fleet and Elastic Agent.] Elastic Agent is a single, unified way to add monitoring for logs, metrics, and other types of data to a host. Fleet is a central place to configure and monitor your Elastic Agents.
-* https://www.elastic.co/guide/en/beats/libbeat/current/beats-reference.html[Beats]. Lightweight data shippers for sending data from edge machines to {es}.
-* https://www.elastic.co/guide/en/observability/current/apm.html[APM]. Monitor the performance of your applications.
-
 https://www.elastic.co/guide/en/starting-with-the-elasticsearch-platform-and-its-solutions/current/stack-components.html[Learn more about the Elastic Stack].
 *******************************
 // TODO: Remove once we've moved Stack Overview to a subpage?
@@ -50,14 +42,14 @@ To use {es}, you need a running instance of the {es} service.
 You can deploy {es} in various ways:
 
 * <<run-elasticsearch-locally,*Local dev*>>. Get started quickly with a minimal local Docker setup. 
-* https://elastic.co/guide/en/cloud/current/ec-getting-started.html[*Elastic Cloud*]. {es} is available as part of our hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14 day free trial].
-* https://www.elastic.co/docs/current/serverless[*Elastic Cloud Serverless* (technical preview)]. Create serverless projects for autoscaled and fully-managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14 day free trial].
+* {cloud}/ec-getting-started-trial.html[*Elastic Cloud*]. {es} is available as part of our hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14 day free trial].
+* {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless* (technical preview)]. Create serverless projects for autoscaled and fully-managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14 day free trial].
 
 **Advanced deployment options**
 
 * <<elasticsearch-deployment-options,*Self managed*>>. Install, configure, and run {es} on your own premises.
-* https://elastic.co/guide/en/cloud-enterprise/current/Elastic-Cloud-Enterprise-overview.html[*Elastic Cloud Enterprise*]. Deploy Elastic Cloud on public or private clouds, virtual machines, or your own premises.
-* https://elastic.co/guide/en/cloud-on-k8s/current/k8s-overview.html[*Elastic Cloud on Kubernetes*]. Deploy Elastic Cloud on Kubernetes.
+* {ece-ref}/Elastic-Cloud-Enterprise-overview.html[*Elastic Cloud Enterprise*]. Deploy Elastic Cloud on public or private clouds, virtual machines, or your own premises.
+* {eck-ref}/k8s-overview.html[*Elastic Cloud on Kubernetes*]. Deploy Elastic Cloud on Kubernetes.
 
 [discrete]
 [[elasticsearch-next-steps]]

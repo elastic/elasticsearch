@@ -90,6 +90,32 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
     }
 
     @Override
+    public BooleanBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new BooleanVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new BooleanVectorBlock(this);
+            }
+            return (BooleanBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (BooleanBlock.Builder builder = blockFactory().newBooleanBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendBoolean(getBoolean(p));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
     public ReleasableIterator<BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return new BooleanLookup(asBlock(), positions, targetBlockSize);
     }

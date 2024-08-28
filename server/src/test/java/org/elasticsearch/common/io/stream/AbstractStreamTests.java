@@ -723,6 +723,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
             input.readBytes(new byte[len], 0, len);
 
             assertEquals(-1, input.read());
+            assertEquals(-1, input.read(new byte[2], 0, 2));
         }
     }
 

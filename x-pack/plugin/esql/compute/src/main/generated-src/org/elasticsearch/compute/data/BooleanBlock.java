@@ -41,6 +41,9 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
     BooleanBlock filter(int... positions);
 
     @Override
+    BooleanBlock keepMask(BooleanVector mask);
+
+    @Override
     ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     @Override

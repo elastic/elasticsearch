@@ -36,6 +36,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_MANAGE_ROLES_PRIVILEGE;
 
 /**
  * Responsible for handling system indices for the Security plugin
@@ -409,6 +410,40 @@ public class SecuritySystemIndices {
                                 builder.endObject();
                             }
                             builder.endObject();
+                            if (mappingVersion.onOrAfter(ADD_MANAGE_ROLES_PRIVILEGE)) {
+                                builder.startObject("role");
+                                {
+                                    builder.field("type", "object");
+                                    builder.startObject("properties");
+                                    {
+                                        builder.startObject("manage");
+                                        {
+                                            builder.field("type", "object");
+                                            builder.startObject("properties");
+                                            {
+                                                builder.startObject("indices");
+                                                {
+                                                    builder.startObject("properties");
+                                                    {
+                                                        builder.startObject("names");
+                                                        builder.field("type", "keyword");
+                                                        builder.endObject();
+                                                        builder.startObject("privileges");
+                                                        builder.field("type", "keyword");
+                                                        builder.endObject();
+                                                    }
+                                                    builder.endObject();
+                                                }
+                                                builder.endObject();
+                                            }
+                                            builder.endObject();
+                                        }
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
                         }
                         builder.endObject();
                     }
@@ -1049,6 +1084,11 @@ public class SecuritySystemIndices {
          * The mapping was changed to add new text description and remote_cluster fields.
          */
         ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS(2),
+
+        /**
+         * Mapping for global manage role privilege
+         */
+        ADD_MANAGE_ROLES_PRIVILEGE(3),
 
         ;
 

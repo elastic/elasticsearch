@@ -86,7 +86,7 @@ The name of the workspace use for the {infer} task.
 `rate_limit`:::
 (Optional, object)
 By default, the `alibabacloud-ai-search` service sets the number of requests allowed per minute to `1000`.
-This helps to minimize the number of rate limit errors returned from Amazon Bedrock.
+This helps to minimize the number of rate limit errors returned from AlibabaCloud AI Search.
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
 +
 --

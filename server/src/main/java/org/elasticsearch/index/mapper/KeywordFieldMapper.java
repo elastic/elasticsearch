@@ -856,7 +856,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final Script script;
     private final ScriptCompiler scriptCompiler;
     private final IndexVersion indexCreatedVersion;
-    private final boolean storeIgnored;
+    private final boolean isSyntheticSource;
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -866,7 +866,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         KeywordFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
-        boolean storeIgnored,
+        boolean isSyntheticSource,
         Builder builder
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
@@ -881,7 +881,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexAnalyzers = builder.indexAnalyzers;
         this.scriptCompiler = builder.scriptCompiler;
         this.indexCreatedVersion = builder.indexCreatedVersion;
-        this.storeIgnored = storeIgnored;
+        this.isSyntheticSource = isSyntheticSource;
     }
 
     @Override
@@ -916,14 +916,14 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (value.length() > fieldType().ignoreAbove()) {
             context.addIgnoredField(fullPath());
-            if (storeIgnored) {
+            if (isSyntheticSource) {
                 // Save a copy of the field so synthetic source can load it
                 context.doc().add(new StoredField(originalName(), new BytesRef(value)));
             }
             return;
         }
 
-        if (hasNormalizer() && fieldType().isSyntheticSource) {
+        if (hasNormalizer() && isSyntheticSource) {
             context.doc().add(new StoredField(originalName(), new BytesRef(value)));
         }
 
@@ -1052,8 +1052,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
         }
 
-        if (fieldType.stored() || (fieldType().isSyntheticSource && hasNormalizer())) {
-            final String extraStoredName = fieldType().isSyntheticSource && hasNormalizer() ? originalName()
+        if (fieldType.stored() || (isSyntheticSource && hasNormalizer())) {
+            final String extraStoredName = isSyntheticSource && hasNormalizer() ? originalName()
                 : fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null
                 : originalName();
             return new StringStoredFieldFieldLoader(fullPath(), simpleName, extraStoredName) {

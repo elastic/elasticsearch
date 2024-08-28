@@ -77,7 +77,7 @@ For the supported `rerank` service_id, refer to the https://help.aliyun.com/zh/o
 
 `host`:::
 (Required, string)
-The name of the host address use for the {infer} task. You can find the host address at https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[API keys section]
+The name of the host address used for the {infer} task. You can find the host address at https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] of the documentation.
 
 `workspace`:::
 (Required, string)

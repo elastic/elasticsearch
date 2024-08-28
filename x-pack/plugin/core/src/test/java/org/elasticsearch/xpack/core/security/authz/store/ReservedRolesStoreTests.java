@@ -1635,15 +1635,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
 
-
-
         Arrays.asList(
             "logs-cloud_security_posture.findings_latest-default",
             "logs-cloud_security_posture.scores-default",
             "logs-cloud_security_posture.vulnerabilities_latest-default",
             "logs-cloud_security_posture.findings_latest-default-" + Version.CURRENT,
             "logs-cloud_security_posture.scores-default-" + Version.CURRENT,
-            "logs-cloud_security_posture.vulnerabilities_latest-default" + Version.CURRENT
+            "logs-cloud_security_posture.vulnerabilities_latest-default" + Version.CURRENT,
             "security_solution-wiz.vulnerability_latest-" + Version.CURRENT
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);

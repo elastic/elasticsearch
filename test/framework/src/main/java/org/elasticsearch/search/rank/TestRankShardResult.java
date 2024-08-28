@@ -17,14 +17,14 @@ import java.io.IOException;
 
 public class TestRankShardResult implements RankShardResult {
 
-    public final TestRankDoc[] testRankDocs;
+    public final RankDoc[] testRankDocs;
 
-    public TestRankShardResult(TestRankDoc[] testRankDocs) {
+    public TestRankShardResult(RankDoc[] testRankDocs) {
         this.testRankDocs = testRankDocs;
     }
 
     public TestRankShardResult(StreamInput in) throws IOException {
-        testRankDocs = in.readArray(TestRankDoc::new, TestRankDoc[]::new);
+        testRankDocs = in.readArray(RankDoc::new, RankDoc[]::new);
     }
 
     @Override

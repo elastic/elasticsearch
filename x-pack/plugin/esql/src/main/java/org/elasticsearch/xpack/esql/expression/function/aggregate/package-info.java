@@ -68,18 +68,18 @@
  *                 {@code dataType}: This will return the datatype of your function.
  *                 May be based on its current parameters.
  *             </li>
+ *             <li>
+ *                 Implement {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression}, and its required
+ *                 {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression#surrogate()} method.
+ *                 <p>
+ *                     It's used to be able to fold the aggregation when it receives only literals,
+ *                     or when the aggregation can be simplified.
+ *                 </p>
+ *             </li>
  *         </ul>
  *
- *         Finally, you may want to implement some interfaces.
- *         Check their JavaDocs to see if they are suitable for your function:
- *         <ul>
- *             <li>
- *                 {@link org.elasticsearch.xpack.esql.planner.ToAggregator}: (More information about aggregators below)
- *             </li>
- *             <li>
- *                 {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression}
- *             </li>
- *         </ul>
+ *         Finally, implement {@link org.elasticsearch.xpack.esql.planner.ToAggregator} (More information about aggregators below).
+ *         The only case when this interface is not required is when it always returns another function in its surrogate.
  *     </li>
  *     <li>
  *         To introduce your aggregation to the engine:

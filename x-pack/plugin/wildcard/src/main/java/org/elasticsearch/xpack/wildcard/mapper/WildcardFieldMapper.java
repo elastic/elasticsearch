@@ -388,7 +388,7 @@ public class WildcardFieldMapper extends FieldMapper {
             Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery);
 
             RegExp regex = new RegExp(value, syntaxFlags, matchFlags);
-            Automaton automaton = regex.toAutomaton(maxDeterminizedStates);
+            Automaton automaton = Operations.determinize(regex.toAutomaton(), maxDeterminizedStates);
 
             // We can accelerate execution with the ngram query
             return new BinaryDvConfirmedAutomatonQuery(approxNgramQuery, name(), value, automaton);

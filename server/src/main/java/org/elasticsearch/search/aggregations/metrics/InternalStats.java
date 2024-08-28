@@ -56,6 +56,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     protected final double max;
     protected final double sum;
 
+    @SuppressWarnings("this-escape")
     public InternalStats(
         String name,
         long count,

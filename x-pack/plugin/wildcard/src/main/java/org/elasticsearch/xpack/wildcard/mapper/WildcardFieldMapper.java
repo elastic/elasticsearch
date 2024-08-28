@@ -61,6 +61,7 @@ import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -87,8 +88,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
-
-import static java.util.Collections.emptyList;
 
 /**
  * A {@link FieldMapper} for indexing fields with ngrams for efficient wildcard matching
@@ -1003,21 +1002,33 @@ public class WildcardFieldMapper extends FieldMapper {
                 "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new WildcardSyntheticFieldLoader();
+
+        var loader = new WildcardSyntheticFieldLoader();
+        if (ignoreAbove != Defaults.IGNORE_ABOVE) {
+            return new CompositeSyntheticFieldLoader(
+                leafName(),
+                fullPath(),
+                loader,
+                new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
+                    @Override
+                    protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                        BytesRef r = (BytesRef) value;
+                        b.utf8Value(r.bytes, r.offset, r.length);
+                    }
+                }
+            );
+        }
+
+        return new CompositeSyntheticFieldLoader(leafName(), fullPath(), loader);
     }
 
-    private class WildcardSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    private class WildcardSyntheticFieldLoader implements CompositeSyntheticFieldLoader.Layer {
         private final ByteArrayStreamInput docValuesStream = new ByteArrayStreamInput();
         private int docValueCount;
         private BytesRef docValueBytes;
 
-        private List<Object> storedValues = emptyList();
-
         @Override
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            if (ignoreAbove != Defaults.IGNORE_ABOVE) {
-                return Stream.of(Map.entry(originalName(), storedValues -> this.storedValues = storedValues));
-            }
             return Stream.empty();
         }
 
@@ -1044,33 +1055,21 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public boolean hasValue() {
-            return docValueCount > 0 || storedValues.isEmpty() == false;
+            return docValueCount > 0;
+        }
+
+        @Override
+        public long valueCount() {
+            return docValueCount;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            switch (docValueCount + storedValues.size()) {
-                case 0:
-                    return;
-                case 1:
-                    b.field(leafName());
-                    break;
-                default:
-                    b.startArray(leafName());
-            }
             for (int i = 0; i < docValueCount; i++) {
                 int length = docValuesStream.readVInt();
                 b.utf8Value(docValueBytes.bytes, docValuesStream.getPosition(), length);
                 docValuesStream.skipBytes(length);
             }
-            for (Object o : storedValues) {
-                BytesRef r = (BytesRef) o;
-                b.utf8Value(r.bytes, r.offset, r.length);
-            }
-            if (docValueCount + storedValues.size() > 1) {
-                b.endArray();
-            }
-            storedValues = emptyList();
         }
 
         @Override

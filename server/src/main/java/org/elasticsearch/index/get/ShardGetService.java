@@ -220,7 +220,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
-            fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, fields);
+            fetchSourceContext = FetchSourceContext.of(normalizeFetchSourceContent(fetchSourceContext, fields), indexShard);
             GetResult getResult = innerGetFetch(id, fields, fetchSourceContext, engineGetResult, false);
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
@@ -263,7 +263,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         boolean forceSyntheticSource,
         Function<Engine.Get, Engine.GetResult> engineGetOperator
     ) throws IOException {
-        fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
+        fetchSourceContext = FetchSourceContext.of(normalizeFetchSourceContent(fetchSourceContext, gFields), indexShard);
         var engineGet = new Engine.Get(realtime, realtime, id).version(version)
             .versionType(versionType)
             .setIfSeqNo(ifSeqNo)

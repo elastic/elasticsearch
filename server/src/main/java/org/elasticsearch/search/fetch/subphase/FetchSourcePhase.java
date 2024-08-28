@@ -23,7 +23,7 @@ import java.util.Map;
 public final class FetchSourcePhase implements FetchSubPhase {
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
-        FetchSourceContext fetchSourceContext = fetchContext.fetchSourceContext();
+        FetchSourceContext fetchSourceContext = FetchSourceContext.of(fetchContext.fetchSourceContext(), fetchContext.getIndexShard());
         if (fetchSourceContext == null || fetchSourceContext.fetchSource() == false) {
             return null;
         }

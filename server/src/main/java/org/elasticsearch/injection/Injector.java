@@ -83,7 +83,7 @@ public final class Injector {
         MethodHandleSpec methodHandleSpec = methodHandleSpecFor(classToProcess);
         var existing = seedSpecs.put(classToProcess, methodHandleSpec);
         if (existing != null) {
-            throw new IllegalArgumentException("class " + classToProcess.getSimpleName() + "has already been added");
+            throw new IllegalArgumentException("class " + classToProcess.getSimpleName() + " has already been added");
         }
         return this;
     }
@@ -172,7 +172,7 @@ public final class Injector {
      * @return an {@link InjectionSpec} for every class the injector is capable of injecting.
      */
     private static Map<Class<?>, InjectionSpec> specClosure(Map<Class<?>, InjectionSpec> seedMap) {
-        assertSeedMapIsValid(seedMap);
+        assert seedMapIsValid(seedMap);
 
         // For convenience, we pretend there's a gigantic method out there that takes
         // all the seed types as parameters.
@@ -245,10 +245,14 @@ public final class Injector {
         return new MethodHandleSpec(c, ctorHandle, parameters);
     }
 
-    private static void assertSeedMapIsValid(Map<Class<?>, InjectionSpec> seed) {
+    /**
+     * @return true (unless an assertion fails). Never returns false.
+     */
+    private static boolean seedMapIsValid(Map<Class<?>, InjectionSpec> seed) {
         seed.forEach(
             (c, s) -> { assert s.requestedType().equals(c) : "Spec must be associated with its requestedType, not " + c + ": " + s; }
         );
+        return true;
     }
 
     /**

@@ -473,10 +473,7 @@ public class BigArraysTests extends ESTestCase {
             final int maxSize = randomIntBetween(1 << 8, 1 << 14);
             HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
                 CircuitBreakerMetrics.NOOP,
-                Settings.builder()
-                    .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
-                    .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
-                    .build(),
+                Settings.builder().put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES).build(),
                 Collections.emptyList(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             );
@@ -613,10 +610,7 @@ public class BigArraysTests extends ESTestCase {
     private BigArrays newBigArraysInstance(final long maxSize, final boolean withBreaking) {
         HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
             CircuitBreakerMetrics.NOOP,
-            Settings.builder()
-                .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
-                .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
-                .build(),
+            Settings.builder().put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES).build(),
             Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );

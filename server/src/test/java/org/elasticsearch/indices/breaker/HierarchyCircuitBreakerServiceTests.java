@@ -38,7 +38,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -52,6 +54,16 @@ import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return Stream.concat(
+            super.filteredWarnings().stream(),
+            Stream.of(
+                "[indices.breaker.total.use_real_memory] setting was deprecated in Elasticsearch and will be removed in a future release."
+            )
+        ).collect(Collectors.toList());
+    }
 
     public void testThreadedUpdatesToChildBreaker() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(3, 15);
@@ -193,7 +205,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
      */
     public void testBorrowingSiblingBreakerMemory() {
         Settings clusterSettings = Settings.builder()
-            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "200mb")
             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "150mb")
             .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "150mb")
@@ -305,7 +316,11 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         requestBreaker.addEstimateBytesAndMaybeBreak(reservationInBytes, "request");
         assertEquals(0, requestBreaker.getTrippedCount());
 
-        assertCircuitBreakerLimitWarning();
+        assertWarnings(
+            "[indices.breaker.total.limit] should be specified using a percentage of the heap. "
+                + "Absolute size settings will be forbidden in a future release",
+            "[indices.breaker.total.use_real_memory] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     /**
@@ -676,7 +691,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
     public void testTrippedCircuitBreakerDurability() {
         Settings clusterSettings = Settings.builder()
-            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.FALSE)
             .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "200mb")
             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "150mb")
             .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "150mb")
@@ -722,7 +736,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
     public void testAllocationBucketsBreaker() {
         Settings clusterSettings = Settings.builder()
             .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
-            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), "false")
             .build();
 
         try (
@@ -813,7 +826,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         try (
             HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
                 CircuitBreakerMetrics.NOOP,
-                Settings.EMPTY,
+                Settings.builder().put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), true).build(),
                 Collections.emptyList(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             )
@@ -837,8 +850,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
     public void testApplySettingForUpdatingUseRealMemory() {
         String useRealMemoryUsageSetting = HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey();
         String totalCircuitBreakerLimitSetting = HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey();
-        Settings initialSettings = Settings.builder().put(useRealMemoryUsageSetting, "true").build();
-        ClusterSettings clusterSettings = new ClusterSettings(initialSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         try (
             HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
@@ -848,7 +860,14 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 clusterSettings
             )
         ) {
+            // total.limit defaults to 70% of the JVM heap if use_real_memory set to false
+            assertEquals(
+                MemorySizeValue.parseBytesSizeValueOrHeapRatio("70%", totalCircuitBreakerLimitSetting).getBytes(),
+                service.getParentLimit()
+            );
+
             // total.limit defaults to 95% of the JVM heap if use_real_memory is true
+            clusterSettings.applySettings(Settings.builder().put(useRealMemoryUsageSetting, true).build());
             assertEquals(
                 MemorySizeValue.parseBytesSizeValueOrHeapRatio("95%", totalCircuitBreakerLimitSetting).getBytes(),
                 service.getParentLimit()
@@ -858,13 +877,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             clusterSettings.applySettings(Settings.builder().put(useRealMemoryUsageSetting, false).build());
             assertEquals(
                 MemorySizeValue.parseBytesSizeValueOrHeapRatio("70%", totalCircuitBreakerLimitSetting).getBytes(),
-                service.getParentLimit()
-            );
-
-            // total.limit defaults to 95% of the JVM heap if use_real_memory set to true
-            clusterSettings.applySettings(Settings.builder().put(useRealMemoryUsageSetting, true).build());
-            assertEquals(
-                MemorySizeValue.parseBytesSizeValueOrHeapRatio("95%", totalCircuitBreakerLimitSetting).getBytes(),
                 service.getParentLimit()
             );
         }

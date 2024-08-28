@@ -18,7 +18,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING;
-import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -126,8 +125,6 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
             Settings.builder()
                 // Pin the limit to something that'll totally fit in the heap we use for the tests
                 .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100mb")
-                // Disable the real memory checking because it causes other tests to interfere with this one.
-                .put(USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                 .build(),
             List.of(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)

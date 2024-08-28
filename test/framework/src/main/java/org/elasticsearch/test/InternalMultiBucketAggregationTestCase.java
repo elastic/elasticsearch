@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,6 +68,17 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
 
     public final InternalAggregations createSubAggregations() {
         return subAggregationsSupplier.get();
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        // allow real memory circuit breaker setting for #expectReduceThrowsRealMemoryBreaker
+        return Stream.concat(
+            super.filteredWarnings().stream(),
+            Stream.of(
+                "[indices.breaker.total.use_real_memory] setting was deprecated in Elasticsearch and will be removed in a future release."
+            )
+        ).collect(Collectors.toList());
     }
 
     @Override
@@ -161,7 +174,10 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     protected static void expectReduceThrowsRealMemoryBreaker(InternalAggregation agg) {
         HierarchyCircuitBreakerService breaker = new HierarchyCircuitBreakerService(
             CircuitBreakerMetrics.NOOP,
-            Settings.builder().put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "50%").build(),
+            Settings.builder()
+                .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "50%")
+                .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), true)
+                .build(),
             List.of(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         ) {

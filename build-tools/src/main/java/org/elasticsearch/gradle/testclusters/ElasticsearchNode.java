@@ -1361,7 +1361,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Temporarily disable the real memory usage circuit breaker. It depends on real memory usage which we have no full control
         // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
         // can retry on circuit breaking exceptions, we can revert again to the default configuration.
-        if (getVersion().getMajor() >= 7) {
+        if (getVersion().getMajor() >= 7 && getVersion().before("8.16.0")) {
             baseConfig.put("indices.breaker.total.use_real_memory", "false");
         }
         // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master

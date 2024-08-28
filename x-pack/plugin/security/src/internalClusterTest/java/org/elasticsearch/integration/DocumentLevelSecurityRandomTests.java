@@ -121,7 +121,7 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testWithRuntimeMapping() throws Exception {
+    public void testWithRuntimeFields() throws Exception {
         assertAcked(
             indicesAdmin().prepareCreate("test")
                 .setMapping(

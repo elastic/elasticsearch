@@ -90,16 +90,16 @@ when the query param `include_defaults` is set to `true`. The contents of this f
 
 `global_retention`::
 (object)
-Contains the global max and default retention. Global retention is only retrieved when the request sets `include_defaults` to `true`.
+Contains the global max and default retention. When no global retention is configured, this will be an empty object.
 +
 .Properties of `global_retention`
 [%collapsible%open]
 ====
 `max_retention`::
-(string)
+(Optional, string)
 The effective retention of data streams managed by the data stream lifecycle cannot exceed this value.
 `default_retention`::
-(string)
+(Optional, string)
 This will be the effective retention of data streams managed by the data stream lifecycle that do not specify `data_retention`.
 ====
 
@@ -167,6 +167,7 @@ The response will look like the following:
         "retention_determined_by": "data_stream_configuration"
       }
     }
-  ]
+  ],
+  "global_retention: {}
 }
 --------------------------------------------------

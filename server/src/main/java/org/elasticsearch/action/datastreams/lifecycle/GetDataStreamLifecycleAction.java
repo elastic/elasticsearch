@@ -254,16 +254,16 @@ public class GetDataStreamLifecycleAction {
         public Iterator<ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             return Iterators.concat(Iterators.single((builder, params) -> {
                 builder.startObject();
+                builder.startObject("global_retention");
                 if (globalRetention != null) {
-                    builder.startObject("global_retention");
                     if (globalRetention.maxRetention() != null) {
                         builder.field("max_retention", globalRetention.maxRetention().getStringRep());
                     }
                     if (globalRetention.defaultRetention() != null) {
                         builder.field("default_retention", globalRetention.defaultRetention().getStringRep());
                     }
-                    builder.endObject();
                 }
+                builder.endObject();
                 builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
                 return builder;
             }),

@@ -31,7 +31,7 @@ teardown:
   - do:
       indices.get_data_lifecycle:
         name: "*"
-  - is_false: global_retention
+  - match: { global_retention: {} }
 
   - do:
       cluster.put_settings:

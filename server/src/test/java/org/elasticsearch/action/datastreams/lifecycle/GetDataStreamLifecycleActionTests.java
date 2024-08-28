@@ -49,7 +49,7 @@ public class GetDataStreamLifecycleActionTests extends ESTestCase {
                 }
             });
             Map<String, Object> resultMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
-            assertThat(resultMap.containsKey("global_retention"), equalTo(false));
+            assertThat(resultMap.get("global_retention"), equalTo(Map.of()));
             assertThat(resultMap.containsKey("data_streams"), equalTo(true));
             List<Map<String, Object>> dataStreams = (List<Map<String, Object>>) resultMap.get("data_streams");
             Map<String, Object> firstDataStream = dataStreams.get(0);
@@ -63,7 +63,7 @@ public class GetDataStreamLifecycleActionTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testGlobalRetentionToXContent() throws Exception {
+    public void testGlobalRetentionToXContent() {
         TimeValue globalDefaultRetention = TimeValue.timeValueDays(10);
         TimeValue globalMaxRetention = TimeValue.timeValueDays(50);
         DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(globalDefaultRetention, globalMaxRetention);

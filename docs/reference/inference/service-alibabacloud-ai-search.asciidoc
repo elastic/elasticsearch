@@ -67,7 +67,7 @@ for the `sparse_embedding` task are:
 
 * `ops-text-sparse-embedding-001`
 
-You can find the supported `sparse_embedding` service_id at https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-sparse-embedding-api-details[sparse embedding detail]
+For the supported `sparse_embedding` service_id, refer to the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-sparse-embedding-api-details[documentation].
 
 The service_id available for the `rerank` task is:
 

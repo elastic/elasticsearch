@@ -75,7 +75,7 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
         final Response indexCreatedResponse = getRestClient().performRequest(createRequest);
         assertThat(indexCreatedResponse.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
-        Request successfulIndexingRequest = new Request("POST", "/index_name/_bulk");
+        Request bulkRequest = new Request("POST", "/index_name/_bulk");
 
         // index documents for the rollup job
         final StringBuilder bulk = new StringBuilder();
@@ -84,12 +84,8 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
         bulk.append("{}\n");
         bulk.append("\r\n");
 
-        successfulIndexingRequest.setJsonEntity(bulk.toString());
+        bulkRequest.setJsonEntity(bulk.toString());
 
-        ResponseException responseException = expectThrows(
-            ResponseException.class,
-            () -> getRestClient().performRequest(successfulIndexingRequest)
-        );
-
+        ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulkRequest));
     }
 }

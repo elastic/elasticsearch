@@ -186,11 +186,8 @@ public class RestBulkAction extends BaseRestHandler {
             }
 
             final BytesReference data;
-            final Releasable releasable;
+            int bytesConsumed;
             try {
-                // TODO: Check that the behavior here vs. globalRouting, globalPipeline, globalRequireAlias, globalRequireDatsStream in
-                // BulkRequest#add is fine
-
                 unParsedChunks.add(chunk);
 
                 if (unParsedChunks.size() > 1) {
@@ -199,7 +196,9 @@ public class RestBulkAction extends BaseRestHandler {
                     data = chunk;
                 }
 
-                int bytesConsumed = parser.incrementalParse(
+                // TODO: Check that the behavior here vs. globalRouting, globalPipeline, globalRequireAlias, globalRequireDatsStream in
+                // BulkRequest#add is fine
+                bytesConsumed = parser.incrementalParse(
                     data,
                     defaultIndex,
                     defaultRouting,
@@ -217,21 +216,24 @@ public class RestBulkAction extends BaseRestHandler {
                     stringDeduplicator
                 );
 
-                releasable = accountParsing(bytesConsumed);
-
             } catch (Exception e) {
+                // TODO: This needs to be better
+                Releasables.close(handler);
+                Releasables.close(unParsedChunks);
+                unParsedChunks.clear();
                 new RestToXContentListener<>(channel).onFailure(e);
                 isException = true;
                 return;
             }
 
+            final Releasable releasable = accountParsing(bytesConsumed);
             if (isLast) {
                 assert unParsedChunks.isEmpty();
                 assert channel != null;
                 handler.lastItems(new ArrayList<>(items), releasable, new RestRefCountedChunkedToXContentListener<>(channel));
                 items.clear();
             } else if (items.isEmpty() == false) {
-                handler.addItems(new ArrayList<>(items), releasable, () -> { request.contentStream().next(); });
+                handler.addItems(new ArrayList<>(items), releasable, () -> request.contentStream().next());
                 items.clear();
             } else {
                 releasable.close();
@@ -240,8 +242,6 @@ public class RestBulkAction extends BaseRestHandler {
 
         @Override
         public void close() {
-            Releasables.close(handler);
-            Releasables.close(unParsedChunks);
             RequestBodyChunkConsumer.super.close();
         }
 
@@ -268,7 +268,6 @@ public class RestBulkAction extends BaseRestHandler {
 
     @Override
     public boolean allowsUnsafeBuffers() {
-        // TODO: Does this change with the chunking?
-        return true;
+        return false;
     }
 }

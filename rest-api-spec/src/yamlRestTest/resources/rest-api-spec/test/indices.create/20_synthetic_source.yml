@@ -1204,3 +1204,187 @@ nested object with stored array:
   - match: { hits.hits.1._source.nested_array_stored.0.b.1.c: 100 }
   - match: { hits.hits.1._source.nested_array_stored.1.b.0.c: 20 }
   - match: { hits.hits.1._source.nested_array_stored.1.b.1.c: 200 }
+
+---
+empty nested object sorted as a first document:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              sort.field: "name"
+              sort.order: "asc"
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              nested:
+                type: nested
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "B", "nested": { "a": "b" } }'
+          - '{ "create": { } }'
+          - '{ "name": "A" }'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: name
+
+  - match:  { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.nested.a: "b" }
+
+---
+subobjects auto:
+  - requires:
+      cluster_features: ["mapper.subobjects_auto"]
+      reason: requires tracking ignored source and supporting subobjects auto setting
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            subobjects: auto
+            properties:
+              id:
+                type: integer
+              regular:
+                properties:
+                  span:
+                    properties:
+                      id:
+                        type: keyword
+                  trace:
+                    properties:
+                      id:
+                        type: keyword
+              stored:
+                store_array_source: true
+                properties:
+                  span:
+                    properties:
+                      id:
+                        type: keyword
+                  trace:
+                    properties:
+                      id:
+                        type: keyword
+              nested:
+                type: nested
+              auto_obj:
+                type: object
+                subobjects: auto
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{  "id": 1, "foo": 10, "foo.bar": 100, "regular": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
+          - '{ "create": { } }'
+          - '{  "id": 2, "foo": 20, "foo.bar": 200, "stored": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
+          - '{ "create": { } }'
+          - '{  "id": 3, "foo": 30, "foo.bar": 300, "nested": [ { "a": 10, "b": 20 }, { "a": 100, "b": 200 } ] }'
+          - '{ "create": { } }'
+          - '{  "id": 4, "auto_obj": {  "foo": 40, "foo.bar": 400 } }'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: id
+
+  - match: { hits.hits.0._source.id: 1  }
+  - match: { hits.hits.0._source.foo: 10  }
+  - match: { hits.hits.0._source.foo\.bar: 100  }
+  - match: { hits.hits.0._source.regular.span.id: "1" }
+  - match: { hits.hits.0._source.regular.trace.id: [ "a", "b" ] }
+  - match: { hits.hits.1._source.id: 2  }
+  - match: { hits.hits.1._source.foo: 20 }
+  - match: { hits.hits.1._source.foo\.bar: 200 }
+  - match: { hits.hits.1._source.stored.0.trace.id: a  }
+  - match: { hits.hits.1._source.stored.0.span.id: "1"  }
+  - match: { hits.hits.1._source.stored.1.trace.id: b }
+  - match: { hits.hits.1._source.stored.1.span.id: "1" }
+  - match: { hits.hits.2._source.id: 3  }
+  - match: { hits.hits.2._source.foo: 30 }
+  - match: { hits.hits.2._source.foo\.bar: 300 }
+  - match: { hits.hits.2._source.nested.0.a: 10 }
+  - match: { hits.hits.2._source.nested.0.b: 20 }
+  - match: { hits.hits.2._source.nested.1.a: 100 }
+  - match: { hits.hits.2._source.nested.1.b: 200 }
+  - match: { hits.hits.3._source.id: 4  }
+  - match: { hits.hits.3._source.auto_obj.foo: 40 }
+  - match: { hits.hits.3._source.auto_obj.foo\.bar: 400 }
+
+---
+# 112156
+stored field under object with store_array_source:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_stored_fields_advance_fix"]
+      reason: requires bug fix to be implemented
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              sort.field: "name"
+              sort.order: "asc"
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              obj:
+                store_array_source: true
+                properties:
+                  foo:
+                    type: keyword
+                    store: true
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "B", "obj": null }'
+          - '{ "create": { } }'
+          - '{ "name": "A", "obj": [ { "foo": "hello_from_the_other_side" } ] }'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: name
+
+  - match:  { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.obj: [ { "foo": "hello_from_the_other_side" } ] }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.obj: null }

@@ -198,12 +198,12 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
                             @Override
                             public boolean advanceExact(int target) throws IOException {
                                 if (sorted.advanceExact(target)) {
-                                    ord = (int) sorted.nextOrd();
                                     if (sorted.docValueCount() > 1) {
                                         throw new IllegalStateException(
                                             "failed to extract doc:" + target + ", the grouping field must be single valued"
                                         );
                                     }
+                                    ord = (int) sorted.nextOrd();
                                     return true;
                                 } else {
                                     return false;

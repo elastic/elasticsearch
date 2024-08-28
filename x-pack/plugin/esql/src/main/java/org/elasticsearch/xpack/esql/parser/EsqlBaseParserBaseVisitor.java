@@ -319,6 +319,13 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitQualifiedFieldNamePattern(EsqlBaseParser.QualifiedFieldNamePatternContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitQualifiedNamePatterns(EsqlBaseParser.QualifiedNamePatternsContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -620,26 +627,19 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitQueryStringFields(EsqlBaseParser.QueryStringFieldsContext ctx) { return visitChildren(ctx); }
+  @Override public T visitQueryStringWithFields(EsqlBaseParser.QueryStringWithFieldsContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitQueryStringNoFields(EsqlBaseParser.QueryStringNoFieldsContext ctx) { return visitChildren(ctx); }
+  @Override public T visitQueryStringWithoutFields(EsqlBaseParser.QueryStringWithoutFieldsContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitFieldQueryStringExpression(EsqlBaseParser.FieldQueryStringExpressionContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitQueryStringTerm(EsqlBaseParser.QueryStringTermContext ctx) { return visitChildren(ctx); }
+  @Override public T visitQueryExpression(EsqlBaseParser.QueryExpressionContext ctx) { return visitChildren(ctx); }
 }

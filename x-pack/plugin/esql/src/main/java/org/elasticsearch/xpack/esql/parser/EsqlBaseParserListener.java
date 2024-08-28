@@ -478,6 +478,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedFieldNamePattern}.
+   * @param ctx the parse tree
+   */
+  void enterQualifiedFieldNamePattern(EsqlBaseParser.QualifiedFieldNamePatternContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#qualifiedFieldNamePattern}.
+   * @param ctx the parse tree
+   */
+  void exitQualifiedFieldNamePattern(EsqlBaseParser.QualifiedFieldNamePatternContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedNamePatterns}.
    * @param ctx the parse tree
    */
@@ -936,43 +946,33 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitParsedMatchQuery(EsqlBaseParser.ParsedMatchQueryContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#queryStringFields}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#queryStringWithFields}.
    * @param ctx the parse tree
    */
-  void enterQueryStringFields(EsqlBaseParser.QueryStringFieldsContext ctx);
+  void enterQueryStringWithFields(EsqlBaseParser.QueryStringWithFieldsContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#queryStringFields}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#queryStringWithFields}.
    * @param ctx the parse tree
    */
-  void exitQueryStringFields(EsqlBaseParser.QueryStringFieldsContext ctx);
+  void exitQueryStringWithFields(EsqlBaseParser.QueryStringWithFieldsContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#queryStringNoFields}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#queryStringWithoutFields}.
    * @param ctx the parse tree
    */
-  void enterQueryStringNoFields(EsqlBaseParser.QueryStringNoFieldsContext ctx);
+  void enterQueryStringWithoutFields(EsqlBaseParser.QueryStringWithoutFieldsContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#queryStringNoFields}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#queryStringWithoutFields}.
    * @param ctx the parse tree
    */
-  void exitQueryStringNoFields(EsqlBaseParser.QueryStringNoFieldsContext ctx);
+  void exitQueryStringWithoutFields(EsqlBaseParser.QueryStringWithoutFieldsContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#fieldQueryStringExpression}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#queryExpression}.
    * @param ctx the parse tree
    */
-  void enterFieldQueryStringExpression(EsqlBaseParser.FieldQueryStringExpressionContext ctx);
+  void enterQueryExpression(EsqlBaseParser.QueryExpressionContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#fieldQueryStringExpression}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#queryExpression}.
    * @param ctx the parse tree
    */
-  void exitFieldQueryStringExpression(EsqlBaseParser.FieldQueryStringExpressionContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#queryStringTerm}.
-   * @param ctx the parse tree
-   */
-  void enterQueryStringTerm(EsqlBaseParser.QueryStringTermContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#queryStringTerm}.
-   * @param ctx the parse tree
-   */
-  void exitQueryStringTerm(EsqlBaseParser.QueryStringTermContext ctx);
+  void exitQueryExpression(EsqlBaseParser.QueryExpressionContext ctx);
 }

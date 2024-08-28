@@ -20,7 +20,7 @@ SHOW : 'show'                 -> pushMode(SHOW_MODE);
 SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
-MATCH : 'match'               -> pushMode(EXPRESSION_MODE);
+MATCH : 'match'               -> pushMode(MATCH_MODE);
 UNKNOWN_CMD : ~[ \r\n\t[\]/]+ -> pushMode(EXPRESSION_MODE);
 
 LINE_COMMENT
@@ -140,7 +140,6 @@ IS: 'is';
 LAST : 'last';
 LIKE: 'like';
 LP : '(';
-MATCH_OPERATOR: 'match';
 NOT : 'not';
 NULL : 'null';
 NULLS : 'nulls';
@@ -545,19 +544,38 @@ CLOSING_METRICS_PIPE
     : PIPE -> type(PIPE), popMode
     ;
 
-//mode MATCH_MODE;
 //
-//MATCH_PIPE : PIPE -> type(PIPE), popMode;
+// MATCH
 //
-//fragment MATCH_UNQUOTED_ID_BODY_WITH_PATTERN
-//    : (LETTER | DIGIT | UNDERSCORE | ASTERISK)
-//    ;
-//
-//fragment MATCH_UNQUOTED_ID_PATTERN
-//    : (LETTER | ASTERISK) UNQUOTED_ID_BODY_WITH_PATTERN*
-//    | (UNDERSCORE | ASPERAND) UNQUOTED_ID_BODY_WITH_PATTERN+
-//    ;
-//
-//MATCH_ID_PATTERN
-//    : (MATCH_UNQUOTED_ID_PATTERN | QUOTED_ID)+
-//    ;
+mode MATCH_MODE;
+MATCH_PIPE : PIPE -> type(PIPE), popMode;
+MATCH_DOT: DOT -> type(DOT);
+MATCH_COMMA : COMMA -> type(COMMA);
+MATCH_COLON : COLON -> type(COLON);
+MATCH_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+MATCH_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+MATCH_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+MATCH_QUOTED_STRING : QUOTED_STRING -> type(QUOTED_STRING);
+
+MATCH_INTEGER_LITERAL : INTEGER_LITERAL -> type(INTEGER_LITERAL);
+MATCH_DECIMAL_LITERAL : DECIMAL_LITERAL -> type(DECIMAL_LITERAL);
+MATCH_PLUS : PLUS -> type(PLUS);
+MATCH_MINUS : MINUS -> type(MINUS);
+
+FIELD_PATTERN
+    : (LETTER | ASTERISK) FIELD_PATTERN_BODY*
+    | (UNDERSCORE | ASPERAND) FIELD_PATTERN_BODY+
+    ;
+
+fragment FIELD_PATTERN_BODY
+    : (LETTER | DIGIT | UNDERSCORE | ASTERISK | MATCH_DOT)
+    ;

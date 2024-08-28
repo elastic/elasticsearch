@@ -289,6 +289,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedFieldNamePattern}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitQualifiedFieldNamePattern(EsqlBaseParser.QualifiedFieldNamePatternContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNamePatterns}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -561,27 +567,21 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitParsedMatchQuery(EsqlBaseParser.ParsedMatchQueryContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#queryStringFields}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#queryStringWithFields}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitQueryStringFields(EsqlBaseParser.QueryStringFieldsContext ctx);
+  T visitQueryStringWithFields(EsqlBaseParser.QueryStringWithFieldsContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#queryStringNoFields}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#queryStringWithoutFields}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitQueryStringNoFields(EsqlBaseParser.QueryStringNoFieldsContext ctx);
+  T visitQueryStringWithoutFields(EsqlBaseParser.QueryStringWithoutFieldsContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#fieldQueryStringExpression}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#queryExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitFieldQueryStringExpression(EsqlBaseParser.FieldQueryStringExpressionContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#queryStringTerm}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitQueryStringTerm(EsqlBaseParser.QueryStringTermContext ctx);
+  T visitQueryExpression(EsqlBaseParser.QueryExpressionContext ctx);
 }

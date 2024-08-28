@@ -533,6 +533,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterQualifiedFieldNamePattern(EsqlBaseParser.QualifiedFieldNamePatternContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitQualifiedFieldNamePattern(EsqlBaseParser.QualifiedFieldNamePatternContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterQualifiedNamePatterns(EsqlBaseParser.QualifiedNamePatternsContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1049,49 +1061,37 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterQueryStringFields(EsqlBaseParser.QueryStringFieldsContext ctx) { }
+  @Override public void enterQueryStringWithFields(EsqlBaseParser.QueryStringWithFieldsContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitQueryStringFields(EsqlBaseParser.QueryStringFieldsContext ctx) { }
+  @Override public void exitQueryStringWithFields(EsqlBaseParser.QueryStringWithFieldsContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterQueryStringNoFields(EsqlBaseParser.QueryStringNoFieldsContext ctx) { }
+  @Override public void enterQueryStringWithoutFields(EsqlBaseParser.QueryStringWithoutFieldsContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitQueryStringNoFields(EsqlBaseParser.QueryStringNoFieldsContext ctx) { }
+  @Override public void exitQueryStringWithoutFields(EsqlBaseParser.QueryStringWithoutFieldsContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterFieldQueryStringExpression(EsqlBaseParser.FieldQueryStringExpressionContext ctx) { }
+  @Override public void enterQueryExpression(EsqlBaseParser.QueryExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitFieldQueryStringExpression(EsqlBaseParser.FieldQueryStringExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterQueryStringTerm(EsqlBaseParser.QueryStringTermContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitQueryStringTerm(EsqlBaseParser.QueryStringTermContext ctx) { }
+  @Override public void exitQueryExpression(EsqlBaseParser.QueryExpressionContext ctx) { }
 
   /**
    * {@inheritDoc}

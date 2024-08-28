@@ -67,7 +67,7 @@ regexBooleanExpression
     ;
 
 matchBooleanExpression
-    : qualifiedName MATCH_OPERATOR queryString=string
+    : qualifiedName MATCH queryString=string
     ;
 
 valueExpression
@@ -164,6 +164,10 @@ qualifiedName
     ;
 
 qualifiedNamePattern
+    : identifierPattern (DOT identifierPattern)*
+    ;
+
+qualifiedFieldNamePattern
     : identifierPattern (DOT identifierPattern)*
     ;
 
@@ -308,26 +312,25 @@ unparsedMatchQuery
     ;
 
 parsedMatchQuery
-    : queryStringFields
-//    | queryStringNoFields TODO Can't tell apart from queryStringFields
+    : queryStringWithFields
+    | queryStringWithoutFields
 //    | left=parsedMatchQuery operator=AND right=parsedMatchQuery
 //    | left=parsedMatchQuery operator=OR right=parsedMatchQuery
     ;
 
-queryStringFields
-    : fieldName=qualifiedNamePattern COLON queryStringNoFields
+queryStringWithFields
+    : fieldName=FIELD_PATTERN COLON queryExpression
     ;
 
-queryStringNoFields
-    : LP queryStringNoFields RP
-    | queryStringTerm+
+queryStringWithoutFields
+    : LP queryExpression RP
+    | queryExpression+
     ;
 
-fieldQueryStringExpression
-    : fieldName=qualifiedNamePattern// COLON queryStringExpressionNoFields
-    ;
-
-// TODO Define a lexer rule for query terms and fields - probably we can't tell each other apart
-queryStringTerm
-    : qualifiedNamePattern
+queryExpression
+    : QUOTED_STRING
+    // Unquoted strings are recognized as field patterns - is there a way to distinguish them?
+    | FIELD_PATTERN+
+    | integerValue
+    | decimalValue
     ;

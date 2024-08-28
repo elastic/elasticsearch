@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.search;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -18,8 +19,10 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 
@@ -52,15 +55,13 @@ public final class NestedHelper {
             // We only handle term(s) queries and range queries, which should already
             // cover a high majority of use-cases
             return mightMatchNestedDocs(((TermQuery) query).getTerm().field());
-        } else if (query instanceof TermInSetQuery termInSetQuery) {
-            try {
-                if (termInSetQuery.getTermsCount() > 0) {
-                    return mightMatchNestedDocs(termInSetQuery.getField());
-                }
-            } catch (IOException e) {
-                throw new AssertionError(e); // cannot happen
+        } else if (query instanceof TermInSetQuery) {
+            Term term = getTermInSetTerm((TermInSetQuery) query);
+            if (term != null) {
+                return mightMatchNestedDocs(term.field());
+            } else {
+                return false;
             }
-            return false;
         } else if (query instanceof PointRangeQuery) {
             return mightMatchNestedDocs(((PointRangeQuery) query).getField());
         } else if (query instanceof IndexOrDocValuesQuery) {
@@ -117,15 +118,13 @@ public final class NestedHelper {
             return false;
         } else if (query instanceof TermQuery) {
             return mightMatchNonNestedDocs(((TermQuery) query).getTerm().field(), nestedPath);
-        } else if (query instanceof TermInSetQuery termInSetQuery) {
-            try {
-                if (termInSetQuery.getTermsCount() > 0) {
-                    return mightMatchNestedDocs(termInSetQuery.getField());
-                }
-            } catch (IOException e) {
-                throw new AssertionError(e); // cannot happen
+        } else if (query instanceof TermInSetQuery) {
+            Term term = getTermInSetTerm((TermInSetQuery) query);
+            if (term != null) {
+                return mightMatchNonNestedDocs(term.field(), nestedPath);
+            } else {
+                return false;
             }
-            return false;
         } else if (query instanceof PointRangeQuery) {
             return mightMatchNonNestedDocs(((PointRangeQuery) query).getField(), nestedPath);
         } else if (query instanceof IndexOrDocValuesQuery) {
@@ -178,4 +177,22 @@ public final class NestedHelper {
         return true;
     }
 
+    public static Term getTermInSetTerm(TermInSetQuery tisQuery) {
+        try {
+            if (tisQuery.getTermsCount() == 1) {
+                final SetOnce<Term> collectedTerm = new SetOnce<>();
+                tisQuery.visit(new QueryVisitor() {
+                    @Override
+                    public void consumeTerms(Query query, Term... terms) {
+                        collectedTerm.set(terms[0]);
+                    }
+                });
+                return collectedTerm.get();
+            }
+            return null;
+        } catch (IOException e) {
+            // TODO should never happen, remove throwing IOException from TermInSetQuery in Lucene
+        }
+        return null;
+    }
 }

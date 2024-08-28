@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.percolator;
 
-import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
@@ -29,6 +28,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
+import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
 
 import java.util.ArrayList;
@@ -197,12 +197,10 @@ final class QueryAnalyzer {
         @Override
         public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
             if (query instanceof TermInSetQuery q) {
-                PrefixCodedTerms.TermIterator ti = q.getTermData().iterator();
-                BytesRef term;
+                // NOCOMMIT this is a workaround that only gets one term
+                Term term = NestedHelper.getTermInSetTerm(q);
                 Set<QueryExtraction> qe = new HashSet<>();
-                while ((term = ti.next()) != null) {
-                    qe.add(new QueryExtraction(new Term(field, term)));
-                }
+                qe.add(new QueryExtraction(term));
                 this.terms.add(new Result(true, qe, 1));
             } else {
                 super.consumeTermsMatching(query, field, automaton);

@@ -445,7 +445,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             assertFalse(t.v2());
             assertEquals(3, t.v1().clauses().size());
             TermInSetQuery terms = (TermInSetQuery) t.v1().clauses().get(0).query();
-            assertEquals(maxClauseCount - 1, terms.getTermData().size());
+            assertEquals(maxClauseCount - 1, terms.getTermsCount());
             assertThat(t.v1().clauses().get(1).query().toString(), containsString(fieldName + ".range_field:<ranges:"));
             assertThat(t.v1().clauses().get(2).query().toString(), containsString(fieldName + ".extraction_result:failed"));
         } finally {

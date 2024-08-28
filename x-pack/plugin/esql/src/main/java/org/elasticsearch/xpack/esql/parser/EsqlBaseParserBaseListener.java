@@ -1061,25 +1061,37 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterMatchQueryWithFields(EsqlBaseParser.MatchQueryWithFieldsContext ctx) { }
+  @Override public void enterMatchQueryValue(EsqlBaseParser.MatchQueryValueContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitMatchQueryWithFields(EsqlBaseParser.MatchQueryWithFieldsContext ctx) { }
+  @Override public void exitMatchQueryValue(EsqlBaseParser.MatchQueryValueContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterMatchQueryWithoutFields(EsqlBaseParser.MatchQueryWithoutFieldsContext ctx) { }
+  @Override public void enterMatchQueryRange(EsqlBaseParser.MatchQueryRangeContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitMatchQueryWithoutFields(EsqlBaseParser.MatchQueryWithoutFieldsContext ctx) { }
+  @Override public void exitMatchQueryRange(EsqlBaseParser.MatchQueryRangeContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterMatchQueryField(EsqlBaseParser.MatchQueryFieldContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMatchQueryField(EsqlBaseParser.MatchQueryFieldContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -1092,18 +1104,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitMatchQueryExpression(EsqlBaseParser.MatchQueryExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterMatchRange(EsqlBaseParser.MatchRangeContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitMatchRange(EsqlBaseParser.MatchRangeContext ctx) { }
   /**
    * {@inheritDoc}
    *

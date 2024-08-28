@@ -43,7 +43,7 @@ public class EsqlBaseParser extends Parser {
     SETTING_WS=119, METRICS_LINE_COMMENT=120, METRICS_MULTILINE_COMMENT=121, 
     METRICS_WS=122, CLOSING_METRICS_LINE_COMMENT=123, CLOSING_METRICS_MULTILINE_COMMENT=124, 
     CLOSING_METRICS_WS=125, MATCH_LINE_COMMENT=126, MATCH_MULTILINE_COMMENT=127, 
-    MATCH_WS=128, FIELD_PATTERN=129;
+    MATCH_WS=128, WORD_PATTERN=129;
   public static final int
     RULE_singleStatement = 0, RULE_query = 1, RULE_sourceCommand = 2, RULE_processingCommand = 3, 
     RULE_whereCommand = 4, RULE_booleanExpression = 5, RULE_regexBooleanExpression = 6, 
@@ -65,8 +65,8 @@ public class EsqlBaseParser extends Parser {
     RULE_explainCommand = 53, RULE_subqueryExpression = 54, RULE_showCommand = 55, 
     RULE_metaCommand = 56, RULE_enrichCommand = 57, RULE_enrichWithClause = 58, 
     RULE_lookupCommand = 59, RULE_matchCommand = 60, RULE_unparsedMatchQuery = 61, 
-    RULE_parsedMatchQuery = 62, RULE_matchQueryWithFields = 63, RULE_matchQueryWithoutFields = 64, 
-    RULE_matchQueryExpression = 65, RULE_matchRange = 66, RULE_matchRangeOperator = 67;
+    RULE_parsedMatchQuery = 62, RULE_matchQueryValue = 63, RULE_matchQueryRange = 64, 
+    RULE_matchQueryField = 65, RULE_matchQueryExpression = 66, RULE_matchRangeOperator = 67;
   private static String[] makeRuleNames() {
     return new String[] {
       "singleStatement", "query", "sourceCommand", "processingCommand", "whereCommand", 
@@ -83,8 +83,8 @@ public class EsqlBaseParser extends Parser {
       "numericValue", "decimalValue", "integerValue", "string", "comparisonOperator", 
       "explainCommand", "subqueryExpression", "showCommand", "metaCommand", 
       "enrichCommand", "enrichWithClause", "lookupCommand", "matchCommand", 
-      "unparsedMatchQuery", "parsedMatchQuery", "matchQueryWithFields", "matchQueryWithoutFields", 
-      "matchQueryExpression", "matchRange", "matchRangeOperator"
+      "unparsedMatchQuery", "parsedMatchQuery", "matchQueryValue", "matchQueryRange", 
+      "matchQueryField", "matchQueryExpression", "matchRangeOperator"
     };
   }
   public static final String[] ruleNames = makeRuleNames();
@@ -134,7 +134,7 @@ public class EsqlBaseParser extends Parser {
       "SETTTING_MULTILINE_COMMENT", "SETTING_WS", "METRICS_LINE_COMMENT", "METRICS_MULTILINE_COMMENT", 
       "METRICS_WS", "CLOSING_METRICS_LINE_COMMENT", "CLOSING_METRICS_MULTILINE_COMMENT", 
       "CLOSING_METRICS_WS", "MATCH_LINE_COMMENT", "MATCH_MULTILINE_COMMENT", 
-      "MATCH_WS", "FIELD_PATTERN"
+      "MATCH_WS", "WORD_PATTERN"
     };
   }
   private static final String[] _SYMBOLIC_NAMES = makeSymbolicNames();
@@ -5303,11 +5303,11 @@ public class EsqlBaseParser extends Parser {
   @SuppressWarnings("CheckReturnValue")
   public static class MatchCommandContext extends ParserRuleContext {
     public TerminalNode MATCH() { return getToken(EsqlBaseParser.MATCH, 0); }
-    public UnparsedMatchQueryContext unparsedMatchQuery() {
-      return getRuleContext(UnparsedMatchQueryContext.class,0);
-    }
     public ParsedMatchQueryContext parsedMatchQuery() {
       return getRuleContext(ParsedMatchQueryContext.class,0);
+    }
+    public UnparsedMatchQueryContext unparsedMatchQuery() {
+      return getRuleContext(UnparsedMatchQueryContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public MatchCommandContext(ParserRuleContext parent, int invokingState) {
@@ -5343,13 +5343,13 @@ public class EsqlBaseParser extends Parser {
       case 1:
         {
         setState(601);
-        unparsedMatchQuery();
+        parsedMatchQuery(0);
         }
         break;
       case 2:
         {
         setState(602);
-        parsedMatchQuery(0);
+        unparsedMatchQuery();
         }
         break;
       }
@@ -5416,11 +5416,11 @@ public class EsqlBaseParser extends Parser {
     public ParsedMatchQueryContext left;
     public Token operator;
     public ParsedMatchQueryContext right;
-    public MatchQueryWithFieldsContext matchQueryWithFields() {
-      return getRuleContext(MatchQueryWithFieldsContext.class,0);
+    public MatchQueryValueContext matchQueryValue() {
+      return getRuleContext(MatchQueryValueContext.class,0);
     }
-    public MatchQueryWithoutFieldsContext matchQueryWithoutFields() {
-      return getRuleContext(MatchQueryWithoutFieldsContext.class,0);
+    public MatchQueryRangeContext matchQueryRange() {
+      return getRuleContext(MatchQueryRangeContext.class,0);
     }
     public TerminalNode LP() { return getToken(EsqlBaseParser.LP, 0); }
     public List<ParsedMatchQueryContext> parsedMatchQuery() {
@@ -5473,13 +5473,13 @@ public class EsqlBaseParser extends Parser {
       case 1:
         {
         setState(608);
-        matchQueryWithFields();
+        matchQueryValue();
         }
         break;
       case 2:
         {
         setState(609);
-        matchQueryWithoutFields();
+        matchQueryRange();
         }
         break;
       case 3:
@@ -5552,44 +5552,50 @@ public class EsqlBaseParser extends Parser {
   }
 
   @SuppressWarnings("CheckReturnValue")
-  public static class MatchQueryWithFieldsContext extends ParserRuleContext {
-    public Token fieldName;
-    public TerminalNode COLON() { return getToken(EsqlBaseParser.COLON, 0); }
+  public static class MatchQueryValueContext extends ParserRuleContext {
     public MatchQueryExpressionContext matchQueryExpression() {
       return getRuleContext(MatchQueryExpressionContext.class,0);
     }
-    public TerminalNode FIELD_PATTERN() { return getToken(EsqlBaseParser.FIELD_PATTERN, 0); }
+    public MatchQueryFieldContext matchQueryField() {
+      return getRuleContext(MatchQueryFieldContext.class,0);
+    }
     @SuppressWarnings("this-escape")
-    public MatchQueryWithFieldsContext(ParserRuleContext parent, int invokingState) {
+    public MatchQueryValueContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
-    @Override public int getRuleIndex() { return RULE_matchQueryWithFields; }
+    @Override public int getRuleIndex() { return RULE_matchQueryValue; }
     @Override
     public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterMatchQueryWithFields(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterMatchQueryValue(this);
     }
     @Override
     public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitMatchQueryWithFields(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitMatchQueryValue(this);
     }
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitMatchQueryWithFields(this);
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitMatchQueryValue(this);
       else return visitor.visitChildren(this);
     }
   }
 
-  public final MatchQueryWithFieldsContext matchQueryWithFields() throws RecognitionException {
-    MatchQueryWithFieldsContext _localctx = new MatchQueryWithFieldsContext(_ctx, getState());
-    enterRule(_localctx, 126, RULE_matchQueryWithFields);
+  public final MatchQueryValueContext matchQueryValue() throws RecognitionException {
+    MatchQueryValueContext _localctx = new MatchQueryValueContext(_ctx, getState());
+    enterRule(_localctx, 126, RULE_matchQueryValue);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(627);
-      ((MatchQueryWithFieldsContext)_localctx).fieldName = match(FIELD_PATTERN);
       setState(628);
-      match(COLON);
-      setState(629);
+      _errHandler.sync(this);
+      switch ( getInterpreter().adaptivePredict(_input,59,_ctx) ) {
+      case 1:
+        {
+        setState(627);
+        matchQueryField();
+        }
+        break;
+      }
+      setState(630);
       matchQueryExpression();
       }
     }
@@ -5605,60 +5611,95 @@ public class EsqlBaseParser extends Parser {
   }
 
   @SuppressWarnings("CheckReturnValue")
-  public static class MatchQueryWithoutFieldsContext extends ParserRuleContext {
-    public List<MatchQueryExpressionContext> matchQueryExpression() {
-      return getRuleContexts(MatchQueryExpressionContext.class);
+  public static class MatchQueryRangeContext extends ParserRuleContext {
+    public Token fieldName;
+    public MatchRangeOperatorContext matchRangeOperator() {
+      return getRuleContext(MatchRangeOperatorContext.class,0);
     }
-    public MatchQueryExpressionContext matchQueryExpression(int i) {
-      return getRuleContext(MatchQueryExpressionContext.class,i);
+    public MatchQueryExpressionContext matchQueryExpression() {
+      return getRuleContext(MatchQueryExpressionContext.class,0);
     }
+    public TerminalNode WORD_PATTERN() { return getToken(EsqlBaseParser.WORD_PATTERN, 0); }
     @SuppressWarnings("this-escape")
-    public MatchQueryWithoutFieldsContext(ParserRuleContext parent, int invokingState) {
+    public MatchQueryRangeContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
-    @Override public int getRuleIndex() { return RULE_matchQueryWithoutFields; }
+    @Override public int getRuleIndex() { return RULE_matchQueryRange; }
     @Override
     public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterMatchQueryWithoutFields(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterMatchQueryRange(this);
     }
     @Override
     public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitMatchQueryWithoutFields(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitMatchQueryRange(this);
     }
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitMatchQueryWithoutFields(this);
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitMatchQueryRange(this);
       else return visitor.visitChildren(this);
     }
   }
 
-  public final MatchQueryWithoutFieldsContext matchQueryWithoutFields() throws RecognitionException {
-    MatchQueryWithoutFieldsContext _localctx = new MatchQueryWithoutFieldsContext(_ctx, getState());
-    enterRule(_localctx, 128, RULE_matchQueryWithoutFields);
+  public final MatchQueryRangeContext matchQueryRange() throws RecognitionException {
+    MatchQueryRangeContext _localctx = new MatchQueryRangeContext(_ctx, getState());
+    enterRule(_localctx, 128, RULE_matchQueryRange);
     try {
-      int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(632); 
-      _errHandler.sync(this);
-      _alt = 1;
-      do {
-        switch (_alt) {
-        case 1:
-          {
-          {
-          setState(631);
-          matchQueryExpression();
-          }
-          }
-          break;
-        default:
-          throw new NoViableAltException(this);
-        }
-        setState(634); 
-        _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,59,_ctx);
-      } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
+      setState(632);
+      ((MatchQueryRangeContext)_localctx).fieldName = match(WORD_PATTERN);
+      setState(633);
+      matchRangeOperator();
+      setState(634);
+      matchQueryExpression();
+      }
+    }
+    catch (RecognitionException re) {
+      _localctx.exception = re;
+      _errHandler.reportError(this, re);
+      _errHandler.recover(this, re);
+    }
+    finally {
+      exitRule();
+    }
+    return _localctx;
+  }
+
+  @SuppressWarnings("CheckReturnValue")
+  public static class MatchQueryFieldContext extends ParserRuleContext {
+    public Token fieldName;
+    public TerminalNode COLON() { return getToken(EsqlBaseParser.COLON, 0); }
+    public TerminalNode WORD_PATTERN() { return getToken(EsqlBaseParser.WORD_PATTERN, 0); }
+    @SuppressWarnings("this-escape")
+    public MatchQueryFieldContext(ParserRuleContext parent, int invokingState) {
+      super(parent, invokingState);
+    }
+    @Override public int getRuleIndex() { return RULE_matchQueryField; }
+    @Override
+    public void enterRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterMatchQueryField(this);
+    }
+    @Override
+    public void exitRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitMatchQueryField(this);
+    }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitMatchQueryField(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+
+  public final MatchQueryFieldContext matchQueryField() throws RecognitionException {
+    MatchQueryFieldContext _localctx = new MatchQueryFieldContext(_ctx, getState());
+    enterRule(_localctx, 130, RULE_matchQueryField);
+    try {
+      enterOuterAlt(_localctx, 1);
+      {
+      setState(636);
+      ((MatchQueryFieldContext)_localctx).fieldName = match(WORD_PATTERN);
+      setState(637);
+      match(COLON);
       }
     }
     catch (RecognitionException re) {
@@ -5675,9 +5716,9 @@ public class EsqlBaseParser extends Parser {
   @SuppressWarnings("CheckReturnValue")
   public static class MatchQueryExpressionContext extends ParserRuleContext {
     public TerminalNode QUOTED_STRING() { return getToken(EsqlBaseParser.QUOTED_STRING, 0); }
-    public List<TerminalNode> FIELD_PATTERN() { return getTokens(EsqlBaseParser.FIELD_PATTERN); }
-    public TerminalNode FIELD_PATTERN(int i) {
-      return getToken(EsqlBaseParser.FIELD_PATTERN, i);
+    public List<TerminalNode> WORD_PATTERN() { return getTokens(EsqlBaseParser.WORD_PATTERN); }
+    public TerminalNode WORD_PATTERN(int i) {
+      return getToken(EsqlBaseParser.WORD_PATTERN, i);
     }
     public IntegerValueContext integerValue() {
       return getRuleContext(IntegerValueContext.class,0);
@@ -5707,23 +5748,23 @@ public class EsqlBaseParser extends Parser {
 
   public final MatchQueryExpressionContext matchQueryExpression() throws RecognitionException {
     MatchQueryExpressionContext _localctx = new MatchQueryExpressionContext(_ctx, getState());
-    enterRule(_localctx, 130, RULE_matchQueryExpression);
+    enterRule(_localctx, 132, RULE_matchQueryExpression);
     try {
       int _alt;
-      setState(644);
+      setState(647);
       _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,61,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
         {
-        setState(636);
+        setState(639);
         match(QUOTED_STRING);
         }
         break;
       case 2:
         enterOuterAlt(_localctx, 2);
         {
-        setState(638); 
+        setState(641); 
         _errHandler.sync(this);
         _alt = 1;
         do {
@@ -5731,15 +5772,15 @@ public class EsqlBaseParser extends Parser {
           case 1:
             {
             {
-            setState(637);
-            match(FIELD_PATTERN);
+            setState(640);
+            match(WORD_PATTERN);
             }
             }
             break;
           default:
             throw new NoViableAltException(this);
           }
-          setState(640); 
+          setState(643); 
           _errHandler.sync(this);
           _alt = getInterpreter().adaptivePredict(_input,60,_ctx);
         } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
@@ -5748,72 +5789,17 @@ public class EsqlBaseParser extends Parser {
       case 3:
         enterOuterAlt(_localctx, 3);
         {
-        setState(642);
+        setState(645);
         integerValue();
         }
         break;
       case 4:
         enterOuterAlt(_localctx, 4);
         {
-        setState(643);
+        setState(646);
         decimalValue();
         }
         break;
-      }
-    }
-    catch (RecognitionException re) {
-      _localctx.exception = re;
-      _errHandler.reportError(this, re);
-      _errHandler.recover(this, re);
-    }
-    finally {
-      exitRule();
-    }
-    return _localctx;
-  }
-
-  @SuppressWarnings("CheckReturnValue")
-  public static class MatchRangeContext extends ParserRuleContext {
-    public Token fieldName;
-    public MatchRangeOperatorContext matchRangeOperator() {
-      return getRuleContext(MatchRangeOperatorContext.class,0);
-    }
-    public MatchQueryExpressionContext matchQueryExpression() {
-      return getRuleContext(MatchQueryExpressionContext.class,0);
-    }
-    public TerminalNode FIELD_PATTERN() { return getToken(EsqlBaseParser.FIELD_PATTERN, 0); }
-    @SuppressWarnings("this-escape")
-    public MatchRangeContext(ParserRuleContext parent, int invokingState) {
-      super(parent, invokingState);
-    }
-    @Override public int getRuleIndex() { return RULE_matchRange; }
-    @Override
-    public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterMatchRange(this);
-    }
-    @Override
-    public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitMatchRange(this);
-    }
-    @Override
-    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitMatchRange(this);
-      else return visitor.visitChildren(this);
-    }
-  }
-
-  public final MatchRangeContext matchRange() throws RecognitionException {
-    MatchRangeContext _localctx = new MatchRangeContext(_ctx, getState());
-    enterRule(_localctx, 132, RULE_matchRange);
-    try {
-      enterOuterAlt(_localctx, 1);
-      {
-      setState(646);
-      ((MatchRangeContext)_localctx).fieldName = match(FIELD_PATTERN);
-      setState(647);
-      matchRangeOperator();
-      setState(648);
-      matchQueryExpression();
       }
     }
     catch (RecognitionException re) {
@@ -5860,7 +5846,7 @@ public class EsqlBaseParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(650);
+      setState(649);
       _la = _input.LA(1);
       if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & -1152921504606846976L) != 0)) ) {
       _errHandler.recoverInline(this);
@@ -5941,7 +5927,7 @@ public class EsqlBaseParser extends Parser {
   }
 
   public static final String _serializedATN =
-    "\u0004\u0001\u0081\u028d\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001"+
+    "\u0004\u0001\u0081\u028c\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001"+
     "\u0002\u0002\u0007\u0002\u0002\u0003\u0007\u0003\u0002\u0004\u0007\u0004"+
     "\u0002\u0005\u0007\u0005\u0002\u0006\u0007\u0006\u0002\u0007\u0007\u0007"+
     "\u0002\b\u0007\b\u0002\t\u0007\t\u0002\n\u0007\n\u0002\u000b\u0007\u000b"+
@@ -6023,15 +6009,15 @@ public class EsqlBaseParser extends Parser {
     "\u0250\b:\u0001:\u0001:\u0001;\u0001;\u0001;\u0001;\u0001;\u0001<\u0001"+
     "<\u0001<\u0003<\u025c\b<\u0001=\u0001=\u0001>\u0001>\u0001>\u0001>\u0001"+
     ">\u0001>\u0001>\u0003>\u0267\b>\u0001>\u0001>\u0001>\u0001>\u0001>\u0001"+
-    ">\u0005>\u026f\b>\n>\f>\u0272\t>\u0001?\u0001?\u0001?\u0001?\u0001@\u0004"+
-    "@\u0279\b@\u000b@\f@\u027a\u0001A\u0001A\u0004A\u027f\bA\u000bA\fA\u0280"+
-    "\u0001A\u0001A\u0003A\u0285\bA\u0001B\u0001B\u0001B\u0001B\u0001C\u0001"+
+    ">\u0005>\u026f\b>\n>\f>\u0272\t>\u0001?\u0003?\u0275\b?\u0001?\u0001?"+
+    "\u0001@\u0001@\u0001@\u0001@\u0001A\u0001A\u0001A\u0001B\u0001B\u0004"+
+    "B\u0282\bB\u000bB\fB\u0283\u0001B\u0001B\u0003B\u0288\bB\u0001C\u0001"+
     "C\u0001C\u0000\u0005\u0002\n\u0012\u0014|D\u0000\u0002\u0004\u0006\b\n"+
     "\f\u000e\u0010\u0012\u0014\u0016\u0018\u001a\u001c\u001e \"$&(*,.0246"+
     "8:<>@BDFHJLNPRTVXZ\\^`bdfhjlnprtvxz|~\u0080\u0082\u0084\u0086\u0000\t"+
     "\u0001\u0000@A\u0001\u0000BD\u0002\u0000\u001a\u001a\u001f\u001f\u0001"+
     "\u0000HI\u0002\u0000$$((\u0002\u0000++..\u0002\u0000**88\u0002\u00009"+
-    "9;?\u0001\u0000<?\u02a9\u0000\u0088\u0001\u0000\u0000\u0000\u0002\u008b"+
+    "9;?\u0001\u0000<?\u02a8\u0000\u0088\u0001\u0000\u0000\u0000\u0002\u008b"+
     "\u0001\u0000\u0000\u0000\u0004\u009c\u0001\u0000\u0000\u0000\u0006\u00ad"+
     "\u0001\u0000\u0000\u0000\b\u00af\u0001\u0000\u0000\u0000\n\u00cf\u0001"+
     "\u0000\u0000\u0000\f\u00ea\u0001\u0000\u0000\u0000\u000e\u00ec\u0001\u0000"+
@@ -6059,9 +6045,9 @@ public class EsqlBaseParser extends Parser {
     "n\u0235\u0001\u0000\u0000\u0000p\u0238\u0001\u0000\u0000\u0000r\u023b"+
     "\u0001\u0000\u0000\u0000t\u024f\u0001\u0000\u0000\u0000v\u0253\u0001\u0000"+
     "\u0000\u0000x\u0258\u0001\u0000\u0000\u0000z\u025d\u0001\u0000\u0000\u0000"+
-    "|\u0266\u0001\u0000\u0000\u0000~\u0273\u0001\u0000\u0000\u0000\u0080\u0278"+
-    "\u0001\u0000\u0000\u0000\u0082\u0284\u0001\u0000\u0000\u0000\u0084\u0286"+
-    "\u0001\u0000\u0000\u0000\u0086\u028a\u0001\u0000\u0000\u0000\u0088\u0089"+
+    "|\u0266\u0001\u0000\u0000\u0000~\u0274\u0001\u0000\u0000\u0000\u0080\u0278"+
+    "\u0001\u0000\u0000\u0000\u0082\u027c\u0001\u0000\u0000\u0000\u0084\u0287"+
+    "\u0001\u0000\u0000\u0000\u0086\u0289\u0001\u0000\u0000\u0000\u0088\u0089"+
     "\u0003\u0002\u0001\u0000\u0089\u008a\u0005\u0000\u0000\u0001\u008a\u0001"+
     "\u0001\u0000\u0000\u0000\u008b\u008c\u0006\u0001\uffff\uffff\u0000\u008c"+
     "\u008d\u0003\u0004\u0002\u0000\u008d\u0093\u0001\u0000\u0000\u0000\u008e"+
@@ -6318,7 +6304,7 @@ public class EsqlBaseParser extends Parser {
     "u\u0001\u0000\u0000\u0000\u0253\u0254\u0005\u000b\u0000\u0000\u0254\u0255"+
     "\u0003\"\u0011\u0000\u0255\u0256\u0005Y\u0000\u0000\u0256\u0257\u0003"+
     "<\u001e\u0000\u0257w\u0001\u0000\u0000\u0000\u0258\u025b\u0005\u0015\u0000"+
-    "\u0000\u0259\u025c\u0003z=\u0000\u025a\u025c\u0003|>\u0000\u025b\u0259"+
+    "\u0000\u0259\u025c\u0003|>\u0000\u025a\u025c\u0003z=\u0000\u025b\u0259"+
     "\u0001\u0000\u0000\u0000\u025b\u025a\u0001\u0000\u0000\u0000\u025cy\u0001"+
     "\u0000\u0000\u0000\u025d\u025e\u0005\u001f\u0000\u0000\u025e{\u0001\u0000"+
     "\u0000\u0000\u025f\u0260\u0006>\uffff\uffff\u0000\u0260\u0267\u0003~?"+
@@ -6332,26 +6318,26 @@ public class EsqlBaseParser extends Parser {
     "\u0001\u0000\u0000\u0000\u026e\u026b\u0001\u0000\u0000\u0000\u026f\u0272"+
     "\u0001\u0000\u0000\u0000\u0270\u026e\u0001\u0000\u0000\u0000\u0270\u0271"+
     "\u0001\u0000\u0000\u0000\u0271}\u0001\u0000\u0000\u0000\u0272\u0270\u0001"+
-    "\u0000\u0000\u0000\u0273\u0274\u0005\u0081\u0000\u0000\u0274\u0275\u0005"+
-    "s\u0000\u0000\u0275\u0276\u0003\u0082A\u0000\u0276\u007f\u0001\u0000\u0000"+
-    "\u0000\u0277\u0279\u0003\u0082A\u0000\u0278\u0277\u0001\u0000\u0000\u0000"+
-    "\u0279\u027a\u0001\u0000\u0000\u0000\u027a\u0278\u0001\u0000\u0000\u0000"+
-    "\u027a\u027b\u0001\u0000\u0000\u0000\u027b\u0081\u0001\u0000\u0000\u0000"+
-    "\u027c\u0285\u0005\u001f\u0000\u0000\u027d\u027f\u0005\u0081\u0000\u0000"+
-    "\u027e\u027d\u0001\u0000\u0000\u0000\u027f\u0280\u0001\u0000\u0000\u0000"+
-    "\u0280\u027e\u0001\u0000\u0000\u0000\u0280\u0281\u0001\u0000\u0000\u0000"+
-    "\u0281\u0285\u0001\u0000\u0000\u0000\u0282\u0285\u0003d2\u0000\u0283\u0285"+
-    "\u0003b1\u0000\u0284\u027c\u0001\u0000\u0000\u0000\u0284\u027e\u0001\u0000"+
-    "\u0000\u0000\u0284\u0282\u0001\u0000\u0000\u0000\u0284\u0283\u0001\u0000"+
-    "\u0000\u0000\u0285\u0083\u0001\u0000\u0000\u0000\u0286\u0287\u0005\u0081"+
-    "\u0000\u0000\u0287\u0288\u0003\u0086C\u0000\u0288\u0289\u0003\u0082A\u0000"+
-    "\u0289\u0085\u0001\u0000\u0000\u0000\u028a\u028b\u0007\b\u0000\u0000\u028b"+
-    "\u0087\u0001\u0000\u0000\u0000>\u0093\u009c\u00ad\u00ba\u00c3\u00cb\u00cf"+
-    "\u00d7\u00d9\u00de\u00e5\u00ea\u00f5\u00fb\u0103\u0105\u0110\u0117\u0122"+
-    "\u0125\u0133\u013b\u0143\u0147\u014e\u0156\u015e\u016b\u016f\u0173\u017a"+
-    "\u017e\u0184\u018b\u0193\u019b\u01a3\u01b9\u01c4\u01cf\u01d4\u01d8\u01e3"+
-    "\u01e8\u01ec\u01fa\u0205\u0213\u021e\u0221\u0226\u023f\u0247\u024a\u024f"+
-    "\u025b\u0266\u026e\u0270\u027a\u0280\u0284";
+    "\u0000\u0000\u0000\u0273\u0275\u0003\u0082A\u0000\u0274\u0273\u0001\u0000"+
+    "\u0000\u0000\u0274\u0275\u0001\u0000\u0000\u0000\u0275\u0276\u0001\u0000"+
+    "\u0000\u0000\u0276\u0277\u0003\u0084B\u0000\u0277\u007f\u0001\u0000\u0000"+
+    "\u0000\u0278\u0279\u0005\u0081\u0000\u0000\u0279\u027a\u0003\u0086C\u0000"+
+    "\u027a\u027b\u0003\u0084B\u0000\u027b\u0081\u0001\u0000\u0000\u0000\u027c"+
+    "\u027d\u0005\u0081\u0000\u0000\u027d\u027e\u0005s\u0000\u0000\u027e\u0083"+
+    "\u0001\u0000\u0000\u0000\u027f\u0288\u0005\u001f\u0000\u0000\u0280\u0282"+
+    "\u0005\u0081\u0000\u0000\u0281\u0280\u0001\u0000\u0000\u0000\u0282\u0283"+
+    "\u0001\u0000\u0000\u0000\u0283\u0281\u0001\u0000\u0000\u0000\u0283\u0284"+
+    "\u0001\u0000\u0000\u0000\u0284\u0288\u0001\u0000\u0000\u0000\u0285\u0288"+
+    "\u0003d2\u0000\u0286\u0288\u0003b1\u0000\u0287\u027f\u0001\u0000\u0000"+
+    "\u0000\u0287\u0281\u0001\u0000\u0000\u0000\u0287\u0285\u0001\u0000\u0000"+
+    "\u0000\u0287\u0286\u0001\u0000\u0000\u0000\u0288\u0085\u0001\u0000\u0000"+
+    "\u0000\u0289\u028a\u0007\b\u0000\u0000\u028a\u0087\u0001\u0000\u0000\u0000"+
+    ">\u0093\u009c\u00ad\u00ba\u00c3\u00cb\u00cf\u00d7\u00d9\u00de\u00e5\u00ea"+
+    "\u00f5\u00fb\u0103\u0105\u0110\u0117\u0122\u0125\u0133\u013b\u0143\u0147"+
+    "\u014e\u0156\u015e\u016b\u016f\u0173\u017a\u017e\u0184\u018b\u0193\u019b"+
+    "\u01a3\u01b9\u01c4\u01cf\u01d4\u01d8\u01e3\u01e8\u01ec\u01fa\u0205\u0213"+
+    "\u021e\u0221\u0226\u023f\u0247\u024a\u024f\u025b\u0266\u026e\u0270\u0274"+
+    "\u0283\u0287";
   public static final ATN _ATN =
     new ATNDeserializer().deserialize(_serializedATN.toCharArray());
   static {

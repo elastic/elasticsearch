@@ -304,7 +304,7 @@ lookupCommand
     ;
 
 matchCommand
-    : MATCH (unparsedMatchQuery | parsedMatchQuery)
+    : MATCH (parsedMatchQuery | unparsedMatchQuery )
     ;
 
 unparsedMatchQuery
@@ -312,30 +312,29 @@ unparsedMatchQuery
     ;
 
 parsedMatchQuery
-    : matchQueryWithField
-    | matchQueryWithoutFields
+    : matchQueryValue
+    | matchQueryRange
     | LP parsedMatchQuery RP
     | left=parsedMatchQuery operator=AND right=parsedMatchQuery
     | left=parsedMatchQuery operator=OR right=parsedMatchQuery
     ;
 
-matchQueryWithField
-    : matchQueryWithFieldValue
-    | matchQueryWithFieldRange
+matchQueryValue
+    : matchQueryField? matchQueryExpression
     ;
 
-matchQueryWithFieldRange : fieldName=FIELD_PATTERN matchRangeOperator matchQueryExpression ;
+matchQueryRange
+    : fieldName=WORD_PATTERN matchRangeOperator matchQueryExpression
+    ;
 
-matchQueryWithFieldValue : fieldName=FIELD_PATTERN COLON matchQueryExpression ;
-
-matchQueryWithoutFields
-    : matchQueryExpression+
+matchQueryField
+    : fieldName=WORD_PATTERN COLON
     ;
 
 matchQueryExpression
     : QUOTED_STRING
     // Unquoted strings are recognized as field patterns - is there a way to distinguish them?
-    | FIELD_PATTERN+
+    | WORD_PATTERN+
     | integerValue
     | decimalValue
     ;

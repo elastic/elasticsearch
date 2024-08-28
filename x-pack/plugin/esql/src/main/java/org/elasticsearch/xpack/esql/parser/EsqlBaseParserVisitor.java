@@ -567,29 +567,29 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitParsedMatchQuery(EsqlBaseParser.ParsedMatchQueryContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryWithFields}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryValue}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitMatchQueryWithFields(EsqlBaseParser.MatchQueryWithFieldsContext ctx);
+  T visitMatchQueryValue(EsqlBaseParser.MatchQueryValueContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryWithoutFields}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryRange}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitMatchQueryWithoutFields(EsqlBaseParser.MatchQueryWithoutFieldsContext ctx);
+  T visitMatchQueryRange(EsqlBaseParser.MatchQueryRangeContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryField}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchQueryField(EsqlBaseParser.MatchQueryFieldContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitMatchQueryExpression(EsqlBaseParser.MatchQueryExpressionContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#matchRange}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMatchRange(EsqlBaseParser.MatchRangeContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#matchRangeOperator}.
    * @param ctx the parse tree

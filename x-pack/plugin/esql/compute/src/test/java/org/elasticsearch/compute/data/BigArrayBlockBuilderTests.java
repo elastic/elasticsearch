@@ -318,6 +318,10 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                 }
                 assertKeepMask(block);
                 try (ToMask mask = block.toMask()) {
+                    /*
+                     * NOTE: this test is customized to the layout above where we don't make
+                     * any fields with 0 values.
+                     */
                     assertThat(mask.hadMultivaluedFields(), equalTo(true));
                     assertThat(mask.mask().getBoolean(0), equalTo(false));
                     for (int p = 1; p < positionCount; p++) {

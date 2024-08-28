@@ -1,21 +1,22 @@
 [[elasticsearch-intro]]
 == What is {es}?
 
-https://github.com/elastic/elasticsearch[{es}] is a distributed, RESTful search and analytics engine, scalable data store, and vector database built in Java on top of the Apache Lucene library.
-Use {es} to search, index, store, and analyze data of all shapes and sizes in near real-time.
+https://github.com/elastic/elasticsearch[{es}] is a distributed search and analytics engine, scalable data store, and vector database built on Apache Lucene.
+It's optimized for speed and relevance on production-scale workloads.
+Use {es} to search, index, store, and analyze data of all shapes and sizes in near real time.
 
 [TIP]
 ====
 {es} has a lot of features. Explore the full list on the https://www.elastic.co/elasticsearch/features[product webpage^].
 ====
 
-{es} is the heart of the the <<elasticsearch-intro-elastic-stack,Elastic Stack>> and powers the Elastic https://www.elastic.co/enterprise-search[Search], https://www.elastic.co/observability[Observability] and https://www.elastic.co/security[Security] solutions.
+{es} is the heart of the <<elasticsearch-intro-elastic-stack,Elastic Stack>> and powers the Elastic https://www.elastic.co/enterprise-search[Search], https://www.elastic.co/observability[Observability] and https://www.elastic.co/security[Security] solutions.
 
 {es} is used for a wide and growing range of use cases. Here are a few examples:
 
-* *Monitor log and event data*. Store and analyze logs, metrics, and security event data for operational insights and SIEM.
-* *Build search applications*. Add search capabilities to apps or websites and build enterprise search engines over your organization's internal data sources.
-* *Vector database*. Store and search vectorized data, create vector embeddings with built-in and third-party NLP models.
+* *Monitor log and event data*. Store logs, metrics, and event data for observability and security information and event management (SIEM).
+* *Build search applications*. Add search capabilities to apps or websites, or build enterprise search engines over your organization's internal data sources.
+* *Vector database*. Store and search vectorized data, and create vector embeddings with built-in and third-party natural language processing (NLP) models.
 * *Retrieval augmented generation (RAG)*. Use {es} as a retrieval engine to augment Generative AI models.
 * *Application and security monitoring*. Monitor and analyze application performance and security data effectively.
 * *Machine learning*. Use machine learning to automatically model the behavior of your data in real time.
@@ -28,15 +29,14 @@ Refer to our https://www.elastic.co/customers/success-stories[customer success s
 [[elasticsearch-intro-elastic-stack]]
 .What is the Elastic Stack?
 *******************************
-The Elastic Stack refers to the suite of products enabled by {es}:
+{es} is the core component of the Elastic Stack, a suite of products for collecting, storing, searching, and visualizing data.
 
 * https://www.elastic.co/guide/en/kibana/current/index.html[Kibana]. A UI for visualizing and exploring data in {es}.
 * https://www.elastic.co/guide/en/elasticsearch/client/index.html[Client libraries]. Work with {es} in your preferred programming language.
 * https://www.elastic.co/guide/en/logstash/current/introduction.html[Logstash]. A server-side data processing pipeline for ingesting and transforming data from multiple sources and indexing into {es}.
-* https://www.elastic.co/guide/en/fleet/current/fleet-overview.html[Fleet and Elastic Agent.] Elastic Agents is a single, unified way to add monitoring for logs, metrics, and other types of data to a host. Fleet is a central place to configure and monitor your Elastic Agents.
+* https://www.elastic.co/guide/en/fleet/current/fleet-overview.html[Fleet and Elastic Agent.] Elastic Agent is a single, unified way to add monitoring for logs, metrics, and other types of data to a host. Fleet is a central place to configure and monitor your Elastic Agents.
 * https://www.elastic.co/guide/en/beats/libbeat/current/beats-reference.html[Beats]. Lightweight data shippers for sending data from edge machines to {es}.
 * https://www.elastic.co/guide/en/observability/current/apm.html[APM]. Monitor the performance of your applications.
-* https://www.elastic.co/guide/en/elasticsearch/hadoop/current/float.html[{es} Hadoop]. Use {es} as a Hadoop input/output format.
 
 https://www.elastic.co/guide/en/starting-with-the-elasticsearch-platform-and-its-solutions/current/stack-components.html[Learn more about the Elastic Stack].
 *******************************
@@ -49,20 +49,21 @@ https://www.elastic.co/guide/en/starting-with-the-elasticsearch-platform-and-its
 To use {es}, you need a running instance of the {es} service.
 You can deploy {es} in various ways:
 
+* <<run-elasticsearch-locally,*Local dev*>>. Get started quickly with a minimal local Docker setup. 
 * https://elastic.co/guide/en/cloud/current/ec-getting-started.html[*Elastic Cloud*]. {es} is available as part of our hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14 day free trial].
+* https://www.elastic.co/docs/current/serverless[*Elastic Cloud Serverless* (technical preview)]. Create serverless projects for autoscaled and fully-managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14 day free trial].
+
+**Advanced deployment options**
+
+* <<elasticsearch-deployment-options,*Self managed*>>. Install, configure, and run {es} on your own premises.
 * https://elastic.co/guide/en/cloud-enterprise/current/Elastic-Cloud-Enterprise-overview.html[*Elastic Cloud Enterprise*]. Deploy Elastic Cloud on public or private clouds, virtual machines, or your own premises.
 * https://elastic.co/guide/en/cloud-on-k8s/current/k8s-overview.html[*Elastic Cloud on Kubernetes*]. Deploy Elastic Cloud on Kubernetes.
-* https://www.elastic.co/docs/current/serverless[*Elastic Cloud Serverless* (technical preview)]. Create serverless projects for autoscaled and fully-managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14 day free trial].
-* <<elasticsearch-deployment-options,*Self managed*>>. Install, configure, and run {es} on your own premises.
-+
-[TIP]
-====
-If you just want to get started quickly with a minimal local setup, refer to <<run-elasticsearch-locally,Run {es} locally>>.
-====
 
 [discrete]
 [[elasticsearch-next-steps]]
 === Learn more
+
+Here are some resources to help you get started:
 
 * <<getting-started, Quickstart>>. A beginner's guide to deploying your first {es} instance, indexing data, and running queries.
 * https://elastic.co/webinars/getting-started-elasticsearch[Webinar: Introduction to {es}]. Register for our live webinars to learn directly from {es} experts.
@@ -70,8 +71,14 @@ If you just want to get started quickly with a minimal local setup, refer to <<r
 ** Follow our tutorial https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[to build a hybrid search solution in Python].
 ** Check out the https://github.com/elastic/elasticsearch-labs?tab=readme-ov-file#elasticsearch-examples--apps[`elasticsearch-labs` repository] for a range of Python notebooks and apps for various use cases.
 
+[[how-elasticsearch-works]]
+=== How {es} works
+
+This page outlines some fundamental {es} concepts and features, including how data is stored, indexing capabilities, search and analysis features, scalability, and disaster recovery options.
+
+[discrete]
 [[documents-indices]]
-=== Documents and indices
+==== Documents and indices
 
 {es} is a distributed document store. Instead of storing information as rows of
 columnar data, {es} stores complex data structures that have been serialized
@@ -122,11 +129,82 @@ The analysis chain that is applied to a full-text field during indexing is also
 used at search time. When you query a full-text field, the query text undergoes
 the same analysis before the terms are looked up in the index.
 
+[discrete]
+[[search-analyze]]
+==== Information out: search and analyze
+
+While you can use {es} as a document store and retrieve documents and their
+metadata, the real power comes from being able to easily access the full suite
+of search capabilities built on the Apache Lucene search engine library.
+
+{es} provides a simple, coherent REST API for managing your cluster and indexing
+and searching your data. For testing purposes, you can easily submit requests
+directly from the command line or through the Developer Console in {kib}. From
+your applications, you can use the
+https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} client]
+for your language of choice: Java, JavaScript, Go, .NET, PHP, Perl, Python
+or Ruby.
+
+[discrete]
+[[search-data]]
+===== Searching your data
+
+The {es} REST APIs support structured queries, full text queries, and complex
+queries that combine the two. Structured queries are
+similar to the types of queries you can construct in SQL. For example, you
+could search the `gender` and `age` fields in your `employee` index and sort the
+matches by the `hire_date` field. Full-text queries find all documents that
+match the query string and return them sorted by _relevance_&mdash;how good a
+match they are for your search terms.
+
+In addition to searching for individual terms, you can perform phrase searches,
+similarity searches, and prefix searches, and get autocomplete suggestions.
+
+Have geospatial or other numerical data that you want to search? {es} indexes
+non-textual data in optimized data structures that support
+high-performance geo and numerical queries.
+
+You can access all of these search capabilities using {es}'s
+comprehensive JSON-style query language (<<query-dsl, Query DSL>>). You can also
+construct <<sql-overview, SQL-style queries>> to search and aggregate data
+natively inside {es}, and JDBC and ODBC drivers enable a broad range of
+third-party applications to interact with {es} via SQL.
+
+[discrete]
+[[analyze-data]]
+===== Analyzing your data
+
+{es} aggregations enable you to build complex summaries of your data and gain
+insight into key metrics, patterns, and trends. Instead of just finding the
+proverbial “needle in a haystack”, aggregations enable you to answer questions
+like:
+
+* How many needles are in the haystack?
+* What is the average length of the needles?
+* What is the median length of the needles, broken down by manufacturer?
+* How many needles were added to the haystack in each of the last six months?
+
+You can also use aggregations to answer more subtle questions, such as:
+
+* What are your most popular needle manufacturers?
+* Are there any unusual or anomalous clumps of needles?
+
+Because aggregations leverage the same data-structures used for search, they are
+also very fast. This enables you to analyze and visualize your data in real time.
+Your reports and dashboards update as your data changes so you can take action
+based on the latest information.
+
+What’s more, aggregations operate alongside search requests. You can search
+documents, filter results, and perform analytics at the same time, on the same
+data, in a single request. And because aggregations are calculated in the
+context of a particular search, you’re not just displaying a count of all
+size 70 needles, you’re displaying a count of the size 70 needles
+that match your users' search criteria--for example, all size 70 _non-stick
+embroidery_ needles.
+
+[discrete]
 [[scalability]]
-=== Scalability and resilience: clusters, nodes, and shards
-++++
-<titleabbrev>Scalability and resilience</titleabbrev>
-++++
+==== Scalability and resilience
 
 {es} is built to be always available and to scale with your needs. It does this
 by being distributed by nature. You can add servers (nodes) to a cluster to
@@ -155,7 +233,7 @@ interrupting indexing or query operations.
 
 [discrete]
 [[it-depends]]
-==== It depends...
+===== Shard size and number of shards
 
 There are a number of performance considerations and trade offs with respect
 to shard size and the number of primary shards configured for an index. The more
@@ -183,7 +261,7 @@ testing with your own data and queries].
 
 [discrete]
 [[disaster-ccr]]
-==== In case of disaster
+===== Disaster recovery
 
 A cluster's nodes need good, reliable connections to each other. To provide
 better connections, you typically co-locate the nodes in the same data center or
@@ -201,9 +279,15 @@ create secondary clusters to serve read requests in geo-proximity to your users.
 the active leader index and handles all write requests. Indices replicated to
 secondary clusters are read-only followers.
 
+[discrete]
+[[admin]]
+===== Security, management, and monitoring
+
 As with any enterprise system, you need tools to secure, manage, and
 monitor your {es} clusters. Security, monitoring, and administrative features
 that are integrated into {es} enable you to use {kibana-ref}/introduction.html[{kib}]
 as a control center for managing a cluster. Features like <<downsampling,
 downsampling>> and <<index-lifecycle-management, index lifecycle management>>
 help you intelligently manage your data over time.
+
+Refer to <<monitor-elasticsearch-cluster>> for more information.

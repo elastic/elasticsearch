@@ -53,7 +53,7 @@ public final class ExchangeSourceHandler {
         private void checkFailure() {
             Exception e = failure.getFailure();
             if (e != null) {
-                throw ExceptionsHelper.convertToElastic(e);
+                throw ExceptionsHelper.convertToRuntime(e);
             }
         }
 

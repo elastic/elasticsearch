@@ -183,12 +183,12 @@ public class ObjectMapper extends Mapper {
                 // Check for parent objects. Due to auto-flattening, names with dots are allowed so we need to check for all possible
                 // object names. For instance, for mapper 'foo.bar.baz.bad', we have the following options:
                 // - object 'foo' found => call addDynamic on 'bar.baz.bad'
-                // - object 'bar' found => call addDynamic on 'baz.bad'
-                // - object 'baz' found => add field 'bad' to it
-                // - no match found => add field 'baz.bad' to parent
+                // --- object 'bar' found => call addDynamic on 'baz.bad'
+                // ----- object 'baz' found => add field 'bad' to it
+                // ----- no match found => add field 'baz.bad' to parent
                 // - object 'foo.bar' found => call addDynamic on 'baz.bad'
-                // - object 'baz' found => add field 'bad' to it
-                // - no match found=> add field 'baz.bad' to parent
+                // --- object 'baz' found => add field 'bad' to it
+                // --- no match found=> add field 'baz.bad' to parent
                 // - object 'foo.bar.baz' found => add field 'bad' to it
                 // - no match found => add field 'foo.bar.baz.bad' to parent
                 String fullPathToMapper = name.substring(0, name.lastIndexOf(mapper.leafName()));

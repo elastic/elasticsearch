@@ -168,6 +168,6 @@ The response will look like the following:
       }
     }
   ],
-  "global_retention: {}
+  "global_retention": {}
 }
 --------------------------------------------------

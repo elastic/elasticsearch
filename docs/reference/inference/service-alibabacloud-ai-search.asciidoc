@@ -106,8 +106,6 @@ Specifies the type of input passed to the model.
 Valid values are:
 * `ingest`: for storing document embeddings in a vector database.
 * `search`: for storing embeddings of search queries run against a vector database to find relevant documents.
-+
-
 =====
 +
 .`task_settings` for the `sparse_embedding` task type

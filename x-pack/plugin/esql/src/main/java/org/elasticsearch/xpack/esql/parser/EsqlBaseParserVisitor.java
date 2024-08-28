@@ -567,21 +567,21 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitParsedMatchQuery(EsqlBaseParser.ParsedMatchQueryContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#queryStringWithFields}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryWithFields}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitQueryStringWithFields(EsqlBaseParser.QueryStringWithFieldsContext ctx);
+  T visitMatchQueryWithFields(EsqlBaseParser.MatchQueryWithFieldsContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#queryStringWithoutFields}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryWithoutFields}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitQueryStringWithoutFields(EsqlBaseParser.QueryStringWithoutFieldsContext ctx);
+  T visitMatchQueryWithoutFields(EsqlBaseParser.MatchQueryWithoutFieldsContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#queryExpression}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitQueryExpression(EsqlBaseParser.QueryExpressionContext ctx);
+  T visitMatchQueryExpression(EsqlBaseParser.MatchQueryExpressionContext ctx);
 }

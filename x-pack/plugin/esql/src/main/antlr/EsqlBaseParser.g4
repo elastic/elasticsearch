@@ -312,22 +312,22 @@ unparsedMatchQuery
     ;
 
 parsedMatchQuery
-    : queryStringWithFields
-    | queryStringWithoutFields
-//    | left=parsedMatchQuery operator=AND right=parsedMatchQuery
-//    | left=parsedMatchQuery operator=OR right=parsedMatchQuery
+    : matchQueryWithFields
+    | matchQueryWithoutFields
+    | LP parsedMatchQuery RP
+    | left=parsedMatchQuery operator=AND right=parsedMatchQuery
+    | left=parsedMatchQuery operator=OR right=parsedMatchQuery
     ;
 
-queryStringWithFields
-    : fieldName=FIELD_PATTERN COLON queryExpression
+matchQueryWithFields
+    : fieldName=FIELD_PATTERN COLON matchQueryExpression
     ;
 
-queryStringWithoutFields
-    : LP queryExpression RP
-    | queryExpression+
+matchQueryWithoutFields
+    : matchQueryExpression+
     ;
 
-queryExpression
+matchQueryExpression
     : QUOTED_STRING
     // Unquoted strings are recognized as field patterns - is there a way to distinguish them?
     | FIELD_PATTERN+

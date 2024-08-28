@@ -1061,37 +1061,37 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterQueryStringWithFields(EsqlBaseParser.QueryStringWithFieldsContext ctx) { }
+  @Override public void enterMatchQueryWithFields(EsqlBaseParser.MatchQueryWithFieldsContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitQueryStringWithFields(EsqlBaseParser.QueryStringWithFieldsContext ctx) { }
+  @Override public void exitMatchQueryWithFields(EsqlBaseParser.MatchQueryWithFieldsContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterQueryStringWithoutFields(EsqlBaseParser.QueryStringWithoutFieldsContext ctx) { }
+  @Override public void enterMatchQueryWithoutFields(EsqlBaseParser.MatchQueryWithoutFieldsContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitQueryStringWithoutFields(EsqlBaseParser.QueryStringWithoutFieldsContext ctx) { }
+  @Override public void exitMatchQueryWithoutFields(EsqlBaseParser.MatchQueryWithoutFieldsContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterQueryExpression(EsqlBaseParser.QueryExpressionContext ctx) { }
+  @Override public void enterMatchQueryExpression(EsqlBaseParser.MatchQueryExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitQueryExpression(EsqlBaseParser.QueryExpressionContext ctx) { }
+  @Override public void exitMatchQueryExpression(EsqlBaseParser.MatchQueryExpressionContext ctx) { }
 
   /**
    * {@inheritDoc}

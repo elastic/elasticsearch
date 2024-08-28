@@ -17,7 +17,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
@@ -67,56 +66,47 @@ public final class BinaryDocValuesRangeQuery extends Query {
                     return null;
                 }
 
-                return new ScorerSupplier() {
+                final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
+
+                    ByteArrayStreamInput in = new ByteArrayStreamInput();
+                    BytesRef otherFrom = new BytesRef();
+                    BytesRef otherTo = new BytesRef();
+
                     @Override
-                    public Scorer get(long leadCost) throws IOException {
-                        final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
+                    public boolean matches() throws IOException {
+                        BytesRef encodedRanges = values.binaryValue();
+                        in.reset(encodedRanges.bytes, encodedRanges.offset, encodedRanges.length);
+                        int numRanges = in.readVInt();
+                        final byte[] bytes = encodedRanges.bytes;
+                        otherFrom.bytes = bytes;
+                        otherTo.bytes = bytes;
+                        int offset = in.getPosition();
+                        for (int i = 0; i < numRanges; i++) {
+                            int length = lengthType.readLength(bytes, offset);
+                            otherFrom.offset = offset;
+                            otherFrom.length = length;
+                            offset += length;
 
-                            ByteArrayStreamInput in = new ByteArrayStreamInput();
-                            BytesRef otherFrom = new BytesRef();
-                            BytesRef otherTo = new BytesRef();
+                            length = lengthType.readLength(bytes, offset);
+                            otherTo.offset = offset;
+                            otherTo.length = length;
+                            offset += length;
 
-                            @Override
-                            public boolean matches() throws IOException {
-                                BytesRef encodedRanges = values.binaryValue();
-                                in.reset(encodedRanges.bytes, encodedRanges.offset, encodedRanges.length);
-                                int numRanges = in.readVInt();
-                                final byte[] bytes = encodedRanges.bytes;
-                                otherFrom.bytes = bytes;
-                                otherTo.bytes = bytes;
-                                int offset = in.getPosition();
-                                for (int i = 0; i < numRanges; i++) {
-                                    int length = lengthType.readLength(bytes, offset);
-                                    otherFrom.offset = offset;
-                                    otherFrom.length = length;
-                                    offset += length;
-
-                                    length = lengthType.readLength(bytes, offset);
-                                    otherTo.offset = offset;
-                                    otherTo.length = length;
-                                    offset += length;
-
-                                    if (queryType.matches(from, to, otherFrom, otherTo)) {
-                                        return true;
-                                    }
-                                }
-                                assert offset == encodedRanges.offset + encodedRanges.length;
-                                return false;
+                            if (queryType.matches(from, to, otherFrom, otherTo)) {
+                                return true;
                             }
-
-                            @Override
-                            public float matchCost() {
-                                return 4; // at most 4 comparisons
-                            }
-                        };
-                        return new ConstantScoreScorer(score(), scoreMode, iterator);
+                        }
+                        assert offset == encodedRanges.offset + encodedRanges.length;
+                        return false;
                     }
 
                     @Override
-                    public long cost() {
-                        return values.cost();
+                    public float matchCost() {
+                        return 4; // at most 4 comparisons
                     }
                 };
+
+                return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
             }
 
             @Override

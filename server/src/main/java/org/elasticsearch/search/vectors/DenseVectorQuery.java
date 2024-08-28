@@ -75,20 +75,7 @@ public abstract class DenseVectorQuery extends Query {
             if (vectorScorer == null) {
                 return null;
             }
-            return new ScorerSupplier() {
-
-                private final DenseVectorScorer scorer = new DenseVectorScorer(vectorScorer, boost);
-
-                @Override
-                public Scorer get(long leadCost) throws IOException {
-                    return scorer;
-                }
-
-                @Override
-                public long cost() {
-                    return scorer.iterator().cost();
-                }
-            };
+            return new DefaultScorerSupplier(new DenseVectorScorer(vectorScorer, boost));
         }
 
         @Override

@@ -94,102 +94,90 @@ public class KnnScoreDocQuery extends Query {
                 if (segmentStarts[context.ord] == segmentStarts[context.ord + 1]) {
                     return null;
                 }
-                return new ScorerSupplier() {
-
-                    private final Scorer scorer = new Scorer() {
-                        final int lower = segmentStarts[context.ord];
-                        final int upper = segmentStarts[context.ord + 1];
-                        int upTo = -1;
-
-                        @Override
-                        public DocIdSetIterator iterator() {
-                            return new DocIdSetIterator() {
-                                @Override
-                                public int docID() {
-                                    return currentDocId();
-                                }
-
-                                @Override
-                                public int nextDoc() {
-                                    if (upTo == -1) {
-                                        upTo = lower;
-                                    } else {
-                                        ++upTo;
-                                    }
-                                    return currentDocId();
-                                }
-
-                                @Override
-                                public int advance(int target) throws IOException {
-                                    return slowAdvance(target);
-                                }
-
-                                @Override
-                                public long cost() {
-                                    return upper - lower;
-                                }
-                            };
-                        }
-
-                        @Override
-                        public float getMaxScore(int docId) {
-                            // NO_MORE_DOCS indicates the maximum score for all docs in this segment
-                            // Anything less than must be accounted for via the docBase.
-                            if (docId != NO_MORE_DOCS) {
-                                docId += context.docBase;
-                            }
-                            float maxScore = 0;
-                            for (int idx = Math.max(lower, upTo); idx < upper && docs[idx] <= docId; idx++) {
-                                maxScore = Math.max(maxScore, scores[idx] * boost);
-                            }
-                            return maxScore;
-                        }
-
-                        @Override
-                        public float score() {
-                            return scores[upTo] * boost;
-                        }
-
-                        @Override
-                        public int advanceShallow(int docId) {
-                            int start = Math.max(upTo, lower);
-                            int docIdIndex = Arrays.binarySearch(docs, start, upper, docId + context.docBase);
-                            if (docIdIndex < 0) {
-                                docIdIndex = -1 - docIdIndex;
-                            }
-                            if (docIdIndex >= upper) {
-                                return NO_MORE_DOCS;
-                            }
-                            return docs[docIdIndex];
-                        }
-
-                        @Override
-                        public int docID() {
-                            return currentDocId();
-                        }
-
-                        private int currentDocId() {
-                            if (upTo == -1) {
-                                return -1;
-                            }
-                            if (upTo >= upper) {
-                                return NO_MORE_DOCS;
-                            }
-                            return docs[upTo] - context.docBase;
-                        }
-
-                    };
+                Scorer scorer = new Scorer() {
+                    final int lower = segmentStarts[context.ord];
+                    final int upper = segmentStarts[context.ord + 1];
+                    int upTo = -1;
 
                     @Override
-                    public Scorer get(long leadCost) throws IOException {
-                        return scorer;
+                    public DocIdSetIterator iterator() {
+                        return new DocIdSetIterator() {
+                            @Override
+                            public int docID() {
+                                return currentDocId();
+                            }
+
+                            @Override
+                            public int nextDoc() {
+                                if (upTo == -1) {
+                                    upTo = lower;
+                                } else {
+                                    ++upTo;
+                                }
+                                return currentDocId();
+                            }
+
+                            @Override
+                            public int advance(int target) throws IOException {
+                                return slowAdvance(target);
+                            }
+
+                            @Override
+                            public long cost() {
+                                return upper - lower;
+                            }
+                        };
                     }
 
                     @Override
-                    public long cost() {
-                        return scorer.iterator().cost();
+                    public float getMaxScore(int docId) {
+                        // NO_MORE_DOCS indicates the maximum score for all docs in this segment
+                        // Anything less than must be accounted for via the docBase.
+                        if (docId != NO_MORE_DOCS) {
+                            docId += context.docBase;
+                        }
+                        float maxScore = 0;
+                        for (int idx = Math.max(lower, upTo); idx < upper && docs[idx] <= docId; idx++) {
+                            maxScore = Math.max(maxScore, scores[idx] * boost);
+                        }
+                        return maxScore;
                     }
+
+                    @Override
+                    public float score() {
+                        return scores[upTo] * boost;
+                    }
+
+                    @Override
+                    public int advanceShallow(int docId) {
+                        int start = Math.max(upTo, lower);
+                        int docIdIndex = Arrays.binarySearch(docs, start, upper, docId + context.docBase);
+                        if (docIdIndex < 0) {
+                            docIdIndex = -1 - docIdIndex;
+                        }
+                        if (docIdIndex >= upper) {
+                            return NO_MORE_DOCS;
+                        }
+                        return docs[docIdIndex];
+                    }
+
+                    @Override
+                    public int docID() {
+                        return currentDocId();
+                    }
+
+                    private int currentDocId() {
+                        if (upTo == -1) {
+                            return -1;
+                        }
+                        if (upTo >= upper) {
+                            return NO_MORE_DOCS;
+                        }
+                        return docs[upTo] - context.docBase;
+                    }
+
                 };
+                return new DefaultScorerSupplier(scorer);
             }
 
             @Override

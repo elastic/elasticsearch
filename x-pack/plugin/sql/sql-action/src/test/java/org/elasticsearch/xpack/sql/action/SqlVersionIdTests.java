@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.test.ESTestCase;

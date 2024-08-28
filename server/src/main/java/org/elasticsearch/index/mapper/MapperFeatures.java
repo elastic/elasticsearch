@@ -31,6 +31,5 @@ public class MapperFeatures implements FeatureSpecification {
             KeywordFieldMapper.KEYWORD_DIMENSION_IGNORE_ABOVE,
             SourceFieldMapper.SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX
         );
-    
     }
 }

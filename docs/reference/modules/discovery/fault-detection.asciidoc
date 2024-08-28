@@ -160,7 +160,7 @@ severely affect its operation.
 The connections from the elected master node to every other node in the cluster
 are particularly important. The elected master never spontaneously closes its
 outbound connections to other nodes. Similarly, once a connection is fully
-established, a node never spontaneously close its inbound connections unless
+established, a node never spontaneously closes its inbound connections unless
 the node is shutting down.
 
 If you see a node unexpectedly leave the cluster with the `disconnected`
@@ -324,7 +324,7 @@ closes for some other reason, nodes will log a message such as the following:
 ----
 
 Similarly, once a connection is fully established, a node never spontaneously
-close its inbound connections unless the node is shutting down.
+closes its inbound connections unless the node is shutting down.
 
 Therefore if you see a node report that a connection to another node closed
 unexpectedly, something other than {es} likely caused the connection to close.

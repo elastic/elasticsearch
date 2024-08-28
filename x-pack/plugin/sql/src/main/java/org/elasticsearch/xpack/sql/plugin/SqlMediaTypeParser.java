@@ -37,8 +37,7 @@ public class SqlMediaTypeParser {
      * isn't then we use the {@code Content-Type} header which is required.
      */
     public static MediaType getResponseMediaType(RestRequest request, SqlQueryRequest sqlRequest) {
-        if (Mode.isDedicatedClient(sqlRequest.requestInfo().mode())
-            && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication())) {
+        if (Mode.isDedicatedClient(sqlRequest.mode()) && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication())) {
             // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
             return XContentType.CBOR;
         } else if (request.hasParam(URL_PARAM_FORMAT)) {

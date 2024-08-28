@@ -5,22 +5,24 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ql.index;
+package org.elasticsearch.xpack.sql.index;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
+import org.elasticsearch.xpack.sql.action.SqlVersionId;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.Types.propagateUnsupportedType;
+import static org.elasticsearch.xpack.sql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 
 public final class IndexCompatibility {
 
-    public static Map<String, EsField> compatible(Map<String, EsField> mapping, TransportVersion version) {
+    public static Map<String, EsField> compatible(Map<String, EsField> mapping, SqlVersionId version) {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             EsField esField = entry.getValue();
             DataType dataType = esField.getDataType();
@@ -35,12 +37,12 @@ public final class IndexCompatibility {
         return mapping;
     }
 
-    public static EsIndex compatible(EsIndex esIndex, TransportVersion version) {
+    public static EsIndex compatible(EsIndex esIndex, SqlVersionId version) {
         compatible(esIndex.mapping(), version);
         return esIndex;
     }
 
-    public static IndexResolution compatible(IndexResolution indexResolution, TransportVersion version) {
+    public static IndexResolution compatible(IndexResolution indexResolution, SqlVersionId version) {
         if (indexResolution.isValid()) {
             compatible(indexResolution.get(), version);
         }

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
@@ -22,11 +23,11 @@ import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.toUnsignedLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isDateBased;
 
 public class CompositeKeyExtractor implements BucketExtractor {
@@ -54,7 +55,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
     CompositeKeyExtractor(StreamInput in) throws IOException {
         key = in.readString();
         property = in.readEnum(Property.class);
-        if (in.getTransportVersion().onOrAfter(INTRODUCING_UNSIGNED_LONG)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.fromId(INTRODUCING_UNSIGNED_LONG.id()))) {
             dataType = SqlDataTypes.fromTypeName(in.readString());
         } else {
             // for pre-UNSIGNED_LONG versions, the only relevant fact about the dataType was if this isDateBased() or not.
@@ -68,7 +69,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(key);
         out.writeEnum(property);
-        if (out.getTransportVersion().onOrAfter(INTRODUCING_UNSIGNED_LONG)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.fromId(INTRODUCING_UNSIGNED_LONG.id()))) {
             out.writeString(dataType.typeName());
         } else {
             out.writeBoolean(isDateBased(dataType));

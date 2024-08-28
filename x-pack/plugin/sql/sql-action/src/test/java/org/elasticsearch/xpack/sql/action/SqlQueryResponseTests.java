@@ -38,6 +38,8 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class SqlQueryResponseTests extends AbstractXContentSerializingTestCase<SqlQueryResponse> {
 
+    public static final SqlVersionId INTRODUCING_DATE_NANOS = new SqlSemVersion(DATE_NANOS_SUPPORT_VERSION);
+
     static String randomStringCursor() {
         return randomBoolean() ? "" : randomAlphaOfLength(10);
     }
@@ -118,7 +120,7 @@ public class SqlQueryResponseTests extends AbstractXContentSerializingTestCase<S
                 rows.add(row);
             }
         }
-        return new SqlQueryResponse(cursor, mode, DATE_NANOS_SUPPORT_VERSION, false, columns, rows, asyncExecutionId, isPartial, isRunning);
+        return new SqlQueryResponse(cursor, mode, INTRODUCING_DATE_NANOS, false, columns, rows, asyncExecutionId, isPartial, isRunning);
     }
 
     public void testToXContent() throws IOException {
@@ -177,7 +179,7 @@ public class SqlQueryResponseTests extends AbstractXContentSerializingTestCase<S
         return new SqlQueryResponse(
             protoResponse.cursor(),
             Mode.JDBC,
-            DATE_NANOS_SUPPORT_VERSION,
+            INTRODUCING_DATE_NANOS,
             false,
             protoResponse.columns(),
             protoResponse.rows(),

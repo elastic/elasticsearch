@@ -15,6 +15,7 @@ import org.elasticsearch.rest.root.MainResponse;
 import org.elasticsearch.test.BuildUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.junit.After;
 import org.junit.Before;
 
@@ -52,7 +53,8 @@ public abstract class WebServerTestCase extends ESTestCase {
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         IndexVersion indexVersion = IndexVersion.current();
-        Build build = BuildUtils.newBuild(Build.current(), Map.of("version", SqlVersionUtils.from(version).toString()));
+        String ver = SqlVersion.fromTransportString(version.toReleaseVersion()).toString();
+        Build build = BuildUtils.newBuild(Build.current(), Map.of("version", ver));
         return new MainResponse(nodeName, indexVersion.luceneVersion().toString(), clusterName, clusterUuid, build);
     }
 

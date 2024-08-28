@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
@@ -17,6 +19,8 @@ import java.util.function.Consumer;
 
 public class DriverManagerRegistrationTests extends ESTestCase {
 
+    public static final SqlVersion CURRENT = SqlVersion.fromString(Build.current().version());
+
     public void testRegistration() throws Exception {
         driverManagerTemplate(d -> assertNotNull(d));
     }
@@ -26,8 +30,8 @@ public class DriverManagerRegistrationTests extends ESTestCase {
             /* This test will only work properly in gradle because in gradle we run the tests
              * using the jar. */
 
-            assertNotEquals(String.valueOf(SqlVersionUtils.CURRENT.major), d.getMajorVersion());
-            assertNotEquals(String.valueOf(SqlVersionUtils.CURRENT.minor), d.getMinorVersion());
+            assertNotEquals(String.valueOf(CURRENT.major), d.getMajorVersion());
+            assertNotEquals(String.valueOf(CURRENT.minor), d.getMinorVersion());
         });
     }
 

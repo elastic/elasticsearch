@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryTask;
+import org.elasticsearch.xpack.sql.action.SqlVersionId;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -62,7 +62,7 @@ public final class SqlTestUtils {
         false
     );
 
-    public static SqlConfiguration randomConfiguration(ZoneId providedZoneId, SqlVersion sqlVersion) {
+    public static SqlConfiguration randomConfiguration(ZoneId providedZoneId, SqlVersionId sqlVersion) {
         Mode mode = randomFrom(Mode.values());
         long taskId = randomNonNegativeLong();
         return new SqlConfiguration(
@@ -94,11 +94,11 @@ public final class SqlTestUtils {
         return randomConfiguration(providedZoneId, null);
     }
 
-    public static SqlConfiguration randomConfiguration(SqlVersion version) {
+    public static SqlConfiguration randomConfiguration(SqlVersionId version) {
         return randomConfiguration(null, version);
     }
 
-    public static SqlQueryTask randomTask(long taskId, Mode mode, SqlVersion sqlVersion) {
+    public static SqlQueryTask randomTask(long taskId, Mode mode, SqlVersionId sqlVersion) {
         return new SqlQueryTask(
             taskId,
             "transport",

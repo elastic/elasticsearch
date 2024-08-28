@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
@@ -44,6 +43,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
+import org.elasticsearch.xpack.sql.action.SqlVersionId;
 import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.sql.plan.logical.Having;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
-import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.stats.FeatureMetric;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
@@ -77,11 +76,11 @@ import java.util.function.Consumer;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.versionIntroducingType;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
+import static org.elasticsearch.xpack.sql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
+import static org.elasticsearch.xpack.sql.index.VersionCompatibilityChecks.versionIntroducingType;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.HAVING;
@@ -103,12 +102,12 @@ public final class Verifier {
         this.metrics = metrics;
     }
 
-    public Map<Node<?>, String> verifyFailures(LogicalPlan plan, SqlVersion version) {
+    public Map<Node<?>, String> verifyFailures(LogicalPlan plan, SqlVersionId version) {
         Collection<Failure> failures = verify(plan, version);
         return failures.stream().collect(toMap(Failure::node, Failure::message));
     }
 
-    Collection<Failure> verify(LogicalPlan plan, SqlVersion version) {
+    Collection<Failure> verify(LogicalPlan plan, SqlVersionId version) {
         Set<Failure> failures = new LinkedHashSet<>();
 
         // start bottom-up
@@ -999,10 +998,9 @@ public final class Verifier {
         }));
     }
 
-    private static void checkClientSupportsDataTypes(LogicalPlan p, Set<Failure> localFailures, SqlVersion version) {
-        TransportVersion ver = TransportVersion.fromId(version.id);
+    private static void checkClientSupportsDataTypes(LogicalPlan p, Set<Failure> localFailures, SqlVersionId version) {
         p.output().forEach(e -> {
-            if (e.resolved() && isTypeSupportedInVersion(e.dataType(), ver) == false) {
+            if (e.resolved() && isTypeSupportedInVersion(e.dataType(), version) == false) {
                 localFailures.add(
                     fail(
                         e,
@@ -1011,7 +1009,7 @@ public final class Verifier {
                             + "] with type ["
                             + e.dataType()
                             + "] unsupported in version ["
-                            + version
+                            + version.toReleaseVersion()
                             + "], upgrade required (to version ["
                             + versionIntroducingType(e.dataType())
                             + "] or higher)"

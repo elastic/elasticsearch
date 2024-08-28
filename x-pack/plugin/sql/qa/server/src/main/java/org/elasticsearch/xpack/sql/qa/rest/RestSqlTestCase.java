@@ -11,6 +11,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -29,6 +30,7 @@ import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.qa.ErrorsTestCase;
 import org.hamcrest.Matcher;
@@ -60,7 +62,6 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.xpack.ql.TestUtils.getNumberOfSearchContexts;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.COLUMNS_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_ASYNC_ID;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_ASYNC_PARTIAL;
@@ -88,6 +89,8 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
     public static String SQL_QUERY_REST_ENDPOINT = CoreProtocol.SQL_QUERY_REST_ENDPOINT;
     private static String SQL_TRANSLATE_REST_ENDPOINT = CoreProtocol.SQL_TRANSLATE_REST_ENDPOINT;
+
+    private static final TransportVersion INTRODUCING_UNSIGNED_LONG = TransportVersions.V_8_2_0;
 
     /**
      * Builds that map that is returned in the header for each column.
@@ -1164,7 +1167,8 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             null,
             TransportVersionUtils.getPreviousVersion(INTRODUCING_UNSIGNED_LONG)
         );
-        String query = query("SELECT unsigned_long::STRING FROM " + indexPattern("test")).version(from(version).toString()).toString();
+        String versionString = SqlVersion.fromTransportString(version.toReleaseVersion()).toString();
+        String query = query("SELECT unsigned_long::STRING FROM " + indexPattern("test")).version(versionString).toString();
         expectBadRequest(
             () -> runSql(new StringEntity(query, ContentType.APPLICATION_JSON), "", randomMode()),
             containsString("Cannot use field [unsigned_long] with unsupported type [UNSIGNED_LONG]")

@@ -84,7 +84,7 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
             if (isQuery) {
                 Mode mode = (m instanceof Mode) ? (Mode) m : Mode.fromString(modeString);
                 if (Mode.isDedicatedClient(mode)) {
-                    version(from(TransportVersion.current()).toString());
+                    version(SqlVersion.fromTransportString(TransportVersion.current().toReleaseVersion()).toString());
                 }
             }
             return this;
@@ -301,11 +301,5 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
             Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
             response.getHeader("Cursor")
         );
-    }
-
-    // Translating a TransportVersion to a SqlVersion/Version must go through the former's string representation, which involves a
-    // mapping; the .id() can't be used directly.
-    public static SqlVersion from(TransportVersion transportVersion) {
-        return SqlVersion.fromTransportString(transportVersion.toReleaseVersion());
     }
 }

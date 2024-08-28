@@ -37,7 +37,7 @@ public class VersionParityTests extends WebServerTestCase {
 
             prepareResponse(version);
             // Client's version is wired up to patch level, excluding the qualifier => generate the test version as the server does it.
-            String versionString = SqlVersionUtils.from(version).toString();
+            String versionString = version.toReleaseVersion();
 
             SQLException ex = expectThrows(
                 SQLException.class,

@@ -93,8 +93,9 @@ public abstract class AbstractSqlRequest extends ActionRequest {
         requestInfo.version(clientVersion);
     }
 
-    public SqlVersion version() {
-        return requestInfo.version();
+    public SqlVersionId version() {
+        SqlVersion sqlVersion = requestInfo.version();
+        return sqlVersion == null ? null : new SqlSemVersion(sqlVersion);
     }
 
     @Override

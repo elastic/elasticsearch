@@ -11,9 +11,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.sql.action.SqlQueryTask;
-import org.elasticsearch.xpack.sql.action.SqlVersionUtils;
+import org.elasticsearch.xpack.sql.action.SqlVersionId;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.time.ZoneId;
 import java.util.Map;
@@ -28,7 +27,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final TimeValue pageTimeout;
     private final Mode mode;
     private final String clientId;
-    private final SqlVersion version;
+    private final SqlVersionId version;
     private final boolean multiValueFieldLeniency;
     private final boolean includeFrozenIndices;
 
@@ -54,7 +53,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         Map<String, Object> runtimeMappings,
         Mode mode,
         String clientId,
-        SqlVersion version,
+        SqlVersionId version,
         String username,
         String clusterName,
         boolean multiValueFieldLeniency,
@@ -73,7 +72,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.runtimeMappings = runtimeMappings;
         this.mode = mode == null ? Mode.PLAIN : mode;
         this.clientId = clientId;
-        this.version = version != null ? version : SqlVersionUtils.CURRENT;
+        this.version = version != null ? version : SqlVersionId.CURRENT;
         this.multiValueFieldLeniency = multiValueFieldLeniency;
         this.includeFrozenIndices = includeFrozen;
         this.taskId = taskId;
@@ -121,7 +120,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         return includeFrozenIndices;
     }
 
-    public SqlVersion version() {
+    public SqlVersionId version() {
         return version;
     }
 

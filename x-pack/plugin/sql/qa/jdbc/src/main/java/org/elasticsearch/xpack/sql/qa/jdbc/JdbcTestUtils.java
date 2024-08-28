@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
@@ -152,21 +151,14 @@ final class JdbcTestUtils {
     }
 
     static boolean versionSupportsDateNanos() {
-        return JDBC_DRIVER_VERSION.onOrAfter(DATE_NANOS_SUPPORT_VERSION);
+        return JDBC_DRIVER_VERSION.compareTo(DATE_NANOS_SUPPORT_VERSION) >= 0;
     }
 
     public static boolean isUnsignedLongSupported() {
-        return JDBC_DRIVER_VERSION.onOrAfter(from(TransportVersions.V_8_2_0));
+        return JDBC_DRIVER_VERSION.compareTo(SqlVersion.fromId(TransportVersions.V_8_2_0.id())) >= 0;
     }
 
     public static boolean isVersionFieldTypeSupported() {
-        return JDBC_DRIVER_VERSION.onOrAfter(from(TransportVersions.V_8_4_0));
+        return JDBC_DRIVER_VERSION.compareTo(SqlVersion.fromId(TransportVersions.V_8_4_0.id())) >= 0;
     }
-
-    // Translating a TransportVersion to a SqlVersion/Version must go through the former's string representation, which involves a
-    // mapping; the .id() can't be used directly.
-    public static SqlVersion from(TransportVersion transportVersion) {
-        return SqlVersion.fromTransportString(transportVersion.toReleaseVersion());
-    }
-
 }

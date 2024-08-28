@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.sql.action.SqlQueryTask;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.plugin.TransportSqlQueryAction;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.util.SqlVersionIdUtils;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
@@ -270,7 +270,7 @@ public class CancellationTests extends ESTestCase {
     }
 
     private static SqlQueryTask randomTask() {
-        return SqlTestUtils.randomTask(randomLong(), randomFrom(Mode.values()), SqlVersion.fromString("1.2.3"));
+        return SqlTestUtils.randomTask(randomLong(), randomFrom(Mode.values()), SqlVersionIdUtils.randomVersion());
     }
 
 }

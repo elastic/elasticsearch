@@ -5,24 +5,24 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ql.index;
+package org.elasticsearch.xpack.sql.index;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.sql.action.SqlVersionId;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 
 public final class VersionCompatibilityChecks {
 
-    public static final TransportVersion INTRODUCING_UNSIGNED_LONG = TransportVersions.V_8_2_0;
-    public static final TransportVersion INTRODUCING_VERSION_FIELD_TYPE = TransportVersions.V_8_4_0;
+    public static final SqlVersionId INTRODUCING_UNSIGNED_LONG = new SqlVersionId(TransportVersions.V_8_2_0);
+    public static final SqlVersionId INTRODUCING_VERSION_FIELD_TYPE = new SqlVersionId(TransportVersions.V_8_4_0);
 
     private VersionCompatibilityChecks() {}
 
-    public static boolean isTypeSupportedInVersion(DataType dataType, TransportVersion version) {
+    public static boolean isTypeSupportedInVersion(DataType dataType, SqlVersionId version) {
         if (dataType == UNSIGNED_LONG) {
             return supportsUnsignedLong(version);
         }
@@ -35,18 +35,18 @@ public final class VersionCompatibilityChecks {
     /**
      * Does the provided {@code version} support the unsigned_long type (PR#60050)?
      */
-    public static boolean supportsUnsignedLong(TransportVersion version) {
-        return INTRODUCING_UNSIGNED_LONG.compareTo(version) <= 0;
+    public static boolean supportsUnsignedLong(SqlVersionId version) {
+        return version.onOrAfter(INTRODUCING_UNSIGNED_LONG);
     }
 
     /**
      * Does the provided {@code version} support the version type (PR#85502)?
      */
-    public static boolean supportsVersionType(TransportVersion version) {
-        return INTRODUCING_VERSION_FIELD_TYPE.compareTo(version) <= 0;
+    public static boolean supportsVersionType(SqlVersionId version) {
+        return version.onOrAfter(INTRODUCING_VERSION_FIELD_TYPE);
     }
 
-    public static @Nullable TransportVersion versionIntroducingType(DataType dataType) {
+    public static @Nullable SqlVersionId versionIntroducingType(DataType dataType) {
         if (dataType == UNSIGNED_LONG) {
             return INTRODUCING_UNSIGNED_LONG;
         }

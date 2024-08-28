@@ -18,8 +18,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
-import org.elasticsearch.xpack.sql.action.SqlVersionUtils;
-import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.action.SqlSemVersion;
 import org.junit.After;
 import org.junit.Before;
 
@@ -37,13 +36,13 @@ import java.util.stream.Collectors;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
 import static org.elasticsearch.xpack.ql.TestUtils.readResource;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_VERSION_FIELD_TYPE;
+import static org.elasticsearch.xpack.sql.index.VersionCompatibilityChecks.INTRODUCING_VERSION_FIELD_TYPE;
 
 public class SqlSearchIT extends ESRestTestCase {
 
     private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
 
-    private static final boolean SUPPORTS_VERSION_FIELD_QL_INTRODUCTION = SqlVersionUtils.from(SqlVersion.fromString(BWC_NODES_VERSION))
+    private static final boolean SUPPORTS_VERSION_FIELD_QL_INTRODUCTION = SqlSemVersion.fromString(BWC_NODES_VERSION)
         .onOrAfter(INTRODUCING_VERSION_FIELD_TYPE);
 
     private static final String index = "test_sql_mixed_versions";

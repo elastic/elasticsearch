@@ -12,7 +12,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.StoredAsyncTask;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.util.Map;
 
@@ -21,7 +20,7 @@ import static java.util.Collections.emptyList;
 public class SqlQueryTask extends StoredAsyncTask<SqlQueryResponse> {
 
     private final Mode mode;
-    private final SqlVersion sqlVersion;
+    private final SqlVersionId sqlVersion;
     private final boolean columnar;
 
     public SqlQueryTask(
@@ -35,7 +34,7 @@ public class SqlQueryTask extends StoredAsyncTask<SqlQueryResponse> {
         AsyncExecutionId asyncExecutionId,
         TimeValue keepAlive,
         Mode mode,
-        SqlVersion sqlVersion,
+        SqlVersionId sqlVersion,
         boolean columnar
     ) {
         super(id, type, action, description, parentTaskId, headers, originHeaders, asyncExecutionId, keepAlive);

@@ -6,19 +6,18 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexCompatibility;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.action.Protocol;
-import org.elasticsearch.xpack.sql.action.SqlVersionUtils;
+import org.elasticsearch.xpack.sql.action.SqlVersionId;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
+import org.elasticsearch.xpack.sql.index.IndexCompatibility;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -42,14 +41,14 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
+import static org.elasticsearch.xpack.sql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
-import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.UNSIGNED_LONG_TEST_VERSIONS;
-import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.VERSION_FIELD_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.SqlVersionIdUtils.UNSIGNED_LONG_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.SqlVersionIdUtils.VERSION_FIELD_TEST_VERSIONS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
@@ -142,7 +141,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testUnsignedLongFiltering() {
         for (Mode mode : List.of(Mode.JDBC, Mode.ODBC)) {
-            for (TransportVersion version : UNSIGNED_LONG_TEST_VERSIONS) {
+            for (SqlVersionId version : UNSIGNED_LONG_TEST_VERSIONS) {
                 List<List<?>> rows = new ArrayList<>();
                 // mapping's mutated by IndexCompatibility.compatible, needs to stay in the loop
                 Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
@@ -158,7 +157,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testVersionTypeFiltering() {
         for (Mode mode : List.of(Mode.JDBC, Mode.ODBC)) {
-            for (TransportVersion version : VERSION_FIELD_TEST_VERSIONS) {
+            for (SqlVersionId version : VERSION_FIELD_TEST_VERSIONS) {
                 List<List<?>> rows = new ArrayList<>();
                 // mapping's mutated by IndexCompatibility.compatible, needs to stay in the loop
                 Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
@@ -280,7 +279,7 @@ public class SysColumnsTests extends ESTestCase {
             null,
             Mode.ODBC,
             null,
-            SqlVersionUtils.CURRENT,
+            SqlVersionId.CURRENT,
             null,
             null,
             false,
@@ -327,7 +326,7 @@ public class SysColumnsTests extends ESTestCase {
             null,
             mode,
             null,
-            SqlVersionUtils.CURRENT,
+            SqlVersionId.CURRENT,
             null,
             null,
             false,

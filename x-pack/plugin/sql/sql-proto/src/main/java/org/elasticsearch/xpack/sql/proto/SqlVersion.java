@@ -76,6 +76,11 @@ public class SqlVersion implements Comparable<SqlVersion> {
 
     /**
      * Parses a transport version string into a {@link SqlVersion}.
+     * <p>
+     *     <b>Only use for testing.</b>
+     * </p>
+     * <p>
+     *
      * The transport version string can take the following shapes:
      * <ul>
      *     <li>Major.Minor.Revision</li>
@@ -181,29 +186,8 @@ public class SqlVersion implements Comparable<SqlVersion> {
         return id - o.id;
     }
 
-    public static int majorMinorId(SqlVersion v) {
-        return v.major * MAJOR_MULTIPLIER + v.minor * MINOR_MULTIPLIER;
-    }
-
-    public int compareToMajorMinor(SqlVersion o) {
-        return majorMinorId(this) - majorMinorId(o);
-    }
-
-    public boolean onOrAfter(SqlVersion other) {
-        return id >= other.id;
-    }
-
     public static boolean hasVersionCompatibility(SqlVersion version) {
         return version.compareTo(V_7_7_0) >= 0;
-    }
-
-    // A client is version-compatible with the server if:
-    // - it supports version compatibility (past or on 7.7.0); and
-    // - it's not on a version newer than server's; and
-    // - it's major version is at most one unit behind server's.
-    public static boolean isClientCompatible(SqlVersion server, SqlVersion client) {
-        // ES's CURRENT not available (core not a dependency), so it needs to be passed in as a parameter.
-        return hasVersionCompatibility(client) && server.compareTo(client) >= 0 && server.major - client.major <= 1;
     }
 
     // TODO: move to VersionCompatibilityChecks

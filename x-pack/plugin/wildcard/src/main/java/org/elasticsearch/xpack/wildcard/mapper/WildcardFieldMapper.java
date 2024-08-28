@@ -38,7 +38,6 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
@@ -379,7 +378,6 @@ public class WildcardFieldMapper extends FieldMapper {
             RegExp regExp = new RegExp(value, syntaxFlags, matchFlags);
             Automaton a = regExp.toAutomaton();
             a = Operations.determinize(a, maxDeterminizedStates);
-            a = MinimizationOperations.minimize(a, maxDeterminizedStates);
             if (Operations.isTotal(a)) { // Will match all
                 return existsQuery(context);
             }

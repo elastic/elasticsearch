@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -183,7 +182,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertTrue(
             Operations.sameLanguage(
                 group.privilege().getAutomaton(),
-                MinimizationOperations.minimize(
+                Operations.determinize(
                     Operations.union(IndexPrivilege.READ.getAutomaton(), IndexPrivilege.WRITE.getAutomaton()),
                     Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
                 )

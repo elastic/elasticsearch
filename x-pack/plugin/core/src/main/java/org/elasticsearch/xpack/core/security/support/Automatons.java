@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.support;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.cache.Cache;
@@ -288,7 +287,7 @@ public final class Automatons {
     }
 
     private static Automaton minimize(Automaton automaton) {
-        return MinimizationOperations.minimize(automaton, maxDeterminizedStates);
+        return Operations.determinize(automaton, maxDeterminizedStates);
     }
 
     public static Predicate<String> predicate(String... patterns) {

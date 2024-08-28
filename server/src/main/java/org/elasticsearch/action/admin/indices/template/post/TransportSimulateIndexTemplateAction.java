@@ -311,7 +311,9 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             )
         );
 
-        Map<String, AliasMetadata> aliasesByName = aliases.stream().collect(Collectors.toMap(AliasMetadata::getAlias, Function.identity()));
+        Map<String, AliasMetadata> aliasesByName = aliases == null
+            ? Map.of()
+            : aliases.stream().collect(Collectors.toMap(AliasMetadata::getAlias, Function.identity()));
 
         CompressedXContent mergedMapping = indicesService.<CompressedXContent, Exception>withTempIndexService(
             indexMetadata,

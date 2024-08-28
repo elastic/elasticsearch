@@ -11,9 +11,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.AbstractEsFieldTypeTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.type.AbstractEsFieldTypeTests;
 
 public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribute> {
     public static FieldAttribute createFieldAttribute(int maxDepth, boolean onlyRepresentable) {

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -293,6 +294,12 @@ public final class Case extends EsqlScalarFunction {
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
+                if (conditionsFactories.size() == 1
+                    && conditionsFactories.get(0).value.safeToEvalInLazy()
+                    && elseValueFactory.safeToEvalInLazy()) {
+
+                    return new EagerEvaluator(context, conditionsFactories.get(0).apply(context), elseValueFactory.get(context));
+                }
                 return new CaseEvaluator(
                     context,
                     resultType,
@@ -314,7 +321,7 @@ public final class Case extends EsqlScalarFunction {
         };
     }
 
-    record ConditionEvaluatorSupplier(ExpressionEvaluator.Factory condition, ExpressionEvaluator.Factory value)
+    private record ConditionEvaluatorSupplier(ExpressionEvaluator.Factory condition, ExpressionEvaluator.Factory value)
         implements
             Function<DriverContext, ConditionEvaluator> {
         @Override
@@ -328,7 +335,9 @@ public final class Case extends EsqlScalarFunction {
         }
     }
 
-    record ConditionEvaluator(EvalOperator.ExpressionEvaluator condition, EvalOperator.ExpressionEvaluator value) implements Releasable {
+    private record ConditionEvaluator(EvalOperator.ExpressionEvaluator condition, EvalOperator.ExpressionEvaluator value)
+        implements
+            Releasable {
         @Override
         public void close() {
             Releasables.closeExpectNoException(condition, value);
@@ -391,6 +400,41 @@ public final class Case extends EsqlScalarFunction {
         @Override
         public String toString() {
             return "CaseEvaluator[resultType=" + resultType + ", conditions=" + conditions + ", elseVal=" + elseVal + ']';
+        }
+    }
+
+    private record EagerEvaluator(DriverContext driverContext, ConditionEvaluator condition, EvalOperator.ExpressionEvaluator elseVal)
+        implements
+            EvalOperator.ExpressionEvaluator {
+        @Override
+        public Block eval(Page page) {
+            try (
+                BooleanVector lhsOrRhs = ((BooleanBlock) condition.condition.eval(page)).asVector();
+                // NOCOMMIT replace above with toMask
+                Block lhs = condition.value.eval(page);
+                Block rhs = elseVal.eval(page)
+            ) {
+                try (Block.Builder builder = lhs.elementType().newBlockBuilder(lhs.getTotalValueCount(), driverContext.blockFactory())) {
+                    for (int p = 0; p < lhs.getPositionCount(); p++) {
+                        if (lhsOrRhs.getBoolean(p)) {
+                            builder.copyFrom(lhs, p, p + 1);
+                        } else {
+                            builder.copyFrom(rhs, p, p + 1);
+                        }
+                    }
+                    return builder.build();
+                }
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(condition, elseVal);
+        }
+
+        @Override
+        public String toString() {
+            return "CaseEvaluator[condition=" + condition + ", elseVal=" + elseVal + ']';
         }
     }
 }

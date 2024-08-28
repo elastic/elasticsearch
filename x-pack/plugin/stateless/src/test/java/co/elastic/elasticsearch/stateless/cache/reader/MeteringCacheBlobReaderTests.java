@@ -91,7 +91,7 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
         };
         var meteringCacheBlobReader = new MeteringCacheBlobReader(createFakeCacheBlobReader(), throwingReadCompleteCallback);
         PlainActionFuture<InputStream> future = new PlainActionFuture<>();
-        meteringCacheBlobReader.getRangeInputStream(randomInt(), randomInt(1024), future);
+        meteringCacheBlobReader.getRangeInputStream(randomInt(), randomIntBetween(16, 1024), future);
         InputStream meteredInputStream = safeGet(future);
         // Read a byte so we execute the callback
         meteredInputStream.read();

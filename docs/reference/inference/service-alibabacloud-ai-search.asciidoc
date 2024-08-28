@@ -137,7 +137,7 @@ There are no `task_settings` available for the `rerank` task type.
 
 [discrete]
 [[inference-example-alibabacloud-ai-search]]
-==== AlibabaCloud AI Search service example
+==== AlibabaCloud AI Search service examples
 
 The following example shows how to create an {infer} endpoint called `alibabacloud_ai_search_embeddings` to perform a `text_embedding` task type.
 

@@ -79,6 +79,9 @@ public enum ReferenceDocs {
     S3_COMPATIBLE_REPOSITORIES,
     LUCENE_MAX_DOCS_LIMIT,
     MAX_SHARDS_PER_NODE,
+    FLOOD_STAGE_WATERMARK,
+    X_OPAQUE_ID,
+    FORMING_SINGLE_NODE_CLUSTERS,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

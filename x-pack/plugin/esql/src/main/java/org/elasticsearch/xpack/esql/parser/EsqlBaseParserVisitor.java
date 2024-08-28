@@ -1,5 +1,13 @@
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.xpack.esql.parser;
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
 /**
@@ -271,12 +279,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedName}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -288,12 +290,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedFieldNamePattern}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitQualifiedFieldNamePattern(EsqlBaseParser.QualifiedFieldNamePatternContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNamePatterns}.
    * @param ctx the parse tree
@@ -549,51 +545,21 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#matchCommand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitMatchCommand(EsqlBaseParser.MatchCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#unparsedMatchQuery}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchQuery}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitUnparsedMatchQuery(EsqlBaseParser.UnparsedMatchQueryContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#parsedMatchQuery}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitParsedMatchQuery(EsqlBaseParser.ParsedMatchQueryContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryValue}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMatchQueryValue(EsqlBaseParser.MatchQueryValueContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryRange}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMatchQueryRange(EsqlBaseParser.MatchQueryRangeContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryField}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMatchQueryField(EsqlBaseParser.MatchQueryFieldContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMatchQueryExpression(EsqlBaseParser.MatchQueryExpressionContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#matchRangeOperator}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMatchRangeOperator(EsqlBaseParser.MatchRangeOperatorContext ctx);
+  T visitMatchQuery(EsqlBaseParser.MatchQueryContext ctx);
 }

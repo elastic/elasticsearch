@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.stats.AnalysisStats;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodeResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.MappingStats;
+import org.elasticsearch.action.admin.cluster.stats.RepositoryUsageStats;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.action.admin.cluster.stats.VersionStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -420,6 +421,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeResponse.nodeStats()).thenReturn(mockNodeStats);
         when(mockNodeResponse.shardsStats()).thenReturn(new ShardStats[] { mockShardStats });
         when(mockNodeResponse.searchUsageStats()).thenReturn(new SearchUsageStats());
+        when(mockNodeResponse.repositoryUsageStats()).thenReturn(RepositoryUsageStats.EMPTY);
 
         final Metadata metadata = testClusterState.metadata();
         final ClusterStatsResponse clusterStatsResponse = new ClusterStatsResponse(
@@ -533,7 +535,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   "fielddata": {
                     "memory_size_in_bytes": 1,
                     "evictions": 0,
-                    "global_ordinals":{"build_time_in_millis":1}
+                    "global_ordinals": {
+                      "build_time_in_millis": 1
+                    }
                   },
                   "query_cache": {
                     "memory_size_in_bytes": 0,
@@ -563,9 +567,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "file_sizes": {}
                   },
                   "mappings": {
-                    "total_field_count" : 0,
-                    "total_deduplicated_field_count" : 0,
-                    "total_deduplicated_mapping_size_in_bytes" : 0,
+                    "total_field_count": 0,
+                    "total_deduplicated_field_count": 0,
+                    "total_deduplicated_mapping_size_in_bytes": 0,
                     "field_types": [],
                     "runtime_field_types": []
                   },
@@ -581,11 +585,11 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "synonyms": {}
                   },
                   "versions": [],
-                  "search" : {
-                    "total" : 0,
-                    "queries" : {},
-                    "rescorers" : {},
-                    "sections" : {}
+                  "search": {
+                    "total": 0,
+                    "queries": {},
+                    "rescorers": {},
+                    "sections": {}
                   },
                   "dense_vector": {
                     "value_count": 0
@@ -749,7 +753,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "cleanups": 0
                   },
                   "repositories": {}
-                }
+                },
+                "repositories": {}
               },
               "cluster_state": {
                 "nodes_hash": 1314980060,

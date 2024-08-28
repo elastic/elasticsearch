@@ -1,6 +1,0 @@
-pr: 108409
-summary: Support multiple associated groups for TopN
-area: Application
-type: enhancement
-issues:
- - 108018

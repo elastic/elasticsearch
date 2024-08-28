@@ -1,5 +1,13 @@
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.xpack.esql.parser;
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.antlr.v4.runtime.tree.ParseTreeListener;
 
 /**
@@ -448,16 +456,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitStatsCommand(EsqlBaseParser.StatsCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
-   * @param ctx the parse tree
-   */
-  void enterInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
-   * @param ctx the parse tree
-   */
-  void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedName}.
    * @param ctx the parse tree
    */
@@ -477,16 +475,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedFieldNamePattern}.
-   * @param ctx the parse tree
-   */
-  void enterQualifiedFieldNamePattern(EsqlBaseParser.QualifiedFieldNamePatternContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#qualifiedFieldNamePattern}.
-   * @param ctx the parse tree
-   */
-  void exitQualifiedFieldNamePattern(EsqlBaseParser.QualifiedFieldNamePatternContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedNamePatterns}.
    * @param ctx the parse tree
@@ -916,6 +904,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
+   * @param ctx the parse tree
+   */
+  void enterInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
+   * @param ctx the parse tree
+   */
+  void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#matchCommand}.
    * @param ctx the parse tree
    */
@@ -926,73 +924,13 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitMatchCommand(EsqlBaseParser.MatchCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#unparsedMatchQuery}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#matchQuery}.
    * @param ctx the parse tree
    */
-  void enterUnparsedMatchQuery(EsqlBaseParser.UnparsedMatchQueryContext ctx);
+  void enterMatchQuery(EsqlBaseParser.MatchQueryContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#unparsedMatchQuery}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#matchQuery}.
    * @param ctx the parse tree
    */
-  void exitUnparsedMatchQuery(EsqlBaseParser.UnparsedMatchQueryContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#parsedMatchQuery}.
-   * @param ctx the parse tree
-   */
-  void enterParsedMatchQuery(EsqlBaseParser.ParsedMatchQueryContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#parsedMatchQuery}.
-   * @param ctx the parse tree
-   */
-  void exitParsedMatchQuery(EsqlBaseParser.ParsedMatchQueryContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#matchQueryValue}.
-   * @param ctx the parse tree
-   */
-  void enterMatchQueryValue(EsqlBaseParser.MatchQueryValueContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#matchQueryValue}.
-   * @param ctx the parse tree
-   */
-  void exitMatchQueryValue(EsqlBaseParser.MatchQueryValueContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#matchQueryRange}.
-   * @param ctx the parse tree
-   */
-  void enterMatchQueryRange(EsqlBaseParser.MatchQueryRangeContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#matchQueryRange}.
-   * @param ctx the parse tree
-   */
-  void exitMatchQueryRange(EsqlBaseParser.MatchQueryRangeContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#matchQueryField}.
-   * @param ctx the parse tree
-   */
-  void enterMatchQueryField(EsqlBaseParser.MatchQueryFieldContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#matchQueryField}.
-   * @param ctx the parse tree
-   */
-  void exitMatchQueryField(EsqlBaseParser.MatchQueryFieldContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#matchQueryExpression}.
-   * @param ctx the parse tree
-   */
-  void enterMatchQueryExpression(EsqlBaseParser.MatchQueryExpressionContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#matchQueryExpression}.
-   * @param ctx the parse tree
-   */
-  void exitMatchQueryExpression(EsqlBaseParser.MatchQueryExpressionContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#matchRangeOperator}.
-   * @param ctx the parse tree
-   */
-  void enterMatchRangeOperator(EsqlBaseParser.MatchRangeOperatorContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#matchRangeOperator}.
-   * @param ctx the parse tree
-   */
-  void exitMatchRangeOperator(EsqlBaseParser.MatchRangeOperatorContext ctx);
+  void exitMatchQuery(EsqlBaseParser.MatchQueryContext ctx);
 }

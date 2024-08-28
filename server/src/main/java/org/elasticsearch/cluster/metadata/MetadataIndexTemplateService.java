@@ -26,7 +26,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -55,6 +54,7 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -137,7 +137,7 @@ public class MetadataIndexTemplateService {
     private final NamedXContentRegistry xContentRegistry;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
-    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
+    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
 
     /**
      * This is the cluster state task executor for all template-based actions.
@@ -183,7 +183,7 @@ public class MetadataIndexTemplateService {
         NamedXContentRegistry xContentRegistry,
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
-        DataStreamGlobalRetentionResolver globalRetentionResolver
+        DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
         this.clusterService = clusterService;
         this.taskQueue = clusterService.createTaskQueue("index-templates", Priority.URGENT, TEMPLATE_TASK_EXECUTOR);
@@ -193,7 +193,7 @@ public class MetadataIndexTemplateService {
         this.xContentRegistry = xContentRegistry;
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
-        this.globalRetentionResolver = globalRetentionResolver;
+        this.globalRetentionSettings = globalRetentionSettings;
     }
 
     public void removeTemplates(
@@ -345,7 +345,7 @@ public class MetadataIndexTemplateService {
                         tempStateWithComponentTemplateAdded.metadata(),
                         composableTemplateName,
                         composableTemplate,
-                        globalRetentionResolver.resolve(currentState)
+                        globalRetentionSettings.get()
                     );
                     validateIndexTemplateV2(composableTemplateName, composableTemplate, tempStateWithComponentTemplateAdded);
                 } catch (Exception e) {
@@ -369,9 +369,8 @@ public class MetadataIndexTemplateService {
         }
 
         if (finalComponentTemplate.template().lifecycle() != null) {
-            finalComponentTemplate.template()
-                .lifecycle()
-                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionResolver.resolve(currentState));
+            // We do not know if this lifecycle will belong to an internal data stream, so we fall back to a non internal.
+            finalComponentTemplate.template().lifecycle().addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), false);
         }
 
         logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
@@ -732,7 +731,7 @@ public class MetadataIndexTemplateService {
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
-        validateLifecycle(currentState.metadata(), name, templateToValidate, globalRetentionResolver.resolve(currentState));
+        validateLifecycle(currentState.metadata(), name, templateToValidate, globalRetentionSettings.get());
 
         if (templateToValidate.isDeprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
@@ -817,7 +816,12 @@ public class MetadataIndexTemplateService {
                         + "] specifies lifecycle configuration that can only be used in combination with a data stream"
                 );
             }
-            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention);
+            if (globalRetention != null) {
+                // We cannot know for sure if the template will apply to internal data streams, so we use a simpler heuristic:
+                // If all the index patterns start with a dot, we consider that all the connected data streams are internal.
+                boolean isInternalDataStream = template.indexPatterns().stream().allMatch(indexPattern -> indexPattern.charAt(0) == '.');
+                lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention, isInternalDataStream);
+            }
         }
     }
 

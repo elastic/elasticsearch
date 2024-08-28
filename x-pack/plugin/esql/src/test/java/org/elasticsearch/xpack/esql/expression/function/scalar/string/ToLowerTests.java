@@ -18,12 +18,12 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DateUtils;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,13 +52,13 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
 
     public void testRandomLocale() {
         String testString = randomAlphaOfLength(10);
-        EsqlConfiguration cfg = randomLocaleConfig();
+        Configuration cfg = randomLocaleConfig();
         ToLower func = new ToLower(Source.EMPTY, new Literal(Source.EMPTY, testString, DataType.KEYWORD), cfg);
         assertThat(BytesRefs.toBytesRef(testString.toLowerCase(cfg.locale())), equalTo(func.fold()));
     }
 
-    private EsqlConfiguration randomLocaleConfig() {
-        return new EsqlConfiguration(
+    private Configuration randomLocaleConfig() {
+        return new Configuration(
             DateUtils.UTC,
             randomLocale(random()),
             null,
@@ -73,7 +73,7 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
     }
 
     @Override
-    protected Expression buildWithConfiguration(Source source, List<Expression> args, EsqlConfiguration configuration) {
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
         return new ToLower(source, args.get(0), configuration);
     }
 

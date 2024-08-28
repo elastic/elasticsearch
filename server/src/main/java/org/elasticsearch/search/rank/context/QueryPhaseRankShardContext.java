@@ -15,7 +15,7 @@ import org.elasticsearch.search.rank.RankShardResult;
 import java.util.List;
 
 /**
- * {@link QueryPhaseRankShardContext} is used to generate the top {@code window_size}
+ * {@link QueryPhaseRankShardContext} is used to generate the top {@code rank_window_size}
  * results on each shard. It specifies the queries to run during {@code QueryPhase} and is responsible for combining all query scores and
  * order all results through the {@link QueryPhaseRankShardContext#combineQueryPhaseResults} method.
  */

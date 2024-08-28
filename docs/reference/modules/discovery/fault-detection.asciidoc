@@ -151,26 +151,25 @@ down, but if they rejoin the cluster without restarting then there is some
 other problem.
 
 {es} is designed to run on a fairly reliable network. It opens a number of TCP
-connections between nodes and expects these connections to remain open forever.
-If a connection is closed then {es} will try and reconnect, so the occasional
-blip should have limited impact on the cluster even if the affected node
-briefly leaves the cluster. In contrast, repeatedly-dropped connections will
-severely affect its operation.
+connections between nodes and expects these connections to remain open
+<<long-lived-connections,forever>>. If a connection is closed then {es} will
+try and reconnect, so the occasional blip may fail some in-flight operations
+but should otherwise have limited impact on the cluster. In contrast,
+repeatedly-dropped connections will severely affect its operation.
 
 The connections from the elected master node to every other node in the cluster
 are particularly important. The elected master never spontaneously closes its
-outbound connections to other nodes. Similarly, once a connection is fully
-established, a node never spontaneously close its inbound connections unless
-the node is shutting down.
+outbound connections to other nodes. Similarly, once an inbound connection is
+fully established, a node never spontaneously it unless the node is shutting
+down.
 
 If you see a node unexpectedly leave the cluster with the `disconnected`
 reason, something other than {es} likely caused the connection to close. A
 common cause is a misconfigured firewall with an improper timeout or another
 policy that's <<long-lived-connections,incompatible with {es}>>. It could also
 be caused by general connectivity issues, such as packet loss due to faulty
-hardware or network congestion. If you're an advanced user, you can get more
-detailed information about network exceptions by configuring the following
-loggers:
+hardware or network congestion. If you're an advanced user, configure the
+following loggers to get more detailed information about network exceptions:
 
 [source,yaml]
 ----
@@ -178,9 +177,11 @@ logger.org.elasticsearch.transport.TcpTransport: DEBUG
 logger.org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport: DEBUG
 ----
 
-In extreme cases, you may need to take packet captures using `tcpdump` to
-determine whether messages between nodes are being dropped or rejected by some
-other device on the network.
+If these logs do not show enough information to diagnose the problem, obtain a
+packet capture simultaneously from the nodes at both ends of an unstable
+connection and analyse it alongside the {es} logs from those nodes to determine
+if traffic between the nodes is being disrupted by another device on the
+network.
 
 [discrete]
 ===== Diagnosing `lagging` nodes
@@ -300,3 +301,47 @@ To reconstruct the output, base64-decode the data and decompress it using
 cat shardlock.log | sed -e 's/.*://' | base64 --decode | gzip --decompress
 ----
 //end::troubleshooting[]
+
+[discrete]
+===== Diagnosing other network disconnections
+
+{es} is designed to run on a fairly reliable network. It opens a number of TCP
+connections between nodes and expects these connections to remain open
+<<long-lived-connections,forever>>. If a connection is closed then {es} will
+try and reconnect, so the occasional blip may fail some in-flight operations
+but should otherwise have limited impact on the cluster. In contrast,
+repeatedly-dropped connections will severely affect its operation.
+
+{es} nodes will only actively close an outbound connection to another node if
+the other node leaves the cluster. See
+<<cluster-fault-detection-troubleshooting>> for further information about
+identifying and troubleshooting this situation. If an outbound connection
+closes for some other reason, nodes will log a message such as the following:
+
+[source,text]
+----
+[INFO ][o.e.t.ClusterConnectionManager] [node-1] transport connection to [{node-2}{g3cCUaMDQJmQ2ZLtjr-3dg}{10.0.0.1:9300}] closed by remote
+----
+
+Similarly, once an inbound connection is fully established, a node never
+spontaneously closes it unless the node is shutting down.
+
+Therefore if you see a node report that a connection to another node closed
+unexpectedly, something other than {es} likely caused the connection to close.
+A common cause is a misconfigured firewall with an improper timeout or another
+policy that's <<long-lived-connections,incompatible with {es}>>. It could also
+be caused by general connectivity issues, such as packet loss due to faulty
+hardware or network congestion. If you're an advanced user, configure the
+following loggers to get more detailed information about network exceptions:
+
+[source,yaml]
+----
+logger.org.elasticsearch.transport.TcpTransport: DEBUG
+logger.org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport: DEBUG
+----
+
+If these logs do not show enough information to diagnose the problem, obtain a
+packet capture simultaneously from the nodes at both ends of an unstable
+connection and analyse it alongside the {es} logs from those nodes to determine
+if traffic between the nodes is being disrupted by another device on the
+network.

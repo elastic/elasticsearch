@@ -22,11 +22,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.IdentityHashMap;
@@ -64,6 +63,11 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
      */
     protected final Map<Attribute, Integer> cachedAttributes = new IdentityHashMap<>();
 
+    /**
+     * Cache for EsFields.
+     */
+    protected final Map<EsField, Integer> cachedEsFields = new IdentityHashMap<>();
+
     private final StreamOutput delegate;
     private final PlanNameRegistry registry;
 
@@ -73,15 +77,14 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
     private int maxSerializedAttributes;
 
-    public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry, @Nullable EsqlConfiguration configuration)
-        throws IOException {
+    public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry, @Nullable Configuration configuration) throws IOException {
         this(delegate, registry, configuration, PlanNamedTypes::name, MAX_SERIALIZED_ATTRIBUTES);
     }
 
     public PlanStreamOutput(
         StreamOutput delegate,
         PlanNameRegistry registry,
-        @Nullable EsqlConfiguration configuration,
+        @Nullable Configuration configuration,
         Function<Class<?>, String> nameSupplier,
         int maxSerializedAttributes
     ) throws IOException {
@@ -96,11 +99,6 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
             }
         }
         this.maxSerializedAttributes = maxSerializedAttributes;
-    }
-
-    public void writeLogicalPlanNode(LogicalPlan logicalPlan) throws IOException {
-        assert logicalPlan.children().size() <= 1 || (logicalPlan instanceof Join && logicalPlan.children().size() == 2);
-        writeNamed(LogicalPlan.class, logicalPlan);
     }
 
     public void writePhysicalPlanNode(PhysicalPlan physicalPlan) throws IOException {
@@ -161,7 +159,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
      * <p>
      *     These {@link Block}s are not tracked by {@link BlockFactory} and closing them
      *     does nothing so they should be small. We do make sure not to send duplicates,
-     *     reusing blocks sent as part of the {@link EsqlConfiguration#tables()} if
+     *     reusing blocks sent as part of the {@link Configuration#tables()} if
      *     possible, otherwise sending a {@linkplain Block} inline.
      * </p>
      */
@@ -213,6 +211,38 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
         return id;
     }
 
+    @Override
+    public boolean writeEsFieldCacheHeader(EsField field) throws IOException {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)) {
+            Integer cacheId = esFieldIdFromCache(field);
+            if (cacheId != null) {
+                writeZLong(cacheId);
+                return false;
+            }
+
+            cacheId = cacheEsField(field);
+            writeZLong(-1 - cacheId);
+        }
+        writeString(field.getWriteableName());
+        return true;
+    }
+
+    private Integer esFieldIdFromCache(EsField field) {
+        return cachedEsFields.get(field);
+    }
+
+    private int cacheEsField(EsField attr) {
+        if (cachedEsFields.containsKey(attr)) {
+            throw new IllegalArgumentException("EsField already present in the serialization cache [" + attr + "]");
+        }
+        int id = cachedEsFields.size();
+        if (id >= maxSerializedAttributes) {
+            throw new InvalidArgumentException("Limit of the number of serialized EsFields exceeded [{}]", maxSerializedAttributes);
+        }
+        cachedEsFields.put(attr, id);
+        return id;
+    }
+
     /**
      * The byte representing a {@link Block} sent for the first time. The byte
      * will be followed by a {@link StreamOutput#writeVInt} encoded identifier
@@ -230,7 +260,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
     /**
      * The byte representing a {@link Block} that was part of the
-     * {@link EsqlConfiguration#tables()} map. It is followed a string for
+     * {@link Configuration#tables()} map. It is followed a string for
      * the table name and then a string for the column name.
      */
     static final byte FROM_CONFIG_KEY = 2;
@@ -248,7 +278,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
     }
 
     /**
-     * Build the key for reading a {@link Block} from the {@link EsqlConfiguration}.
+     * Build the key for reading a {@link Block} from the {@link Configuration}.
      * This is important because some operations like {@code LOOKUP} frequently read
      * {@linkplain Block}s directly from the configuration.
      * <p>

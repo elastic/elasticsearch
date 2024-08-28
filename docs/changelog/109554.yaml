@@ -1,6 +1,0 @@
-pr: 109554
-summary: "[Query Rules] Add API calls to get or delete individual query rules within\
-  \ a ruleset"
-area: Relevance
-type: enhancement
-issues: []

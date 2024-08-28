@@ -76,6 +76,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset AIRPORTS = new TestsDataset("airports", "mapping-airports.json", "airports.csv");
     private static final TestsDataset AIRPORTS_MP = new TestsDataset("airports_mp", "mapping-airports.json", "airports_mp.csv");
     private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web", "mapping-airports_web.json", "airports_web.csv");
+    private static final TestsDataset DATE_NANOS = new TestsDataset("date_nanos", "mapping-date_nanos.json", "date_nanos.csv");
     private static final TestsDataset COUNTRIES_BBOX = new TestsDataset(
         "countries_bbox",
         "mapping-countries_bbox.json",
@@ -99,6 +100,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset DISTANCES = new TestsDataset("distances", "mapping-distances.json", "distances.csv");
     private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv", "k8s-settings.json", true);
     private static final TestsDataset ADDRESSES = new TestsDataset("addresses", "mapping-addresses.json", "addresses.csv", null, true);
+    private static final TestsDataset BOOKS = new TestsDataset("books", "mapping-books.json", "books.csv", null, true);
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -122,9 +124,11 @@ public class CsvTestsDataLoader {
         Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),
         Map.entry(AIRPORT_CITY_BOUNDARIES.indexName, AIRPORT_CITY_BOUNDARIES),
         Map.entry(CARTESIAN_MULTIPOLYGONS.indexName, CARTESIAN_MULTIPOLYGONS),
+        Map.entry(DATE_NANOS.indexName, DATE_NANOS),
         Map.entry(K8S.indexName, K8S),
         Map.entry(DISTANCES.indexName, DISTANCES),
-        Map.entry(ADDRESSES.indexName, ADDRESSES)
+        Map.entry(ADDRESSES.indexName, ADDRESSES),
+        Map.entry(BOOKS.indexName, BOOKS)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

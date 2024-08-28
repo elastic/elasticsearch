@@ -190,14 +190,15 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.file;
     exports org.elasticsearch.common.geo;
     exports org.elasticsearch.common.hash;
-    exports org.elasticsearch.common.inject;
-    exports org.elasticsearch.common.inject.binder;
-    exports org.elasticsearch.common.inject.internal;
-    exports org.elasticsearch.common.inject.matcher;
-    exports org.elasticsearch.common.inject.multibindings;
-    exports org.elasticsearch.common.inject.name;
-    exports org.elasticsearch.common.inject.spi;
-    exports org.elasticsearch.common.inject.util;
+    exports org.elasticsearch.injection.api;
+    exports org.elasticsearch.injection.guice;
+    exports org.elasticsearch.injection.guice.binder;
+    exports org.elasticsearch.injection.guice.internal;
+    exports org.elasticsearch.injection.guice.matcher;
+    exports org.elasticsearch.injection.guice.multibindings;
+    exports org.elasticsearch.injection.guice.name;
+    exports org.elasticsearch.injection.guice.spi;
+    exports org.elasticsearch.injection.guice.util;
     exports org.elasticsearch.common.io;
     exports org.elasticsearch.common.io.stream;
     exports org.elasticsearch.common.logging;
@@ -364,6 +365,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.rank.rerank;
     exports org.elasticsearch.search.rescore;
     exports org.elasticsearch.search.retriever;
+    exports org.elasticsearch.search.retriever.rankdoc;
     exports org.elasticsearch.search.runtime;
     exports org.elasticsearch.search.searchafter;
     exports org.elasticsearch.search.slice;
@@ -428,6 +430,7 @@ module org.elasticsearch.server {
             org.elasticsearch.cluster.metadata.MetadataFeatures,
             org.elasticsearch.rest.RestFeatures,
             org.elasticsearch.indices.IndicesFeatures,
+            org.elasticsearch.repositories.RepositoriesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
             org.elasticsearch.ingest.IngestGeoIpFeatures,

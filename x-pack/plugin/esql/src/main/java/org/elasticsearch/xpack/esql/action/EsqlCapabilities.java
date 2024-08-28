@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
@@ -37,6 +38,11 @@ public class EsqlCapabilities {
         FN_MV_APPEND,
 
         /**
+         * Support for {@code MV_PERCENTILE} function.
+         */
+        FN_MV_PERCENTILE,
+
+        /**
          * Support for function {@code IP_PREFIX}.
          */
         FN_IP_PREFIX,
@@ -52,6 +58,11 @@ public class EsqlCapabilities {
         INLINESTATS(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
+         * Support for the expressions in grouping in {@code INLINESTATS} syntax.
+         */
+        INLINESTATS_V2(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+
+        /**
          * Support for aggregation function {@code TOP}.
          */
         AGG_TOP,
@@ -65,6 +76,11 @@ public class EsqlCapabilities {
          * Support for ips in aggregations {@code MAX} and {@code MIN}.
          */
         AGG_MAX_MIN_IP_SUPPORT,
+
+        /**
+         * Support for strings in aggregations {@code MAX} and {@code MIN}.
+         */
+        AGG_MAX_MIN_STRING_SUPPORT,
 
         /**
          * Support for booleans in {@code TOP} aggregation.
@@ -120,6 +136,11 @@ public class EsqlCapabilities {
         ST_DISTANCE,
 
         /**
+         * Fix determination of CRS types in spatial functions when folding.
+         */
+        SPATIAL_FUNCTIONS_FIX_CRSTYPE_FOLDING,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -155,6 +176,12 @@ public class EsqlCapabilities {
          * Fix for union-types when sorting a type-casted field. We changed how we remove synthetic union-types fields.
          */
         UNION_TYPES_REMOVE_FIELDS,
+
+        /**
+         * Fix for union-types when renaming unrelated columns.
+         * https://github.com/elastic/elasticsearch/issues/111452
+         */
+        UNION_TYPES_FIX_RENAME_RESOLUTION,
 
         /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
@@ -207,7 +234,42 @@ public class EsqlCapabilities {
         /**
          * MATCH command support
          */
-        MATCH_COMMAND(true);
+        MATCH_COMMAND(true),
+
+        /**
+         * Support for nanosecond dates as a data type
+         */
+        DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * Support CIDRMatch in CombineDisjunctions rule.
+         */
+        COMBINE_DISJUNCTIVE_CIDRMATCHES,
+
+        /**
+         * Support sending HTTP headers about the status of an async query.
+         */
+        ASYNC_QUERY_STATUS_HEADERS,
+
+        /**
+         * Consider the upper bound when computing the interval in BUCKET auto mode.
+         */
+        BUCKET_INCLUSIVE_UPPER_BOUND,
+
+        /**
+         * Changed error messages for fields with conflicting types in different indices.
+         */
+        SHORT_ERROR_MESSAGES_FOR_UNSUPPORTED_FIELDS,
+
+        /**
+         * Support for the whole number spans in BUCKET function.
+         */
+        BUCKET_WHOLE_NUMBER_AS_SPAN,
+
+        /**
+         * Allow mixed numeric types in coalesce
+         */
+        MIXED_NUMERIC_TYPES_IN_COALESCE;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;
@@ -230,7 +292,7 @@ public class EsqlCapabilities {
             this.featureFlag = featureFlag;
         }
 
-        private boolean isEnabled() {
+        public boolean isEnabled() {
             if (featureFlag == null) {
                 return Build.current().isSnapshot() || this.snapshotOnly == false;
             }
@@ -239,10 +301,6 @@ public class EsqlCapabilities {
 
         public String capabilityName() {
             return name().toLowerCase(Locale.ROOT);
-        }
-
-        public boolean snapshotOnly() {
-            return snapshotOnly;
         }
     }
 

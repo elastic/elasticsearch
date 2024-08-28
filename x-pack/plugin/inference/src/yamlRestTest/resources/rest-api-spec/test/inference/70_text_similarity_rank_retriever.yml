@@ -29,6 +29,8 @@ setup:
                 type: text
               topic:
                 type: keyword
+              subtopic:
+                type: keyword
 
   - do:
       index:
@@ -36,7 +38,8 @@ setup:
         id: doc_1
         body:
           text: "As seen from Earth, a solar eclipse happens when the Moon is directly between the Earth and the Sun."
-          topic: ["science"]
+          topic: [ "science" ]
+          subtopic: [ "technology" ]
         refresh: true
 
   - do:
@@ -45,7 +48,8 @@ setup:
         id: doc_2
         body:
           text: "The phases of the Moon come from the position of the Moon relative to the Earth and Sun."
-          topic: ["science"]
+          topic: [ "science" ]
+          subtopic: [ "astronomy" ]
         refresh: true
 
   - do:
@@ -54,8 +58,9 @@ setup:
         id: doc_3
         body:
           text: "Sun Moon Lake is a lake in Nantou County, Taiwan. It is the largest lake in Taiwan."
-          topic: ["geography"]
+          topic: [ "geography" ]
         refresh: true
+
 ---
 "Simple text similarity rank retriever":
 
@@ -78,7 +83,7 @@ setup:
               field: text
           size: 10
 
-  - match: { hits.total.value : 2 }
+  - match: { hits.total.value: 2 }
   - length: { hits.hits: 2 }
 
   - match: { hits.hits.0._id: "doc_2" }
@@ -88,3 +93,88 @@ setup:
   - match: { hits.hits.1._id: "doc_1" }
   - match: { hits.hits.1._rank: 2 }
   - close_to: { hits.hits.1._score: { value: 0.2, error: 0.001 } }
+
+---
+"Simple text similarity rank retriever and filtering":
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    term:
+                      topic: "science"
+              filter:
+                term:
+                  subtopic: "technology"
+              rank_window_size: 10
+              inference_id: my-rerank-model
+              inference_text: "How often does the moon hide the sun?"
+              field: text
+          size: 10
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.0._rank: 1 }
+  - close_to: { hits.hits.0._score: { value: 0.2, error: 0.001 } }
+
+
+---
+"Text similarity reranking fails if the inference ID does not exist":
+  - do:
+      catch: /Inference endpoint not found/
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    term:
+                      topic: "science"
+              filter:
+                term:
+                  subtopic: "technology"
+              rank_window_size: 10
+              inference_id: i-dont-exist
+              inference_text: "How often does the moon hide the sun?"
+              field: text
+          size: 10
+
+---
+"Text similarity reranking fails if the inference ID does not exist and result set is empty":
+  - requires:
+      cluster_features: "gte_v8.15.1"
+      reason: bug fixed in 8.15.1
+
+  - do:
+      catch: /Inference endpoint not found/
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    term:
+                      topic: "asdfasdf"
+              rank_window_size: 10
+              inference_id: i-dont-exist
+              inference_text: "asdfasdf"
+              field: text
+          size: 10
+

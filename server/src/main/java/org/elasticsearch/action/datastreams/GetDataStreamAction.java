@@ -319,8 +319,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 if (dataStream.getLifecycle() != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
-                    dataStream.getLifecycle()
-                        .toXContent(builder, params, rolloverConfiguration, dataStream.isSystem() ? null : globalRetention);
+                    dataStream.getLifecycle().toXContent(builder, params, rolloverConfiguration, globalRetention, dataStream.isInternal());
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
@@ -556,7 +555,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             for (DataStreamInfo dataStream : dataStreams) {
                 dataStream.toXContent(
                     builder,
-                    DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
+                    DataStreamLifecycle.addEffectiveRetentionParams(params),
                     rolloverConfiguration,
                     globalRetention
                 );

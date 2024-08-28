@@ -89,7 +89,7 @@ public final class ValuesBooleanGroupingAggregatorFunction implements GroupingAg
 
   private void addRawInput(int positionOffset, IntVector groups, BooleanBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
@@ -103,7 +103,7 @@ public final class ValuesBooleanGroupingAggregatorFunction implements GroupingAg
 
   private void addRawInput(int positionOffset, IntVector groups, BooleanVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       ValuesBooleanAggregator.combine(state, groupId, values.getBoolean(groupPosition + positionOffset));
     }
   }
@@ -116,7 +116,7 @@ public final class ValuesBooleanGroupingAggregatorFunction implements GroupingAg
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         if (values.isNull(groupPosition + positionOffset)) {
           continue;
         }
@@ -137,7 +137,7 @@ public final class ValuesBooleanGroupingAggregatorFunction implements GroupingAg
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         ValuesBooleanAggregator.combine(state, groupId, values.getBoolean(groupPosition + positionOffset));
       }
     }
@@ -153,7 +153,7 @@ public final class ValuesBooleanGroupingAggregatorFunction implements GroupingAg
     }
     BooleanBlock values = (BooleanBlock) valuesUncast;
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       ValuesBooleanAggregator.combineIntermediate(state, groupId, values, groupPosition + positionOffset);
     }
   }

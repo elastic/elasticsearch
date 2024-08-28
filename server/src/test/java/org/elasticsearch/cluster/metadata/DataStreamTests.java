@@ -1893,15 +1893,15 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStream.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention))
-                .getConditions()
-                .keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(
+                lifecycle.getEffectiveDataRetention(globalRetention, dataStream.isInternal())
+            ).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }
             // We check that even if there was no retention provided by the user, the global retention applies
             assertThat(serialized, not(containsString("data_retention")));
-            if (dataStream.isSystem() == false
-                && (globalRetention.getDefaultRetention() != null || globalRetention.getMaxRetention() != null)) {
+            if (dataStream.isInternal() == false
+                && (globalRetention.defaultRetention() != null || globalRetention.maxRetention() != null)) {
                 assertThat(serialized, containsString("effective_retention"));
             } else {
                 assertThat(serialized, not(containsString("effective_retention")));
@@ -2203,6 +2203,17 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             is(false)
         );
         assertThat(failureStoreDataStreamWithEmptyFailureIndices.isFailureStoreIndex(randomAlphaOfLength(10)), is(false));
+    }
+
+    public void testInternalDataStream() {
+        var nonInternalDataStream = createTestInstance().copy().setSystem(false).setName(randomAlphaOfLength(10)).build();
+        assertThat(nonInternalDataStream.isInternal(), is(false));
+
+        var systemDataStream = nonInternalDataStream.copy().setSystem(true).setHidden(true).setName(randomAlphaOfLength(10)).build();
+        assertThat(systemDataStream.isInternal(), is(true));
+
+        var dotPrefixedDataStream = nonInternalDataStream.copy().setSystem(false).setName("." + randomAlphaOfLength(10)).build();
+        assertThat(dotPrefixedDataStream.isInternal(), is(true));
     }
 
     private record DataStreamMetadata(Long creationTimeInMillis, Long rolloverTimeInMillis, Long originationTimeInMillis) {

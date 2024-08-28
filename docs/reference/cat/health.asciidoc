@@ -112,6 +112,8 @@ elasticsearch green           1         1      1   1    0    0        0         
 --------------------------------------------------
 // TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ non_json]
 
+**Note**: The reported number of unassigned primary shards may be lower than the true value if your cluster contains nodes running a version below v8.15. For a more accurate count in this scenario, please use the <<cluster-health,cluster health API>>.
+
 [[cat-health-api-example-across-nodes]]
 ===== Example across nodes
 You can use the cat health API to verify the health of a cluster across nodes.

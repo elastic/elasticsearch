@@ -132,7 +132,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
     (integer) The number of shards that are not allocated.
 
 `unassigned_primary_shards`::
-    (integer) The number of shards that are primary but not allocated.
+    (integer) The number of shards that are primary but not allocated. **Note**: This number may be lower than the true value if your cluster contains nodes running a version below v8.15. For a more accurate count in this scenario, please use the <<cluster-health,cluster health API>>.
 
 `delayed_unassigned_shards`::
     (integer) The number of shards whose allocation has been delayed by the

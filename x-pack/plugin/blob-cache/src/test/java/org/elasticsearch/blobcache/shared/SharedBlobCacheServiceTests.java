@@ -1408,7 +1408,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var blobLength = randomLongBetween(1L, cacheSize);
 
             int regions = Math.toIntExact(blobLength / regionSize);
-            regions += (blobLength % regionSize == 0L ? 0L : 1L);
+            regions += (blobLength % regionSize == 0 ? 0 : 1);
             assertThat(
                 cacheService.computeCacheFileRegionSize(blobLength, randomFrom(regions)),
                 equalTo(BlobCacheUtils.toIntBytes(regionSize))

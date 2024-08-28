@@ -10,7 +10,7 @@ Use {es} to search, index, store, and analyze data of all shapes and sizes in ne
 {es} has a lot of features. Explore the full list on the https://www.elastic.co/elasticsearch/features[product webpage^].
 ====
 
-{es} is the heart of the the <<elasticsearch-intro-elastic-stack,{stack}>> and powers the Elastic https://www.elastic.co/enterprise-search[Search], https://www.elastic.co/observability[Observability] and https://www.elastic.co/security[Security] solutions.
+{es} is the heart of the <<elasticsearch-intro-elastic-stack,{stack}>> and powers the Elastic https://www.elastic.co/enterprise-search[Search], https://www.elastic.co/observability[Observability] and https://www.elastic.co/security[Security] solutions.
 
 {es} is used for a wide and growing range of use cases. Here are a few examples:
 

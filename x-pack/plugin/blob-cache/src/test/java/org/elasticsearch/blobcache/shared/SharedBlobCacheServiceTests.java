@@ -444,6 +444,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      * Exercise SharedBlobCacheService#get in multiple threads to trigger any assertion errors.
      * @throws IOException
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/112305")
     public void testGetMultiThreaded() throws IOException {
         final int threads = between(2, 10);
         final int regionCount = between(1, 20);

@@ -39,7 +39,8 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
 
     /**
      * Convert this to a {@link BooleanVector "mask"} that's appropriate for
-     * passing to {@link #keepMask}.
+     * passing to {@link #keepMask}. Null and multivalued positions will be
+     * converted to {@code false}.
      */
     ToMask toMask();
 

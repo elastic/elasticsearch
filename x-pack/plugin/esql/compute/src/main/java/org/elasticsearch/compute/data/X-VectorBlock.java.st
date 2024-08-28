@@ -46,13 +46,10 @@ $if(BytesRef)$
     }
 
 $elseif(boolean)$
-    /**
-     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
-     * passing to {@link #keepMask}.
-     */
     @Override
     public ToMask toMask() {
-        return vector.toMask();
+        vector.incRef();
+        return new ToMask(vector, false);
     }
 
 $endif$

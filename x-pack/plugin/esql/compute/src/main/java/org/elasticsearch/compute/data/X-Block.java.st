@@ -67,7 +67,8 @@ $if(BytesRef)$
 $elseif(boolean)$
     /**
      * Convert this to a {@link BooleanVector "mask"} that's appropriate for
-     * passing to {@link #keepMask}.
+     * passing to {@link #keepMask}. Null and multivalued positions will be
+     * converted to {@code false}.
      */
     ToMask toMask();
 

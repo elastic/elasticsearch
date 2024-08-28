@@ -49,12 +49,6 @@ public final class ConstantNullVector extends AbstractVector
     }
 
     @Override
-    public ToMask toMask() {
-        assert false : "null vector";
-        throw new UnsupportedOperationException("null vector");
-    }
-
-    @Override
     public ConstantNullVector filter(int... positions) {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");

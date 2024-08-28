@@ -832,10 +832,7 @@ public class BasicBlockTests extends ESTestCase {
             IntStream.range(0, positionCount).mapToObj(ii -> randomBoolean()).forEach(vectorBuilder::appendBoolean);
             BooleanVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
-            try (ToMask mask = vector.toMask()) {
-                assertThat(mask.hadMultivaluedFields(), equalTo(false));
-                assertThat(mask.mask(), sameInstance(vector));
-            }
+            assertToMask(vector);
             releaseAndAssertBreaker(vector.asBlock());
         }
     }
@@ -1422,7 +1419,7 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     static void assertToMask(BooleanVector vector) {
-        try (ToMask mask = vector.toMask()) {
+        try (ToMask mask = vector.asBlock().toMask()) {
             assertThat(mask.mask(), sameInstance(vector));
             assertThat(mask.hadMultivaluedFields(), equalTo(false));
         }

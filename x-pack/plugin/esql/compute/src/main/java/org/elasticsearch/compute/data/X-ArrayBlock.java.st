@@ -103,10 +103,6 @@ $if(BytesRef)$
     }
 
 $elseif(boolean)$
-    /**
-     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
-     * passing to {@link #keepMask}.
-     */
     @Override
     public ToMask toMask() {
         if (getPositionCount() == 0) {

@@ -52,13 +52,6 @@ $if(BytesRef)$
      */
     OrdinalBytesRefVector asOrdinals();
 
-$elseif(boolean)$
-    /**
-     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
-     * passing to {@link #keepMask}.
-     */
-    ToMask toMask();
-
 $endif$
     @Override
     $Type$Vector filter(int... positions);

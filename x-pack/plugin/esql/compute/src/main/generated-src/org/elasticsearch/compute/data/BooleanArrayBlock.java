@@ -85,10 +85,6 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
         return null;
     }
 
-    /**
-     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
-     * passing to {@link #keepMask}.
-     */
     @Override
     public ToMask toMask() {
         if (getPositionCount() == 0) {

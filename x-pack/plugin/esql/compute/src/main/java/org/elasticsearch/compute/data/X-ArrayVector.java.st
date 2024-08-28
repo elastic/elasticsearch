@@ -130,19 +130,8 @@ $if(BytesRef)$
     public OrdinalBytesRefVector asOrdinals() {
         return null;
     }
-
-$elseif(boolean)$
-    /**
-     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
-     * passing to {@link #keepMask}.
-     */
-    @Override
-    public ToMask toMask() {
-        incRef();
-        return new ToMask(this, false);
-    }
-
 $endif$
+
 $if(BytesRef)$
     @Override
     public BytesRef getBytesRef(int position, BytesRef dest) {

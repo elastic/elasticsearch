@@ -87,7 +87,7 @@ WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 // MYCOMMAND : 'mycommand' -> ...
 DEV_INLINESTATS : {isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 DEV_LOOKUP :      {isDevVersion()}? 'lookup'        -> pushMode(LOOKUP_MODE);
-DEV_MATCH :       {isDevVersion()}? 'match'         -> pushMode(EXPRESSION_MODE);
+DEV_MATCH :       {isDevVersion()}? 'match'         -> pushMode(MATCH_MODE);
 DEV_METRICS :     {isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
 
 //
@@ -612,4 +612,48 @@ CLOSING_METRICS_BY
 
 CLOSING_METRICS_PIPE
     : PIPE -> type(PIPE), popMode
+    ;
+
+//
+// MATCH
+//
+mode MATCH_MODE;
+MATCH_PIPE : PIPE -> type(PIPE), popMode;
+MATCH_DOT: DOT -> type(DOT);
+MATCH_COMMA : COMMA -> type(COMMA);
+MATCH_COLON : COLON -> type(COLON);
+MATCH_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+MATCH_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+MATCH_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+MATCH_QUOTED_STRING : QUOTED_STRING -> type(QUOTED_STRING);
+
+MATCH_INTEGER_LITERAL : INTEGER_LITERAL -> type(INTEGER_LITERAL);
+MATCH_DECIMAL_LITERAL : DECIMAL_LITERAL -> type(DECIMAL_LITERAL);
+MATCH_PLUS : PLUS -> type(PLUS);
+MATCH_MINUS : MINUS -> type(MINUS);
+MATCH_AND : AND -> type(AND);
+MATCH_OR : OR -> type(OR);
+MATCH_LP: LP -> type(LP);
+MATCH_RP: RP -> type(RP);
+MATCH_LT  : LT -> type(LT);
+MATCH_LTE : LTE -> type(LTE);
+MATCH_GT  : GT -> type(GT);
+MATCH_GTE : GT -> type(GTE);
+
+WORD_PATTERN
+    : (LETTER | ASTERISK) FIELD_PATTERN_BODY*
+    | (UNDERSCORE | ASPERAND) FIELD_PATTERN_BODY+
+    ;
+
+fragment FIELD_PATTERN_BODY
+    : (LETTER | DIGIT | UNDERSCORE | ASTERISK | MATCH_DOT)
     ;

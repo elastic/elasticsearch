@@ -314,9 +314,51 @@ inlinestatsCommand
     ;
 
 matchCommand
-    : DEV_MATCH matchQuery
+    : DEV_MATCH (parsedMatchQuery | unparsedMatchQuery )
     ;
 
 matchQuery
     : QUOTED_STRING
+    ;
+
+unparsedMatchQuery
+    : queryString=QUOTED_STRING
+    ;
+
+parsedMatchQuery
+    : matchQueryValue
+    | matchQueryRange
+    | LP parsedMatchQuery RP
+    | left=parsedMatchQuery operator=AND right=parsedMatchQuery
+    | left=parsedMatchQuery operator=OR right=parsedMatchQuery
+    ;
+
+matchQueryValue
+    : matchQueryField? matchQueryExpression
+    ;
+
+matchQueryRange
+    : fieldName=WORD_PATTERN matchRangeOperator matchRangeExpression
+    ;
+
+matchQueryField
+    : fieldName=WORD_PATTERN COLON
+    ;
+
+matchQueryExpression
+    : QUOTED_STRING
+    // Unquoted strings are recognized as field patterns - is there a way to distinguish them?
+    | WORD_PATTERN+
+    | integerValue
+    | decimalValue
+    ;
+
+matchRangeExpression
+    : integerValue
+    | decimalValue
+    | timestamp=QUOTED_STRING
+    ;
+
+matchRangeOperator
+    : GT | GTE | LT | LTE
     ;

@@ -43,7 +43,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
@@ -461,18 +460,6 @@ public class LuceneTests extends ESTestCase {
                 }
             }
         }
-    }
-
-    /**
-     * Test that the "unmap hack" is detected as supported by lucene.
-     * This works around the following bug: https://bugs.openjdk.java.net/browse/JDK-4724038
-     * <p>
-     * While not guaranteed, current status is "Critical Internal API": http://openjdk.java.net/jeps/260
-     * Additionally this checks we did not screw up the security logic around the hack.
-     */
-    public void testMMapHackSupported() throws Exception {
-        // add assume's here if needed for certain platforms, but we should know if it does not work.
-        assertTrue("MMapDirectory does not support unmapping: " + MMapDirectory.UNMAP_NOT_SUPPORTED_REASON, MMapDirectory.UNMAP_SUPPORTED);
     }
 
     public void testWrapAllDocsLive() throws Exception {

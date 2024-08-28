@@ -18,10 +18,6 @@ final class DoubleState implements AggregatorState {
     private double value;
     private boolean seen;
 
-    DoubleState() {
-        this(0);
-    }
-
     DoubleState(double init) {
         this.value = init;
     }

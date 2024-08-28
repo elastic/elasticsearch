@@ -5,7 +5,7 @@
 <titleabbrev>Unfollow</titleabbrev>
 ++++
 
-Converts a follower index to a regular index.
+Converts a <<xpack-ccr,{ccr}>> follower index to a regular index.
 
 [[ccr-post-unfollow-request]]
 ==== {api-request-title}

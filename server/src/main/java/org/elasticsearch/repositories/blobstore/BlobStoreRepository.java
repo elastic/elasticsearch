@@ -123,7 +123,6 @@ import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.AbortedSnapshotException;
 import org.elasticsearch.snapshots.PausedSnapshotException;
-import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -847,8 +846,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * protect by adding some delays in between operations so that things have a chance to settle down. This method is the hook that allows
      * the delete process to add this protection when necessary.
      */
-    protected SnapshotDeleteListener wrapWithWeakConsistencyProtection(SnapshotDeleteListener snapshotDeleteListener) {
-        return snapshotDeleteListener;
+    protected ActionListener<RepositoryData> wrapWithWeakConsistencyProtection(ActionListener<RepositoryData> listener) {
+        return listener;
     }
 
     @Override
@@ -856,19 +855,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
-        SnapshotDeleteListener listener
+        ActionListener<RepositoryData> repositoryDataUpdateListener,
+        Runnable onCompletion
     ) {
-        createSnapshotsDeletion(snapshotIds, repositoryDataGeneration, minimumNodeVersion, new ActionListener<>() {
-            @Override
-            public void onResponse(SnapshotsDeletion snapshotsDeletion) {
-                snapshotsDeletion.runDelete(listener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        createSnapshotsDeletion(
+            snapshotIds,
+            repositoryDataGeneration,
+            minimumNodeVersion,
+            repositoryDataUpdateListener.delegateFailureAndWrap((l, snapshotsDeletion) -> snapshotsDeletion.runDelete(l, onCompletion))
+        );
     }
 
     /**
@@ -933,7 +928,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * </ul>
      * <p>
      *     Until the {@link RepositoryData} is updated there should be no other activities in the repository, and in particular the root
-     *     blob must not change until it is updated by this deletion and {@link SnapshotDeleteListener#onRepositoryDataWritten} is called.
+     *     blob must not change until it is updated by this deletion and the {@code repositoryDataUpdateListener} is completed.
      * </p>
      */
     class SnapshotsDeletion {
@@ -1027,40 +1022,29 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // ---------------------------------------------------------------------------------------------------------------------------------
         // The overall flow of execution
 
-        void runDelete(SnapshotDeleteListener listener) {
-            final var releasingListener = new SnapshotDeleteListener() {
-                @Override
-                public void onDone() {
-                    try {
-                        shardBlobsToDelete.close();
-                    } finally {
-                        listener.onDone();
-                    }
+        void runDelete(ActionListener<RepositoryData> repositoryDataUpdateListener, Runnable onCompletion) {
+            final var releasingListener = repositoryDataUpdateListener.delegateResponse((l, e) -> {
+                try {
+                    shardBlobsToDelete.close();
+                } finally {
+                    l.onFailure(e);
                 }
-
-                @Override
-                public void onRepositoryDataWritten(RepositoryData repositoryData) {
-                    listener.onRepositoryDataWritten(repositoryData);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        shardBlobsToDelete.close();
-                    } finally {
-                        listener.onFailure(e);
-                    }
-
+            });
+            final Runnable releasingOnCompletion = () -> {
+                try {
+                    shardBlobsToDelete.close();
+                } finally {
+                    onCompletion.run();
                 }
             };
             if (useShardGenerations) {
-                runWithUniqueShardMetadataNaming(releasingListener);
+                runWithUniqueShardMetadataNaming(releasingListener, releasingOnCompletion);
             } else {
-                runWithLegacyNumericShardMetadataNaming(wrapWithWeakConsistencyProtection(releasingListener));
+                runWithLegacyNumericShardMetadataNaming(wrapWithWeakConsistencyProtection(releasingListener), releasingOnCompletion);
             }
         }
 
-        private void runWithUniqueShardMetadataNaming(SnapshotDeleteListener listener) {
+        private void runWithUniqueShardMetadataNaming(ActionListener<RepositoryData> repositoryDataUpdateListener, Runnable onCompletion) {
             SubscribableListener
 
                 // First write the new shard state metadata (without the removed snapshots) and compute deletion targets
@@ -1082,30 +1066,29 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     );
                 })
 
-                .addListener(
-                    ActionListener.wrap(
-                        // Once we have updated the repository, run the clean-ups
-                        newRepositoryData -> {
-                            listener.onRepositoryDataWritten(newRepositoryData);
-                            // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
-                            try (var refs = new RefCountingRunnable(listener::onDone)) {
-                                cleanupUnlinkedRootAndIndicesBlobs(newRepositoryData, refs.acquireListener());
-                                cleanupUnlinkedShardLevelBlobs(refs.acquireListener());
-                            }
-                        },
-                        listener::onFailure
-                    )
-                );
+                .<RepositoryData>andThen((l, newRepositoryData) -> {
+                    l.onResponse(newRepositoryData);
+                    // Once we have updated the repository, run the unreferenced blobs cleanup in parallel to shard-level snapshot deletion
+                    try (var refs = new RefCountingRunnable(onCompletion)) {
+                        cleanupUnlinkedRootAndIndicesBlobs(newRepositoryData, refs.acquireListener());
+                        cleanupUnlinkedShardLevelBlobs(refs.acquireListener());
+                    }
+                })
+
+                .addListener(repositoryDataUpdateListener);
         }
 
-        private void runWithLegacyNumericShardMetadataNaming(SnapshotDeleteListener listener) {
+        private void runWithLegacyNumericShardMetadataNaming(
+            ActionListener<RepositoryData> repositoryDataUpdateListener,
+            Runnable onCompletion
+        ) {
             // Write the new repository data first (with the removed snapshot), using no shard generations
             updateRepositoryData(
                 originalRepositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY),
-                ActionListener.wrap(newRepositoryData -> {
+                repositoryDataUpdateListener.delegateFailure((delegate, newRepositoryData) -> {
                     try (var refs = new RefCountingRunnable(() -> {
-                        listener.onRepositoryDataWritten(newRepositoryData);
-                        listener.onDone();
+                        delegate.onResponse(newRepositoryData);
+                        onCompletion.run();
                     })) {
                         // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
                         cleanupUnlinkedRootAndIndicesBlobs(newRepositoryData, refs.acquireListener());
@@ -1120,7 +1103,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             )
                         );
                     }
-                }, listener::onFailure)
+                })
             );
         }
 
@@ -3959,5 +3942,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 suitable for use with Elasticsearch snapshots. See [%s] for further information.""",
             ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS
         );
+    }
+
+    public static final String READ_ONLY_USAGE_STATS_NAME = "read_only";
+    public static final String READ_WRITE_USAGE_STATS_NAME = "read_write";
+
+    @Override
+    public final Set<String> getUsageFeatures() {
+        final var extraUsageFeatures = getExtraUsageFeatures();
+        assert extraUsageFeatures.contains(READ_ONLY_USAGE_STATS_NAME) == false : extraUsageFeatures;
+        assert extraUsageFeatures.contains(READ_WRITE_USAGE_STATS_NAME) == false : extraUsageFeatures;
+        return Set.copyOf(
+            Stream.concat(Stream.of(isReadOnly() ? READ_ONLY_USAGE_STATS_NAME : READ_WRITE_USAGE_STATS_NAME), extraUsageFeatures.stream())
+                .toList()
+        );
+    }
+
+    /**
+     * All blob-store repositories include the counts of read-only and read-write repositories in their telemetry. This method returns other
+     * features of the repositories in use.
+     *
+     * @return a set of the names of the extra features that this repository instance uses, for reporting in the cluster stats for telemetry
+     *         collection.
+     */
+    protected Set<String> getExtraUsageFeatures() {
+        return Set.of();
     }
 }

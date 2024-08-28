@@ -97,6 +97,7 @@ public class CodecService implements CodecProvider {
 
         private final DeduplicatingFieldInfosFormat deduplicatingFieldInfosFormat;
 
+        @SuppressWarnings("this-escape")
         protected DeduplicateFieldInfosCodec(String name, Codec delegate) {
             super(name, delegate);
             this.deduplicatingFieldInfosFormat = new DeduplicatingFieldInfosFormat(super.fieldInfosFormat());

@@ -94,7 +94,7 @@ Currently you can:
 
 ** Integrate directly with the <<infer-service-cohere,Cohere Rerank inference endpoint>> using the `rerank` task type
 ** Integrate directly with the <<infer-service-google-vertex-ai,Google Vertex AI inference endpoint>> using the `rerank` task type
-** Upload a model to {es} from Hugging Face with {eland-docs}/machine-learning.html#ml-nlp-pytorch[Eland]
+** Upload a model to {es} from Hugging Face with {eland-docs}/machine-learning.html#ml-nlp-pytorch[Eland]. You'll need to use the `text_similarity` NLP task type when loading the model using Eland. Refer to {ml-docs}/ml-nlp-model-ref.html#ml-nlp-model-ref-text-similarity[the Elastic NLP model reference] for a list of third party text similarity models supported by {es} for semantic reranking.
 *** Then set up an <<inference-example-eland,{es} service inference endpoint>> with the `rerank` task type
 . *Create a `rerank` task using the <<put-inference-api,{es} Inference API>>*.
 The Inference API creates an inference endpoint and configures your chosen machine learning model to perform the reranking task.

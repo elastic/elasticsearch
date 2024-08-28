@@ -60,7 +60,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
         // read in the entries from the metadata file.
         int version = -1;
-        try (ChecksumIndexInput in = state.directory.openChecksumInput(metaName, state.context)) {
+        try (ChecksumIndexInput in = state.directory.openChecksumInput(metaName)) {
             Throwable priorE = null;
 
             try {

@@ -189,6 +189,10 @@ public class EsqlExecutionInfo implements ToXContentFragment {
             }
         }
 
+        public Cluster(String clusterAlias, String indexExpression) {
+            this(clusterAlias, indexExpression, true, Cluster.Status.RUNNING, null, null, null, null, null, null);
+        }
+
         /**
          * Create a Cluster object representing the initial RUNNING state of a Cluster.
          *

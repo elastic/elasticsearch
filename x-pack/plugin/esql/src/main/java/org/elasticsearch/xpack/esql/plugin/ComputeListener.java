@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -45,6 +46,8 @@ final class ComputeListener implements Releasable {
     private final List<DriverProfile> collectedProfiles;
     private final ResponseHeadersCollector responseHeaders;
 
+    private EsqlExecutionInfo esqlExecutionInfo;
+
     ComputeListener(TransportService transportService, CancellableTask task, ActionListener<ComputeResponse> delegate) {
         this.transportService = transportService;
         this.task = task;
@@ -52,8 +55,39 @@ final class ComputeListener implements Releasable {
         this.collectedProfiles = Collections.synchronizedList(new ArrayList<>());
         this.refs = new RefCountingListener(1, ActionListener.wrap(ignored -> {
             responseHeaders.finish();
-            // MP TODO: I don't understand what this ComputeResponse is for, why it is exists, when it is created, nor where it goes ...
             var result = new ComputeResponse(collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList());
+            delegate.onResponse(result);
+        }, e -> delegate.onFailure(failureCollector.getFailure())));
+        // MP TODO: ^^ do we need to instrument the above onFailure handler?
+    }
+
+    ComputeListener(
+        TransportService transportService,
+        CancellableTask task,
+        String clusterAlias,
+        EsqlExecutionInfo executionInfo,
+        ActionListener<ComputeResponse> delegate
+    ) {
+        this.transportService = transportService;
+        this.task = task;
+        this.responseHeaders = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
+        this.collectedProfiles = Collections.synchronizedList(new ArrayList<>());
+        // for remote executions - this ComputeResponse is created on the remote cluster and will be serialized back and
+        // received by the acquireCompute method callback on the coordinating cluster
+        this.refs = new RefCountingListener(1, ActionListener.wrap(ignored -> {
+            responseHeaders.finish();
+            System.err.println("* * * * * * * * * * * Creating ComputeResponse in ComputeListener refs REF");
+            final int rand = ThreadLocalRandom.current().nextInt(999999);
+            System.err.println("=========> RAND: " + rand);
+            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+            var result = new ComputeResponse(
+                collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList(),
+                cluster.getTook(),
+                rand,
+                cluster.getSuccessfulShards(),
+                cluster.getSkippedShards(),
+                cluster.getFailedShards()
+            );
             delegate.onResponse(result);
         }, e -> delegate.onFailure(failureCollector.getFailure())));
         // MP TODO: ^^ do we need to instrument the above onFailure handler?
@@ -99,12 +133,13 @@ final class ComputeListener implements Releasable {
         assert clusterAlias != null : "Must provide non-null cluster alias to acquireCompute";
         assert executionInfo != null : "When providing cluster alias to acquireCompute, EsqlExecutionInfo must not be null";
         return acquireAvoid().map(resp -> {
+            System.err.println("VVV acquireCompute: resp took: " + resp.getTook());
             responseHeaders.collect();
             var profiles = resp.getProfiles();
             if (profiles != null && profiles.isEmpty() == false) {
                 collectedProfiles.addAll(profiles);
             }
-            System.err.printf("UUU: swapping-in (in acquireCompute) for cluster: [%s]\n", clusterAlias);
+            System.err.println("=====> TOTAL SHARDS n acquireCompute: " + resp.getTotalShards());
             executionInfo.swapCluster(
                 clusterAlias,
                 (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
@@ -118,7 +153,7 @@ final class ComputeListener implements Releasable {
                     .setFailedShards(resp.getFailedShards())
                     .build()
             );
-
+            System.err.printf("UUU: swapping-in (in acquireCompute) for cluster: [%s]; execInfo: [%s]\n", clusterAlias, executionInfo);
             return null;
         });
     }

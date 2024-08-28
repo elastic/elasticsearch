@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -138,7 +139,7 @@ public class ComputeService {
         ActionListener<Result> listener
     ) {
         System.err.println("-------------------------------------");
-        System.err.println("====== ComputeService execute: START: " + executionInfo);
+        System.err.println("====== ComputeService execute: START: " + executionInfo);  // info here was set by field-caps call
         System.err.println("-------------------------------------");
 
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
@@ -207,6 +208,12 @@ public class ComputeService {
             // MP TODO: does this ComputeListener really need the executionInfo passed in? Or do we already have proper reference?
             // MP TODO: I'm going to leave off adding it until proven it is needed
             var computeListener = new ComputeListener(transportService, rootTask, /*executionInfo,*/ listener.map(r -> {
+                System.err.printf(
+                    "DEBUG 12: total shards: [%d]; skipped shards: [%d]; took: [%s]\n",
+                    r.getTotalShards(),
+                    r.getSkippedShards(),
+                    r.getTook()
+                );
                 System.err.println(
                     "DEBUG 13: CREATING RESULT .......: "
                         + new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo)
@@ -285,16 +292,16 @@ public class ComputeService {
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
-        EsqlExecutionInfo executionInfo,
+        EsqlExecutionInfo ei,
         ComputeListener computeListener
     ) {
         // MP TODO -- start TMP
         System.err.printf(
-            "PPPP startComputeOnDataNodes sessionId:[%s], clusterAlias:[%s],concreateIndices:[%s]; executionInfo:[%s\n",
+            "PPPP startComputeOnDataNodes sessionId:[%s], clusterAlias:[%s],concreateIndices:[%s]; executionInfo:[%s]\n",
             sessionId,
             clusterAlias,
             concreteIndices,
-            executionInfo
+            ei
         );
         // MP TODO -- end TMP
         var planWithReducer = configuration.pragmas().nodeLevelReduction() == false
@@ -310,7 +317,7 @@ public class ComputeService {
         // but it would be better to have a proper impl.
         QueryBuilder requestFilter = PlannerUtils.requestFilter(planWithReducer, x -> true);
         var lookupListener = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
-        lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodes -> {
+        lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ei, ActionListener.wrap(dataNodes -> {
             try (RefCountingListener refs = new RefCountingListener(lookupListener)) {
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
@@ -327,8 +334,8 @@ public class ComputeService {
                             exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
                             ActionListener<ComputeResponse> computeResponseActionListener;
                             if (clusterAlias.equals(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY)) {
-                                assert executionInfo != null : "EsqlExecutionInfo must be provided when running on local cluster";
-                                computeResponseActionListener = computeListener.acquireCompute(clusterAlias, executionInfo);
+                                assert ei != null : "EsqlExecutionInfo must be provided when running on local cluster";
+                                computeResponseActionListener = computeListener.acquireCompute(clusterAlias, ei);
                             } else {
                                 computeResponseActionListener = computeListener.acquireCompute();
                             }
@@ -551,6 +558,7 @@ public class ComputeService {
         QueryBuilder filter,
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
+        EsqlExecutionInfo executionInfo,
         ActionListener<List<DataNode>> listener
     ) {
         ActionListener<SearchShardsResponse> searchShardsListener = listener.map(resp -> {
@@ -560,9 +568,13 @@ public class ComputeService {
             }
             Map<String, List<ShardId>> nodeToShards = new HashMap<>();
             Map<String, Map<Index, AliasFilter>> nodeToAliasFilters = new HashMap<>();
+            int totalShards = 0;
+            int skippedShards = 0;
             for (SearchShardsGroup group : resp.getGroups()) {
                 var shardId = group.shardId();
                 if (group.skipped()) {
+                    totalShards++;
+                    skippedShards++;
                     continue;
                 }
                 if (group.allocatedNodes().isEmpty()) {
@@ -571,6 +583,7 @@ public class ComputeService {
                 if (concreteIndices.contains(shardId.getIndexName()) == false) {
                     continue;
                 }
+                totalShards++;
                 String targetNode = group.allocatedNodes().get(0);
                 nodeToShards.computeIfAbsent(targetNode, k -> new ArrayList<>()).add(shardId);
                 AliasFilter aliasFilter = resp.getAliasFilters().get(shardId.getIndex().getUUID());
@@ -584,6 +597,21 @@ public class ComputeService {
                 Map<Index, AliasFilter> aliasFilters = nodeToAliasFilters.getOrDefault(e.getKey(), Map.of());
                 dataNodes.add(new DataNode(transportService.getConnection(node), e.getValue(), aliasFilters));
             }
+            final int countShards = totalShards;
+            final int skipped = skippedShards;
+            executionInfo.swapCluster(
+                clusterAlias,
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(countShards)
+                    .setSuccessfulShards(countShards)
+                    .setSkippedShards(skipped)
+                    .setFailedShards(0)
+                    .build()
+            );
+            System.err.printf(
+                "+++ DEBUG 100: SearchShardsRequest executionInfo summary for cluster[%s] : [%s]\n",
+                clusterAlias,
+                executionInfo
+            );
             return dataNodes;
         });
         SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
@@ -795,15 +823,19 @@ public class ComputeService {
                 listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + plan));
                 return;
             }
-            try (var computeListener = new ComputeListener(transportService, (CancellableTask) task, listener)) {
+            String clusterAlias = request.clusterAlias();
+            EsqlExecutionInfo execInfo = new EsqlExecutionInfo();
+            execInfo.swapCluster(clusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(clusterAlias, Arrays.toString(request.indices())));
+            try (var computeListener = new ComputeListener(transportService, (CancellableTask) task, clusterAlias, execInfo, listener)) {
                 runComputeOnRemoteCluster(
-                    request.clusterAlias(),
+                    clusterAlias,
                     request.sessionId(),
                     (CancellableTask) task,
                     request.configuration(),
                     (ExchangeSinkExec) plan,
                     Set.of(remoteClusterPlan.targetIndices()),
                     remoteClusterPlan.originalIndices(),
+                    execInfo,
                     computeListener
                 );
             }
@@ -827,6 +859,7 @@ public class ComputeService {
         ExchangeSinkExec plan,
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
+        EsqlExecutionInfo executionInfo,
         ComputeListener computeListener
     ) {
         final var exchangeSink = exchangeService.getSinkHandler(globalSessionId);
@@ -862,7 +895,7 @@ public class ComputeService {
                 concreteIndices,
                 originalIndices,
                 exchangeSource,
-                null,
+                executionInfo,
                 computeListener
             );
         }

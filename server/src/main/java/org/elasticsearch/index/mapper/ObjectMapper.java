@@ -187,10 +187,10 @@ public class ObjectMapper extends Mapper {
                 // -----> object 'baz' found => add field 'bad' to it
                 // -----> no match found => add field 'baz.bad' to parent
                 // ---> object 'bar.baz' found => add field 'bad' to it
-                // ---> no match found => add field 'bar.baz.bad' to parent
+                // ---> no match found => add field 'bar.baz.bad' to 'foo'
                 // -> object 'foo.bar' found => call addDynamic on 'baz.bad'
                 // ---> object 'baz' found => add field 'bad' to it
-                // ---> no match found=> add field 'baz.bad' to parent
+                // ---> no match found=> add field 'baz.bad' to 'foo.bar'
                 // -> object 'foo.bar.baz' found => add field 'bad' to it
                 // -> no match found => add field 'foo.bar.baz.bad' to parent
                 String fullPathToMapper = name.substring(0, name.lastIndexOf(mapper.leafName()));

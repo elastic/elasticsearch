@@ -26,6 +26,7 @@ import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOBooleanSupplier;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ public class FilterableTermsEnum extends TermsEnum {
     protected BytesRef current;
     protected final int docsEnumFlag;
 
-    public FilterableTermsEnum(IndexReader reader, String field, int docsEnumFlag, @Nullable Query filter) throws IOException {
+    public FilterableTermsEnum(IndexReader reader, String field, int docsEnumFlag, @Nullable Query f) throws IOException {
         if ((docsEnumFlag != PostingsEnum.FREQS) && (docsEnumFlag != PostingsEnum.NONE)) {
             throw new IllegalArgumentException("invalid docsEnumFlag of " + docsEnumFlag);
         }
@@ -174,6 +175,11 @@ public class FilterableTermsEnum extends TermsEnum {
             current = null;
             return false;
         }
+    }
+
+    @Override
+    public IOBooleanSupplier prepareSeekExact(BytesRef bytesRef) {
+        return () -> this.seekExact(bytesRef);
     }
 
     @Override

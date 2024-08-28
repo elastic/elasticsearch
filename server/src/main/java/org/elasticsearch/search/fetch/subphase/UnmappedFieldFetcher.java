@@ -83,7 +83,11 @@ public class UnmappedFieldFetcher {
         if (patterns.isEmpty()) {
             return null;
         }
-        return new CharacterRunAutomaton(Regex.simpleMatchToAutomaton(patterns.toArray(String[]::new)), AUTOMATON_MAX_DETERMINIZED_STATES);
+        Automaton a = Operations.determinize(
+            Regex.simpleMatchToAutomaton(patterns.toArray(String[]::new)),
+            AUTOMATON_MAX_DETERMINIZED_STATES
+        );
+        return new CharacterRunAutomaton(a);
     }
 
     /**

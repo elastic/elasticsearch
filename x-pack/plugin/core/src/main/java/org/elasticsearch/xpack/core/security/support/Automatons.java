@@ -328,7 +328,8 @@ public final class Automatons {
         } else if (automaton == EMPTY) {
             return Predicates.never();
         }
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, maxDeterminizedStates);
+        automaton = Operations.determinize(automaton, maxDeterminizedStates);
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
         return new Predicate<String>() {
             @Override
             public boolean test(String s) {

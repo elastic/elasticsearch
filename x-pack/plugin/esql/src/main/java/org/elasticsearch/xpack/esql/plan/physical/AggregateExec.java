@@ -36,10 +36,9 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     private final List<? extends Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
     /**
-     * The output attributes of {@link AggregatorMode#INITIAL} aggregations, resp.
-     * the input attributes of {@link AggregatorMode#FINAL} aggregations.
+     * The output attributes of {@link AggregatorMode#INITIAL} and {@link AggregatorMode#INTERMEDIATE} aggregations, resp.
+     * the input attributes of {@link AggregatorMode#FINAL} and {@link AggregatorMode#INTERMEDIATE} aggregations.
      */
-    // TODO: For INTERMEDIATE, should the input attributes be the same as the output attributes? Currently, they are.
     private final List<Attribute> intermediateAttributes;
 
     private final AggregatorMode mode;

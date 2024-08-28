@@ -1,0 +1,61 @@
+"Process document":
+  # create ingest pipeline with custom processor
+  - do:
+      ingest.put_pipeline:
+        id: pipeline1
+        body:  >
+          {
+            "processors": [
+              {
+                "repeat" : {}
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  # index a document with field to be processed
+  - do:
+      index:
+        id: doc1
+        index: index1
+        pipeline: pipeline1
+        body: { toRepeat: "foo" }
+  - match: { result: "created" }
+
+  # validate document is processed
+  - do:
+      get:
+        index: index1
+        id: doc1
+  - match: { _source: { toRepeat: "foofoo" } }
+---
+"Does not process document without field":
+  # create ingest pipeline with custom processor
+  - do:
+      ingest.put_pipeline:
+        id: pipeline1
+        body:  >
+          {
+            "processors": [
+              {
+                "repeat" : {}
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  # index a document without field to be processed
+  - do:
+      index:
+        id: doc1
+        index: index1
+        pipeline: pipeline1
+        body: { field1: "foo" }
+  - match: { result: "created" }
+
+  # validate document is not processed
+  - do:
+      get:
+        index: index1
+        id: doc1
+  - match: { _source: { field1: "foo" } }

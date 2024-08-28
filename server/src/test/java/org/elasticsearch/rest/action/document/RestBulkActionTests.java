@@ -64,8 +64,8 @@ public class RestBulkActionTests extends ESTestCase {
             final Map<String, String> params = new HashMap<>();
             params.put("pipeline", "timestamps");
             new RestBulkAction(
-                settings(IndexVersion.current()).put(RestBulkAction.INCREMENTAL_BULK.getKey(), false).build(),
-                new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY))
+                settings(IndexVersion.current()).build(),
+                new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY), () -> false)
             ).handleRequest(
                 new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk").withParams(params).withContent(new BytesArray("""
                     {"index":{"_id":"1"}}
@@ -99,8 +99,8 @@ public class RestBulkActionTests extends ESTestCase {
             Map<String, String> params = new HashMap<>();
             {
                 new RestBulkAction(
-                    settings(IndexVersion.current()).put(RestBulkAction.INCREMENTAL_BULK.getKey(), false).build(),
-                    new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY))
+                    settings(IndexVersion.current()).build(),
+                    new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY), () -> false)
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -123,8 +123,8 @@ public class RestBulkActionTests extends ESTestCase {
                 params.put("list_executed_pipelines", "true");
                 bulkCalled.set(false);
                 new RestBulkAction(
-                    settings(IndexVersion.current()).put(RestBulkAction.INCREMENTAL_BULK.getKey(), false).build(),
-                    new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY))
+                    settings(IndexVersion.current()).build(),
+                    new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY), () -> false)
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -146,8 +146,8 @@ public class RestBulkActionTests extends ESTestCase {
             {
                 bulkCalled.set(false);
                 new RestBulkAction(
-                    settings(IndexVersion.current()).put(RestBulkAction.INCREMENTAL_BULK.getKey(), false).build(),
-                    new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY))
+                    settings(IndexVersion.current()).build(),
+                    new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY), () -> false)
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -170,8 +170,8 @@ public class RestBulkActionTests extends ESTestCase {
                 params.remove("list_executed_pipelines");
                 bulkCalled.set(false);
                 new RestBulkAction(
-                    settings(IndexVersion.current()).put(RestBulkAction.INCREMENTAL_BULK.getKey(), false).build(),
-                    new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY))
+                    settings(IndexVersion.current()).build(),
+                    new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY), () -> false)
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -201,6 +201,9 @@ public class RestBulkActionTests extends ESTestCase {
         FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
             .withMethod(RestRequest.Method.POST)
             .withBody(new HttpBody.Stream() {
+                @Override
+                public void close() {}
+
                 @Override
                 public ChunkHandler handler() {
                     return null;

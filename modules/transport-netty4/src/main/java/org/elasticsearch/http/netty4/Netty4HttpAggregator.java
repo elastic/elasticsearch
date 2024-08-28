@@ -35,10 +35,6 @@ public class Netty4HttpAggregator extends HttpObjectAggregator {
     private boolean aggregating = true;
     private boolean ignoreContentAfterContinueResponse = false;
 
-    public Netty4HttpAggregator(int maxContentLength) {
-        this(maxContentLength, IGNORE_TEST);
-    }
-
     public Netty4HttpAggregator(int maxContentLength, Predicate<HttpPreRequest> decider) {
         super(maxContentLength);
         this.decider = decider;
@@ -49,7 +45,7 @@ public class Netty4HttpAggregator extends HttpObjectAggregator {
         assert msg instanceof HttpObject;
         if (msg instanceof HttpRequest request) {
             var preReq = HttpHeadersAuthenticatorUtils.asHttpPreRequest(request);
-            aggregating = decider.test(preReq);
+            aggregating = decider.test(preReq) && IGNORE_TEST.test(preReq);
         }
         if (aggregating || msg instanceof FullHttpRequest) {
             super.channelRead(ctx, msg);

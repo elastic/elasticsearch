@@ -234,15 +234,13 @@ public class RestBulkAction extends BaseRestHandler {
             if (isLast) {
                 assert unParsedChunks.isEmpty();
                 assert channel != null;
-                handler.lastItems(
-                    new ArrayList<>(items),
-                    () -> Releasables.close(releasables),
-                    new RestRefCountedChunkedToXContentListener<>(channel)
-                );
+                ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);
                 items.clear();
+                handler.lastItems(toPass, () -> Releasables.close(releasables), new RestRefCountedChunkedToXContentListener<>(channel));
             } else if (items.isEmpty() == false) {
-                handler.addItems(new ArrayList<>(items), () -> Releasables.close(releasables), () -> request.contentStream().next());
+                ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);
                 items.clear();
+                handler.addItems(toPass, () -> Releasables.close(releasables), () -> request.contentStream().next());
             } else {
                 assert releasables.isEmpty();
                 request.contentStream().next();

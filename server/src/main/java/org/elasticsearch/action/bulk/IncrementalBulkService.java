@@ -23,12 +23,13 @@ import org.elasticsearch.rest.action.document.RestBulkAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 public class IncrementalBulkService {
 
     private final Client client;
     private final ThreadContext threadContext;
-    private final Enabled enabled;
+    private final Supplier<Boolean> enabled;
 
     public IncrementalBulkService(Client client, ThreadContext threadContext) {
         this.client = client;
@@ -37,13 +38,17 @@ public class IncrementalBulkService {
     }
 
     public IncrementalBulkService(Client client, ThreadContext threadContext, ClusterSettings clusterSettings) {
+        this(client, threadContext, new Enabled(clusterSettings));
+    }
+
+    public IncrementalBulkService(Client client, ThreadContext threadContext, Supplier<Boolean> enabled) {
         this.client = client;
         this.threadContext = threadContext;
-        this.enabled = new Enabled(clusterSettings);
+        this.enabled = enabled;
     }
 
     public boolean incrementalBulkEnabled() {
-        return enabled.incrementalBulkEnabled();
+        return enabled.get();
     }
 
     public Handler newBulkRequest() {
@@ -54,7 +59,7 @@ public class IncrementalBulkService {
         return new Handler(client, threadContext, threadContext.newStoredContext(), waitForActiveShards, timeout, refresh);
     }
 
-    public static class Enabled {
+    public static class Enabled implements Supplier<Boolean> {
 
         private final AtomicBoolean incrementalBulksEnabled = new AtomicBoolean(true);
 
@@ -65,7 +70,8 @@ public class IncrementalBulkService {
             clusterSettings.addSettingsUpdateConsumer(RestBulkAction.INCREMENTAL_BULK, incrementalBulksEnabled::set);
         }
 
-        public boolean incrementalBulkEnabled() {
+        @Override
+        public Boolean get() {
             return incrementalBulksEnabled.get();
         }
     }

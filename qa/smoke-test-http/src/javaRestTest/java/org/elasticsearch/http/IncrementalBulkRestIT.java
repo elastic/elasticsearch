@@ -41,28 +41,49 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
         final Response indexCreatedResponse = getRestClient().performRequest(createRequest);
         assertThat(indexCreatedResponse.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
-        Request successfulIndexingRequest = new Request("POST", "/index_name/_bulk");
+        Request firstBulkRequest = new Request("POST", "/index_name/_bulk");
+
+        // index documents for the rollup job
+        String bulkBody = "{\"index\":{\"_index\":\"index_name\",\"_id\":\"1\"}}\n"
+            + "{\"field\":1}\n"
+            + "{\"index\":{\"_index\":\"index_name\",\"_id\":\"2\"}}\n"
+            + "{\"field\":1}\n"
+            + "\r\n";
+
+        firstBulkRequest.setJsonEntity(bulkBody);
+
+        final Response indexSuccessFul = getRestClient().performRequest(firstBulkRequest);
+        assertThat(indexSuccessFul.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
+
+        Request bulkRequest = new Request("POST", "/index_name/_bulk");
 
         // index documents for the rollup job
         final StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"delete\":{\"_index\":\"index_name\",\"_id\":\"1\"}}\n");
+        int updates = 0;
         for (int i = 0; i < 1000; i++) {
             bulk.append("{\"index\":{\"_index\":\"index_name\"}}\n");
             bulk.append("{\"field\":").append(i).append("}\n");
+            if (randomBoolean() && randomBoolean() && randomBoolean() && randomBoolean()) {
+                ++updates;
+                bulk.append("{\"update\":{\"_index\":\"index_name\",\"_id\":\"2\"}}\n");
+                bulk.append("{\"doc\":{\"field\":").append(i).append("}}\n");
+            }
         }
         bulk.append("\r\n");
 
-        successfulIndexingRequest.setJsonEntity(bulk.toString());
+        bulkRequest.setJsonEntity(bulk.toString());
 
-        final Response indexSuccessFul = getRestClient().performRequest(successfulIndexingRequest);
-        assertThat(indexSuccessFul.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
+        final Response bulkResponse = getRestClient().performRequest(bulkRequest);
+        assertThat(bulkResponse.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
         Map<String, Object> responseMap = XContentHelper.convertToMap(
             JsonXContent.jsonXContent,
-            indexSuccessFul.getEntity().getContent(),
+            bulkResponse.getEntity().getContent(),
             true
         );
 
         assertFalse((Boolean) responseMap.get("errors"));
-        assertThat(((List<Object>) responseMap.get("items")).size(), equalTo(1000));
+        assertThat(((List<Object>) responseMap.get("items")).size(), equalTo(1001 + updates));
     }
 
     public void testIncrementalMalformed() throws IOException {

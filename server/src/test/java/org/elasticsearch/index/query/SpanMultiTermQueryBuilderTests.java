@@ -17,7 +17,6 @@ import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
@@ -273,7 +272,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
                         RuntimeException exc = expectThrows(RuntimeException.class, () -> query.rewrite(searcher));
                         assertThat(exc.getMessage(), containsString("maxClauseCount"));
                     } finally {
-                        BooleanQuery.setMaxClauseCount(origBoolMaxClauseCount);
+                        IndexSearcher.setMaxClauseCount(origBoolMaxClauseCount);
                     }
                 }
             }

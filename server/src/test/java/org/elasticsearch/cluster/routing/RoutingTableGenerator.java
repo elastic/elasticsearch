@@ -132,9 +132,8 @@ public class RoutingTableGenerator {
             } else {
                 if (shardRouting.primary()) {
                     unassignedPrimary++;
-                } else {
-                    unassigned++;
                 }
+                unassigned++;
             }
         }
     }

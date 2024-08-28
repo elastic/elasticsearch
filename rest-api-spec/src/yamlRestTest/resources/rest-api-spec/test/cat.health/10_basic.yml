@@ -1,5 +1,5 @@
 ---
-"Help - with unassigned_pri_shard_count":
+"Help":
   - requires:
       capabilities:
         - method: GET
@@ -32,7 +32,7 @@
 
 
 ---
-"Empty cluster - with unassigned_pri_shard_count":
+"Empty cluster":
   - requires:
       capabilities:
         - method: GET
@@ -67,7 +67,7 @@
 
 
 ---
-"With ts parameter - with unassigned_pri_shard_count":
+"With ts parameter":
   - requires:
       capabilities:
         - method: GET
@@ -98,89 +98,3 @@
                 \n
               )+
             $/
-
----
-"Help - Without unassigned_pri_shard_count":
-  - skip:
-      cluster_features: gte_v8.15.0
-      reason: Capabilities skipping does not yet work in mixed clusters. This will disable the test in such scenarios.
-  - do:
-      cat.health:
-        help: true
-
-  - match:
-      $body: |
-        /^  epoch         .+\n
-            timestamp     .+\n
-            cluster       .+\n
-            status        .+\n
-            node.total    .+\n
-            node.data     .+\n
-            shards        .+\n
-            pri           .+\n
-            relo          .+\n
-            init          .+\n
-            unassign      .+\n
-            pending_tasks .+\n
-            max_task_wait_time .+\n
-            active_shards_percent .+\n
-        $/
-
-
----
-"Empty cluster - Without unassigned_pri_shard_count":
-  - skip:
-      cluster_features: gte_v8.15.0
-      reason: Capabilities skipping does not yet work in mixed clusters. This will disable the test in such scenarios.
-  - do:
-      cat.health: {}
-
-  - match:
-      $body: |
-        /^
-          ( \d+            \s+ # epoch
-            \d\d:\d\d:\d\d \s+ # timestamp
-            \S+            \s+ # cluster
-            \w+            \s+ # status
-            \d+            \s+ # node.total
-            \d+            \s+ # node.data
-            \d+            \s+ # shards
-            \d+            \s+ # pri
-            \d+            \s+ # relo
-            \d+            \s+ # init
-            \d+            \s+ # unassign
-            \d+            \s+ # pending_tasks
-            (-|\d+(?:[.]\d+)?m?s) \s+ # max task waiting time
-            \d+\.\d+%             # active shards percent
-            \n
-          )+
-        $/
-
-
----
-"With ts parameter - Without unassigned_pri_shard_count":
-  - skip:
-      cluster_features: gte_v8.15.0
-      reason: Capabilities skipping does not yet work in mixed clusters. This will disable the test in such scenarios.
-  - do:
-      cat.health:
-        ts: false
-
-  - match:
-      $body: |
-        /^
-          ( \S+            \s+ # cluster
-            \w+            \s+ # status
-            \d+            \s+ # node.total
-            \d+            \s+ # node.data
-            \d+            \s+ # shards
-            \d+            \s+ # pri
-            \d+            \s+ # relo
-            \d+            \s+ # init
-            \d+            \s+ # unassign
-            \d+            \s+ # pending_tasks
-            (-|\d+(?:[.]\d+)?m?s) \s+ # max task waiting time
-            \d+\.\d+%             # active shards percent
-            \n
-          )+
-        $/

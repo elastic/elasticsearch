@@ -185,7 +185,7 @@ public class ObjectMapper extends Mapper {
                 // -> object 'foo' found => call addDynamic on 'bar.baz.bad'
                 // ---> object 'bar' found => call addDynamic on 'baz.bad'
                 // -----> object 'baz' found => add field 'bad' to it
-                // -----> no match found => add field 'baz.bad' to parent
+                // -----> no match found => add field 'baz.bad' to 'bar'
                 // ---> object 'bar.baz' found => add field 'bad' to it
                 // ---> no match found => add field 'bar.baz.bad' to 'foo'
                 // -> object 'foo.bar' found => call addDynamic on 'baz.bad'

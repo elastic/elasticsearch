@@ -2432,7 +2432,7 @@ public class InternalEngineTests extends EngineTestCase {
                 Engine.Get engineGet = new Engine.Get(true, false, doc.id());
                 try (Engine.GetResult get = engine.get(engineGet, mappingLookup, documentParser, randomSearcherWrapper())) {
                     FieldsVisitor visitor = new FieldsVisitor(true);
-                    get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
+                    get.docIdAndVersion().reader.storedFields().document(get.docIdAndVersion().docId, visitor);
                     List<String> values = new ArrayList<>(Strings.commaDelimitedListToSet(visitor.source().utf8ToString()));
                     String removed = op % 3 == 0 && values.size() > 0 ? values.remove(0) : null;
                     String added = "v_" + idGenerator.incrementAndGet();
@@ -2478,7 +2478,7 @@ public class InternalEngineTests extends EngineTestCase {
             Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id()), mappingLookup, documentParser, randomSearcherWrapper())
         ) {
             FieldsVisitor visitor = new FieldsVisitor(true);
-            get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
+            get.docIdAndVersion().reader.storedFields().document(get.docIdAndVersion().docId, visitor);
             List<String> values = Arrays.asList(Strings.commaDelimitedListToStringArray(visitor.source().utf8ToString()));
             assertThat(currentValues, equalTo(new HashSet<>(values)));
         }

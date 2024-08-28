@@ -24,6 +24,7 @@ import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -489,8 +490,9 @@ public class LuceneTests extends ESTestCase {
             IndexSearcher searcher = newSearcher(reader);
             Set<String> actualDocs = new HashSet<>();
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+            StoredFields storedFields = reader.storedFields();
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-                actualDocs.add(reader.document(scoreDoc.doc).get("id"));
+                actualDocs.add(storedFields.document(scoreDoc.doc).get("id"));
             }
             assertThat(actualDocs, equalTo(liveDocs));
         }
@@ -535,8 +537,9 @@ public class LuceneTests extends ESTestCase {
             IndexSearcher searcher = newSearcher(reader);
             List<String> actualDocs = new ArrayList<>();
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+            StoredFields storedFields = reader.storedFields();
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-                actualDocs.add(reader.document(scoreDoc.doc).get("id"));
+                actualDocs.add(storedFields.document(scoreDoc.doc).get("id"));
             }
             assertThat(actualDocs, equalTo(liveDocs));
         }

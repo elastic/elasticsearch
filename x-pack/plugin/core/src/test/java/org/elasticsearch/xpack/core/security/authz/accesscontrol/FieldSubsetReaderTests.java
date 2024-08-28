@@ -275,11 +275,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // see only one field
         {
-            Document d2 = ir.document(0);
-            assertEquals(1, d2.getFields().size());
-            assertEquals("testA", d2.get("fieldA"));
-        }
-        {
             Document d2 = ir.storedFields().document(0);
             assertEquals(1, d2.getFields().size());
             assertEquals("testA", d2.get("fieldA"));
@@ -306,11 +301,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
 
         // see only one field
-        {
-            Document d2 = ir.document(0);
-            assertEquals(1, d2.getFields().size());
-            assertEquals(new BytesRef("testA"), d2.getBinaryValue("fieldA"));
-        }
         {
             Document d2 = ir.storedFields().document(0);
             assertEquals(1, d2.getFields().size());
@@ -339,11 +329,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // see only one field
         {
-            Document d2 = ir.document(0);
-            assertEquals(1, d2.getFields().size());
-            assertEquals(1, d2.getField("fieldA").numericValue());
-        }
-        {
             Document d2 = ir.storedFields().document(0);
             assertEquals(1, d2.getFields().size());
             assertEquals(1, d2.getField("fieldA").numericValue());
@@ -370,11 +355,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
 
         // see only one field
-        {
-            Document d2 = ir.document(0);
-            assertEquals(1, d2.getFields().size());
-            assertEquals(1L, d2.getField("fieldA").numericValue());
-        }
         {
             Document d2 = ir.storedFields().document(0);
             assertEquals(1, d2.getFields().size());
@@ -403,11 +383,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // see only one field
         {
-            Document d2 = ir.document(0);
-            assertEquals(1, d2.getFields().size());
-            assertEquals(1F, d2.getField("fieldA").numericValue());
-        }
-        {
             Document d2 = ir.storedFields().document(0);
             assertEquals(1, d2.getFields().size());
             assertEquals(1F, d2.getField("fieldA").numericValue());
@@ -434,11 +409,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
 
         // see only one field
-        {
-            Document d2 = ir.document(0);
-            assertEquals(1, d2.getFields().size());
-            assertEquals(1D, d2.getField("fieldA").numericValue());
-        }
         {
             Document d2 = ir.storedFields().document(0);
             assertEquals(1, d2.getFields().size());
@@ -468,7 +438,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
 
         // see only one field
-        Fields vectors = ir.getTermVectors(0);
+        Fields vectors = ir.termVectors().get(0);
         Set<String> seenFields = new HashSet<>();
         for (String field : vectors) {
             seenFields.add(field);
@@ -701,11 +671,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
 
         // see only one field
-        {
-            Document d2 = ir.document(0);
-            assertEquals(1, d2.getFields().size());
-            assertEquals("{\"fieldA\":\"testA\"}", d2.getBinaryValue(SourceFieldMapper.NAME).utf8ToString());
-        }
         {
             Document d2 = ir.storedFields().document(0);
             assertEquals(1, d2.getFields().size());
@@ -1200,7 +1165,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldB")));
 
         // sees no fields
-        assertNull(ir.getTermVectors(0));
+        assertNull(ir.termVectors().get(0));
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
@@ -1228,14 +1193,9 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         assertNull(segmentReader.terms("foo"));
 
         // see no vectors
-        assertNull(segmentReader.getTermVectors(0));
         assertNull(segmentReader.termVectors().get(0));
 
         // see no stored fields
-        {
-            Document document = segmentReader.document(0);
-            assertEquals(0, document.getFields().size());
-        }
         {
             Document document = segmentReader.storedFields().document(0);
             assertEquals(0, document.getFields().size());

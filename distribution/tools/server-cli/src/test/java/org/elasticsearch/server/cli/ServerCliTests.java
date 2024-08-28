@@ -36,6 +36,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -50,6 +52,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ServerCliTests extends CommandTestCase {
 
@@ -383,6 +386,52 @@ public class ServerCliTests extends CommandTestCase {
         assertEquals("", loader.password);
     }
 
+    public void testProcessCreationRace() throws Exception {
+        for (int i = 0; i < 10; ++i) {
+            CyclicBarrier raceStart = new CyclicBarrier(2);
+            TestServerCli cli = new TestServerCli() {
+                @Override
+                void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
+                    super.syncPlugins(terminal, env, processInfo);
+                    raceStart.await();
+                }
+
+                @Override
+                public void close() throws IOException {
+                    try {
+                        raceStart.await();
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError(ie);
+                    } catch (BrokenBarrierException e) {
+                        throw new AssertionError(e);
+                    }
+                    super.close();
+                }
+            };
+            Thread closeThread = new Thread(() -> {
+                try {
+                    cli.close();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            closeThread.start();
+            cli.main(new String[]{}, terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+            closeThread.join();
+            
+            if (cli.getServer() == null) {
+                // close won the race, so server should never have been started
+                assertThat(cli.startServerCalled, is(false));
+            } else {
+                // creation won the race, so check we correctly waited on it and stopped
+                assertThat(cli.getServer(), sameInstance(mockServer));
+                assertThat(mockServer.waitForCalled, is(true));
+                assertThat(mockServer.stopCalled, is(true));
+            }
+        }
+    }
+
     private MockSecureSettingsLoader loadWithMockSecureSettingsLoader() throws Exception {
         var loader = new MockSecureSettingsLoader();
         this.mockSecureSettingsLoader = loader;
@@ -465,9 +514,9 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     private class MockServerProcess extends ServerProcess {
-        boolean detachCalled = false;
-        boolean waitForCalled = false;
-        boolean stopCalled = false;
+        volatile boolean detachCalled = false;
+        volatile boolean waitForCalled = false;
+        volatile boolean stopCalled = false;
 
         MockServerProcess() {
             super(null, null);
@@ -505,6 +554,8 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     private class TestServerCli extends ServerCli {
+        boolean startServerCalled = false;
+
         @Override
         protected Command loadTool(String toolname, String libs) {
             if (toolname.equals("auto-configure-node")) {
@@ -551,20 +602,21 @@ public class ServerCliTests extends CommandTestCase {
 
             return new KeystoreSecureSettingsLoader();
         }
+
+        @Override
+        protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws Exception {
+            startServerCalled = true;
+            if (argsValidator != null) {
+                argsValidator.accept(args);
+            }
+            mockServer.reset();
+            return mockServer;
+        }
     }
 
     @Override
     protected Command newCommand() {
-        return new TestServerCli() {
-            @Override
-            protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) {
-                if (argsValidator != null) {
-                    argsValidator.accept(args);
-                }
-                mockServer.reset();
-                return mockServer;
-            }
-        };
+        return new TestServerCli();
     }
 
     static class MockSecureSettingsLoader implements SecureSettingsLoader {

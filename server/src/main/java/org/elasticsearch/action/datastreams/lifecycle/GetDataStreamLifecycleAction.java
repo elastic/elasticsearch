@@ -143,7 +143,7 @@ public class GetDataStreamLifecycleAction {
         public record DataStreamLifecycle(
             String dataStreamName,
             @Nullable org.elasticsearch.cluster.metadata.DataStreamLifecycle lifecycle,
-            boolean isSystemDataStream
+            boolean isInternalDataStream
         ) implements Writeable, ToXContentObject {
 
             public static final ParseField NAME_FIELD = new ParseField("name");
@@ -162,7 +162,7 @@ public class GetDataStreamLifecycleAction {
                 out.writeString(dataStreamName);
                 out.writeOptionalWriteable(lifecycle);
                 if (out.getTransportVersion().onOrAfter(TransportVersions.NO_GLOBAL_RETENTION_FOR_SYSTEM_DATA_STREAMS)) {
-                    out.writeBoolean(isSystemDataStream);
+                    out.writeBoolean(isInternalDataStream);
                 }
             }
 
@@ -187,9 +187,10 @@ public class GetDataStreamLifecycleAction {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
                     lifecycle.toXContent(
                         builder,
-                        org.elasticsearch.cluster.metadata.DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
+                        org.elasticsearch.cluster.metadata.DataStreamLifecycle.addEffectiveRetentionParams(params),
                         rolloverConfiguration,
-                        isSystemDataStream ? null : globalRetention
+                        globalRetention,
+                        isInternalDataStream
                     );
                 }
                 builder.endObject();

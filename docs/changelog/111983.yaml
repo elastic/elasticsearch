@@ -1,0 +1,6 @@
+pr: 111983
+summary: Avoid losing error message in failure collector
+area: ES|QL
+type: bug
+issues:
+ - 111894

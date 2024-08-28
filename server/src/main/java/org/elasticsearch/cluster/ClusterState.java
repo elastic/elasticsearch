@@ -1153,7 +1153,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
         nodes.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeMap(compatibilityVersions, (streamOutput, versions) -> versions.writeTo(streamOutput));
+            out.writeMap(compatibilityVersions, StreamOutput::writeWriteable);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             clusterFeatures.writeTo(out);

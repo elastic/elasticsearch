@@ -1,0 +1,149 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+  - do:
+      cluster.put_component_template:
+        name: metrics-otel@custom
+        body:
+          template:
+            settings:
+              index:
+                routing_path: [unit, attributes.*, resource.attributes.*]
+                mode: time_series
+                time_series:
+                  start_time: 2024-07-01T13:03:08.138Z
+---
+"Test push service overview metric":
+  - do:
+      indices.get_index_template:
+        name: metrics-otel@template
+  - length: {index_templates: 1}
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default","type":"metrics"},"resource":{"attributes":{"service.name":"OtelSample","telemetry.sdk.language":"dotnet","telemetry.sdk.name":"opentelemetry"},"dropped_attributes_count":0},"attributes":{"processor.event":"metric"}}'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.otel-default
+        body:
+          fields: ["service.name", "telemetry.sdk.language", "telemetry.sdk.name" ]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.service\.name: [ "OtelSample" ] }
+  - match: { hits.hits.0.fields.telemetry\.sdk\.language: [ "dotnet" ] }
+  - match: { hits.hits.0.fields.telemetry\.sdk\.name: [ "opentelemetry" ] }
+---
+"Query resource attributes as top level":
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default","type":"metrics"},"processor":{"event":"metric"},"resource":{"attributes":{"service.name":"OtelSample","telemetry.sdk.language":"dotnet","telemetry.sdk.name":"opentelemetry"},"dropped_attributes_count":0}}'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.otel-default
+        body:
+          fields: ["service.name", "telemetry.sdk.language", "telemetry.sdk.name"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.service\.name: [ "OtelSample" ] }
+  - match: { hits.hits.0.fields.telemetry\.sdk\.language: [ "dotnet" ] }
+  - match: { hits.hits.0.fields.telemetry\.sdk\.name: [ "opentelemetry" ] }
+---
+"Query attributes as top level":
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default","type":"metrics"},"attributes":{"processor.event":"metric", "foo": "bar"},"resource":{"attributes":{"service.name":"OtelSample","telemetry.sdk.language":"dotnet","telemetry.sdk.name":"opentelemetry"},"dropped_attributes_count":0}}'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.otel-default
+        body:
+          fields: ["foo"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.foo\: ["bar"] }
+---
+"Boolean as dimension":
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default","type":"metrics"},"attributes":{"processor.event":"metric","transaction.root":false},"resource":{"attributes":{"service.name":"OtelSample","telemetry.sdk.language":"dotnet","telemetry.sdk.name":"opentelemetry"}}}'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.otel-default
+        body:
+          fields: ["transaction.root"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.transaction\.root: [false] }
+---
+"Default data_stream.type must be metrics":
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"},"attributes":{"processor.event":"metric","transaction.root":false},"resource":{"attributes":{"service.name":"OtelSample","telemetry.sdk.language":"dotnet","telemetry.sdk.name":"opentelemetry"}}}'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.otel-default
+        body:
+          fields: ["data_stream.type"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.data_stream\.type: ["metrics"] }
+
+---
+"Custom dynamic template":
+  - do:
+      cluster.put_component_template:
+        name: metrics-otel@custom
+        body:
+          template:
+            settings:
+              index:
+                routing_path: [unit, attributes.*, resource.attributes.*]
+                mode: time_series
+                time_series:
+                  start_time: 2024-07-01T13:03:08.138Z
+            mappings:
+              dynamic_templates:
+                - ip_fields:
+                    mapping:
+                      type: ip
+                    match_mapping_type: string
+                    path_match: "*.ip"
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"},"attributes":{"host.ip":"127.0.0.1","foo":"bar"}}'
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: metrics-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.attributes.properties.host\.ip.type: 'ip' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.foo.type: "keyword" }

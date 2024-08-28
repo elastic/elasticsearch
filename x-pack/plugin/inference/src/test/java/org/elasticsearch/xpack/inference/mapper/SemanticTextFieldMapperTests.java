@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.document.FeatureField;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -63,6 +65,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -130,6 +133,25 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
+    @Override
+    public MappedFieldType getMappedFieldType() {
+        return new SemanticTextFieldMapper.SemanticTextFieldType(
+            "field",
+            "fake-inference-id",
+            null,
+            null,
+            IndexVersion.current(),
+            Map.of()
+        );
+    }
+
+    @Override
+    protected void assertSearchable(MappedFieldType fieldType) {
+        assertThat(fieldType, instanceOf(SemanticTextFieldMapper.SemanticTextFieldType.class));
+        assertTrue(fieldType.isIndexed());
+        assertTrue(fieldType.isSearchable());
+    }
+
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
@@ -139,6 +161,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
         // No indexable fields
         assertTrue(fields.isEmpty());
+    }
+
+    @Override
+    public void testFieldHasValue() {
+        MappedFieldType fieldType = getMappedFieldType();
+        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName(getEmbeddingsFieldName("field")) });
+        assertTrue(fieldType.fieldHasValue(fieldInfos));
     }
 
     public void testInferenceIdNotPresent() {

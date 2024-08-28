@@ -63,7 +63,7 @@ The service_id available for the `text_embedding` task are:
 
 You can find the supported `text_embedding` service_id at https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-embedding-api-details[embedding detail]
 
-for the `sparse_embedding` task are:
+The service_id available for the `sparse_embedding` task is:
 
 * `ops-text-sparse-embedding-001`
 

@@ -14,7 +14,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -54,7 +53,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Phased;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -302,9 +300,9 @@ public class EsqlSession {
                 references.addAll(enrichRefs);
             } else {
                 references.addAll(p.references());
-                // TODO: Is this still needed? This branch used to live in UnresolvedRelation.references().
-                if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
-                    references.add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                if (p instanceof Aggregate aggregate && aggregate.aggregateType() == Aggregate.AggregateType.METRICS) {
+                    // The METRICS command relies on @timestamp without the user having to mention it.
+                    references.add(new UnresolvedAttribute(aggregate.source(), MetadataAttribute.TIMESTAMP_FIELD));
                 }
                 // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {

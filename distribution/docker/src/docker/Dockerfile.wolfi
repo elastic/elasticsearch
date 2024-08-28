@@ -22,7 +22,6 @@
 FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:c16d3ad6cebf387e8dd2ad769f54320c4819fbbaa21e729fad087c7ae223b4d0 AS builder
 
 # Install required packages to extract the Elasticsearch distribution
-
 RUN for iter in 1 2 3 4 5 6 7 8 9 10; do \
       apk update && DEBIAN_FRONTEND=noninteractive apk add curl  && \
       exit_code=0 && break || \

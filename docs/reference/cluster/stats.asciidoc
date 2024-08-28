@@ -1384,11 +1384,11 @@ Each repository type may also include other statistics about the repositories of
 (integer) The maximum number of remote clusters that were queried in a single cross-cluster search request.
 
 `remotes_per_search_avg`::
-(integer) The average number of remote clusters that were queried in a single cross-cluster search request.
+(float) The average number of remote clusters that were queried in a single cross-cluster search request.
 
 `failure_reasons`::
 (object) Contains statistics about the reasons for cross-cluster search request failures.
-The keys are the failure reasons names and the values are the number of requests that failed for that reason.
+The keys are the failure reason names and the values are the number of requests that failed for that reason.
 
 `features`::
 (object) Contains statistics about the features used in cross-cluster search requests. The keys are the names of the search feature,

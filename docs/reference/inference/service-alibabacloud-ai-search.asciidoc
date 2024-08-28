@@ -53,27 +53,29 @@ A valid API key for the AlibabaCloud AI Search API.
 `service_id`:::
 (Required, string)
 The name of the model service to use for the {infer} task.
-
-The service_id available for the `text_embedding` task are:
++
+--
+Available service_ids for the `text_embedding` task:
 
 * `ops-text-embedding-001`
 * `ops-text-embedding-zh-001`
 * `ops-text-embedding-en-001`
 * `ops-text-embedding-002`
 
-For the supported `text_embedding` service_id, refer to the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-embedding-api-details[documentation].
+For the supported `text_embedding` service_ids, refer to the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-embedding-api-details[documentation].
 
-The service_id available for the `sparse_embedding` task is:
+Available service_id for the `sparse_embedding` task:
 
 * `ops-text-sparse-embedding-001`
 
 For the supported `sparse_embedding` service_id, refer to the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-sparse-embedding-api-details[documentation].
 
-The service_id available for the `rerank` task is:
+Available service_id for the `rerank` task is:
 
 * `ops-bge-reranker-larger`
 
 For the supported `rerank` service_id, refer to the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/ranker-api-details[documentation].
+--
 
 `host`:::
 (Required, string)
@@ -92,6 +94,7 @@ To modify this, set the `requests_per_minute` setting of this object in your ser
 --
 include::inference-shared.asciidoc[tag=request-per-minute-example]
 --
+
 
 `task_settings`::
 (Optional, object)

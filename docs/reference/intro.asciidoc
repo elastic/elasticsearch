@@ -71,14 +71,8 @@ Here are some resources to help you get started:
 ** Follow our tutorial https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[to build a hybrid search solution in Python].
 ** Check out the https://github.com/elastic/elasticsearch-labs?tab=readme-ov-file#elasticsearch-examples--apps[`elasticsearch-labs` repository] for a range of Python notebooks and apps for various use cases.
 
-[[how-elasticsearch-works]]
-=== How {es} works
-
-This page outlines some fundamental {es} concepts and features, including how data is stored, indexing capabilities, search and analysis features, scalability, and disaster recovery options.
-
-[discrete]
 [[documents-indices]]
-==== Documents and indices
+=== Documents and indices
 
 {es} is a distributed document store. Instead of storing information as rows of
 columnar data, {es} stores complex data structures that have been serialized
@@ -129,9 +123,8 @@ The analysis chain that is applied to a full-text field during indexing is also
 used at search time. When you query a full-text field, the query text undergoes
 the same analysis before the terms are looked up in the index.
 
-[discrete]
 [[search-analyze]]
-==== Information out: search and analyze
+=== Search and analyze
 
 While you can use {es} as a document store and retrieve documents and their
 metadata, the real power comes from being able to easily access the full suite
@@ -147,7 +140,7 @@ or Ruby.
 
 [discrete]
 [[search-data]]
-===== Searching your data
+==== Searching your data
 
 The {es} REST APIs support structured queries, full text queries, and complex
 queries that combine the two. Structured queries are
@@ -172,7 +165,7 @@ third-party applications to interact with {es} via SQL.
 
 [discrete]
 [[analyze-data]]
-===== Analyzing your data
+==== Analyzing your data
 
 {es} aggregations enable you to build complex summaries of your data and gain
 insight into key metrics, patterns, and trends. Instead of just finding the
@@ -202,9 +195,8 @@ size 70 needles, you’re displaying a count of the size 70 needles
 that match your users' search criteria--for example, all size 70 _non-stick
 embroidery_ needles.
 
-[discrete]
 [[scalability]]
-==== Scalability and resilience
+=== Scalability and resilience
 
 {es} is built to be always available and to scale with your needs. It does this
 by being distributed by nature. You can add servers (nodes) to a cluster to
@@ -233,7 +225,7 @@ interrupting indexing or query operations.
 
 [discrete]
 [[it-depends]]
-===== Shard size and number of shards
+==== Shard size and number of shards
 
 There are a number of performance considerations and trade offs with respect
 to shard size and the number of primary shards configured for an index. The more
@@ -261,7 +253,7 @@ testing with your own data and queries].
 
 [discrete]
 [[disaster-ccr]]
-===== Disaster recovery
+==== Disaster recovery
 
 A cluster's nodes need good, reliable connections to each other. To provide
 better connections, you typically co-locate the nodes in the same data center or
@@ -281,7 +273,7 @@ secondary clusters are read-only followers.
 
 [discrete]
 [[admin]]
-===== Security, management, and monitoring
+==== Security, management, and monitoring
 
 As with any enterprise system, you need tools to secure, manage, and
 monitor your {es} clusters. Security, monitoring, and administrative features

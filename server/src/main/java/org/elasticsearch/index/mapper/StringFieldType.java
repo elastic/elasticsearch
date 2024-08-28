@@ -101,8 +101,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
         Term prefix = new Term(name(), indexedValueForSearch(value));
         if (caseInsensitive) {
             return method == null
-                ? new CaseInsensitivePrefixQuery(prefix, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false)
-                : new CaseInsensitivePrefixQuery(prefix, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false, method);
+                ? new CaseInsensitivePrefixQuery(prefix,false)
+                : new CaseInsensitivePrefixQuery(prefix, false, method);
         }
         return method == null ? new PrefixQuery(prefix) : new PrefixQuery(prefix, method);
     }
@@ -171,7 +171,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         if (caseInsensitive) {
             return method == null
                 ? new CaseInsensitiveWildcardQuery(term)
-                : new CaseInsensitiveWildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false, method);
+                : new CaseInsensitiveWildcardQuery(term, false, method);
         }
         return method == null ? new WildcardQuery(term) : new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
     }

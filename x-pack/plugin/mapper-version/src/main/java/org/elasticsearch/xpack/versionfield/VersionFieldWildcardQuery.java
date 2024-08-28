@@ -40,11 +40,11 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
     private static final byte WILDCARD_CHAR = '?';
 
     VersionFieldWildcardQuery(Term term, boolean caseInsensitive) {
-        super(term, toAutomaton(term, caseInsensitive), Integer.MAX_VALUE, true);
+        super(term, toAutomaton(term, caseInsensitive), true);
     }
 
     VersionFieldWildcardQuery(Term term, boolean caseInsensitive, RewriteMethod rewriteMethod) {
-        super(term, toAutomaton(term, caseInsensitive), Integer.MAX_VALUE, true, rewriteMethod);
+        super(term, toAutomaton(term, caseInsensitive), true, rewriteMethod);
     }
 
     private static Automaton toAutomaton(Term wildcardquery, boolean caseInsensitive) {

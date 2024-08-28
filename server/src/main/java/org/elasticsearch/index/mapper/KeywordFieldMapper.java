@@ -923,10 +923,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
 
-        if (hasNormalizer() && isSyntheticSource) {
-            context.doc().add(new StoredField(originalName(), new BytesRef(value)));
-        }
-
         value = normalizeValue(fieldType().normalizer(), fullPath(), value);
 
         // convert to utf8 only once before feeding postings/dv/stored fields
@@ -1030,6 +1026,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceMode syntheticSourceMode() {
+        if (hasNormalizer()) {
+            // NOTE: no matter if we have doc values or not we use a stored field to reconstruct the original value
+            // whose doc values would be altered by the normalizer
+            return SyntheticSourceMode.FALLBACK;
+        }
         if (fieldType.stored() || hasDocValues) {
             return SyntheticSourceMode.NATIVE;
         }
@@ -1052,7 +1053,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
         }
 
-        if (fieldType.stored() || (isSyntheticSource && hasNormalizer())) {
+        if (fieldType.stored() || syntheticSourceMode() == SyntheticSourceMode.FALLBACK) {
             final String extraStoredName = isSyntheticSource && hasNormalizer() ? originalName()
                 : fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null
                 : originalName();

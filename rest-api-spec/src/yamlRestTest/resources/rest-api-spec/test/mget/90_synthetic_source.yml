@@ -69,6 +69,14 @@ keyword with normalizer:
               keyword:
                 type: keyword
                 normalizer: lowercase
+              keyword_with_ignore_above:
+                type: keyword
+                normalizer: lowercase
+                ignore_above: 10
+              keyword_without_doc_values:
+                type: keyword
+                normalizer: lowercase
+                doc_values: false
 
   - do:
       index:
@@ -76,6 +84,8 @@ keyword with normalizer:
         id: 1
         body:
           keyword: "the Quick Brown Fox jumps over the lazy Dog"
+          keyword_with_ignore_above: "the Quick Brown Fox jumps over the lazy Dog"
+          keyword_without_doc_values: "the Quick Brown Fox jumps over the lazy Dog"
 
   - do:
       index:
@@ -83,6 +93,8 @@ keyword with normalizer:
         id: 2
         body:
           keyword: "The five BOXING wizards jump Quickly"
+          keyword_with_ignore_above: "The five BOXING wizards jump Quickly"
+          keyword_without_doc_values: "The five BOXING wizards jump Quickly"
 
   - do:
       mget:
@@ -94,12 +106,16 @@ keyword with normalizer:
   - match:
       docs.0._source:
         keyword: "the Quick Brown Fox jumps over the lazy Dog"
+        keyword_with_ignore_above: "the Quick Brown Fox jumps over the lazy Dog"
+        keyword_without_doc_values: "the Quick Brown Fox jumps over the lazy Dog"
 
   - match: { docs.1._index: "test-keyword-with-normalizer" }
   - match: { docs.1._id: "2" }
   - match:
       docs.1._source:
         keyword: "The five BOXING wizards jump Quickly"
+        keyword_with_ignore_above: "The five BOXING wizards jump Quickly"
+        keyword_without_doc_values: "The five BOXING wizards jump Quickly"
 
 ---
 stored text:

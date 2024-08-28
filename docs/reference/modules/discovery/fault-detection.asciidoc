@@ -151,11 +151,11 @@ down, but if they rejoin the cluster without restarting then there is some
 other problem.
 
 {es} is designed to run on a fairly reliable network. It opens a number of TCP
-connections between nodes and expects these connections to remain open forever.
-If a connection is closed then {es} will try and reconnect, so the occasional
-blip may fail some in-flight operations but should otherwise have limited
-impact on the cluster. In contrast, repeatedly-dropped connections will
-severely affect its operation.
+connections between nodes and expects these connections to remain open
+<<long-lived-connections,forever>>. If a connection is closed then {es} will
+try and reconnect, so the occasional blip may fail some in-flight operations
+but should otherwise have limited impact on the cluster. In contrast,
+repeatedly-dropped connections will severely affect its operation.
 
 The connections from the elected master node to every other node in the cluster
 are particularly important. The elected master never spontaneously closes its
@@ -306,11 +306,11 @@ cat shardlock.log | sed -e 's/.*://' | base64 --decode | gzip --decompress
 ===== Diagnosing other network disconnections
 
 {es} is designed to run on a fairly reliable network. It opens a number of TCP
-connections between nodes and expects these connections to remain open forever.
-If a connection is closed then {es} will try and reconnect, so the occasional
-blip may fail some in-flight operations but should otherwise have limited
-impact on the cluster. In contrast, repeatedly-dropped connections will
-severely affect its operation.
+connections between nodes and expects these connections to remain open
+<<long-lived-connections,forever>>. If a connection is closed then {es} will
+try and reconnect, so the occasional blip may fail some in-flight operations
+but should otherwise have limited impact on the cluster. In contrast,
+repeatedly-dropped connections will severely affect its operation.
 
 {es} nodes will only actively close an outbound connection to another node if
 the other node leaves the cluster. See

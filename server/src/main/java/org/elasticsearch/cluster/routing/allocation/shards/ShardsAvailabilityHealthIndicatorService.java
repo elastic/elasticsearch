@@ -119,7 +119,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * only used in serverless, so this setting has no effect in stateless.
      */
     public static final Setting<TimeValue> REPLICA_UNASSIGNED_BUFFER_TIME = Setting.timeSetting(
-        "health.shard_availability.replica_unassigned_buffer_time",
+        "health.shards_availability.replica_unassigned_buffer_time",
         TimeValue.timeValueSeconds(3),
         TimeValue.timeValueSeconds(0),
         TimeValue.timeValueSeconds(20),
@@ -949,7 +949,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
 
         void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
-            primaries.increment(routing, state, shutdowns, verbose, TimeValue.timeValueSeconds(0));
+            primaries.increment(routing, state, shutdowns, verbose, TimeValue.MINUS_ONE);
         }
 
         void addReplica(

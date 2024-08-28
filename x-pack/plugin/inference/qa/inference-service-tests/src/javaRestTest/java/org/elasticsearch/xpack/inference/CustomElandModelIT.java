@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.TaskType;
 

@@ -502,7 +502,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings));
         }
     }
-    
+
     @SuppressWarnings("unchecked")
     public void testChunkInfer_e5() {
         var mlTrainedModelResults = new ArrayList<InferenceResults>();

@@ -246,15 +246,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             queryFunctions.add(
                 () -> new TermInSetQuery(
                     field1,
-                    new BytesRef(randomFrom(stringContent.get(field1))),
-                    new BytesRef(randomFrom(stringContent.get(field1)))
+                    List.of(new BytesRef(randomFrom(stringContent.get(field1))), new BytesRef(randomFrom(stringContent.get(field1))))
                 )
             );
             queryFunctions.add(
                 () -> new TermInSetQuery(
                     field2,
-                    new BytesRef(randomFrom(stringContent.get(field1))),
-                    new BytesRef(randomFrom(stringContent.get(field1)))
+                    List.of(new BytesRef(randomFrom(stringContent.get(field1))), new BytesRef(randomFrom(stringContent.get(field1))))
                 )
             );
             // many iterations with boolean queries, which are the most complex queries to deal with when nested

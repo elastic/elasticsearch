@@ -46,6 +46,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class IncrementalBulkIT extends ESIntegTestCase {
@@ -53,6 +54,14 @@ public class IncrementalBulkIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(IngestClientIT.ExtendedIngestTestPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(IndexingPressure.SPLIT_BULK_THRESHOLD.getKey(), "512B")
+            .build();
     }
 
     public void testSingleBulkRequest() {
@@ -78,6 +87,71 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) 1));
         });
 
+        assertFalse(refCounted.hasReferences());
+    }
+
+    public void testIndexingPressureRejection() {
+        String index = "test";
+        createIndex(index);
+
+        String nodeName = internalCluster().getRandomNodeName();
+        IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
+        IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, nodeName);
+
+        try (Releasable r = indexingPressure.markCoordinatingOperationStarted(1, indexingPressure.stats().getMemoryLimit(), true)) {
+            IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
+            AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
+
+            if (randomBoolean()) {
+                AtomicBoolean nextPage = new AtomicBoolean(false);
+                refCounted.incRef();
+                handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> nextPage.set(true));
+                assertTrue(nextPage.get());
+            }
+
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+            handler.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
+
+            expectThrows(EsRejectedExecutionException.class, future::actionGet);
+            assertFalse(refCounted.hasReferences());
+        }
+    }
+
+    public void testIncrementalBulkRequestMemoryBackOff() throws Exception {
+        String index = "test";
+        createIndex(index);
+
+        String nodeName = internalCluster().getRandomNodeName();
+        IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
+        IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, nodeName);
+
+        IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
+
+        AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
+        AtomicBoolean nextPage = new AtomicBoolean(false);
+
+        IndexRequest indexRequest = indexRequest(index);
+        long total = indexRequest.ramBytesUsed();
+        while (total < 512) {
+            refCounted.incRef();
+            handler.addItems(List.of(indexRequest), refCounted::decRef, () -> nextPage.set(true));
+            assertTrue(nextPage.get());
+            nextPage.set(false);
+            indexRequest = indexRequest(index);
+            total += indexRequest.ramBytesUsed();
+        }
+
+        assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThan(0L));
+        refCounted.incRef();
+        handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> nextPage.set(true));
+
+        assertBusy(() -> assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(0L)));
+
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        handler.lastItems(List.of(indexRequest), refCounted::decRef, future);
+
+        BulkResponse bulkResponse = future.actionGet();
+        assertNoFailures(bulkResponse);
         assertFalse(refCounted.hasReferences());
     }
 

@@ -111,7 +111,12 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             clusterService.state().metadata().getIndicesLookup(),
             systemIndices
         );
-        final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
+        final Releasable releasable;
+        if (bulkRequest.incrementalState().indexingPressureAccounted()) {
+            releasable = () -> {};
+        } else {
+            releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
+        }
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         final Executor executor = isOnlySystem ? systemWriteExecutor : writeExecutor;
         ensureClusterStateThenForkAndExecute(task, bulkRequest, executor, releasingListener);

@@ -41,6 +41,7 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -678,7 +679,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void testQueryCachingEquality() throws IOException, ParseException {
         String pattern = "A*b*B?a";
         // Case sensitivity matters when it comes to caching
-        Automaton caseSensitiveAutomaton = WildcardQuery.toAutomaton(new Term("field", pattern));
+        Automaton caseSensitiveAutomaton = WildcardQuery.toAutomaton(new Term("field", pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         Automaton caseInSensitiveAutomaton = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term("field", pattern));
         BinaryDvConfirmedAutomatonQuery csQ = new BinaryDvConfirmedAutomatonQuery(
             new MatchAllDocsQuery(),
@@ -696,7 +697,10 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
 
         // Same query should be equal
-        Automaton caseSensitiveAutomaton2 = WildcardQuery.toAutomaton(new Term("field", pattern));
+        Automaton caseSensitiveAutomaton2 = WildcardQuery.toAutomaton(
+            new Term("field", pattern),
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+        );
         BinaryDvConfirmedAutomatonQuery csQ2 = new BinaryDvConfirmedAutomatonQuery(
             new MatchAllDocsQuery(),
             "field",

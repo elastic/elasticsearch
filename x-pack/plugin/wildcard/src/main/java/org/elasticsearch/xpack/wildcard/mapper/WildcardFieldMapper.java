@@ -348,7 +348,7 @@ public class WildcardFieldMapper extends FieldMapper {
             }
             Automaton automaton = caseInsensitive
                 ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern))
-                : WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
+                : WildcardQuery.toAutomaton(new Term(name(), wildcardPattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
             if (clauseCount > 0) {
                 // We can accelerate execution with the ngram query
                 BooleanQuery approxQuery = rewritten.build();

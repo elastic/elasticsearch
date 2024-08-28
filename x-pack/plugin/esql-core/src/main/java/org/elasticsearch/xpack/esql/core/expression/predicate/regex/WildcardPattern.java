@@ -38,8 +38,7 @@ public class WildcardPattern extends AbstractStringPattern {
 
     @Override
     public Automaton createAutomaton() {
-        Automaton automaton = WildcardQuery.toAutomaton(new Term(null, wildcard));
-        return Operations.determinize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        return WildcardQuery.toAutomaton(new Term(null, wildcard), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     @Override

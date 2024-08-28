@@ -190,6 +190,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.file;
     exports org.elasticsearch.common.geo;
     exports org.elasticsearch.common.hash;
+    exports org.elasticsearch.injection.api;
     exports org.elasticsearch.injection.guice;
     exports org.elasticsearch.injection.guice.binder;
     exports org.elasticsearch.injection.guice.internal;
@@ -433,6 +434,7 @@ module org.elasticsearch.server {
             org.elasticsearch.cluster.metadata.MetadataFeatures,
             org.elasticsearch.rest.RestFeatures,
             org.elasticsearch.indices.IndicesFeatures,
+            org.elasticsearch.repositories.RepositoriesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
             org.elasticsearch.ingest.IngestGeoIpFeatures,

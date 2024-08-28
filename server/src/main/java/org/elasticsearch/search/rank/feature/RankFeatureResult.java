@@ -27,12 +27,14 @@ public class RankFeatureResult extends SearchPhaseResult {
 
     public RankFeatureResult() {}
 
+    @SuppressWarnings("this-escape")
     public RankFeatureResult(ShardSearchContextId id, SearchShardTarget shardTarget, ShardSearchRequest request) {
         this.contextId = id;
         setSearchShardTarget(shardTarget);
         setShardSearchRequest(request);
     }
 
+    @SuppressWarnings("this-escape")
     public RankFeatureResult(StreamInput in) throws IOException {
         super(in);
         contextId = new ShardSearchContextId(in);

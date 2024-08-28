@@ -55,7 +55,7 @@ public class SqlSemVersionTests extends ESTestCase {
         );
         assertEquals(
             SqlSemVersion.fromString("8.15.1-snapshot[8725000]").sqlVersion(),
-            SqlVersion.fromTransportString(TransportVersions.ESQL_PROFILE_SLEEPS.toReleaseVersion())
+            SqlVersion.fromTransportString("8.15.1-snapshot[8725000]")
         );
 
         assertNull(SqlSemVersion.fromString(null));

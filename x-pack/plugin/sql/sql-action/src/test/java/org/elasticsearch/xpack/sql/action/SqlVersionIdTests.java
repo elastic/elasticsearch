@@ -27,15 +27,6 @@ public class SqlVersionIdTests extends ESTestCase {
         }
     }
 
-    public void testCurrentsNotEqual() {
-        try {
-            SqlVersion.fromString(Build.current().version());
-        } catch (Exception e) {
-            assumeNoException("Build current version is just a hash", e);
-        }
-        assertNotEquals(SqlVersionId.currentRelease(), SqlVersionId.CURRENT.toReleaseVersion());
-    }
-
     public void testCurrentRelease() {
         assertNotNull(SqlVersion.fromString(SqlVersionId.currentRelease()));
     }

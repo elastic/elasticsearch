@@ -685,7 +685,7 @@ public final class DateFieldMapper extends FieldMapper {
             long pivotLong = resolution.convert(pivotTime);
             // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
             if (isIndexed()) {
-                return LongPoint.newDistanceFeatureQuery(name(), 1.0f, originLong, pivotLong);
+                return LongField.newDistanceFeatureQuery(name(), 1.0f, originLong, pivotLong);
             } else {
                 return new LongScriptFieldDistanceFeatureQuery(
                     new Script(""),

@@ -55,7 +55,7 @@ public class IncrementalBulkService {
         private Exception bulkActionLevelFailure = null;
         private BulkRequest bulkRequest = null;
 
-        private Handler(
+        protected Handler(
             Client client,
             ThreadContext threadContext,
             ThreadContext.StoredContext requestContext,

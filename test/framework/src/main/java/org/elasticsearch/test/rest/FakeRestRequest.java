@@ -228,6 +228,11 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
+        public Builder withBody(HttpBody body) {
+            this.content = body;
+            return this;
+        }
+
         public Builder withPath(String path) {
             this.path = path;
             return this;

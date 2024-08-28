@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.document;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
@@ -17,20 +18,28 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
@@ -182,5 +191,60 @@ public class RestBulkActionTests extends ESTestCase {
                 assertThat(listExecutedPipelinesRequest2.get(), equalTo(false));
             }
         }
+    }
+
+    public void testIncrementalParsing() {
+        ArrayList<DocWriteRequest<?>> docs = new ArrayList<>();
+
+        FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+            .withMethod(RestRequest.Method.POST)
+            .withBody(new HttpBody.Stream() {
+                @Override
+                public ChunkHandler handler() {
+                    return null;
+                }
+
+                @Override
+                public void setHandler(ChunkHandler chunkHandler) {
+
+                }
+
+                @Override
+                public void next() {
+
+                }
+            })
+            .withHeaders(Map.of("Content-Type", Collections.singletonList("application/json")))
+            .build();
+        FakeRestChannel channel = new FakeRestChannel(request, false, 1);
+
+        RestBulkAction.ChunkHandler chunkHandler = new RestBulkAction.ChunkHandler(
+            true,
+            request,
+            new IncrementalBulkService.Handler(null, null, null, null, null, null) {
+
+                @Override
+                public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
+                    releasable.close();
+                    docs.addAll(items);
+                }
+
+                @Override
+                public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
+                    releasable.close();
+                    docs.addAll(items);
+                }
+            }
+        );
+
+        chunkHandler.accept(channel);
+        chunkHandler.handleChunk(
+            channel,
+            ReleasableBytesReference.wrap(new BytesArray("{\"index\":{\"_index\":\"index_name\"}}\n")),
+            false
+        );
+        assertThat(docs, empty());
+        chunkHandler.handleChunk(channel, ReleasableBytesReference.wrap(new BytesArray("{\"field\":1}")), false);
+        assertThat(docs, empty());
     }
 }

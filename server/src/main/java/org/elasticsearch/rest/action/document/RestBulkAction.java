@@ -137,7 +137,7 @@ public class RestBulkAction extends BaseRestHandler {
         }
     }
 
-    private static class ChunkHandler implements BaseRestHandler.RequestBodyChunkConsumer {
+    static class ChunkHandler implements BaseRestHandler.RequestBodyChunkConsumer {
 
         private final boolean allowExplicitIndex;
         private final RestRequest request;
@@ -158,7 +158,7 @@ public class RestBulkAction extends BaseRestHandler {
         private final ArrayDeque<ReleasableBytesReference> unParsedChunks = new ArrayDeque<>(4);
         private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
 
-        private ChunkHandler(boolean allowExplicitIndex, RestRequest request, IncrementalBulkService.Handler handler) {
+        ChunkHandler(boolean allowExplicitIndex, RestRequest request, IncrementalBulkService.Handler handler) {
             this.allowExplicitIndex = allowExplicitIndex;
             this.request = request;
             this.defaultIndex = request.param("index");
@@ -226,17 +226,22 @@ public class RestBulkAction extends BaseRestHandler {
                 return;
             }
 
-            final Releasable releasable = accountParsing(bytesConsumed);
+            final ArrayList<Releasable> releasables = accountParsing(bytesConsumed);
             if (isLast) {
                 assert unParsedChunks.isEmpty();
                 assert channel != null;
-                handler.lastItems(new ArrayList<>(items), releasable, new RestRefCountedChunkedToXContentListener<>(channel));
+                handler.lastItems(
+                    new ArrayList<>(items),
+                    () -> Releasables.close(releasables),
+                    new RestRefCountedChunkedToXContentListener<>(channel)
+                );
                 items.clear();
             } else if (items.isEmpty() == false) {
-                handler.addItems(new ArrayList<>(items), releasable, () -> request.contentStream().next());
+                handler.addItems(new ArrayList<>(items), () -> Releasables.close(releasables), () -> request.contentStream().next());
                 items.clear();
             } else {
-                releasable.close();
+                assert releasables.isEmpty();
+                request.contentStream().next();
             }
         }
 
@@ -245,7 +250,7 @@ public class RestBulkAction extends BaseRestHandler {
             RequestBodyChunkConsumer.super.close();
         }
 
-        private Releasable accountParsing(int bytesConsumed) {
+        private ArrayList<Releasable> accountParsing(int bytesConsumed) {
             ArrayList<Releasable> releasables = new ArrayList<>(unParsedChunks.size());
             while (bytesConsumed > 0) {
                 ReleasableBytesReference reference = unParsedChunks.removeFirst();
@@ -257,7 +262,7 @@ public class RestBulkAction extends BaseRestHandler {
                     bytesConsumed = 0;
                 }
             }
-            return () -> Releasables.close(releasables);
+            return releasables;
         }
     }
 

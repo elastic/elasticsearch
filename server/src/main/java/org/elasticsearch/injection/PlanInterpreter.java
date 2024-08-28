@@ -88,7 +88,10 @@ final class PlanInterpreter {
     /**
      * @throws IllegalStateException if the <code>MethodHandle</code> throws.
      */
-    @SuppressForbidden(reason = "Can't call invokeExact because we don't know the method argument types statically")
+    @SuppressForbidden(
+        reason = "Can't call invokeExact because we don't know the method argument types statically, "
+            + "since each constructor has a different signature"
+    )
     private Object instantiate(MethodHandleSpec spec) {
         Object[] args = spec.parameters().stream().map(this::parameterValue).toArray();
         try {

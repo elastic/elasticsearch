@@ -26,7 +26,7 @@ public class PlanningMetricsManager {
     private final LongCounter functionsCounterAll;
 
     public static String ESQL_PREFIX = "es.esql.";
-    public static String FEATURES_PREFIX = "features.";
+    public static String FEATURES_PREFIX = "commands.";
     public static String FUNCTIONS_PREFIX = "functions.";
 
     /**
@@ -54,6 +54,11 @@ public class PlanningMetricsManager {
     public static final String FUNCTION_METRICS = ESQL_PREFIX + FUNCTIONS_PREFIX + "queries.total";
     public static final String FEATURE_NAME = "feature_name";
 
+    /**
+     * the query was executed successfully or not
+     */
+    public static final String SUCCESS = "success";
+
     public PlanningMetricsManager(MeterRegistry meterRegistry) {
         featuresCounter = meterRegistry.registerLongCounter(
             FEATURE_METRICS,
@@ -72,18 +77,18 @@ public class PlanningMetricsManager {
     /**
      * Publishes the collected metrics to the meter registry
      */
-    public void publish(PlanningMetrics metrics) {
-        metrics.commands().entrySet().forEach(x -> incCommand(x.getKey(), x.getValue()));
-        metrics.functions().entrySet().forEach(x -> incFunction(x.getKey(), x.getValue()));
+    public void publish(PlanningMetrics metrics, boolean success) {
+        metrics.commands().entrySet().forEach(x -> incCommand(x.getKey(), x.getValue(), success));
+        metrics.functions().entrySet().forEach(x -> incFunction(x.getKey(), x.getValue(), success));
     }
 
-    private void incCommand(String name, int count) {
-        this.featuresCounter.incrementBy(1, Map.of(FEATURE_NAME, name));
-        this.featuresCounterAll.incrementBy(count, Map.of(FEATURE_NAME, name));
+    private void incCommand(String name, int count, boolean success) {
+        this.featuresCounter.incrementBy(1, Map.ofEntries(Map.entry(FEATURE_NAME, name), Map.entry(SUCCESS, success)));
+        this.featuresCounterAll.incrementBy(count, Map.ofEntries(Map.entry(FEATURE_NAME, name), Map.entry(SUCCESS, success)));
     }
 
-    private void incFunction(String name, int count) {
-        this.functionsCounter.incrementBy(1, Map.of(FEATURE_NAME, name));
-        this.functionsCounterAll.incrementBy(count, Map.of(FEATURE_NAME, name));
+    private void incFunction(String name, int count, boolean success) {
+        this.functionsCounter.incrementBy(1, Map.ofEntries(Map.entry(FEATURE_NAME, name), Map.entry(SUCCESS, success)));
+        this.functionsCounterAll.incrementBy(count, Map.ofEntries(Map.entry(FEATURE_NAME, name), Map.entry(SUCCESS, success)));
     }
 }

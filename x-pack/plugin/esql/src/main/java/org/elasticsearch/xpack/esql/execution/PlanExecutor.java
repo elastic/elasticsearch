@@ -75,11 +75,12 @@ public class PlanExecutor {
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);
         session.execute(request, runPhase, wrap(x -> {
-            planningMetricsManager.publish(planningMetrics);
+            planningMetricsManager.publish(planningMetrics, true);
             listener.onResponse(x);
         }, ex -> {
             // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
             metrics.failed(clientId);
+            planningMetricsManager.publish(planningMetrics, false);
             listener.onFailure(ex);
         }));
     }

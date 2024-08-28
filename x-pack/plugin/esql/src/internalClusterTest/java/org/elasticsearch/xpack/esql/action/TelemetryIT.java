@@ -87,6 +87,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         .collect(Collectors.toSet());
                     assertThat(featuresFound, is(Set.of("FROM", "EVAL", "STATS", "KEEP")));
                     for (Measurement metric : metricsAll) {
+                        assertThat(metric.attributes().get(PlanningMetricsManager.SUCCESS), is(true));
                         if ("EVAL".equalsIgnoreCase((String) metric.attributes().get(PlanningMetricsManager.FEATURE_NAME))) {
                             assertThat(metric.getLong(), is(iteration * 2L));
                         } else {
@@ -104,6 +105,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         .collect(Collectors.toSet());
                     assertThat(featuresFound, is(Set.of("FROM", "EVAL", "STATS", "KEEP")));
                     for (Measurement metric : metrics) {
+                        assertThat(metric.attributes().get(PlanningMetricsManager.SUCCESS), is(true));
                         assertThat(metric.getLong(), is(iteration));
                     }
 
@@ -117,6 +119,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         .collect(Collectors.toSet());
                     assertThat(functionNames, is(Set.of("TO_STRING", "TO_IP", "COUNT")));
                     for (Measurement measurement : funcitonMeasurementsAll) {
+                        assertThat(measurement.attributes().get(PlanningMetricsManager.SUCCESS), is(true));
                         if ("TO_STRING".equalsIgnoreCase((String) measurement.attributes().get(PlanningMetricsManager.FEATURE_NAME))) {
                             assertThat(measurement.getLong(), is(iteration * 2L));
                         } else {
@@ -134,6 +137,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         .collect(Collectors.toSet());
                     assertThat(functionNames, is(Set.of("TO_STRING", "TO_IP", "COUNT")));
                     for (Measurement measurement : funcitonMeasurements) {
+                        assertThat(measurement.attributes().get(PlanningMetricsManager.SUCCESS), is(true));
                         assertThat(measurement.getLong(), is(iteration));
                     }
                 } finally {

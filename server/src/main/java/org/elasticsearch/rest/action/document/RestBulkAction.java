@@ -20,7 +20,6 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
@@ -30,10 +29,10 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -61,16 +60,11 @@ public class RestBulkAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
     private final boolean incrementalBulk;
-    private final ThreadContext threadContext;
-    private volatile IncrementalBulkService bulkHandler;
+    private final IncrementalBulkService bulkHandler;
 
-    public RestBulkAction(Settings settings) {
-        this(settings, new ThreadContext(settings));
-    }
-
-    public RestBulkAction(Settings settings, ThreadContext threadContext) {
+    public RestBulkAction(Settings settings, IncrementalBulkService bulkHandler) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
-        this.threadContext = threadContext;
+        this.bulkHandler = bulkHandler;
         this.incrementalBulk = INCREMENTAL_BULK.get(settings);
     }
 
@@ -127,13 +121,6 @@ public class RestBulkAction extends BaseRestHandler {
 
             return channel -> client.bulk(bulkRequest, new RestRefCountedChunkedToXContentListener<>(channel));
         } else {
-            // TODO: Move this to CTOR and hook everything up
-            synchronized (this) {
-                if (bulkHandler == null) {
-                    bulkHandler = new IncrementalBulkService(client, threadContext);
-                }
-            }
-
             if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
                 request.param("type");
             }
@@ -167,6 +154,7 @@ public class RestBulkAction extends BaseRestHandler {
         private final IncrementalBulkService.Handler handler;
 
         private volatile RestChannel restChannel;
+        private boolean isException;
         private final ArrayDeque<ReleasableBytesReference> unParsedChunks = new ArrayDeque<>(4);
         private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
 
@@ -185,13 +173,17 @@ public class RestBulkAction extends BaseRestHandler {
         }
 
         @Override
-        public void accept(RestChannel restChannel) throws Exception {
+        public void accept(RestChannel restChannel) {
             this.restChannel = restChannel;
         }
 
         @Override
         public void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast) {
             assert channel == restChannel;
+            if (isException) {
+                chunk.close();
+                return;
+            }
 
             final BytesReference data;
             final Releasable releasable;
@@ -227,9 +219,10 @@ public class RestBulkAction extends BaseRestHandler {
 
                 releasable = accountParsing(bytesConsumed);
 
-            } catch (IOException e) {
-                // TODO: Exception Handling
-                throw new UncheckedIOException(e);
+            } catch (Exception e) {
+                new RestToXContentListener<>(channel).onFailure(e);
+                isException = true;
+                return;
             }
 
             if (isLast) {

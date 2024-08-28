@@ -12,9 +12,13 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -50,7 +54,10 @@ public class RestBulkActionTests extends ESTestCase {
             };
             final Map<String, String> params = new HashMap<>();
             params.put("pipeline", "timestamps");
-            new RestBulkAction(settings(IndexVersion.current()).put(RestBulkAction.INCREMENTAL_BULK.getKey(), false).build()).handleRequest(
+            new RestBulkAction(
+                settings(IndexVersion.current()).put(RestBulkAction.INCREMENTAL_BULK.getKey(), false).build(),
+                new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY))
+            ).handleRequest(
                 new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk").withParams(params).withContent(new BytesArray("""
                     {"index":{"_id":"1"}}
                     {"field1":"val1"}
@@ -82,21 +89,23 @@ public class RestBulkActionTests extends ESTestCase {
             };
             Map<String, String> params = new HashMap<>();
             {
-                new RestBulkAction(settings(IndexVersion.current()).put(RestBulkAction.INCREMENTAL_BULK.getKey(), false).build())
-                    .handleRequest(
-                        new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
-                            .withParams(params)
-                            .withContent(new BytesArray("""
-                                {"index":{"_id":"1"}}
-                                {"field1":"val1"}
-                                {"index":{"_id":"2"}}
-                                {"field1":"val2"}
-                                """), XContentType.JSON)
-                            .withMethod(RestRequest.Method.POST)
-                            .build(),
-                        mock(RestChannel.class),
-                        verifyingClient
-                    );
+                new RestBulkAction(
+                    settings(IndexVersion.current()).put(RestBulkAction.INCREMENTAL_BULK.getKey(), false).build(),
+                    new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY))
+                ).handleRequest(
+                    new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+                        .withParams(params)
+                        .withContent(new BytesArray("""
+                            {"index":{"_id":"1"}}
+                            {"field1":"val1"}
+                            {"index":{"_id":"2"}}
+                            {"field1":"val2"}
+                            """), XContentType.JSON)
+                        .withMethod(RestRequest.Method.POST)
+                        .build(),
+                    mock(RestChannel.class),
+                    verifyingClient
+                );
                 assertThat(bulkCalled.get(), equalTo(true));
                 assertThat(listExecutedPipelinesRequest1.get(), equalTo(false));
                 assertThat(listExecutedPipelinesRequest2.get(), equalTo(false));
@@ -104,42 +113,46 @@ public class RestBulkActionTests extends ESTestCase {
             {
                 params.put("list_executed_pipelines", "true");
                 bulkCalled.set(false);
-                new RestBulkAction(settings(IndexVersion.current()).put(RestBulkAction.INCREMENTAL_BULK.getKey(), false).build())
-                    .handleRequest(
-                        new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
-                            .withParams(params)
-                            .withContent(new BytesArray("""
-                                {"index":{"_id":"1"}}
-                                {"field1":"val1"}
-                                {"index":{"_id":"2"}}
-                                {"field1":"val2"}
-                                """), XContentType.JSON)
-                            .withMethod(RestRequest.Method.POST)
-                            .build(),
-                        mock(RestChannel.class),
-                        verifyingClient
-                    );
+                new RestBulkAction(
+                    settings(IndexVersion.current()).put(RestBulkAction.INCREMENTAL_BULK.getKey(), false).build(),
+                    new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY))
+                ).handleRequest(
+                    new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+                        .withParams(params)
+                        .withContent(new BytesArray("""
+                            {"index":{"_id":"1"}}
+                            {"field1":"val1"}
+                            {"index":{"_id":"2"}}
+                            {"field1":"val2"}
+                            """), XContentType.JSON)
+                        .withMethod(RestRequest.Method.POST)
+                        .build(),
+                    mock(RestChannel.class),
+                    verifyingClient
+                );
                 assertThat(bulkCalled.get(), equalTo(true));
                 assertThat(listExecutedPipelinesRequest1.get(), equalTo(true));
                 assertThat(listExecutedPipelinesRequest2.get(), equalTo(true));
             }
             {
                 bulkCalled.set(false);
-                new RestBulkAction(settings(IndexVersion.current()).put(RestBulkAction.INCREMENTAL_BULK.getKey(), false).build())
-                    .handleRequest(
-                        new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
-                            .withParams(params)
-                            .withContent(new BytesArray("""
-                                {"index":{"_id":"1", "list_executed_pipelines": "false"}}
-                                {"field1":"val1"}
-                                {"index":{"_id":"2"}}
-                                {"field1":"val2"}
-                                """), XContentType.JSON)
-                            .withMethod(RestRequest.Method.POST)
-                            .build(),
-                        mock(RestChannel.class),
-                        verifyingClient
-                    );
+                new RestBulkAction(
+                    settings(IndexVersion.current()).put(RestBulkAction.INCREMENTAL_BULK.getKey(), false).build(),
+                    new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY))
+                ).handleRequest(
+                    new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+                        .withParams(params)
+                        .withContent(new BytesArray("""
+                            {"index":{"_id":"1", "list_executed_pipelines": "false"}}
+                            {"field1":"val1"}
+                            {"index":{"_id":"2"}}
+                            {"field1":"val2"}
+                            """), XContentType.JSON)
+                        .withMethod(RestRequest.Method.POST)
+                        .build(),
+                    mock(RestChannel.class),
+                    verifyingClient
+                );
                 assertThat(bulkCalled.get(), equalTo(true));
                 assertThat(listExecutedPipelinesRequest1.get(), equalTo(false));
                 assertThat(listExecutedPipelinesRequest2.get(), equalTo(true));
@@ -147,21 +160,23 @@ public class RestBulkActionTests extends ESTestCase {
             {
                 params.remove("list_executed_pipelines");
                 bulkCalled.set(false);
-                new RestBulkAction(settings(IndexVersion.current()).put(RestBulkAction.INCREMENTAL_BULK.getKey(), false).build())
-                    .handleRequest(
-                        new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
-                            .withParams(params)
-                            .withContent(new BytesArray("""
-                                {"index":{"_id":"1", "list_executed_pipelines": "true"}}
-                                {"field1":"val1"}
-                                {"index":{"_id":"2"}}
-                                {"field1":"val2"}
-                                """), XContentType.JSON)
-                            .withMethod(RestRequest.Method.POST)
-                            .build(),
-                        mock(RestChannel.class),
-                        verifyingClient
-                    );
+                new RestBulkAction(
+                    settings(IndexVersion.current()).put(RestBulkAction.INCREMENTAL_BULK.getKey(), false).build(),
+                    new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY))
+                ).handleRequest(
+                    new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+                        .withParams(params)
+                        .withContent(new BytesArray("""
+                            {"index":{"_id":"1", "list_executed_pipelines": "true"}}
+                            {"field1":"val1"}
+                            {"index":{"_id":"2"}}
+                            {"field1":"val2"}
+                            """), XContentType.JSON)
+                        .withMethod(RestRequest.Method.POST)
+                        .build(),
+                    mock(RestChannel.class),
+                    verifyingClient
+                );
                 assertThat(bulkCalled.get(), equalTo(true));
                 assertThat(listExecutedPipelinesRequest1.get(), equalTo(true));
                 assertThat(listExecutedPipelinesRequest2.get(), equalTo(false));

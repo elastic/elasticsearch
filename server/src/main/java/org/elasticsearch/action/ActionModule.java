@@ -448,6 +448,7 @@ public class ActionModule extends AbstractModule {
     private final List<ActionPlugin> actionPlugins;
     private final Map<String, ActionHandler<?, ?>> actions;
     private final ActionFilters actionFilters;
+    private final IncrementalBulkService bulkService;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
@@ -489,6 +490,7 @@ public class ActionModule extends AbstractModule {
         this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
+        this.bulkService = bulkService;
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
@@ -929,7 +931,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCountAction());
         registerHandler.accept(new RestTermVectorsAction());
         registerHandler.accept(new RestMultiTermVectorsAction());
-        registerHandler.accept(new RestBulkAction(settings, threadPool.getThreadContext()));
+        registerHandler.accept(new RestBulkAction(settings, bulkService));
         registerHandler.accept(new RestUpdateAction());
 
         registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature));

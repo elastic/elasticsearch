@@ -10,6 +10,7 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -23,7 +24,6 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
 public class IncrementalBulkRestIT extends HttpSmokeTestCase {
 
-    @SuppressWarnings("unchecked")
     public void testIncrementalBulk() throws IOException {
         Request createRequest = new Request("PUT", "/index_name");
         createRequest.setJsonEntity("""
@@ -58,5 +58,38 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
             indexSuccessFul.getEntity().getContent(),
             true
         );
+    }
+
+    public void testIncrementalMalformed() throws IOException {
+        Request createRequest = new Request("PUT", "/index_name");
+        createRequest.setJsonEntity("""
+            {
+              "settings": {
+                "index": {
+                  "number_of_shards": 1,
+                  "number_of_replicas": 1,
+                  "write.wait_for_active_shards": 2
+                }
+              }
+            }""");
+        final Response indexCreatedResponse = getRestClient().performRequest(createRequest);
+        assertThat(indexCreatedResponse.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
+
+        Request successfulIndexingRequest = new Request("POST", "/index_name/_bulk");
+
+        // index documents for the rollup job
+        final StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"index\":{\"_index\":\"index_name\"}}\n");
+        bulk.append("{\"field\":1}\n");
+        bulk.append("{}\n");
+        bulk.append("\r\n");
+
+        successfulIndexingRequest.setJsonEntity(bulk.toString());
+
+        ResponseException responseException = expectThrows(
+            ResponseException.class,
+            () -> getRestClient().performRequest(successfulIndexingRequest)
+        );
+
     }
 }

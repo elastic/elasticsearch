@@ -31,6 +31,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -158,14 +159,14 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
                     boolean firstSegment = true;
 
                     @Override
-                    public Scorer scorer(LeafReaderContext context) throws IOException {
+                    public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                         if (firstSegment == false && isTimeoutExpected) {
                             shouldTimeout = true;
                         }
                         timeoutTrigger.accept(context);
                         assert shouldTimeout == false : "should have already timed out";
                         firstSegment = false;
-                        return super.scorer(context);
+                        return super.scorerSupplier(context);
                     }
                 };
             }
@@ -201,33 +202,49 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
                 return new MatchAllWeight(this, boost, scoreMode) {
                     @Override
-                    public BulkScorer bulkScorer(LeafReaderContext context) {
-                        final float score = score();
-                        final int maxDoc = context.reader().maxDoc();
-                        return new BulkScorer() {
+                    public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                        ScorerSupplier inScorerSupplier = super.scorerSupplier(context);
+                        return new ScorerSupplier() {
                             @Override
-                            public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
-                                assert shouldTimeout == false : "should have already timed out";
-                                max = Math.min(max, maxDoc);
-                                ScoreAndDoc scorer = new ScoreAndDoc();
-                                scorer.score = score;
-                                collector.setScorer(scorer);
-                                for (int doc = min; doc < max; ++doc) {
-                                    scorer.doc = doc;
-                                    if (acceptDocs == null || acceptDocs.get(doc)) {
-                                        collector.collect(doc);
-                                    }
-                                }
-                                if (timeoutExpected) {
-                                    // timeout after collecting the first batch of documents from the 1st segment, or the entire 1st segment
-                                    shouldTimeout = true;
-                                }
-                                return max == maxDoc ? DocIdSetIterator.NO_MORE_DOCS : max;
+                            public Scorer get(long leadCost) throws IOException {
+                                return inScorerSupplier.get(leadCost);
                             }
 
                             @Override
                             public long cost() {
-                                return 0;
+                                return inScorerSupplier.cost();
+                            }
+
+                            @Override
+                            public BulkScorer bulkScorer() throws IOException {
+                                final float score = score();
+                                final int maxDoc = context.reader().maxDoc();
+                                return new BulkScorer() {
+                                    @Override
+                                    public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
+                                        assert shouldTimeout == false : "should have already timed out";
+                                        max = Math.min(max, maxDoc);
+                                        Score scorer = new Score();
+                                        scorer.score = score;
+                                        collector.setScorer(scorer);
+                                        for (int doc = min; doc < max; ++doc) {
+                                            if (acceptDocs == null || acceptDocs.get(doc)) {
+                                                collector.collect(doc);
+                                            }
+                                        }
+                                        if (timeoutExpected) {
+                                            // timeout after collecting the first batch of documents from the 1st segment, or the entire 1st
+                                            // segment
+                                            shouldTimeout = true;
+                                        }
+                                        return max == maxDoc ? DocIdSetIterator.NO_MORE_DOCS : max;
+                                    }
+
+                                    @Override
+                                    public long cost() {
+                                        return 0;
+                                    }
+                                };
                             }
                         };
                     }
@@ -257,14 +274,8 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         return context;
     }
 
-    private static class ScoreAndDoc extends Scorable {
+    private static class Score extends Scorable {
         float score;
-        int doc = -1;
-
-        @Override
-        public int docID() {
-            return doc;
-        }
 
         @Override
         public float score() {
@@ -314,8 +325,9 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
-            return new ConstantScoreScorer(this, score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+        public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+            Scorer scorer = new ConstantScoreScorer(score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+            return new DefaultScorerSupplier(scorer);
         }
 
         @Override

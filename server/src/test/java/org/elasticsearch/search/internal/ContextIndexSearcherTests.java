@@ -27,7 +27,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -46,6 +45,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
@@ -496,9 +496,14 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         }
                         return new ConstantScoreWeight(this, boost) {
                             @Override
-                            public Scorer scorer(LeafReaderContext context) {
+                            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                                 contextIndexSearcher.throwTimeExceededException();
-                                return new ConstantScoreScorer(this, score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+                                Scorer scorer = new ConstantScoreScorer(
+                                    score(),
+                                    scoreMode,
+                                    DocIdSetIterator.all(context.reader().maxDoc())
+                                );
+                                return new DefaultScorerSupplier(scorer);
                             }
 
                             @Override
@@ -746,15 +751,9 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
+        public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
             assertTrue(seenLeaves.add(context.reader().getCoreCacheHelper().getKey()));
-            return weight.scorer(context);
-        }
-
-        @Override
-        public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-            assertTrue(seenLeaves.add(context.reader().getCoreCacheHelper().getKey()));
-            return weight.bulkScorer(context);
+            return weight.scorerSupplier(context);
         }
 
         @Override

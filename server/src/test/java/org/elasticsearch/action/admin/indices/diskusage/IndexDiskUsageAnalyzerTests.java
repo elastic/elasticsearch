@@ -52,6 +52,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.suggest.document.Completion912PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionPostingsFormat;
@@ -784,14 +785,15 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
             return new ConstantScoreWeight(this, 1.0f) {
                 @Override
-                public Scorer scorer(LeafReaderContext context) {
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                     final FixedBitSet bits = new FixedBitSet(context.reader().maxDoc());
                     for (int i = 0; i < bits.length(); i++) {
                         if (randomBoolean()) {
                             bits.set(i);
                         }
                     }
-                    return new ConstantScoreScorer(this, 1.0f, ScoreMode.COMPLETE_NO_SCORES, new BitSetIterator(bits, bits.length()));
+                    Scorer scorer = new ConstantScoreScorer(1.0f, ScoreMode.COMPLETE_NO_SCORES, new BitSetIterator(bits, bits.length()));
+                    return new DefaultScorerSupplier(scorer);
                 }
 
                 @Override

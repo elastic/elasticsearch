@@ -55,6 +55,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermInSetQuery;
@@ -1288,7 +1289,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                     float _score[] = new float[] { boost };
                     DocIdSetIterator allDocs = DocIdSetIterator.all(context.reader().maxDoc());
                     CheckedFunction<Integer, Query, IOException> leaf = queryStore.getQueries(context);
@@ -1312,7 +1313,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                             }
                         }
                     };
-                    return new Scorer(this) {
+                    Scorer scorer = new Scorer(this) {
 
                         @Override
                         public int docID() {
@@ -1334,6 +1335,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                             return _score[0];
                         }
                     };
+                    return new DefaultScorerSupplier(scorer);
                 }
 
                 @Override

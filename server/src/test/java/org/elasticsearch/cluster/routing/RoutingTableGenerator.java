@@ -105,7 +105,7 @@ public class RoutingTableGenerator {
             }
             if (unassigned > 0 || initializing > 0) {
                 return ClusterHealthStatus.YELLOW;
-            }
+            }q
             return ClusterHealthStatus.GREEN;
         }
 

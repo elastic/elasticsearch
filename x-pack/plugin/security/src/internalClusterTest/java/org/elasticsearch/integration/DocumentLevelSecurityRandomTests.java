@@ -15,6 +15,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,9 +32,12 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
-    // can't add a second test method, because each test run creates a new instance of this class and that will will result
-    // in a new random value:
-    private final int numberOfRoles = scaledRandomIntBetween(3, 99);
+    private static volatile int numberOfRoles;
+
+    @BeforeClass
+    public static void setupRoleCount() throws Exception {
+        numberOfRoles = scaledRandomIntBetween(3, 99);
+    }
 
     @Override
     protected String configUsers() {

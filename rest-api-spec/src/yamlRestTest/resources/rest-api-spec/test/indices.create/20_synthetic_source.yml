@@ -1251,7 +1251,6 @@ empty nested object sorted as a first document:
   - match: { hits.hits.1._source.nested.a: "b" }
 
 
-
 ---
 subobjects auto:
   - requires:
@@ -1353,3 +1352,55 @@ subobjects auto:
   - match: { hits.hits.3._source.path\.to\.auto_obj.foo\.bar: 400 }
   - match: { hits.hits.3._source.path\.to\.auto_obj.inner\.id: baz }
   - match: { hits.hits.3._source.path\.to\.id: 4000 }
+
+
+---
+# 112156
+stored field under object with store_array_source:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              sort.field: "name"
+              sort.order: "asc"
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              obj:
+                store_array_source: true
+                properties:
+                  foo:
+                    type: keyword
+                    store: true
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "B", "obj": null }'
+          - '{ "create": { } }'
+          - '{ "name": "A", "obj": [ { "foo": "hello_from_the_other_side" } ] }'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: name
+
+  - match:  { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.obj: [ { "foo": "hello_from_the_other_side" } ] }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.obj: null }

@@ -312,6 +312,14 @@ public interface Repository extends LifecycleComponent {
      */
     void awaitIdle();
 
+    /**
+     * @return a set of the names of the features that this repository instance uses, for reporting in the cluster stats for telemetry
+     *         collection.
+     */
+    default Set<String> getUsageFeatures() {
+        return Set.of();
+    }
+
     static boolean assertSnapshotMetaThread() {
         return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT_META);
     }

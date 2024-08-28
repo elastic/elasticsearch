@@ -185,6 +185,10 @@ public interface SourceLoader {
 
             @Override
             public void write(LeafStoredFieldLoader storedFieldLoader, int docId, XContentBuilder b) throws IOException {
+                for (var fieldLevelStoredFieldLoader : storedFieldLoaders.values()) {
+                    fieldLevelStoredFieldLoader.advanceToDoc(docId);
+                }
+
                 // Maps the names of existing objects to lists of ignored fields they contain.
                 Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = null;
 
@@ -322,6 +326,15 @@ public interface SourceLoader {
          * Sync for stored field values.
          */
         interface StoredFieldLoader {
+            /**
+             * Signals the loader that values for this document will be loaded next.
+             * Allows loader to discard cached data for previous document.
+             */
+            void advanceToDoc(int docId);
+
+            /**
+             * Loads values read from a corresponding stored field into this loader.
+             */
             void load(List<Object> values);
         }
 

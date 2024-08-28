@@ -766,7 +766,18 @@ public abstract class StreamOutput extends OutputStream {
             o.writeByte((byte) 23);
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
             o.writeString(zonedDateTime.getZone().getId());
-            o.writeLong(zonedDateTime.toInstant().toEpochMilli());
+            Instant instant = zonedDateTime.toInstant();
+            if (o.getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT_BROKEN)) {
+                // epoch seconds can be negative, but it was incorrectly first written as vlong
+                if (o.getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT)) {
+                    o.writeZLong(instant.getEpochSecond());
+                } else {
+                    o.writeVLong(instant.getEpochSecond());
+                }
+                o.writeInt(instant.getNano());
+            } else {
+                o.writeLong(instant.toEpochMilli());
+            }
         }),
         entry(Set.class, (o, v) -> {
             if (v instanceof LinkedHashSet) {

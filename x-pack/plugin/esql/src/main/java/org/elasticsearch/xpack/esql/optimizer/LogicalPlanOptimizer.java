@@ -155,6 +155,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }
+        optimized.setOptimized();
         return optimized;
     }
 

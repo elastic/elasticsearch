@@ -213,7 +213,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         private final AggregationExecutionContext aggCtx;
         int maxDocId = Integer.MIN_VALUE;
         private float currentScore;
-        private int currentDocId = -1;
         private Scorable currentScorer;
 
         PerSegmentCollects(AggregationExecutionContext aggCtx) throws IOException {
@@ -248,7 +247,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
                 leafCollector.setScorer(this);
 
                 currentScore = 0;
-                currentDocId = -1;
                 if (maxDocId < 0) {
                     return;
                 }
@@ -258,7 +256,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
                     int rebased = scoreDoc.doc - aggCtx.getLeafReaderContext().docBase;
                     if ((rebased >= 0) && (rebased <= maxDocId)) {
                         currentScore = scoreDoc.score;
-                        currentDocId = rebased;
                         // We stored the bucket ID in Lucene's shardIndex property
                         // for convenience.
                         leafCollector.collect(rebased, scoreDoc.shardIndex);
@@ -273,11 +270,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         @Override
         public float score() throws IOException {
             return currentScore;
-        }
-
-        @Override
-        public int docID() {
-            return currentDocId;
         }
 
         public void collect(int docId, long parentBucket) throws IOException {

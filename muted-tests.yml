@@ -166,6 +166,9 @@ tests:
 - class: org.elasticsearch.search.query.ScriptScoreQueryTests
   method: testScriptTermStatsAvailable
   issue: https://github.com/elastic/elasticsearch/issues/112278
+- class: org.elasticsearch.search.query.ScriptScoreQueryTests
+  method: testScriptTermStatsNotAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/112290
 
 # Examples:
 #

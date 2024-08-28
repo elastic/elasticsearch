@@ -1292,16 +1292,21 @@ subobjects auto:
                         type: keyword
               nested:
                 type: nested
-              auto_obj:
-                type: object
-                subobjects: auto
+              path:
                 properties:
-                  path:
+                  to:
                     properties:
-                      to:
+                      auto_obj:
+                        type: object
+                        subobjects: auto
                         properties:
-                          id:
-                            type: keyword
+                          inner:
+                            properties:
+                              id:
+                                type: keyword
+                      id:
+                        type:
+                          integer
 
   - do:
       bulk:
@@ -1315,7 +1320,7 @@ subobjects auto:
           - '{ "create": { } }'
           - '{  "id": 3, "foo": 30, "foo.bar": 300, "nested": [ { "a": 10, "b": 20 }, { "a": 100, "b": 200 } ] }'
           - '{ "create": { } }'
-          - '{  "id": 4, "auto_obj": {  "foo": 40, "foo.bar": 400, "path.to.id": "baz" } }'
+          - '{  "id": 4, "path.to.auto_obj": {  "foo": 40, "foo.bar": 400, "inner.id": "baz" }, "path.to.id": 4000 }'
 
   - match: { errors: false }
 
@@ -1344,6 +1349,7 @@ subobjects auto:
   - match: { hits.hits.2._source.nested.1.a: 100 }
   - match: { hits.hits.2._source.nested.1.b: 200 }
   - match: { hits.hits.3._source.id: 4  }
-  - match: { hits.hits.3._source.auto_obj.foo: 40 }
-  - match: { hits.hits.3._source.auto_obj.foo\.bar: 400 }
-  - match: { hits.hits.3._source.auto_obj.path\.to\.id: baz }
+  - match: { hits.hits.3._source.path\.to\.auto_obj.foo: 40 }
+  - match: { hits.hits.3._source.path\.to\.auto_obj.foo\.bar: 400 }
+  - match: { hits.hits.3._source.path\.to\.auto_obj.inner\.id: baz }
+  - match: { hits.hits.3._source.path\.to\.id: 4000 }

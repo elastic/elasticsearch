@@ -206,19 +206,12 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     private static class CachedScorable extends Scorable {
-        int doc;
         float score;
 
         @Override
         public final float score() {
             return score;
         }
-
-        @Override
-        public int docID() {
-            return doc;
-        }
-
     }
 
 }

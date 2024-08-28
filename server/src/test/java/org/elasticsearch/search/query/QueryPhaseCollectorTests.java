@@ -1138,11 +1138,6 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             public float score() {
                 return 0;
             }
-
-            @Override
-            public int docID() {
-                return 0;
-            }
         };
 
         QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
@@ -1469,11 +1464,6 @@ public class QueryPhaseCollectorTests extends ESTestCase {
 
         @Override
         public float score() throws IOException {
-            return 0;
-        }
-
-        @Override
-        public int docID() {
             return 0;
         }
 

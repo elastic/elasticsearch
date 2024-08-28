@@ -81,7 +81,7 @@ The name of the host address used for the {infer} task. You can find the host ad
 
 `workspace`:::
 (Required, string)
-The name of the workspace use for the {infer} task.
+The name of the workspace used for the {infer} task.
 
 `rate_limit`:::
 (Optional, object)

@@ -180,7 +180,17 @@ public class ObjectMapper extends Mapper {
             }
 
             if (subobjects.isPresent() && subobjects.get() == Subobjects.AUTO) {
-                // Check for parent objects. Due to auto-flattening, we need to check for all possible object names.
+                // Check for parent objects. Due to auto-flattening, names with dots are allowed so we need to check for all possible
+                // object names. For instance, for mapper 'foo.bar.baz.bad', we have the following options:
+                // - object 'foo' found => call addDynamic on 'bar.baz.bad'
+                // - object 'bar' found => call addDynamic on 'baz.bad'
+                // - object 'baz' found => add field 'bad' to it
+                // - no match found => add field 'baz.bad' to parent
+                // - object 'foo.bar' found => call addDynamic on 'baz.bad'
+                // - object 'baz' found => add field 'bad' to it
+                // - no match found=> add field 'baz.bad' to parent
+                // - object 'foo.bar.baz' found => add field 'bad' to it
+                // - no match found => add field 'foo.bar.baz.bad' to parent
                 String fullPathToMapper = name.substring(0, name.lastIndexOf(mapper.leafName()));
                 String[] fullPathTokens = fullPathToMapper.split("\\.");
                 StringBuilder candidateObject = new StringBuilder();
@@ -756,7 +766,7 @@ public class ObjectMapper extends Mapper {
                         + error.get()
                 );
             }
-            // The object can't be auto-flattened, so it gets added at the current level.
+            // The object can't be auto-flattened under the parent object, so it gets added at the current level.
             // [subobjects=auto] applies auto-flattening to names, so the leaf name may need to change.
             // Since mapper objects are immutable, we create a clone of the current one with the updated leaf name.
             flattenedMappers.add(

@@ -228,7 +228,7 @@ can't be auto-flattened.
 
 If such a sub-object is detected, the behavior depends on the `subobjects` value:
 
-* `subobjects: false` is not compatible, so a mapping error is returned during mapping creation or indexing.
+* `subobjects: false` is not compatible, so a mapping error is returned during mapping construction.
 * `subobjects: auto` reverts to adding the object to the mapping, bypassing auto-flattening for it. Still, any
 intermediate objects will be auto-flattened if applicable (i.e. the object name gets directly attached under the parent
 object with `subobjects: auto`). Auto-flattening can be applied within sub-objects, if they are configured with

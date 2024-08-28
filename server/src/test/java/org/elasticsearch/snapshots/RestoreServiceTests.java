@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -159,7 +160,12 @@ public class RestoreServiceTests extends ESTestCase {
     public void testRefreshRepositoryUuidsDoesNothingIfDisabled() {
         final RepositoriesService repositoriesService = mock(RepositoriesService.class);
         final AtomicBoolean called = new AtomicBoolean();
-        RestoreService.refreshRepositoryUuids(false, repositoriesService, () -> assertTrue(called.compareAndSet(false, true)));
+        RestoreService.refreshRepositoryUuids(
+            false,
+            repositoriesService,
+            () -> assertTrue(called.compareAndSet(false, true)),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         assertTrue(called.get());
         verifyNoMoreInteractions(repositoriesService);
     }
@@ -209,7 +215,12 @@ public class RestoreServiceTests extends ESTestCase {
         final RepositoriesService repositoriesService = mock(RepositoriesService.class);
         when(repositoriesService.getRepositories()).thenReturn(repositories);
         final AtomicBoolean completed = new AtomicBoolean();
-        RestoreService.refreshRepositoryUuids(true, repositoriesService, () -> assertTrue(completed.compareAndSet(false, true)));
+        RestoreService.refreshRepositoryUuids(
+            true,
+            repositoriesService,
+            () -> assertTrue(completed.compareAndSet(false, true)),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         assertTrue(completed.get());
         assertThat(pendingRefreshes, empty());
         finalAssertions.forEach(Runnable::run);

@@ -94,7 +94,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -149,7 +149,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    private static boolean tryEvict(SharedBlobCacheService<Object>.CacheFileRegion region1) {
+    private static boolean tryEvict(SharedBlobCacheService.CacheFileRegion<Object> region1) {
         if (randomBoolean()) {
             return region1.tryEvict();
         } else {
@@ -175,7 +175,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -219,7 +219,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -253,7 +253,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -287,7 +287,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -395,7 +395,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -470,7 +470,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                threadPool.executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -486,7 +486,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         ready.await();
                         for (int i = 0; i < iterations; ++i) {
                             try {
-                                SharedBlobCacheService<String>.CacheFileRegion cacheFileRegion;
+                                SharedBlobCacheService.CacheFileRegion<String> cacheFileRegion;
                                 try {
                                     cacheFileRegion = cacheService.get(cacheKeys[i], fileLength, regions[i]);
                                 } catch (AlreadyClosedException e) {
@@ -497,6 +497,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                                     if (yield[i] == 0) {
                                         Thread.yield();
                                     }
+                                    assertNotNull(cacheFileRegion.testOnlyNonVolatileIO());
                                     cacheFileRegion.decRef();
                                 }
                                 if (evict[i] == 0) {
@@ -550,7 +551,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                threadPool.executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -618,7 +619,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                threadPool.executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -826,7 +827,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -844,7 +845,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -865,15 +866,15 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
+            var cacheService = new SharedBlobCacheService<Object>(
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
-            final Map<Object, SharedBlobCacheService<Object>.CacheFileRegion> cacheEntries = new HashMap<>();
+            final Map<Object, SharedBlobCacheService.CacheFileRegion<Object>> cacheEntries = new HashMap<>();
 
             assertThat("All regions are free", cacheService.freeRegionCount(), equalTo(numRegions));
             assertThat("Cache has no entries", cacheService.maybeEvictLeastUsed(), is(false));
@@ -967,7 +968,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                threadPool.executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -1117,7 +1118,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                threadPool.executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -1278,7 +1279,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -1394,7 +1395,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             ) {
                 @Override
@@ -1408,7 +1409,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var blobLength = randomLongBetween(1L, cacheSize);
 
             int regions = Math.toIntExact(blobLength / regionSize);
-            regions += (blobLength % regionSize == 0L ? 0L : 1L);
+            regions += (blobLength % regionSize == 0 ? 0 : 1);
             assertThat(
                 cacheService.computeCacheFileRegionSize(blobLength, randomFrom(regions)),
                 equalTo(BlobCacheUtils.toIntBytes(regionSize))
@@ -1435,7 +1436,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                threadPool.executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {

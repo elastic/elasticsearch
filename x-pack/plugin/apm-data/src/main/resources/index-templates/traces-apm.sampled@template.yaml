@@ -20,11 +20,6 @@ ignore_missing_component_templates:
 template:
   lifecycle:
     data_retention: 1h
-  settings:
-    index:
-      lifecycle:
-        name: traces-apm.sampled_traces-default_policy
-        prefer_ilm: false
   mappings:
     properties:
       data_stream.type:

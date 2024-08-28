@@ -527,6 +527,146 @@ setup:
 
 ---
 "Date range":
+  - skip:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: "tests rounding fixes that previously caused non-intuitive indexing and query"
+  - requires:
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: "tests rounding fixes that previously caused non-intuitive indexing and query"
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "1"
+        body: { "date_range": { "gte": "2017-09-01", "lte": "2017-09-05" } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "2"
+        body: { "date_range": { "gt": "2017-09-01", "lte": "2017-09-03" } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "3"
+        body: { "date_range": [ { "gte": "2017-09-04", "lt": "2017-09-05" } ] }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "4"
+        body: { "date_range": [ { "gt": "2017-09-04", "lt": "2017-09-08" }, { "gt": "2017-09-04", "lt": "2017-09-07" } ] }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "5"
+        body: { "date_range": { "gte": 1504224000000, "lte": 1504569600000 } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "6"
+        body: { "date_range": { "gte": "2017-09-01T10:20:30.123Z", "lte": "2017-09-05T03:04:05.789Z" } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "7"
+        body: { "date_range": null }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "8"
+        body: { "date_range": { "gte": null, "lte": "2017-09-05" } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "9"
+        body: { "date_range": { "gte": "2017-09-05" } }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "1"
+  - match:
+      _source:
+        date_range: { "gte": "2017-09-01T00:00:00.000Z", "lte": "2017-09-05T00:00:00.000Z" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "2"
+  - match:
+      _source:
+        date_range: { "gte": "2017-09-02T00:00:00.000Z", "lte": "2017-09-03T23:59:59.999Z" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "3"
+  - match:
+      _source:
+        date_range: { "gte": "2017-09-04T00:00:00.000Z", "lte": "2017-09-04T23:59:59.999Z" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "4"
+  - match:
+      _source:
+        date_range: [ { "gte": "2017-09-05T00:00:00.000Z", "lte": "2017-09-06T23:59:59.999Z" }, { "gte": "2017-09-05T00:00:00.000Z", "lte": "2017-09-07T23:59:59.999Z" } ]
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "5"
+  - match:
+      _source:
+        date_range: { "gte": "2017-09-01T00:00:00.000Z", "lte": "2017-09-05T00:00:00.000Z" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "6"
+  - match:
+      _source:
+        date_range: { "gte": "2017-09-01T10:20:30.123Z", "lte": "2017-09-05T03:04:05.789Z" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "7"
+  - match:
+      _source: { }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "8"
+  - match:
+      _source:
+        date_range: { "gte": null, "lte": "2017-09-05T23:59:59.999Z" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "9"
+  - match:
+      _source:
+        date_range: { "gte": "2017-09-05T00:00:00.000Z", "lte": null }
+
+---
+"Date range Rounding Fixes":
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: "tests rounding fixes that previously caused non-intuitive indexing and query"
 
   - do:
       index:

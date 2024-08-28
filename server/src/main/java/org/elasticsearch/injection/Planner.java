@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
@@ -89,19 +90,12 @@ final class Planner {
     }
 
     private void planForSpec(InjectionSpec spec, int depth) {
-        String indent;
-        if (logger.isTraceEnabled()) {
-            indent = "\t".repeat(depth);
-        } else {
-            indent = null;
-        }
-
         if (finishedPlanning.contains(spec)) {
-            logger.trace("{}Already planned {}", indent, spec);
+            logger.trace("{}Already planned {}", indent(depth), spec);
             return;
         }
 
-        logger.trace("{}Planning for {}", indent, spec);
+        logger.trace("{}Planning for {}", indent(depth), spec);
         if (startedPlanning.add(spec) == false) {
             // TODO: Better cycle detection and reporting. Use SCCs
             throw new IllegalStateException("Cyclic dependency involving " + spec);
@@ -109,12 +103,12 @@ final class Planner {
 
         if (spec instanceof MethodHandleSpec m) {
             for (var p : m.parameters()) {
-                logger.trace("{}- Recursing into {} for actual parameter {}", indent, p.injectableType(), p);
+                logger.trace("{}- Recursing into {} for actual parameter {}", indent(depth), p.injectableType(), p);
                 planForClass(p.injectableType(), depth + 1);
             }
-            addStep(new InstantiateStep(m), indent);
+            addStep(new InstantiateStep(m), depth);
         } else if (spec instanceof ExistingInstanceSpec e) {
-            logger.trace("{}- Plan {}", indent, e);
+            logger.trace("{}- Plan {}", indent(depth), e);
             // Nothing to do. The injector will already have the required object.
         } else {
             throw new AssertionError("Unexpected injection spec: " + spec);
@@ -123,9 +117,12 @@ final class Planner {
         finishedPlanning.add(spec);
     }
 
-    private void addStep(InjectionStep newStep, String indent) {
-        logger.trace("{}- Add step {}", indent, newStep);
+    private void addStep(InjectionStep newStep, int depth) {
+        logger.trace("{}- Add step {}", indent(depth), newStep);
         plan.add(newStep);
     }
 
+    private static Supplier<String> indent(int depth) {
+        return () -> "\t".repeat(depth);
+    }
 }

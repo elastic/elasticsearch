@@ -57,6 +57,18 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
     private static final String TEST_INDEX = "test";
     private static final String DATA_STREAM_TEMPLATE = "test-ds-index-template";
 
+    private static final SqlVersion TEST_VERSION;
+
+    static {
+        SqlVersion version;
+        try {
+            version = SqlVersion.fromTransportString(TransportVersion.current().toReleaseVersion());
+        } catch (IllegalArgumentException __) {
+            version = INTRODUCING_SQL_VERSION_ID;
+        }
+        TEST_VERSION = version;
+    }
+
     public static class RequestObjectBuilder {
         private StringBuilder request;
         private final boolean isQuery;
@@ -85,7 +97,7 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
             if (isQuery) {
                 Mode mode = (m instanceof Mode) ? (Mode) m : Mode.fromString(modeString);
                 if (Mode.isDedicatedClient(mode)) {
-                    version(INTRODUCING_SQL_VERSION_ID.version);
+                    version(TEST_VERSION.version);
                 }
             }
             return this;

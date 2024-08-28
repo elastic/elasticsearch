@@ -417,9 +417,9 @@ public class ServerCliTests extends CommandTestCase {
                 }
             });
             closeThread.start();
-            cli.main(new String[]{}, terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+            cli.main(new String[] {}, terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
             closeThread.join();
-            
+
             if (cli.getServer() == null) {
                 // close won the race, so server should never have been started
                 assertThat(cli.startServerCalled, is(false));

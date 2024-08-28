@@ -20,6 +20,7 @@
 package co.elastic.elasticsearch.stateless.cache.reader;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -63,7 +64,7 @@ public class ObjectStoreCacheBlobReader implements CacheBlobReader {
     @Override
     public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
         // This is intended to be run in-thread in case of pre-warming, otherwise inside a SHARD_READ_THREAD_POOL thread.
-        fetchExecutor.execute(() -> ActionListener.completeWith(listener, () -> getRangeInputStream(position, length)));
+        fetchExecutor.execute(ActionRunnable.supply(listener, () -> getRangeInputStream(position, length)));
     }
 
     @Override

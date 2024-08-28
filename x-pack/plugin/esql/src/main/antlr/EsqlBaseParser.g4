@@ -324,7 +324,7 @@ matchQueryValue
     ;
 
 matchQueryRange
-    : fieldName=WORD_PATTERN matchRangeOperator matchQueryExpression
+    : fieldName=WORD_PATTERN matchRangeOperator matchRangeExpression
     ;
 
 matchQueryField
@@ -337,6 +337,12 @@ matchQueryExpression
     | WORD_PATTERN+
     | integerValue
     | decimalValue
+    ;
+
+matchRangeExpression
+    : integerValue
+    | decimalValue
+    | timestamp=QUOTED_STRING
     ;
 
 matchRangeOperator

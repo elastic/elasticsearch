@@ -34,10 +34,8 @@ class StoredFieldSourceProvider implements SourceProvider {
         var provider = leaves.get(id);
         if (provider == null) {
             provider = new LeafStoredFieldSourceProvider(storedFieldLoader.getLoader(ctx, null));
-            var existing = leaves.putIfAbsent(id, provider);
-            if (existing != null) {
-                provider = existing;
-            }
+            var existing = leaves.put(id, provider);
+            assert existing == null : "unexpected source provider [" + existing + "]";
         }
         return provider.getSource(doc);
     }

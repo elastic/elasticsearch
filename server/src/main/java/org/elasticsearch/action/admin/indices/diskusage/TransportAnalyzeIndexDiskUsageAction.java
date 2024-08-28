@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -218,15 +219,23 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
         AnalyzeIndexDiskUsageRequest request,
         String[] concreteIndices
     ) {
-        final GroupShardsIterator<ShardIterator> groups = clusterService.operationRouting()
-            .searchShards(clusterState, concreteIndices, null, null);
-        for (ShardIterator group : groups) {
-            // fails fast if any non-active groups
-            if (group.size() == 0) {
-                throw new NoShardAvailableActionException(group.shardId());
+        final List<ShardIterator> groups = new ArrayList<>();
+        for (String index : concreteIndices) {
+            var indexMetadata = clusterState.metadata().index(index);
+            if (indexMetadata == null) {
+                throw new IndexNotFoundException(index);
+            }
+            for (int shardId = 0; shardId < indexMetadata.getNumberOfShards(); shardId++) {
+                var shardIterator = clusterState.routingTable().shardRoutingTable(index, shardId).activeInitializingShardsRandomIt();
+                shardIterator = clusterService.operationRouting().useOnlyPromotableShardsForStateless(shardIterator);
+                if (shardIterator.size() == 0) {
+                    // fails fast if any non-active groups
+                    throw new NoShardAvailableActionException(shardIterator.shardId());
+                }
+                groups.add(shardIterator);
             }
         }
-        return groups;
+        return new GroupShardsIterator<>(groups);
     }
 
     @Override

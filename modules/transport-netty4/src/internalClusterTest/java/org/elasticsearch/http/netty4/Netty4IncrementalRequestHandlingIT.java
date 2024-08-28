@@ -315,6 +315,29 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
+    // ensures that we dont leak buffers in stream on 400-bad-request
+    // some bad requests are dispatched from rest-controller before reaching rest handler
+    // test relies on netty's buffer leak detection
+    public void testBadRequestReleaseQueuedChunks() throws Exception {
+        try (var ctx = setupClientCtx()) {
+            for (var reqNo = 0; reqNo < randomIntBetween(2, 10); reqNo++) {
+                var id = opaqueId(reqNo);
+                var contentSize = randomIntBetween(0, maxContentLength());
+                var req = httpRequest(id, contentSize);
+                var content = randomContent(contentSize, true);
+
+                // set unacceptable content-type
+                req.headers().set(CONTENT_TYPE, "unknown");
+                ctx.clientChannel.writeAndFlush(req);
+                ctx.clientChannel.writeAndFlush(content);
+
+                var resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
+                assertEquals(HttpResponseStatus.BAD_REQUEST, resp.status());
+                resp.release();
+            }
+        }
+    }
+
     private int maxContentLength() {
         return HttpHandlingSettings.fromSettings(internalCluster().getInstance(Settings.class)).maxContentLength();
     }
@@ -513,6 +536,11 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             Predicate<NodeFeature> clusterSupportsFeature
         ) {
             return List.of(new BaseRestHandler() {
+                @Override
+                public boolean allowsUnsafeBuffers() {
+                    return true;
+                }
+
                 @Override
                 public String getName() {
                     return ROUTE;

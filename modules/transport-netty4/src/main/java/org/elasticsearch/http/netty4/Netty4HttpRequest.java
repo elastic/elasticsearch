@@ -60,7 +60,7 @@ public class Netty4HttpRequest implements HttpRequest {
                 EmptyHttpHeaders.INSTANCE
             ),
             new AtomicBoolean(false),
-            false,
+            true,
             contentStream,
             null
         );
@@ -115,6 +115,7 @@ public class Netty4HttpRequest implements HttpRequest {
     public void release() {
         if (pooled && released.compareAndSet(false, true)) {
             request.release();
+            content.close();
         }
     }
 

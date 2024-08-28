@@ -52,6 +52,11 @@ public final class FloatVectorBlock extends AbstractVectorBlock implements Float
     }
 
     @Override
+    public FloatBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
     public ReleasableIterator<? extends FloatBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return vector.lookup(positions, targetBlockSize);
     }

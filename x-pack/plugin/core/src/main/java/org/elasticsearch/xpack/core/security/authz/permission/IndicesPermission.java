@@ -20,6 +20,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -86,6 +87,7 @@ public final class IndicesPermission {
         public IndicesPermission build() {
             return new IndicesPermission(restrictedIndices, groups.toArray(Group.EMPTY_ARRAY));
         }
+
     }
 
     private IndicesPermission(RestrictedIndices restrictedIndices, Group[] groups) {
@@ -238,6 +240,21 @@ public final class IndicesPermission {
         return false;
     }
 
+    public boolean checkResourcePrivileges(
+        Set<String> checkForIndexPatterns,
+        boolean allowRestrictedIndices,
+        Set<String> checkForPrivileges,
+        @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
+    ) {
+        return checkResourcePrivileges(
+            checkForIndexPatterns,
+            allowRestrictedIndices,
+            checkForPrivileges,
+            false,
+            resourcePrivilegesMapBuilder
+        );
+    }
+
     /**
      * For given index patterns and index privileges determines allowed privileges and creates an instance of {@link ResourcePrivilegesMap}
      * holding a map of resource to {@link ResourcePrivileges} where resource is index pattern and the map of index privilege to whether it
@@ -246,6 +263,7 @@ public final class IndicesPermission {
      * @param checkForIndexPatterns check permission grants for the set of index patterns
      * @param allowRestrictedIndices if {@code true} then checks permission grants even for restricted indices by index matching
      * @param checkForPrivileges check permission grants for the set of index privileges
+     * @param combineIndexGroups combine index groups to enable checking against regular expressions
      * @param resourcePrivilegesMapBuilder out-parameter for returning the details on which privilege over which resource is granted or not.
      *                                     Can be {@code null} when no such details are needed so the method can return early, after
      *                                     encountering the first privilege that is not granted over some resource.
@@ -255,10 +273,13 @@ public final class IndicesPermission {
         Set<String> checkForIndexPatterns,
         boolean allowRestrictedIndices,
         Set<String> checkForPrivileges,
+        boolean combineIndexGroups,
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
-        final Map<IndicesPermission.Group, Automaton> predicateCache = new HashMap<>();
         boolean allMatch = true;
+        Map<Automaton, Automaton> indexGroupAutomatons = indexGroupAutomatons(
+            combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex)
+        );
         for (String forIndexPattern : checkForIndexPatterns) {
             Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
             if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
@@ -266,15 +287,14 @@ public final class IndicesPermission {
             }
             if (false == Operations.isEmpty(checkIndexAutomaton)) {
                 Automaton allowedIndexPrivilegesAutomaton = null;
-                for (Group group : groups) {
-                    final Automaton groupIndexAutomaton = predicateCache.computeIfAbsent(group, Group::getIndexMatcherAutomaton);
-                    if (Operations.subsetOf(checkIndexAutomaton, groupIndexAutomaton)) {
+                for (var indexAndPrivilegeAutomaton : indexGroupAutomatons.entrySet()) {
+                    if (Operations.subsetOf(checkIndexAutomaton, indexAndPrivilegeAutomaton.getValue())) {
                         if (allowedIndexPrivilegesAutomaton != null) {
                             allowedIndexPrivilegesAutomaton = Automatons.unionAndMinimize(
-                                Arrays.asList(allowedIndexPrivilegesAutomaton, group.privilege().getAutomaton())
+                                Arrays.asList(allowedIndexPrivilegesAutomaton, indexAndPrivilegeAutomaton.getKey())
                             );
                         } else {
-                            allowedIndexPrivilegesAutomaton = group.privilege().getAutomaton();
+                            allowedIndexPrivilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
                         }
                     }
                 }
@@ -654,6 +674,61 @@ public final class IndicesPermission {
 
     private static boolean containsPrivilegeThatGrantsMappingUpdatesForBwc(Group group) {
         return group.privilege().name().stream().anyMatch(PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE::contains);
+    }
+
+    /**
+     * Get all automatons for the index groups in this permission and optionally combine the index groups to enable checking if a set of
+     * index patterns specified using a regular expression grants a set of index privileges.
+     *
+     * <p>An index group is defined as a set of index patterns and a set of privileges (excluding field permissions and DLS queries).
+     * {@link IndicesPermission} consist of a set of index groups. For non-regular expression privilege checks, an index pattern is checked
+     * against each index group, to see if it's a sub-pattern of the index pattern for the group and then if that group grants some or all
+     * of the privileges requested. For regular expressions it's not sufficient to check per group since the index patterns covered by a
+     * group can be distinct sets and a regular expression can cover several distinct sets.
+     *
+     * <p>For example the two index groups: {"names": ["a"], "privileges": ["read", "create"]} and {"names": ["b"],
+     * "privileges": ["read","delete"]} will not match on ["\[ab]\"], while a single index group:
+     * {"names": ["a", "b"], "privileges": ["read"]} will. This happens because the index groups are evaluated against a request index
+     * pattern without first being combined. In the example above, the two index patterns should be combined to:
+     * {"names": ["a", "b"], "privileges": ["read"]} before being checked.
+     *
+     *
+     * @param combine combine index groups to allow for checking against regular expressions
+     *
+     * @return a map of all index and privilege pattern automatons
+     */
+    private Map<Automaton, Automaton> indexGroupAutomatons(boolean combine) {
+        // Map of privilege automaton object references (cached by IndexPrivilege::CACHE)
+        Map<Automaton, Automaton> allAutomatons = new HashMap<>();
+        for (Group group : groups) {
+            Automaton indexAutomaton = group.getIndexMatcherAutomaton();
+            allAutomatons.compute(
+                group.privilege().getAutomaton(),
+                (key, value) -> value == null ? indexAutomaton : Automatons.unionAndMinimize(List.of(value, indexAutomaton))
+            );
+            if (combine) {
+                List<Tuple<Automaton, Automaton>> combinedAutomatons = new ArrayList<>();
+                for (var indexAndPrivilegeAutomatons : allAutomatons.entrySet()) {
+                    Automaton intersectingPrivileges = Operations.intersection(
+                        indexAndPrivilegeAutomatons.getKey(),
+                        group.privilege().getAutomaton()
+                    );
+                    if (Operations.isEmpty(intersectingPrivileges) == false) {
+                        Automaton indexPatternAutomaton = Automatons.unionAndMinimize(
+                            List.of(indexAndPrivilegeAutomatons.getValue(), indexAutomaton)
+                        );
+                        combinedAutomatons.add(new Tuple<>(intersectingPrivileges, indexPatternAutomaton));
+                    }
+                }
+                combinedAutomatons.forEach(
+                    automatons -> allAutomatons.compute(
+                        automatons.v1(),
+                        (key, value) -> value == null ? automatons.v2() : Automatons.unionAndMinimize(List.of(value, automatons.v2()))
+                    )
+                );
+            }
+        }
+        return allAutomatons;
     }
 
     public static class Group {

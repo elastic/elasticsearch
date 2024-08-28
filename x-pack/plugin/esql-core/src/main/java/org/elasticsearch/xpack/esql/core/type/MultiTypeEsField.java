@@ -5,15 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.type;
+package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -31,11 +27,6 @@ import java.util.Set;
  * type conversion is done at the data node level.
  */
 public class MultiTypeEsField extends EsField {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        EsField.class,
-        "MultiTypeEsField",
-        MultiTypeEsField::new
-    );
 
     private final Map<String, Expression> indexToConversionExpressions;
 
@@ -44,21 +35,20 @@ public class MultiTypeEsField extends EsField {
         this.indexToConversionExpressions = indexToConversionExpressions;
     }
 
-    public MultiTypeEsField(StreamInput in) throws IOException {
+    protected MultiTypeEsField(StreamInput in) throws IOException {
         this(in.readString(), DataType.readFrom(in), in.readBoolean(), in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)));
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void writeContent(StreamOutput out) throws IOException {
         out.writeString(getName());
         out.writeString(getDataType().typeName());
         out.writeBoolean(isAggregatable());
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
     }
 
-    @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return "MultiTypeEsField";
     }
 
     public Map<String, Expression> getIndexToConversionExpressions() {

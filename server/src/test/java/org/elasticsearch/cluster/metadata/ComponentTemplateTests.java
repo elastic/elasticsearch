@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -305,6 +306,24 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
              */
             assertThat(serialized, not(containsString("data_retention")));
             assertThat(serialized, not(containsString("effective_retention")));
+        }
+    }
+
+    public void testHangingParsing() throws IOException {
+        String cutDown = """
+            {
+              "template": {
+                "aliases": {
+                  "foo": "bar"
+                },
+                "food": "eggplant"
+              },
+              "potato": true
+            }
+            """;
+
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, cutDown)) {
+            expectThrows(Exception.class, () -> ComponentTemplate.parse(parser));
         }
     }
 }

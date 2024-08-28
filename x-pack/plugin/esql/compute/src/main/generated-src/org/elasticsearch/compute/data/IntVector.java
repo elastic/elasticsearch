@@ -30,6 +30,9 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
     IntVector filter(int... positions);
 
     @Override
+    IntBlock keepMask(BooleanVector mask);
+
+    @Override
     ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**

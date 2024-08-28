@@ -529,7 +529,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
-    private static class ExitableFloatVectorValues extends FilterVectorValues {
+    private static class ExitableFloatVectorValues extends FilterFloatVectorValues {
         private int calls;
         private final QueryCancellation queryCancellation;
 
@@ -623,13 +623,13 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
     }
 
     /** Delegates all methods to a wrapped {@link FloatVectorValues}. */
-    private abstract static class FilterVectorValues extends FloatVectorValues {
+    private abstract static class FilterFloatVectorValues extends FloatVectorValues {
 
         /** Wrapped values */
         protected final FloatVectorValues in;
 
         /** Sole constructor */
-        protected FilterVectorValues(FloatVectorValues in) {
+        protected FilterFloatVectorValues(FloatVectorValues in) {
             Objects.requireNonNull(in);
             this.in = in;
         }

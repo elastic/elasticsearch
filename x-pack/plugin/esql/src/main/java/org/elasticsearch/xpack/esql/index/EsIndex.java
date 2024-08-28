@@ -36,17 +36,13 @@ public class EsIndex implements Writeable {
 
     @SuppressWarnings("unchecked")
     public EsIndex(StreamInput in) throws IOException {
-        this(
-            in.readString(),
-            in.readImmutableMap(StreamInput::readString, i -> i.readNamedWriteable(EsField.class)),
-            (Set<String>) in.readGenericValue()
-        );
+        this(in.readString(), in.readImmutableMap(StreamInput::readString, EsField::readFrom), (Set<String>) in.readGenericValue());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name());
-        out.writeMap(mapping(), StreamOutput::writeNamedWriteable);
+        out.writeMap(mapping(), (o, x) -> x.writeTo(out));
         out.writeGenericValue(concreteIndices());
     }
 

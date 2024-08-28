@@ -495,13 +495,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
-        if (aggregatedDfs == null) {
-            // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
-            return super.termStatistics(term, docFreq, totalTermFreq);
-        }
-        TermStatistics termStatistics = aggregatedDfs.termStatistics().get(term);
+        TermStatistics termStatistics = termStatisticsFromDfs(term);
+
         if (termStatistics == null) {
-            // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query
+            // we don't have stats for this - dfs might be disabled pr this might be a must_not clauses etc.
+            // that doesn't allow extract terms on the query
             return super.termStatistics(term, docFreq, totalTermFreq);
         }
         return termStatistics;
@@ -519,6 +517,33 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return super.collectionStatistics(field);
         }
         return collectionStatistics;
+    }
+
+    public long docFreq(Term term, long docFreq) throws IOException {
+        TermStatistics termStatistics = termStatisticsFromDfs(term);
+
+        if (termStatistics == null) {
+            return docFreq;
+        }
+        return termStatistics.docFreq();
+    }
+
+    public long totalTermFreq(Term term, long totalTermFreq) throws IOException {
+        TermStatistics termStatistics = termStatisticsFromDfs(term);
+
+        if (termStatistics == null) {
+            return totalTermFreq;
+        }
+        return termStatistics.docFreq();
+    }
+
+    private TermStatistics termStatisticsFromDfs(Term term) {
+        if (aggregatedDfs == null) {
+            // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
+            return null;
+        }
+
+        return aggregatedDfs.termStatistics().get(term);
     }
 
     public DirectoryReader getDirectoryReader() {

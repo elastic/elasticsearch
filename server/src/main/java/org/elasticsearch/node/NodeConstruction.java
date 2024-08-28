@@ -199,8 +199,10 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.upgrades.SystemIndexMigrationExecutor;
@@ -480,6 +482,7 @@ class NodeConstruction {
         ThreadPool threadPool = new ThreadPool(
             settings,
             meterRegistry,
+            pluginsService.loadSingletonServiceProvider(BuiltInExecutorBuilders.class, DefaultBuiltInExecutorBuilders::new),
             pluginsService.flatMap(p -> p.getExecutorBuilders(settings)).toArray(ExecutorBuilder<?>[]::new)
         );
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));

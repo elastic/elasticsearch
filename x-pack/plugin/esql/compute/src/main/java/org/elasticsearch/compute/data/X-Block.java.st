@@ -69,6 +69,9 @@ $endif$
     $Type$Block filter(int... positions);
 
     @Override
+    $Type$Block keepMask(BooleanVector mask);
+
+    @Override
     ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     @Override

@@ -19,11 +19,17 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomSnapshotLifecyclePolicy;
+import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomTimeValueString;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -34,10 +40,11 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
     private String id;
 
     public void testToRequest() {
+        var schedule = randomBoolean() ? "0 1 2 3 4 ? 2099" : "30m";
         SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy(
             "id",
             "name",
-            "0 1 2 3 4 ? 2099",
+            schedule,
             "repo",
             Collections.emptyMap(),
             SnapshotRetentionConfiguration.EMPTY
@@ -47,13 +54,13 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             Collections.singletonMap("policy", "id")
         );
 
-        p = new SnapshotLifecyclePolicy("id", "name", "0 1 2 3 4 ? 2099", "repo", null, null);
+        p = new SnapshotLifecyclePolicy("id", "name", schedule, "repo", null, null);
         request = p.toRequest(TEST_REQUEST_TIMEOUT);
         expected.waitForCompletion(true).snapshot(request.snapshot()).repository("repo").uuid(request.uuid());
         assertEquals(expected, request);
     }
 
-    public void testNextExecutionTime() {
+    public void testNextExecutionTimeSchedule() {
         SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy(
             "id",
             "name",
@@ -62,10 +69,100 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             Collections.emptyMap(),
             SnapshotRetentionConfiguration.EMPTY
         );
-        assertThat(p.calculateNextExecution(), equalTo(4078864860000L));
+        assertThat(p.calculateNextExecution(-1, Clock.systemUTC()), equalTo(4078864860000L));
     }
 
-    public void testCalculateNextInterval() {
+    public void testNextExecutionTimeInterval() {
+        SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy(
+            "id",
+            "name",
+            "30m",
+            "repo",
+            Collections.emptyMap(),
+            SnapshotRetentionConfiguration.EMPTY
+        );
+
+        {
+            // current time is exactly modified time
+            Instant modifiedTime = Instant.parse("2024-07-17T00:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
+            Instant currentTime = modifiedTime;
+            Instant expected = Instant.parse("2024-07-17T00:30:00.000Z").truncatedTo(ChronoUnit.SECONDS);
+            assertThat(p.calculateNextExecution(modifiedTime.toEpochMilli(), fixedClock(currentTime)), equalTo(expected.toEpochMilli()));
+        }
+
+        {
+            // current time is half an interval past modified time
+            Instant modifiedTime = Instant.parse("2024-07-17T00:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
+            Instant currentTime = modifiedTime.plus(Duration.ofMinutes(15));
+            Instant expected = Instant.parse("2024-07-17T00:30:00.000Z").truncatedTo(ChronoUnit.SECONDS);
+            assertThat(p.calculateNextExecution(modifiedTime.toEpochMilli(), fixedClock(currentTime)), equalTo(expected.toEpochMilli()));
+        }
+
+        {
+            // current time is a full day (24 intervals) ahead of modified time
+            Instant modifiedTime = Instant.parse("2024-07-17T00:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
+            Instant currentTime = modifiedTime.plus(Duration.ofDays(1));
+            Instant expected = Instant.parse("2024-07-18T00:30:00.000Z").truncatedTo(ChronoUnit.SECONDS);
+            assertThat(p.calculateNextExecution(modifiedTime.toEpochMilli(), fixedClock(currentTime)), equalTo(expected.toEpochMilli()));
+        }
+
+        {
+            // current time before modified time
+            Instant modifiedTime = Instant.parse("2024-07-17T00:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
+            Instant currentTime = modifiedTime.minus(Duration.ofHours(1));
+            expectThrows(AssertionError.class, () -> p.calculateNextExecution(modifiedTime.toEpochMilli(), fixedClock(currentTime)));
+        }
+
+        {
+            // current time is every minute of a day
+            Instant modifiedTime = Instant.parse("2024-07-17T00:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
+            Instant currentTime = modifiedTime;
+            Instant expectedTime = modifiedTime.plus(Duration.ofMinutes(30));
+
+            for (; currentTime.isBefore(modifiedTime.plus(Duration.ofDays(1))); currentTime = currentTime.plus(Duration.ofMinutes(1))) {
+                if (currentTime.equals(expectedTime)) {
+                    expectedTime = expectedTime.plus(Duration.ofMinutes(30));
+                }
+                assertThat(
+                    p.calculateNextExecution(modifiedTime.toEpochMilli(), fixedClock(currentTime)),
+                    equalTo(expectedTime.toEpochMilli())
+                );
+            }
+        }
+    }
+
+    private static Clock fixedClock(Instant instant) {
+        return Clock.fixed(instant, ZoneOffset.UTC);
+    }
+
+    public void testCalculateNextIntervalInterval() {
+
+        {
+            SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy(
+                "id",
+                "name",
+                "30m",
+                "repo",
+                Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY
+            );
+            assertThat(p.calculateNextInterval(Clock.systemUTC()), equalTo(TimeValue.timeValueMinutes(30)));
+        }
+        {
+            String schedule = randomTimeValueString();
+            SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy(
+                "id",
+                "name",
+                schedule,
+                "repo",
+                Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY
+            );
+            assertThat(p.calculateNextInterval(Clock.systemUTC()), equalTo(TimeValue.parseTimeValue(schedule, "schedule")));
+        }
+    }
+
+    public void testCalculateNextIntervalSchedule() {
         {
             SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy(
                 "id",
@@ -75,7 +172,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
             );
-            assertThat(p.calculateNextInterval(), equalTo(TimeValue.timeValueMinutes(5)));
+            assertThat(p.calculateNextInterval(Clock.systemUTC()), equalTo(TimeValue.timeValueMinutes(5)));
         }
 
         {
@@ -87,7 +184,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
             );
-            assertThat(p.calculateNextInterval(), equalTo(TimeValue.MINUS_ONE));
+            assertThat(p.calculateNextInterval(Clock.systemUTC()), equalTo(TimeValue.MINUS_ONE));
         }
 
         {
@@ -99,7 +196,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
             );
-            assertThat(p.calculateNextInterval(), equalTo(TimeValue.MINUS_ONE));
+            assertThat(p.calculateNextInterval(Clock.systemUTC()), equalTo(TimeValue.MINUS_ONE));
         }
     }
 
@@ -123,7 +220,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                         + " the following characters "
                         + Strings.INVALID_FILENAME_CHARS,
                     "invalid repository name [  ]: cannot be empty",
-                    "invalid schedule: invalid cron expression [* * * * * L]"
+                    "invalid schedule [* * * * * L]: must be a valid cron expression or time unit"
                 )
             );
         }
@@ -153,11 +250,66 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
                 "my_policy",
                 "my_snap",
+                "0d",
+                "repo",
+                Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY
+            );
+
+            ValidationException e = policy.validate();
+            assertThat(e.validationErrors(), containsInAnyOrder("invalid schedule [0d]: time unit must be at least 1 millisecond"));
+        }
+
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+                "my_policy",
+                "my_snap",
+                "999micros",
+                "repo",
+                Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY
+            );
+
+            ValidationException e = policy.validate();
+            assertThat(e.validationErrors(), containsInAnyOrder("invalid schedule [999micros]: time unit must be at least 1 millisecond"));
+        }
+
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+                "my_policy",
+                "my_snap",
                 "0 0/30 * * * ?",
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
             );
+            ValidationException e = policy.validate();
+            assertThat(e, nullValue());
+        }
+
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+                "my_policy",
+                "my_snap",
+                "30m",
+                "repo",
+                Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY
+            );
+            ValidationException e = policy.validate();
+            assertThat(e, nullValue());
+        }
+
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+                "my_policy",
+                "my_snap",
+                "1ms",
+                "repo",
+                Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY
+            );
+
             ValidationException e = policy.validate();
             assertThat(e, nullValue());
         }

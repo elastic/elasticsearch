@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenizationUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DebertaV2Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigUpdate;
@@ -545,6 +546,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 Tokenization.class,
                 new ParseField(XLMRobertaTokenization.NAME),
                 (p, c) -> XLMRobertaTokenization.fromXContent(p, (boolean) c)
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                Tokenization.class,
+                new ParseField(DebertaV2Tokenization.NAME),
+                (p, c) -> DebertaV2Tokenization.fromXContent(p, (boolean) c)
             )
         );
 

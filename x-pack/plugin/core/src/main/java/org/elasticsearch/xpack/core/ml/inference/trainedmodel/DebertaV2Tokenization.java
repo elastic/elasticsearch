@@ -16,7 +16,7 @@ import java.io.IOException;
 
 public class DebertaV2Tokenization extends Tokenization {
 
-    public static final String NAME = "deberta_v2_tokenization";
+    public static final String NAME = "deberta_v2";
     public static final String MASK_TOKEN = "[MASK]";
 
     public static ConstructingObjectParser<DebertaV2Tokenization, Void> createParser(boolean ignoreUnknownFields) {

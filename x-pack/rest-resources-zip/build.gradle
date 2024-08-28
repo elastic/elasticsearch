@@ -20,6 +20,8 @@ dependencies {
   apis project(path: ':rest-api-spec', configuration: 'restSpecs')
   freeTests project(path: ':rest-api-spec', configuration: 'restTests')
   freeTests project(path: ':modules:aggregations', configuration: 'restTests')
+  freeTests project(path: ':modules:analysis-common', configuration: 'restTests')
+  freeTests project(path: ':modules:ingest-geoip', configuration: 'restTests')
   compatApis project(path: ':rest-api-spec', configuration: 'restCompatSpecs')
   compatApis project(path: ':x-pack:plugin', configuration: 'restCompatSpecs')
   freeCompatTests project(path: ':rest-api-spec', configuration: 'restCompatTests')

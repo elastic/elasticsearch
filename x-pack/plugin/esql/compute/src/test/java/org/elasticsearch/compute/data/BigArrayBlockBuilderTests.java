@@ -12,6 +12,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 
+import static org.elasticsearch.compute.data.BasicBlockTests.assertKeepMask;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -40,6 +41,7 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                 for (int i = 0; i < numElements; i++) {
                     assertThat(block.getLong(i), equalTo(elements[i]));
                 }
+                assertKeepMask(block);
                 try (LongBlock copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(LongVectorBlock.class));
                     assertThat(block.asVector(), instanceOf(LongArrayVector.class));
@@ -65,6 +67,7 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                 for (int i = 0; i < numElements; i++) {
                     assertThat(block.getLong(i), equalTo(elements[i]));
                 }
+                assertKeepMask(block);
                 try (LongBlock copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(LongVectorBlock.class));
                     assertThat(block.asVector(), instanceOf(LongBigArrayVector.class));
@@ -98,6 +101,7 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                 for (int i = 0; i < numElements; i++) {
                     assertThat(block.getLong(i), equalTo(elements[i]));
                 }
+                assertKeepMask(block);
                 try (LongBlock copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(LongArrayBlock.class));
                     assertNull(copy.asVector());
@@ -126,6 +130,7 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                 for (int i = 0; i < numElements; i++) {
                     assertThat(block.getLong(i), equalTo(elements[i]));
                 }
+                assertKeepMask(block);
                 try (LongBlock copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(LongBigArrayBlock.class));
                     assertNull(block.asVector());
@@ -158,6 +163,7 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                 for (int i = 0; i < numElements; i++) {
                     assertThat(block.getBoolean(i), equalTo(elements[i]));
                 }
+                assertKeepMask(block);
                 try (var copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(BooleanVectorBlock.class));
                     assertThat(block.asVector(), instanceOf(BooleanArrayVector.class));
@@ -183,6 +189,7 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                 for (int i = 0; i < numElements; i++) {
                     assertThat(block.getBoolean(i), equalTo(elements[i]));
                 }
+                assertKeepMask(block);
                 try (var copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(BooleanVectorBlock.class));
                     assertThat(block.asVector(), instanceOf(BooleanBigArrayVector.class));
@@ -216,6 +223,7 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                 for (int i = 0; i < numElements; i++) {
                     assertThat(block.getBoolean(i), equalTo(elements[i]));
                 }
+                assertKeepMask(block);
                 try (var copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(BooleanArrayBlock.class));
                     assertNull(copy.asVector());
@@ -244,6 +252,7 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                 for (int i = 0; i < numElements; i++) {
                     assertThat(block.getBoolean(i), equalTo(elements[i]));
                 }
+                assertKeepMask(block);
                 try (var copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(BooleanBigArrayBlock.class));
                     assertNull(block.asVector());

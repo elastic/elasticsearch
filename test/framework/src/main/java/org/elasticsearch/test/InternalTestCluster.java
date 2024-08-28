@@ -1744,11 +1744,7 @@ public final class InternalTestCluster extends TestCluster {
                 .filter(nac -> nodes.containsKey(nac.name) == false) // filter out old masters
                 .count();
             rebuildUnicastHostFiles(nodeAndClients); // ensure that new nodes can find the existing nodes when they start
-            try {
-                runInParallel(nodeAndClients.size(), i -> nodeAndClients.get(i).startNode());
-            } catch (InterruptedException e) {
-                throw new AssertionError("interrupted while starting nodes", e);
-            }
+            runInParallel(nodeAndClients.size(), i -> nodeAndClients.get(i).startNode());
             nodeAndClients.forEach(this::publishNode);
 
             if (autoManageMasterNodes && newMasters > 0) {

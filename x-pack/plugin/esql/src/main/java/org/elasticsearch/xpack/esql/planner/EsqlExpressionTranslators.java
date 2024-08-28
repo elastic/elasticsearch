@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.geometry.Geometry;
@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators;
@@ -55,6 +56,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators.or;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
@@ -67,14 +69,13 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
 public final class EsqlExpressionTranslators {
+
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
         new EqualsIgnoreCaseTranslator(),
         new BinaryComparisons(),
         new SpatialRelatesTranslator(),
         new InComparisons(),
-        // Ranges is redundant until we start combining binary comparisons (see CombineBinaryComparisons in ql's OptimizerRules)
-        // or introduce a BETWEEN keyword.
-        new ExpressionTranslators.Ranges(),
+        new Ranges(), // Create Range in PushFiltersToSource for qualified pushable filters on the same field.
         new ExpressionTranslators.BinaryLogic(),
         new ExpressionTranslators.IsNulls(),
         new ExpressionTranslators.IsNotNulls(),
@@ -124,7 +125,7 @@ public final class EsqlExpressionTranslators {
         static Query translate(InsensitiveEquals bc) {
             TypedAttribute attribute = checkIsPushableAttribute(bc.left());
             Source source = bc.source();
-            BytesRef value = BytesRefs.toBytesRef(ExpressionTranslators.valueOf(bc.right()));
+            BytesRef value = BytesRefs.toBytesRef(valueOf(bc.right()));
             String name = pushableAttributeName(attribute);
             return new TermQuery(source, name, value.utf8ToString(), true);
         }
@@ -249,7 +250,7 @@ public final class EsqlExpressionTranslators {
                 return null;
             }
             Source source = bc.source();
-            Object value = ExpressionTranslators.valueOf(bc.right());
+            Object value = valueOf(bc.right());
 
             // Comparisons with multi-values always return null in ESQL.
             if (value instanceof List<?>) {
@@ -369,7 +370,7 @@ public final class EsqlExpressionTranslators {
             return doTranslate(bc, handler);
         }
 
-        public static void checkSpatialRelatesFunction(Expression constantExpression, ShapeField.QueryRelation queryRelation) {
+        public static void checkSpatialRelatesFunction(Expression constantExpression, ShapeRelation queryRelation) {
             Check.isTrue(
                 constantExpression.foldable(),
                 "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [ST_{}]",
@@ -453,12 +454,69 @@ public final class EsqlExpressionTranslators {
 
             return queries.stream().reduce((q1, q2) -> or(in.source(), q1, q2)).get();
         }
+    }
 
-        public static Object valueOf(Expression e) {
-            if (e.foldable()) {
-                return e.fold();
+    public static class Ranges extends ExpressionTranslator<Range> {
+
+        @Override
+        protected Query asQuery(Range r, TranslatorHandler handler) {
+            return doTranslate(r, handler);
+        }
+
+        public static Query doTranslate(Range r, TranslatorHandler handler) {
+            return handler.wrapFunctionQuery(r, r.value(), () -> translate(r, handler));
+        }
+
+        private static RangeQuery translate(Range r, TranslatorHandler handler) {
+            Object lower = valueOf(r.lower());
+            Object upper = valueOf(r.upper());
+            String format = null;
+
+            DataType dataType = r.value().dataType();
+            if (DataType.isDateTime(dataType) && DataType.isDateTime(r.lower().dataType()) && DataType.isDateTime(r.upper().dataType())) {
+                lower = dateTimeToString((Long) lower);
+                upper = dateTimeToString((Long) upper);
+                format = DEFAULT_DATE_TIME_FORMATTER.pattern();
             }
-            throw new QlIllegalArgumentException("Cannot determine value for {}", e);
+
+            if (dataType == IP) {
+                if (lower instanceof BytesRef bytesRef) {
+                    lower = ipToString(bytesRef);
+                }
+                if (upper instanceof BytesRef bytesRef) {
+                    upper = ipToString(bytesRef);
+                }
+            } else if (dataType == VERSION) {
+                // VersionStringFieldMapper#indexedValueForSearch() only accepts as input String or BytesRef with the String (i.e. not
+                // encoded) representation of the version as it'll do the encoding itself.
+                if (lower instanceof BytesRef bytesRef) {
+                    lower = versionToString(bytesRef);
+                } else if (lower instanceof Version version) {
+                    lower = versionToString(version);
+                }
+                if (upper instanceof BytesRef bytesRef) {
+                    upper = versionToString(bytesRef);
+                } else if (upper instanceof Version version) {
+                    upper = versionToString(version);
+                }
+            } else if (dataType == UNSIGNED_LONG) {
+                if (lower instanceof Long ul) {
+                    lower = unsignedLongAsNumber(ul);
+                }
+                if (upper instanceof Long ul) {
+                    upper = unsignedLongAsNumber(ul);
+                }
+            }
+            return new RangeQuery(
+                r.source(),
+                handler.nameOf(r.value()),
+                lower,
+                r.includeLower(),
+                upper,
+                r.includeUpper(),
+                format,
+                r.zoneId()
+            );
         }
     }
 }

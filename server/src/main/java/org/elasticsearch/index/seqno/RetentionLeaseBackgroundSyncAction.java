@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -84,7 +84,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             threadPool.executor(ThreadPool.Names.MANAGEMENT),
             SyncGlobalCheckpointAfterOperation.DoNotSync,
             PrimaryActionExecution.RejectOnOverload,
-            ReplicaActionExecution.SubjectToCircuitBreaker
+            ReplicaActionExecution.BypassCircuitBreaker
         );
     }
 

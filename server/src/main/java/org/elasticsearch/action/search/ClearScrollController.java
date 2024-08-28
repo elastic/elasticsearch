@@ -166,6 +166,10 @@ public final class ClearScrollController implements Runnable {
             final var successes = new AtomicInteger();
             try (RefCountingRunnable refs = new RefCountingRunnable(() -> l.onResponse(successes.get()))) {
                 for (SearchContextIdForNode contextId : contextIds) {
+                    if (contextId.getNode() == null) {
+                        // the shard was missing when creating the PIT, ignore.
+                        continue;
+                    }
                     final DiscoveryNode node = nodeLookup.apply(contextId.getClusterAlias(), contextId.getNode());
                     if (node != null) {
                         try {

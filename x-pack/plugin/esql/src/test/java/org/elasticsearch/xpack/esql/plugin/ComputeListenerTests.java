@@ -16,6 +16,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancellationService;
@@ -92,7 +93,17 @@ public class ComputeListenerTests extends ESTestCase {
         int numProfiles = randomIntBetween(0, 2);
         List<DriverProfile> profiles = new ArrayList<>(numProfiles);
         for (int i = 0; i < numProfiles; i++) {
-            profiles.add(new DriverProfile(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), List.of()));
+            profiles.add(
+                new DriverProfile(
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    List.of(),
+                    DriverSleeps.empty()
+                )
+            );
         }
         return new ComputeResponse(profiles);
     }

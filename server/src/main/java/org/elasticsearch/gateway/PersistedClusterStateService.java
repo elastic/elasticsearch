@@ -446,7 +446,7 @@ public class PersistedClusterStateService {
                                 // resources during test execution
                                 checkIndex.setThreadCount(1);
                                 checkIndex.setInfoStream(printStream);
-                                checkIndex.setChecksumsOnly(true);
+                                checkIndex.setLevel(CheckIndex.Level.MIN_LEVEL_FOR_CHECKSUM_CHECKS);
                                 isClean = checkIndex.checkIndex().clean;
                             }
 

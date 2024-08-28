@@ -29,25 +29,21 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
      * for x-content testing.
      */
     public static RRFRetrieverBuilder createRandomRRFRetrieverBuilder() {
-        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder();
-
+        int rankWindowSize = RRFRankBuilder.DEFAULT_RANK_WINDOW_SIZE;
         if (randomBoolean()) {
-            rrfRetrieverBuilder.rankWindowSize = randomIntBetween(1, 10000);
+            rankWindowSize = randomIntBetween(1, 10000);
         }
-
+        int rankConstant = RRFRankBuilder.DEFAULT_RANK_CONSTANT;
         if (randomBoolean()) {
-            rrfRetrieverBuilder.rankConstant = randomIntBetween(1, 1000000);
+            rankConstant = randomIntBetween(1, 1000000);
         }
-
+        var ret = new RRFRetrieverBuilder(rankWindowSize, rankConstant);
         int retrieverCount = randomIntBetween(2, 50);
-        rrfRetrieverBuilder.retrieverBuilders = new ArrayList<>(retrieverCount);
-
         while (retrieverCount > 0) {
-            rrfRetrieverBuilder.retrieverBuilders.add(TestRetrieverBuilder.createRandomTestRetrieverBuilder());
+            ret.addChild(TestRetrieverBuilder.createRandomTestRetrieverBuilder());
             --retrieverCount;
         }
-
-        return rrfRetrieverBuilder;
+        return ret;
     }
 
     @Override

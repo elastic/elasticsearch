@@ -92,7 +92,7 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
     }
 
     private RankDocsRetrieverBuilder createRandomRankDocsRetrieverBuilder() {
-        return new RankDocsRetrieverBuilder(randomInt(100), innerRetrievers(), rankDocsSupplier(), preFilters());
+        return new RankDocsRetrieverBuilder(innerRetrievers(), rankDocsSupplier(), preFilters());
     }
 
     public void testExtractToSearchSourceBuilder() {

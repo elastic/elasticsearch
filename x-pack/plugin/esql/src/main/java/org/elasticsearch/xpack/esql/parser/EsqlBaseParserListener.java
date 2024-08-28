@@ -924,16 +924,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitMatchCommand(EsqlBaseParser.MatchCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#matchQuery}.
-   * @param ctx the parse tree
-   */
-  void enterMatchQuery(EsqlBaseParser.MatchQueryContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#matchQuery}.
-   * @param ctx the parse tree
-   */
-  void exitMatchQuery(EsqlBaseParser.MatchQueryContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#unparsedMatchQuery}.
    * @param ctx the parse tree
    */

@@ -1033,18 +1033,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterMatchQuery(EsqlBaseParser.MatchQueryContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitMatchQuery(EsqlBaseParser.MatchQueryContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterUnparsedMatchQuery(EsqlBaseParser.UnparsedMatchQueryContext ctx) { }
   /**
    * {@inheritDoc}

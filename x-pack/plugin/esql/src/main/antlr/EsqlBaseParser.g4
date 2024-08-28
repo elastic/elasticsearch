@@ -317,10 +317,6 @@ matchCommand
     : DEV_MATCH (parsedMatchQuery | unparsedMatchQuery )
     ;
 
-matchQuery
-    : QUOTED_STRING
-    ;
-
 unparsedMatchQuery
     : queryString=QUOTED_STRING
     ;

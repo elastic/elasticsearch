@@ -75,7 +75,7 @@ public class IpPrefixAutomatonUtil {
             result = Automata.makeAnyBinary();
         }
         result = Operations.determinize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        return new CompiledAutomaton(result, null, false, 0, true);
+        return new CompiledAutomaton(result, false, false, true);
     }
 
     private static Automaton getIpv6Automaton(String ipPrefix) {

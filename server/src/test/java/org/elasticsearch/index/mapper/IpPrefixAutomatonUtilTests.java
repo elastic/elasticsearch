@@ -223,11 +223,11 @@ public class IpPrefixAutomatonUtilTests extends ESTestCase {
     }
 
     private static CompiledAutomaton compileAutomaton(Automaton automaton) {
+        automaton = Operations.determinize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         CompiledAutomaton compiledAutomaton = new CompiledAutomaton(
             automaton,
-            null,
             false,
-            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+            false,
             true
         );
         return compiledAutomaton;

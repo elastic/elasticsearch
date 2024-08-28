@@ -214,7 +214,7 @@ class VersionEncoder {
         assert a.isDeterministic();
         a = Operations.determinize(a, 0);
 
-        return new CompiledAutomaton(a, null, true, 0, true);
+        return new CompiledAutomaton(a, false, true, true);
     }
 
     static class EncodedVersion {

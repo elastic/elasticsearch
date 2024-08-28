@@ -117,7 +117,6 @@ Specifies the type of input passed to the model.
 Valid values are:
 * `ingest`: use it for storing document embeddings in a vector database.
 * `search`: use it for storing embeddings of search queries run against a vector database to find relevant documents.
-+
 
 `return_token`:::
 (Optional, boolean)

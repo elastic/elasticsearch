@@ -126,14 +126,6 @@ Valid values are:
 Specify Whether to return the token name, the default value is false, it means that it will return the token id.
 
 =====
-+
-.`task_settings` for the `rerank` task type
-[%collapsible%closed]
-=====
-
-There are no `task_settings` available for the `rerank` task type.
-
-=====
 
 [discrete]
 [[inference-example-alibabacloud-ai-search]]

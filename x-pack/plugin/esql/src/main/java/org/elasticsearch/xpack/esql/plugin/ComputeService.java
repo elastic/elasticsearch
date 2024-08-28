@@ -204,6 +204,8 @@ public class ComputeService {
         try (
             Releasable ignored = exchangeSource.addEmptySink();
             // this is the top level ComputeListener called once at the end (e.g., once all clusters have finished for a CCS)
+            // MP TODO: does this ComputeListener really need the executionInfo passed in? Or do we already have proper reference?
+            // MP TODO: I'm going to leave off adding it until proven it is needed
             var computeListener = new ComputeListener(transportService, rootTask, /*executionInfo,*/ listener.map(r -> {
                 System.err.println(
                     "DEBUG 13: CREATING RESULT .......: "
@@ -234,6 +236,7 @@ public class ComputeService {
                     Set.of(localConcreteIndices.indices()),
                     localOriginalIndices,
                     exchangeSource,
+                    executionInfo,
                     computeListener
                 );
             }
@@ -245,6 +248,7 @@ public class ComputeService {
                 dataNodePlan,
                 exchangeSource,
                 getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices),
+                executionInfo,
                 computeListener
             );
         }
@@ -281,8 +285,18 @@ public class ComputeService {
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
+        EsqlExecutionInfo executionInfo,
         ComputeListener computeListener
     ) {
+        // MP TODO -- start TMP
+        System.err.printf(
+            "PPPP startComputeOnDataNodes sessionId:[%s], clusterAlias:[%s],concreateIndices:[%s]; executionInfo:[%s\n",
+            sessionId,
+            clusterAlias,
+            concreteIndices,
+            executionInfo
+        );
+        // MP TODO -- end TMP
         var planWithReducer = configuration.pragmas().nodeLevelReduction() == false
             ? dataNodePlan
             : dataNodePlan.transformUp(FragmentExec.class, f -> {
@@ -311,7 +325,14 @@ public class ComputeService {
                         refs.acquire().delegateFailureAndWrap((l, unused) -> {
                             var remoteSink = exchangeService.newRemoteSink(parentTask, sessionId, transportService, node.connection);
                             exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
-                            var dataNodeListener = ActionListener.runBefore(computeListener.acquireCompute(), () -> l.onResponse(null));
+                            ActionListener<ComputeResponse> computeResponseActionListener;
+                            if (clusterAlias.equals(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY)) {
+                                assert executionInfo != null : "EsqlExecutionInfo must be provided when running on local cluster";
+                                computeResponseActionListener = computeListener.acquireCompute(clusterAlias, executionInfo);
+                            } else {
+                                computeResponseActionListener = computeListener.acquireCompute();
+                            }
+                            var dataNodeListener = ActionListener.runBefore(computeResponseActionListener, () -> l.onResponse(null));
                             transportService.sendChildRequest(
                                 node.connection,
                                 DATA_ACTION_NAME,
@@ -343,6 +364,7 @@ public class ComputeService {
         PhysicalPlan plan,
         ExchangeSourceHandler exchangeSource,
         List<RemoteCluster> clusters,
+        EsqlExecutionInfo executionInfo,
         ComputeListener computeListener
     ) {
         var queryPragmas = configuration.pragmas();
@@ -362,7 +384,7 @@ public class ComputeService {
 
                         var clusterRequest = new ClusterComputeRequest(cluster.clusterAlias, sessionId, configuration, remotePlan);
                         var clusterListener = ActionListener.runBefore(
-                            computeListener.acquireCompute(cluster.clusterAlias()),
+                            computeListener.acquireCompute(cluster.clusterAlias(), executionInfo),
                             () -> l.onResponse(null)
                         );
                         transportService.sendChildRequest(
@@ -840,6 +862,7 @@ public class ComputeService {
                 concreteIndices,
                 originalIndices,
                 exchangeSource,
+                null,
                 computeListener
             );
         }

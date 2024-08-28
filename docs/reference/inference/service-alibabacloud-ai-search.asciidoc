@@ -123,7 +123,7 @@ Valid values are:
 
 `return_token`:::
 (Optional, boolean)
-Specify Whether to return the token name, the default value is false, it means that it will return the token id.
+If `true`, the token name will be returned in the response. Defaults to `false` which means only the token ID will be returned in the response.
 =====
 
 [discrete]

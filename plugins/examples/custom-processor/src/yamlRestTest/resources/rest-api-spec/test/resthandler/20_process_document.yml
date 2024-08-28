@@ -19,7 +19,7 @@
         id: doc1
         index: index1
         pipeline: pipeline1
-        body: { toRepeat: "foo" }
+        body: { to_repeat: "foo" }
   - match: { result: "created" }
 
   # validate document is processed
@@ -27,7 +27,7 @@
       get:
         index: index1
         id: doc1
-  - match: { _source: { toRepeat: "foofoo" } }
+  - match: { _source: { to_repeat: "foofoo" } }
 ---
 "Does not process document without field":
   # create ingest pipeline with custom processor

@@ -11,7 +11,7 @@ import java.util.Map;
  */
 public class ExampleRepeatProcessor extends AbstractProcessor {
     public static final String TYPE = "repeat";
-    public static final String FILED_TO_REPEAT = "toRepeat";
+    public static final String FILED_TO_REPEAT = "to_repeat";
 
     ExampleRepeatProcessor(String tag, String description) {
         super(tag, description);

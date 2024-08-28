@@ -173,9 +173,8 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                     // test total commands used
                     final List<Measurement> metricsAll = Measurement.combine(
                         plugin.getLongCounterMeasurement(PlanningMetricsManager.FEATURE_METRICS_ALL)
-                    );
+                    ).stream().filter(x -> Boolean.FALSE.equals(x.attributes().get(PlanningMetricsManager.SUCCESS))).toList();
                     Set<String> featuresFound = metricsAll.stream()
-                        .filter(x -> Boolean.FALSE.equals(x.attributes().get(PlanningMetricsManager.SUCCESS)))
                         .map(x -> x.attributes().get(PlanningMetricsManager.FEATURE_NAME))
                         .map(String.class::cast)
                         .collect(Collectors.toSet());
@@ -183,33 +182,37 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                     for (Measurement metric : metricsAll) {
                         assertThat(metric.attributes().get(PlanningMetricsManager.SUCCESS), is(false));
                         if ("EVAL".equalsIgnoreCase((String) metric.attributes().get(PlanningMetricsManager.FEATURE_NAME))) {
-                            assertThat(metric.getLong(), is(successIterations + iteration * 2L));
+                            assertThat(metric.getLong(), is(iteration * 2L));
                         } else {
-                            assertThat(metric.getLong(), is(successIterations + iteration));
+                            assertThat(metric.getLong(), is(iteration));
                         }
                     }
 
                     // test num of queries using a command
                     final List<Measurement> metrics = Measurement.combine(
                         plugin.getLongCounterMeasurement(PlanningMetricsManager.FEATURE_METRICS)
+                            .stream()
+                            .filter(x -> Boolean.FALSE.equals(x.attributes().get(PlanningMetricsManager.SUCCESS)))
+                            .toList()
                     );
                     featuresFound = metrics.stream()
-                        .filter(x -> Boolean.FALSE.equals(x.attributes().get(PlanningMetricsManager.SUCCESS)))
                         .map(x -> x.attributes().get(PlanningMetricsManager.FEATURE_NAME))
                         .map(String.class::cast)
                         .collect(Collectors.toSet());
                     assertThat(featuresFound, is(Set.of("FROM", "EVAL", "STATS", "KEEP")));
                     for (Measurement metric : metrics) {
                         assertThat(metric.attributes().get(PlanningMetricsManager.SUCCESS), is(false));
-                        assertThat(metric.getLong(), is(successIterations + iteration));
+                        assertThat(metric.getLong(), is(iteration));
                     }
 
                     // test total functions used
                     final List<Measurement> funcitonMeasurementsAll = Measurement.combine(
                         plugin.getLongCounterMeasurement(PlanningMetricsManager.FUNCTION_METRICS_ALL)
+                            .stream()
+                            .filter(x -> Boolean.FALSE.equals(x.attributes().get(PlanningMetricsManager.SUCCESS)))
+                            .toList()
                     );
                     Set<String> functionNames = funcitonMeasurementsAll.stream()
-                        .filter(x -> Boolean.FALSE.equals(x.attributes().get(PlanningMetricsManager.SUCCESS)))
                         .map(x -> x.attributes().get(PlanningMetricsManager.FEATURE_NAME))
                         .map(String.class::cast)
                         .collect(Collectors.toSet());
@@ -217,25 +220,28 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                     for (Measurement measurement : funcitonMeasurementsAll) {
                         assertThat(measurement.attributes().get(PlanningMetricsManager.SUCCESS), is(false));
                         if ("TO_STRING".equalsIgnoreCase((String) measurement.attributes().get(PlanningMetricsManager.FEATURE_NAME))) {
-                            assertThat(measurement.getLong(), is(successIterations + iteration * 2L));
+                            assertThat(measurement.getLong(), is(iteration * 2L));
                         } else {
-                            assertThat(measurement.getLong(), is(successIterations + iteration));
+                            assertThat(measurement.getLong(), is(iteration));
                         }
                     }
 
                     // test number of queries using a function
                     final List<Measurement> funcitonMeasurements = Measurement.combine(
                         plugin.getLongCounterMeasurement(PlanningMetricsManager.FUNCTION_METRICS)
+                            .stream()
+                            .filter(x -> Boolean.FALSE.equals(x.attributes().get(PlanningMetricsManager.SUCCESS)))
+                            .toList()
+
                     );
                     functionNames = funcitonMeasurements.stream()
-                        .filter(x -> Boolean.FALSE.equals(x.attributes().get(PlanningMetricsManager.SUCCESS)))
                         .map(x -> x.attributes().get(PlanningMetricsManager.FEATURE_NAME))
                         .map(String.class::cast)
                         .collect(Collectors.toSet());
                     assertThat(functionNames, is(Set.of("TO_STRING", "TO_IP", "COUNT")));
                     for (Measurement measurement : funcitonMeasurements) {
                         assertThat(measurement.attributes().get(PlanningMetricsManager.SUCCESS), is(false));
-                        assertThat(measurement.getLong(), is(successIterations + iteration));
+                        assertThat(measurement.getLong(), is(iteration));
                     }
                 } finally {
                     latch.countDown();

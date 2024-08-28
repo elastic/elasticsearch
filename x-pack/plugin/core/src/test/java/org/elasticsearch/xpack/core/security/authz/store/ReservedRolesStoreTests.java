@@ -32,7 +32,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappin
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
-import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -3665,7 +3664,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, randomAlphaOfLength(5));
 
         assertOnlyReadAllowed(role, ".slo-observability." + randomIntBetween(0, 5));
-        assertReadCrossCluster(role, ".slo-observability." + randomIntBetween(0, 5));
         assertViewIndexMetadata(role, ".slo-observability." + randomIntBetween(0, 5));
 
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
@@ -3746,9 +3744,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".preview.alerts-" + randomIntBetween(0, 5));
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".internal.preview.alerts-" + randomIntBetween(0, 5));
 
-        assertReadCrossCluster(role, ".slo-observability." + randomIntBetween(0, 5));
         assertViewIndexMetadata(role, ".slo-observability." + randomIntBetween(0, 5));
-        assertReadWriteManageAutoConfigure(role, ".slo-observability." + randomIntBetween(0, 5));
+        assertReadWriteAndManage(role, ".slo-observability." + randomIntBetween(0, 5));
 
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
@@ -3812,7 +3809,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             }
         }
 
-        assertThat(rolesWithRemoteIndicesPrivileges, containsInAnyOrder("kibana_system", "monitoring_user", "editor", "viewer"));
+        assertThat(rolesWithRemoteIndicesPrivileges, containsInAnyOrder("kibana_system", "monitoring_user"));
     }
 
     /**
@@ -3884,7 +3881,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(mockIndexAbstraction(index)), is(true));
     }
 
-    private void assertReadWriteManageAutoConfigure(Role role, String index) {
+    private void assertReadWriteAndManage(Role role, String index) {
         assertThat(
             role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
             is(true)
@@ -3893,10 +3890,17 @@ public class ReservedRolesStoreTests extends ESTestCase {
             role.indices().allowedIndicesMatcher(TransportFieldCapabilitiesAction.NAME + "*").test(mockIndexAbstraction(index)),
             is(true)
         );
+        assertThat(
+            role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
+            is(true)
+        );
+        assertThat(
+            role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(mockIndexAbstraction(index)),
+            is(true)
+        );
         assertThat(role.indices().allowedIndicesMatcher(GetRollupIndexCapsAction.NAME + "*").test(mockIndexAbstraction(index)), is(true));
         assertThat(role.indices().allowedIndicesMatcher("indices:admin/*").test(mockIndexAbstraction(index)), is(true));
         assertThat(role.indices().allowedIndicesMatcher("indices:monitor/*").test(mockIndexAbstraction(index)), is(true));
-
         assertThat(
             role.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name()).test(mockIndexAbstraction(index)),
             is(true)
@@ -3950,17 +3954,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ResolveIndexAction.NAME,
             TransportFieldCapabilitiesAction.NAME + "*",
             GetRollupIndexCapsAction.NAME + "*"
-        ).forEach(action -> assertThat(role.indices().allowedIndicesMatcher(action).test(mockIndexAbstraction(index)), is(true)));
-    }
-
-    private void assertReadCrossCluster(Role role, String index) {
-        Arrays.asList(
-            "internal:transport/proxy/indices:data/read/*",
-            TransportClusterSearchShardsAction.TYPE.name(),
-            TransportSearchShardsAction.TYPE.name(),
-            TransportResolveClusterAction.NAME,
-            "indices:data/read/esql",
-            "indices:data/read/esql/compute"
         ).forEach(action -> assertThat(role.indices().allowedIndicesMatcher(action).test(mockIndexAbstraction(index)), is(true)));
     }
 

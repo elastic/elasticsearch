@@ -871,7 +871,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Observability
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".slo-observability.*")
-                    .privileges("read", "read_cross_cluster", "view_index_metadata")
+                    .privileges("read", "view_index_metadata")
                     .build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -898,15 +898,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
             null,
-            new RoleDescriptor.RemoteIndicesPrivileges[] {
-                new RoleDescriptor.RemoteIndicesPrivileges(
-                    RoleDescriptor.IndicesPrivileges.builder()
-                        .indices(".slo-observability.*")
-                        .privileges("read", "read_cross_cluster", "view_index_metadata")
-                        .allowRestrictedIndices(false)
-                        .build(),
-                    "*"
-                ) },
+            null,
             null,
             null,
             "Grants read-only access to all features in Kibana (including Solutions) and to data indices."
@@ -930,7 +922,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".slo-observability.*")
-                    .privileges("read", "read_cross_cluster", "view_index_metadata", "write", "manage", "auto_configure")
+                    .privileges("read", "view_index_metadata", "write", "manage")
                     .build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -961,15 +953,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
             null,
-            new RoleDescriptor.RemoteIndicesPrivileges[] {
-                new RoleDescriptor.RemoteIndicesPrivileges(
-                    RoleDescriptor.IndicesPrivileges.builder()
-                        .indices(".slo-observability.*")
-                        .privileges("read", "read_cross_cluster", "view_index_metadata", "write", "manage", "auto_configure")
-                        .allowRestrictedIndices(false)
-                        .build(),
-                    "*"
-                ) },
+            null,
             null,
             null,
             "Grants full access to all features in Kibana (including Solutions) and read-only access to data indices."

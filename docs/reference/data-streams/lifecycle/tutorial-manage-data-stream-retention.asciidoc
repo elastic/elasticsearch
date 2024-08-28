@@ -96,6 +96,9 @@ will exceed this time period. This can be set via the <<cluster-update-settings,
 Effective retention cannot be set, it is derived by taking into account all the configured retention listed above and is
 calculated as it is described <<effective-retention-calculation,here>>.
 
+NOTE: Global default and max retention do not apply to data streams internal to elastic. Internal data streams are recognised
+ either by having the `system` flag set to `true` or if their name is prefixed with a dot (`.`).
+
 [discrete]
 [[retention-configuration]]
 ==== How to configure retention?

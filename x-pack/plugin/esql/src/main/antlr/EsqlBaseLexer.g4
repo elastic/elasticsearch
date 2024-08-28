@@ -574,6 +574,10 @@ MATCH_AND : AND -> type(AND);
 MATCH_OR : OR -> type(OR);
 MATCH_LP: LP -> type(LP);
 MATCH_RP: RP -> type(RP);
+MATCH_LT  : LT -> type(LT);
+MATCH_LTE : LTE -> type(LTE);
+MATCH_GT  : GT -> type(GT);
+MATCH_GTE : GT -> type(GTE);
 
 FIELD_PATTERN
     : (LETTER | ASTERISK) FIELD_PATTERN_BODY*

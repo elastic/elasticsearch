@@ -584,4 +584,16 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitMatchQueryExpression(EsqlBaseParser.MatchQueryExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchRange}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchRange(EsqlBaseParser.MatchRangeContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchRangeOperator}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchRangeOperator(EsqlBaseParser.MatchRangeOperatorContext ctx);
 }

@@ -312,16 +312,21 @@ unparsedMatchQuery
     ;
 
 parsedMatchQuery
-    : matchQueryWithFields
+    : matchQueryWithField
     | matchQueryWithoutFields
     | LP parsedMatchQuery RP
     | left=parsedMatchQuery operator=AND right=parsedMatchQuery
     | left=parsedMatchQuery operator=OR right=parsedMatchQuery
     ;
 
-matchQueryWithFields
-    : fieldName=FIELD_PATTERN COLON matchQueryExpression
+matchQueryWithField
+    : matchQueryWithFieldValue
+    | matchQueryWithFieldRange
     ;
+
+matchQueryWithFieldRange : fieldName=FIELD_PATTERN matchRangeOperator matchQueryExpression ;
+
+matchQueryWithFieldValue : fieldName=FIELD_PATTERN COLON matchQueryExpression ;
 
 matchQueryWithoutFields
     : matchQueryExpression+
@@ -333,4 +338,8 @@ matchQueryExpression
     | FIELD_PATTERN+
     | integerValue
     | decimalValue
+    ;
+
+matchRangeOperator
+    : GT | GTE | LT | LTE
     ;

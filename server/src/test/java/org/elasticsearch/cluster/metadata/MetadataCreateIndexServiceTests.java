@@ -968,11 +968,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             expectThrows(
                 IllegalStateException.class,
                 () -> clusterStateCreateIndex(
-                    currentClusterState,
+                    currentClusterState.metadata(),
+                    currentClusterState.getBlocks(),
+                    currentClusterState.routingTable(),
                     Set.of(),
                     newIndex,
                     null,
-                    TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+                    TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+                    ClusterState.builder(currentClusterState)
                 )
             ).getMessage(),
             startsWith("alias [alias1] has more than one write index [")
@@ -989,13 +992,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .putAlias(AliasMetadata.builder("alias1").writeIndex(true).build())
             .build();
 
-        ClusterState updatedClusterState = clusterStateCreateIndex(
-            currentClusterState,
+        ClusterState.Builder updatedClusterStateBuilder = ClusterState.builder(currentClusterState);
+        clusterStateCreateIndex(
+            currentClusterState.metadata(),
+            currentClusterState.getBlocks(),
+            currentClusterState.routingTable(),
             Set.of(INDEX_READ_ONLY_BLOCK),
             newIndexMetadata,
             null,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            updatedClusterStateBuilder
         );
+        ClusterState updatedClusterState = updatedClusterStateBuilder.build();
         assertThat(updatedClusterState.blocks().getIndexBlockWithId("test", INDEX_READ_ONLY_BLOCK.id()), is(INDEX_READ_ONLY_BLOCK));
         assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
 
@@ -1035,13 +1043,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             builder.put(IndexMetadata.builder(myIndex).putAlias(AliasMetadata.builder(newAlias.getAlias()).build()));
         };
 
-        ClusterState updatedClusterState = clusterStateCreateIndex(
-            currentClusterState,
+        ClusterState.Builder updatedClusterStateBuilder = ClusterState.builder(currentClusterState);
+        clusterStateCreateIndex(
+            currentClusterState.metadata(),
+            currentClusterState.getBlocks(),
+            currentClusterState.routingTable(),
             Set.of(INDEX_READ_ONLY_BLOCK),
             newIndexMetadata,
             metadataTransformer,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            updatedClusterStateBuilder
         );
+        ClusterState updatedClusterState = updatedClusterStateBuilder.build();
         assertTrue(updatedClusterState.metadata().findAllAliases(new String[] { "my-index" }).containsKey("my-index"));
         assertNotNull(updatedClusterState.metadata().findAllAliases(new String[] { "my-index" }).get("my-index"));
         assertNotNull(

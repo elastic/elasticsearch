@@ -512,13 +512,18 @@ public class MetadataCreateIndexService {
 
             indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetadata.getIndex(), indexMetadata.getSettings());
 
-            ClusterState updated = clusterStateCreateIndex(
-                currentState,
+            ClusterState.Builder updatedClusterStateBuilder = ClusterState.builder(currentState);
+            clusterStateCreateIndex(
+                currentState.metadata(),
+                currentState.getBlocks(),
+                currentState.routingTable(),
                 request.blocks(),
                 indexMetadata,
                 metadataTransformer,
-                allocationService.getShardRoutingRoleStrategy()
+                allocationService.getShardRoutingRoleStrategy(),
+                updatedClusterStateBuilder
             );
+            ClusterState updated = updatedClusterStateBuilder.build();
             if (request.performReroute()) {
                 updated = allocationService.reroute(updated, "index [" + indexMetadata.getIndex().getName() + "] created", rerouteListener);
             }
@@ -1229,31 +1234,33 @@ public class MetadataCreateIndexService {
      * Creates the index into the cluster state applying the provided blocks. The final cluster state will contain an updated routing
      * table based on the live nodes.
      */
-    static ClusterState clusterStateCreateIndex(
-        ClusterState currentState,
+    static void clusterStateCreateIndex(
+        Metadata currentMetadata,
+        ClusterBlocks currentClusterBlocks,
+        RoutingTable currentRoutingTable,
         Set<ClusterBlock> clusterBlocks,
         IndexMetadata indexMetadata,
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
-        ShardRoutingRoleStrategy shardRoutingRoleStrategy
+        ShardRoutingRoleStrategy shardRoutingRoleStrategy,
+        ClusterState.Builder clusterStateBuilder
     ) {
         final Metadata newMetadata;
         if (metadataTransformer != null) {
-            Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(indexMetadata, false);
+            Metadata.Builder builder = Metadata.builder(currentMetadata).put(indexMetadata, false);
             metadataTransformer.accept(builder, indexMetadata);
             newMetadata = builder.build();
         } else {
-            newMetadata = currentState.metadata().withAddedIndex(indexMetadata);
+            newMetadata = currentMetadata.withAddedIndex(indexMetadata);
         }
 
         String indexName = indexMetadata.getIndex().getName();
-        ClusterBlocks.Builder blocks = createClusterBlocksBuilder(currentState, indexName, clusterBlocks);
+        ClusterBlocks.Builder blocks = createClusterBlocksBuilder(currentClusterBlocks, indexName, clusterBlocks);
         blocks.updateBlocks(indexMetadata);
 
-        ClusterState updatedState = ClusterState.builder(currentState).blocks(blocks).metadata(newMetadata).build();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, currentRoutingTable)
+            .addAsNew(newMetadata.index(indexName));
 
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, updatedState.routingTable())
-            .addAsNew(updatedState.metadata().index(indexName));
-        return ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
+        clusterStateBuilder.blocks(blocks).metadata(newMetadata).routingTable(routingTableBuilder);
     }
 
     static IndexMetadata buildIndexMetadata(
@@ -1326,8 +1333,12 @@ public class MetadataCreateIndexService {
         return builder;
     }
 
-    private static ClusterBlocks.Builder createClusterBlocksBuilder(ClusterState currentState, String index, Set<ClusterBlock> blocks) {
-        ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
+    private static ClusterBlocks.Builder createClusterBlocksBuilder(
+        ClusterBlocks currentClusterBlocks,
+        String index,
+        Set<ClusterBlock> blocks
+    ) {
+        ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(currentClusterBlocks);
         if (blocks.isEmpty() == false) {
             for (ClusterBlock block : blocks) {
                 blocksBuilder.addIndexBlock(index, block);

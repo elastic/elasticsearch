@@ -1,0 +1,5 @@
+pr: 112242
+summary: Fix toReleaseVersion() when called on the current version id
+area: Infra/Core
+type: bug
+issues: [111900]

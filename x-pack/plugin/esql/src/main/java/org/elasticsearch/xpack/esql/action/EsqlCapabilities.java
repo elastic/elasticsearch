@@ -264,7 +264,12 @@ public class EsqlCapabilities {
         /**
          * Support for the whole number spans in BUCKET function.
          */
-        BUCKET_WHOLE_NUMBER_AS_SPAN;
+        BUCKET_WHOLE_NUMBER_AS_SPAN,
+
+        /**
+         * Allow mixed numeric types in coalesce
+         */
+        MIXED_NUMERIC_TYPES_IN_COALESCE;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

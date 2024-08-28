@@ -17,6 +17,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,6 +30,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 2. Collects driver profiles from sub tasks.
  * 3. Collects response headers from sub tasks, specifically warnings emitted during compute
  * 4. Collects failures and returns the most appropriate exception to the caller.
+ *
+ * MP TODO: update docs around changes for CCS telemetry collection
  */
 final class ComputeListener implements Releasable {
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
@@ -40,15 +43,42 @@ final class ComputeListener implements Releasable {
     private final TransportService transportService;
     private final List<DriverProfile> collectedProfiles;
     private final ResponseHeadersCollector responseHeaders;
+    private final EsqlExecutionInfo executionInfo;
 
     ComputeListener(TransportService transportService, CancellableTask task, ActionListener<ComputeResponse> delegate) {
+        this(transportService, task, null, null, delegate);
+    }
+
+    ComputeListener(
+        TransportService transportService,
+        CancellableTask task,
+        EsqlExecutionInfo executionInfo,
+        String clusterAlias,  // when non-null indicates that this is a top-level ComputeListener running on a remote cluster for CCS
+        ActionListener<ComputeResponse> delegate
+    ) {
         this.transportService = transportService;
         this.task = task;
+        this.executionInfo = executionInfo;
         this.responseHeaders = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
         this.collectedProfiles = Collections.synchronizedList(new ArrayList<>());
         this.refs = new RefCountingListener(1, ActionListener.wrap(ignored -> {
             responseHeaders.finish();
-            var result = new ComputeResponse(collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList());
+            List<DriverProfile> profiles = collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList();
+            ComputeResponse result;
+            if (clusterAlias == null) {
+                result = new ComputeResponse(profiles);
+            } else {
+                assert executionInfo != null : "EsqlExecutionInfo must not be null when clusterAlias is present";
+                EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+                result = new ComputeResponse(
+                    profiles,
+                    cluster.getTook(),
+                    cluster.getTotalShards(),
+                    cluster.getSuccessfulShards(),
+                    cluster.getSkippedShards(),
+                    cluster.getFailedShards()
+                );
+            }
             delegate.onResponse(result);
         }, e -> delegate.onFailure(failureCollector.getFailure())));
     }
@@ -74,6 +104,17 @@ final class ComputeListener implements Releasable {
      * Acquires a new listener that collects compute result. This listener will also collects warnings emitted during compute
      */
     ActionListener<ComputeResponse> acquireCompute() {
+        return acquireAvoid().map(resp -> {
+            responseHeaders.collect();
+            var profiles = resp.getProfiles();
+            if (profiles != null && profiles.isEmpty() == false) {
+                collectedProfiles.addAll(profiles);
+            }
+            return null;
+        });
+    }
+
+    ActionListener<ComputeResponse> acquireCompute(String clusterAlias) {
         return acquireAvoid().map(resp -> {
             responseHeaders.collect();
             var profiles = resp.getProfiles();

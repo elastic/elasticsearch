@@ -137,6 +137,10 @@ public class ComputeService {
         EsqlExecutionInfo executionInfo,
         ActionListener<Result> listener
     ) {
+        System.err.println("-------------------------------------");
+        System.err.println("====== ComputeService execute: START: " + executionInfo);
+        System.err.println("-------------------------------------");
+
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
             configuration
@@ -199,11 +203,17 @@ public class ComputeService {
         );
         try (
             Releasable ignored = exchangeSource.addEmptySink();
-            var computeListener = new ComputeListener(
-                transportService,
-                rootTask,
-                listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo))
-            )
+            // this is the top level ComputeListener called once at the end (e.g., once all clusters have finished for a CCS)
+            var computeListener = new ComputeListener(transportService, rootTask, /*executionInfo,*/ listener.map(r -> {
+                System.err.println(
+                    "DEBUG 13: CREATING RESULT .......: "
+                        + new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo)
+                );
+                System.err.println("-------------------------------------");
+                System.err.println("====== ComputeService FINAL: executionInfo: " + executionInfo);
+                System.err.println("-------------------------------------");
+                return new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo);
+            }))
         ) {
             // run compute on the coordinator
             exchangeSource.addCompletionListener(computeListener.acquireAvoid());
@@ -349,8 +359,12 @@ public class ComputeService {
                         var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, transportService, cluster.connection);
                         exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
                         var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
+
                         var clusterRequest = new ClusterComputeRequest(cluster.clusterAlias, sessionId, configuration, remotePlan);
-                        var clusterListener = ActionListener.runBefore(computeListener.acquireCompute(), () -> l.onResponse(null));
+                        var clusterListener = ActionListener.runBefore(
+                            computeListener.acquireCompute(cluster.clusterAlias()),
+                            () -> l.onResponse(null)
+                        );
                         transportService.sendChildRequest(
                             cluster.connection,
                             CLUSTER_ACTION_NAME,

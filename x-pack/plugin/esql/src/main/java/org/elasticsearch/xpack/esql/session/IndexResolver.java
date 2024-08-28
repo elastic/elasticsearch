@@ -166,15 +166,14 @@ public class IndexResolver {
         }
 
         Set<String> concreteIndices = new HashSet<>(fieldCapsResponse.getIndexResponses().size());
-        boolean isCrossClusterQuery = false;
+        boolean isCrossCluster = isCrossClusterQuery(fieldCapsResponse);
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             String indexExpression = ir.getIndexName();
             concreteIndices.add(indexExpression);
 
             String clusterAlias = parseClusterAlias(indexExpression);
             // only populate EsqlExecutionInfo if this is a cross-cluster query
-            if (isCrossClusterQuery || clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
-                isCrossClusterQuery = true;
+            if (isCrossCluster) {
                 EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
                 // populate the EsqlExecutionInfo cluster map with responses from each cluster coming back from field-caps
                 if (cluster == null) {
@@ -197,7 +196,7 @@ public class IndexResolver {
         }
 
         // check for "remote unavailable" type errors that occurred during field-caps lookup on remote clusters
-        if (isCrossClusterQuery && fieldCapsResponse.getFailures() != null) {
+        if (isCrossCluster && fieldCapsResponse.getFailures() != null) {
             Set<String> clusterAliasesWithErrors = new HashSet<>();
             for (FieldCapabilitiesFailure failure : fieldCapsResponse.getFailures()) {
                 if (isRemoteUnavailableException(failure.getException())) {
@@ -227,6 +226,16 @@ public class IndexResolver {
         }
 
         return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices));
+    }
+
+    private boolean isCrossClusterQuery(FieldCapabilitiesResponse fieldCapsResponse) {
+        for (FieldCapabilitiesIndexResponse indexResponse : fieldCapsResponse.getIndexResponses()) {
+            System.err.println("____ indexResponse.getIndexName(): " + indexResponse.getIndexName());
+            if (parseClusterAlias(indexResponse.getIndexName()).equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean allNested(List<IndexFieldCapabilities> caps) {

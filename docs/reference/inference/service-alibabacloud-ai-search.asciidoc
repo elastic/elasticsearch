@@ -124,7 +124,6 @@ Valid values are:
 `return_token`:::
 (Optional, boolean)
 Specify Whether to return the token name, the default value is false, it means that it will return the token id.
-
 =====
 
 [discrete]

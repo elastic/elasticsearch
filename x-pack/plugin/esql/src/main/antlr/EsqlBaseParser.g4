@@ -314,15 +314,11 @@ inlinestatsCommand
     ;
 
 matchCommand
-    : DEV_MATCH matchQuery
+    : DEV_MATCH (parsedMatchQuery | unparsedMatchQuery )
     ;
 
 matchQuery
     : QUOTED_STRING
-    ;
-
-matchCommand
-    : MATCH (parsedMatchQuery | unparsedMatchQuery )
     ;
 
 unparsedMatchQuery

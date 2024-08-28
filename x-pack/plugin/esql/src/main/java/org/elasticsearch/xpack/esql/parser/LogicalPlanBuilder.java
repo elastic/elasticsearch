@@ -359,12 +359,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source(ctx), "MATCH command currently requires a snapshot build");
         }
 
-        StringQueryPredicate stringQueryPredicate = visitMatchQuery(ctx.matchQuery());
+        StringQueryPredicate stringQueryPredicate = visitUnparsedMatchQuery(ctx.unparsedMatchQuery());
         return input -> new Filter(source(ctx), input, stringQueryPredicate);
     }
 
     @Override
-    public StringQueryPredicate visitMatchQuery(EsqlBaseParser.MatchQueryContext ctx) {
+    public StringQueryPredicate visitUnparsedMatchQuery(EsqlBaseParser.UnparsedMatchQueryContext ctx) {
         Source source = source(ctx);
         String queryString = unquote(ctx.QUOTED_STRING().getText());
         return new StringQueryPredicate(source, queryString, null);

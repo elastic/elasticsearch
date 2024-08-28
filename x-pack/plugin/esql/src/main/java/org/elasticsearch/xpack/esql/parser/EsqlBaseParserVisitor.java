@@ -562,4 +562,52 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitMatchQuery(EsqlBaseParser.MatchQueryContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#unparsedMatchQuery}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitUnparsedMatchQuery(EsqlBaseParser.UnparsedMatchQueryContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#parsedMatchQuery}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitParsedMatchQuery(EsqlBaseParser.ParsedMatchQueryContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryValue}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchQueryValue(EsqlBaseParser.MatchQueryValueContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryRange}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchQueryRange(EsqlBaseParser.MatchQueryRangeContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryField}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchQueryField(EsqlBaseParser.MatchQueryFieldContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchQueryExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchQueryExpression(EsqlBaseParser.MatchQueryExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchRangeExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchRangeExpression(EsqlBaseParser.MatchRangeExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchRangeOperator}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchRangeOperator(EsqlBaseParser.MatchRangeOperatorContext ctx);
 }

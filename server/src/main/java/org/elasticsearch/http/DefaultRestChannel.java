@@ -248,6 +248,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements ThreadCon
 
     @Override
     public ThreadContext threadContext() {
+        assert storedContext == null;
         return threadContext;
     }
 }

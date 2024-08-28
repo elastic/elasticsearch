@@ -49,6 +49,7 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.RUNTIME_MAPPINGS_NA
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.TIME_ZONE_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.VERSION_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.INTRODUCING_SQL_VERSION_ID;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST_ENDPOINT;
 
 public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestCase {
@@ -84,7 +85,7 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
             if (isQuery) {
                 Mode mode = (m instanceof Mode) ? (Mode) m : Mode.fromString(modeString);
                 if (Mode.isDedicatedClient(mode)) {
-                    version(SqlVersion.fromTransportString(TransportVersion.current().toReleaseVersion()).toString());
+                    version(INTRODUCING_SQL_VERSION_ID.version);
                 }
             }
             return this;

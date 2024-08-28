@@ -19,6 +19,7 @@ public class SqlVersionId implements VersionId<SqlVersionId> {
 
     // String representation of the current release version, used in error messages.
     // Read from the build info, if this contains a SemVer version, otherwise from the transport version.
+    // Will be the TrasnportVersion's id() in Serverless (and not a SemVer string).
     private static final String CURRENT_RELEASE;
 
     // Value to initialize the SQL session or requests with, in case the client doesn't send a version.
@@ -49,8 +50,9 @@ public class SqlVersionId implements VersionId<SqlVersionId> {
      *
      * Note: The need for client to be at most one major behind can no longer be enforced in a SemVer-less environment.
      * Also, the client will send the server the stack release version which can't be compared to TransportVersion-based version, since
+     * it can happen that:
      *  TransportVersion.current().toReleaseVersion() != Build.current().version()
-     * the former will return the next patch of current equivalent stack version, while the latter will return the next minor.
+     * i.e. the former will return the next patch of current equivalent stack version, while the latter will return the next minor.
      *
      * @param client SqlVersionId of the client.
      * @return true if the client is compatible with the server.

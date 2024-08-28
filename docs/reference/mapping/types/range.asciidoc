@@ -1,15 +1,16 @@
 [[range]]
 === Range field types
+
 ++++
 <titleabbrev>Range</titleabbrev>
 ++++
 
-Range field types represent a continuous range of values between an upper and lower
-bound. For example, a range can represent _any date in October_ or _any
-integer from 0 to 9_. They are defined using the operators
+Range field types represent a continuous range of values between an upper and lower bound.
+For example, a range can represent _any date in October_ or _any integer from 0 to 9_.
+They are defined using the operators
 `gt` or `gte` for the lower bound, and `lt` or `lte` for the upper bound.
-They can be used for querying, and have
-limited support for aggregations. The only supported aggregations are
+They can be used for querying, and have limited support for aggregations.
+The only supported aggregations are
 {ref}/search-aggregations-bucket-histogram-aggregation.html[histogram],
 {ref}/search-aggregations-metrics-cardinality-aggregation.html[cardinality].
 
@@ -20,13 +21,14 @@ The following range types are supported:
 `float_range`::     A range of single-precision 32-bit IEEE 754 floating point values.
 `long_range`::      A range of signed 64-bit integers with a minimum value of +-2^63^+ and maximum of +2^63^-1+.
 `double_range`::    A range of double-precision 64-bit IEEE 754 floating point values.
-`date_range`::      A range of <<date,`date`>> values. Date ranges support various date formats
-                    through the <<mapping-date-format,`format`>> mapping parameter. Regardless of
-                    the format used, date values are parsed into an unsigned 64-bit integer
-                    representing milliseconds since the Unix epoch in UTC. Values containing the
-                    `now` <<date-math,date math>> expression are not supported.
+`date_range`::      A range of <<date,`date`>> values.
+Date ranges support various date formats
+through the <<mapping-date-format,`format`>> mapping parameter.
+Regardless of the format used, date values are parsed into an unsigned 64-bit integer representing milliseconds since the Unix epoch in UTC.
+Values containing the
+`now` <<date-math,date math>> expression are not supported.
 `ip_range` ::       A range of ip values supporting either {wikipedia}/IPv4[IPv4] or
-                    {wikipedia}/IPv6[IPv6] (or mixed) addresses.
+{wikipedia}/IPv6[IPv6] (or mixed) addresses.
 
 Below is an example of configuring a mapping with various range fields followed by an example that indexes several range types.
 
@@ -144,7 +146,7 @@ GET range_index/_search
 
 <1> Range queries work the same as described in <<query-dsl-range-query, range query>>.
 <2> Range queries over range <<mapping-types, fields>> support a `relation` parameter which can be one of `WITHIN`, `CONTAINS`,
-    `INTERSECTS` (default).
+`INTERSECTS` (default).
 
 This query produces a similar result:
 
@@ -214,11 +216,10 @@ PUT range_index/_doc/2
 The following parameters are accepted by range types:
 
 [horizontal]
-
 <<coerce,`coerce`>>::
 
-    Try to convert strings to numbers and truncate fractions for integers.
-    Accepts `true` (default) and `false`.
+Try to convert strings to numbers and truncate fractions for integers.
+Accepts `true` (default) and `false`.
 
 <<doc-values,`doc_values`>>::
 
@@ -239,17 +240,17 @@ The following parameters are accepted by range types:
 [[range-synthetic-source]]
 ==== Synthetic `_source`
 
-IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
-(indices that have `index.mode` set to `time_series`). For other indices
-synthetic `_source` is in technical preview. Features in technical preview may
-be changed or removed in a future release. Elastic will work to fix
-any issues, but features in technical preview are not subject to the support SLA
-of official GA features.
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`).
+For other indices synthetic `_source` is in technical preview.
+Features in technical preview may be changed or removed in a future release.
+Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
 
-`range` fields support <<synthetic-source,synthetic `_source`>> in their default
-configuration. Synthetic `_source` cannot be used with <<doc-values,`doc_values`>> disabled.
+`range` fields support <<synthetic-source,synthetic `_source`>> in their default configuration.
+Synthetic `_source` cannot be used with <<doc-values,`doc_values`>> disabled.
 
-Synthetic source always sorts values and removes duplicates for all `range` fields except `ip_range` . Ranges are sorted by their lower bound and then by upper bound. For example:
+Synthetic source always sorts values and removes duplicates for all `range` fields except `ip_range` . Ranges are sorted by their lower bound and then by upper bound.
+For example:
+
 [source,console,id=synthetic-source-range-sorting-example]
 ----
 PUT idx
@@ -309,9 +310,12 @@ Will become:
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
 
-Values of `ip_range` fields are not sorted but original order is not preserved. Duplicate ranges are removed. If `ip_range` field value is provided as a CIDR, it will be represented as a range of IP addresses in synthetic source.
+Values of `ip_range` fields are not sorted but original order is not preserved.
+Duplicate ranges are removed.
+If `ip_range` field value is provided as a CIDR, it will be represented as a range of IP addresses in synthetic source.
 
 For example:
+
 [source,console,id=synthetic-source-range-ip-example]
 ----
 PUT idx
@@ -352,7 +356,11 @@ Will become:
 // TEST[s/^/{"_source":/ s/\n$/}/]
 
 [[range-synthetic-source-inclusive]]
-Range field vales are always represented as inclusive on both sides with bounds adjusted accordingly. Default values for range bounds are represented as `null`. This is true even if range bound was explicitly provided. For example:
+Range field vales are always represented as inclusive on both sides with bounds adjusted accordingly.
+Default values for range bounds are represented as `null`.
+This is true even if range bound was explicitly provided.
+For example:
+
 [source,console,id=synthetic-source-range-normalization-example]
 ----
 PUT idx
@@ -389,7 +397,10 @@ Will become:
 // TEST[s/^/{"_source":/ s/\n$/}/]
 
 [[range-synthetic-source-default-bounds]]
-Default values for range bounds are represented as `null` in synthetic source. This is true even if range bound was explicitly provided with default value. For example:
+Default values for range bounds are represented as `null` in synthetic source.
+This is true even if range bound was explicitly provided with default value.
+For example:
+
 [source,console,id=synthetic-source-range-bounds-example]
 ----
 PUT idx
@@ -424,7 +435,9 @@ Will become:
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
 
-`date` ranges are formatted using provided `format` or by default using `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format. For example:
+`date` ranges are formatted using provided `format` or by default using `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format.
+For example:
+
 [source,console,id=synthetic-source-range-date-example]
 ----
 PUT idx
@@ -465,7 +478,7 @@ Will become:
     },
     {
       "gte": "2017-09-01T00:00:00.000Z",
-      "lte": "2017-09-10T00:00:00.000Z"
+      "lte": "2017-09-10T23:59:59.999Z"
     }
   ]
 }

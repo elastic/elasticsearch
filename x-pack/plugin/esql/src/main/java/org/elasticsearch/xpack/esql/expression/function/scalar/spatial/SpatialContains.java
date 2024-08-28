@@ -94,15 +94,13 @@ public class SpatialContains extends SpatialRelatesFunction {
         @Override
         protected boolean geometryRelatesGeometry(BytesRef left, BytesRef right) throws IOException {
             Component2D[] rightComponent2Ds = asLuceneComponent2Ds(crsType, fromBytesRef(right));
-            ContainsResult result = geometryRelatesGeometries(left, rightComponent2Ds);
-            return result.contains && result.intersectsButNotContains == false;
+            return geometryRelatesGeometries(left, rightComponent2Ds).result();
         }
 
         private ContainsResult geometryRelatesGeometries(BytesRef left, Component2D[] rightComponent2Ds) throws IOException {
             Geometry leftGeom = fromBytesRef(left);
             GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, leftGeom);
-            ContainsResult answer = geometryRelatesGeometries(leftDocValueReader, rightComponent2Ds);
-            return answer;
+            return geometryRelatesGeometries(leftDocValueReader, rightComponent2Ds);
         }
 
         private ContainsResult geometryRelatesGeometries(GeometryDocValueReader leftDocValueReader, Component2D[] rightComponent2Ds)
@@ -197,9 +195,9 @@ public class SpatialContains extends SpatialRelatesFunction {
             GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType(), left());
             Geometry rightGeom = makeGeometryFromLiteral(right());
             Component2D[] components = asLuceneComponent2Ds(crsType(), rightGeom);
-            return (crsType() == SpatialCrsType.GEO)
+            return (crsType() == SpatialCrsType.GEO
                 ? GEO.geometryRelatesGeometries(docValueReader, components)
-                : CARTESIAN.geometryRelatesGeometries(docValueReader, components);
+                : CARTESIAN.geometryRelatesGeometries(docValueReader, components)).result();
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to fold constant fields: " + e.getMessage(), e);
         }
@@ -401,6 +399,10 @@ public class SpatialContains extends SpatialRelatesFunction {
             // When looking at multi-value fields, if any value contains the parameter, then the multi-value contains the parameter
             contains |= value.contains;
             intersectsButNotContains |= value.intersectsButNotContains;
+        }
+
+        public boolean result() {
+            return contains && intersectsButNotContains == false;
         }
     }
 }

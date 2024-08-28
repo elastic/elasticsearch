@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -24,6 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
 public class IncrementalBulkRestIT extends HttpSmokeTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testIncrementalBulk() throws IOException {
         Request createRequest = new Request("PUT", "/index_name");
         createRequest.setJsonEntity("""
@@ -58,6 +60,9 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
             indexSuccessFul.getEntity().getContent(),
             true
         );
+
+        assertFalse((Boolean) responseMap.get("errors"));
+        assertThat(((List<Object>) responseMap.get("items")).size(), equalTo(1000));
     }
 
     public void testIncrementalMalformed() throws IOException {
@@ -86,6 +91,6 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
 
         bulkRequest.setJsonEntity(bulk.toString());
 
-        ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulkRequest));
+        expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulkRequest));
     }
 }

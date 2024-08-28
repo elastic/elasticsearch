@@ -195,6 +195,8 @@ public class RestBulkActionTests extends ESTestCase {
 
     public void testIncrementalParsing() {
         ArrayList<DocWriteRequest<?>> docs = new ArrayList<>();
+        AtomicBoolean isLast = new AtomicBoolean(false);
+        AtomicBoolean next = new AtomicBoolean(false);
 
         FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
             .withMethod(RestRequest.Method.POST)
@@ -205,13 +207,11 @@ public class RestBulkActionTests extends ESTestCase {
                 }
 
                 @Override
-                public void setHandler(ChunkHandler chunkHandler) {
-
-                }
+                public void setHandler(ChunkHandler chunkHandler) {}
 
                 @Override
                 public void next() {
-
+                    next.set(true);
                 }
             })
             .withHeaders(Map.of("Content-Type", Collections.singletonList("application/json")))
@@ -233,18 +233,51 @@ public class RestBulkActionTests extends ESTestCase {
                 public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
                     releasable.close();
                     docs.addAll(items);
+                    isLast.set(true);
                 }
             }
         );
 
         chunkHandler.accept(channel);
-        chunkHandler.handleChunk(
-            channel,
-            ReleasableBytesReference.wrap(new BytesArray("{\"index\":{\"_index\":\"index_name\"}}\n")),
-            false
-        );
+        ReleasableBytesReference r1 = new ReleasableBytesReference(new BytesArray("{\"index\":{\"_index\":\"index_name\"}}\n"), () -> {});
+        chunkHandler.handleChunk(channel, r1, false);
         assertThat(docs, empty());
-        chunkHandler.handleChunk(channel, ReleasableBytesReference.wrap(new BytesArray("{\"field\":1}")), false);
+        assertTrue(next.get());
+        next.set(false);
+        assertFalse(isLast.get());
+
+        ReleasableBytesReference r2 = new ReleasableBytesReference(new BytesArray("{\"field\":1}"), () -> {});
+        chunkHandler.handleChunk(channel, r2, false);
         assertThat(docs, empty());
+        assertTrue(next.get());
+        next.set(false);
+        assertFalse(isLast.get());
+        assertTrue(r1.hasReferences());
+        assertTrue(r2.hasReferences());
+
+        ReleasableBytesReference r3 = new ReleasableBytesReference(new BytesArray("\n{\"delete\":"), () -> {});
+        chunkHandler.handleChunk(channel, r3, false);
+        assertThat(docs, hasSize(1));
+        assertFalse(next.get());
+        assertFalse(isLast.get());
+        assertFalse(r1.hasReferences());
+        assertFalse(r2.hasReferences());
+        assertTrue(r3.hasReferences());
+
+        ReleasableBytesReference r4 = new ReleasableBytesReference(new BytesArray("{\"_index\":\"test\",\"_id\":\"2\"}}"), () -> {});
+        chunkHandler.handleChunk(channel, r4, false);
+        assertThat(docs, hasSize(1));
+        assertTrue(next.get());
+        next.set(false);
+        assertFalse(isLast.get());
+
+        ReleasableBytesReference r5 = new ReleasableBytesReference(new BytesArray("\n"), () -> {});
+        chunkHandler.handleChunk(channel, r5, true);
+        assertThat(docs, hasSize(2));
+        assertFalse(next.get());
+        assertTrue(isLast.get());
+        assertFalse(r3.hasReferences());
+        assertFalse(r4.hasReferences());
+        assertFalse(r5.hasReferences());
     }
 }

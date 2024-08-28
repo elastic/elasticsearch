@@ -229,7 +229,6 @@ public class EsqlDataTypeConverter {
      * <p>
      * If one of the types is null - returns another type
      * If both types are numeric - returns type with the highest precision int &lt; long &lt; float &lt; double
-     * If one of the types is string and another numeric - returns numeric
      */
     public static DataType commonType(DataType left, DataType right) {
         if (left == right) {
@@ -255,9 +254,6 @@ public class EsqlDataTypeConverter {
         if (isString(left) && isString(right)) {
             if (left == TEXT || right == TEXT) {
                 return TEXT;
-            }
-            if (left == KEYWORD) {
-                return KEYWORD;
             }
             return right;
         }

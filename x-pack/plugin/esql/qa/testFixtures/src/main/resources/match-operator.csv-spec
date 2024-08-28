@@ -4,65 +4,89 @@
 
 singleMatchWithTextField
 required_capability: match_operator
-from airports | where name match "london" | keep abbrev, name | sort abbrev;
+from books | where author match "William Faulkner" | keep book_no, author | sort book_no | LIMIT 5;
 
-abbrev:keyword | name:text
-LGW            | London Gatwick
-LHR            | London Heathrow
-LTN            | London Luton
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
 ;
 
 singleMatchWithKeywordField
 required_capability: match_operator
-from airports | where abbrev match "LTN" | keep abbrev, name | sort abbrev;
+from books | where author.keyword match "William Faulkner" | keep book_no, author | sort book_no;
 
-abbrev:keyword | name:text
-LTN            | London Luton
+book_no:keyword | author:text
+2713            | William Faulkner
+2883            | William Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+5119            | William Faulkner
+5404            | William Faulkner
+5578            | William Faulkner
+8077            | William Faulkner
+9896            | William Faulkner
 ;
 
 multipleMatch
 required_capability: match_operator
-from airports | where name match "london" or name match "liverpool "| keep abbrev, name | sort abbrev;
+from books
+| where (description match "Sauron" OR description match "Dark Lord") AND
+  (author match "J. R. R. Tolkien" OR author match "John Ronald Reuel Tolkien")
+| keep book_no, title, author
+| sort book_no
+| limit 4
+;
 
-abbrev:keyword | name:text
-LGW            | London Gatwick
-LHR            | London Heathrow
-LPL            | Liverpool John Lennon
-LTN            | London Luton
+book_no:keyword | title:text                                                       | author:text
+1463            | Realms of Tolkien: Images of Middle-earth                        | J. R. R. Tolkien
+2675            | The Lord of the Rings - Boxed Set                                | J.R.R. Tolkien
+2714            | Return of the King Being the Third Part of The Lord of the Rings | J. R. R. Tolkien
+2936            | Fellowship of the Ring 2ND Edition                               | John Ronald Reuel Tolkien
 ;
 
 multipleWhereWithMatch
 required_capability: match_operator
-from airports | where name match "john" | WHERE name match "St" | keep abbrev, name | sort abbrev;
+from books
+| where title match "short stories"
+| where author match "Ursula K. Le Guin"
+| keep book_no, title, author
+| sort book_no
+;
 
-abbrev:keyword | name:text
-YXJ            | Fort St. John (N. Peace)
+book_no:keyword | title:text                                | author:text
+8480            | The wind's twelve quarters: Short stories | Ursula K. Le Guin
 ;
 
 combinedMatchWithFunctions
 required_capability: match_operator
-from airports
-| where name match "john" AND country match "Canada" AND scalerank > 5
-| where length(name) > 10
-| keep abbrev, name, country, scalerank
-| sort abbrev
+from books
+| where title match "Tolkien" AND author match "Tolkien" AND year > 2000
+| where mv_count(author) == 1
+| keep book_no, title, author, year
+| sort book_no
 ;
 
-abbrev:keyword | name:text                    | country:keyword | scalerank: integer
-YHM            | John C. Munro Hamilton Int'l | Canada          | 8
-YXJ            | Fort St. John (N. Peace)     | Canada          | 8
+book_no:keyword | title:text               | author:text    | year:integer
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014
 ;
 
 matchWithStats
 required_capability: match_operator
-from airports
-| where name match "john" AND scalerank > 5
-| where length(name) > 10
-| stats count(*) BY type
-| sort type
+from books
+| where author match "faulkner" AND year > 1990
+| where mv_count(author) == 1
+| stats count(*) BY author.keyword
+| sort author.keyword
 ;
 
-count(*): long  | type:keyword                   
-1               | major
-2               | mid
+count(*): long  | author.keyword:keyword
+1               | Bettilu Stein Faulkner
+2               | Colleen Faulkner
+1               | Danny Faulkner
+1               | Keith Faulkner
+1               | Paul Faulkner
+8               | William Faulkner
 ;

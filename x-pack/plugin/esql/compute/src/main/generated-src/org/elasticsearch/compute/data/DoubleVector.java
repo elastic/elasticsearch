@@ -30,6 +30,9 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
     DoubleVector filter(int... positions);
 
     @Override
+    DoubleBlock keepMask(BooleanVector mask);
+
+    @Override
     ReleasableIterator<? extends DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**

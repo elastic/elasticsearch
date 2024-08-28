@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexSerializationTests;
@@ -63,7 +62,12 @@ public class ExchangeSinkExecSerializationTests extends ESTestCase {
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflicts() throws IOException {
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(2444252));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1897374));
+        /*
+         * History:
+         *  2.3mb - shorten error messages for UnsupportedAttributes #111973
+         *  1.8mb - cache EsFields #112008
+         */
     }
 
     /**
@@ -71,12 +75,13 @@ public class ExchangeSinkExecSerializationTests extends ESTestCase {
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflictsWithParent() throws IOException {
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(5885765));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(3271487));
         /*
          * History:
          *  2 gb+ - start
          * 43.3mb - Cache attribute subclasses #111447
          *  5.6mb - shorten error messages for UnsupportedAttributes #111973
+         *  3.1mb - cache EsFields #112008
          */
     }
 
@@ -131,7 +136,6 @@ public class ExchangeSinkExecSerializationTests extends ESTestCase {
         entries.addAll(AggregateFunction.getNamedWriteables());
         entries.addAll(Expression.getNamedWriteables());
         entries.addAll(Attribute.getNamedWriteables());
-        entries.addAll(EsField.getNamedWriteables());
         entries.addAll(Block.getNamedWriteables());
         entries.addAll(NamedExpression.getNamedWriteables());
         entries.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());

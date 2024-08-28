@@ -84,6 +84,11 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public ConstantNullBlock keepMask(BooleanVector mask) {
+        return (ConstantNullBlock) blockFactory().newConstantNullBlock(getPositionCount());
+    }
+
+    @Override
     public ReleasableIterator<ConstantNullBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return ReleasableIterator.single((ConstantNullBlock) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
     }

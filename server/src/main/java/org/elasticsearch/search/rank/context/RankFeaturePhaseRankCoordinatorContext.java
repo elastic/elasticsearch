@@ -74,16 +74,12 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
         RankFeatureDoc[] featureDocs = extractFeatureDocs(rankSearchResults);
 
         // generate the final `topResults` results, and pass them to fetch phase through the `rankListener`
-        if (featureDocs.length == 0) {
-            rankListener.onResponse(new RankFeatureDoc[0]);
-        } else {
-            computeScores(featureDocs, rankListener.delegateFailureAndWrap((listener, scores) -> {
-                for (int i = 0; i < featureDocs.length; i++) {
-                    featureDocs[i].score = scores[i];
-                }
-                listener.onResponse(featureDocs);
-            }));
-        }
+        computeScores(featureDocs, rankListener.delegateFailureAndWrap((listener, scores) -> {
+            for (int i = 0; i < featureDocs.length; i++) {
+                featureDocs[i].score = scores[i];
+            }
+            listener.onResponse(featureDocs);
+        }));
     }
 
     /**

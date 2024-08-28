@@ -28,7 +28,7 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
 
     private final Channel channel;
     private final Queue<HttpContent> chunkQueue = new ArrayDeque<>();
-    private boolean requested = true;
+    private boolean requested = false;
     private boolean hasLast = false;
     private HttpBody.ChunkHandler handler;
 

@@ -178,6 +178,7 @@ public class RestBulkAction extends BaseRestHandler {
         @Override
         public void accept(RestChannel restChannel) {
             this.restChannel = restChannel;
+            request.contentStream().next();
         }
 
         @Override
@@ -276,6 +277,6 @@ public class RestBulkAction extends BaseRestHandler {
 
     @Override
     public boolean allowsUnsafeBuffers() {
-        return false;
+        return true;
     }
 }

@@ -356,6 +356,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             var resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
             var headers = resp.headers();
             assertEquals(RestController.ELASTIC_PRODUCT_HTTP_HEADER_VALUE, headers.get(RestController.ELASTIC_PRODUCT_HTTP_HEADER));
+            resp.release();
         }
     }
 

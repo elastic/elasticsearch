@@ -11,7 +11,6 @@ package org.elasticsearch.lucene.spatial;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.document.XYShape;
-import org.apache.lucene.geo.XYGeometry;
 import org.apache.lucene.geo.XYPolygon;
 import org.apache.lucene.geo.XYRectangle;
 import org.apache.lucene.index.DirectoryReader;
@@ -27,6 +26,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.search.CheckHits;
 import org.apache.lucene.tests.search.QueryUtils;
 import org.elasticsearch.common.geo.LuceneGeometriesUtils;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geo.XShapeTestUtil;
@@ -128,10 +128,10 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
 
         IndexSearcher s = newSearcher(r);
         for (int i = 0; i < 25; i++) {
-            XYGeometry[] geometries = randomLuceneQueryGeometries();
-            for (ShapeField.QueryRelation relation : ShapeField.QueryRelation.values()) {
-                Query indexQuery = XYShape.newGeometryQuery(FIELD_NAME, relation, geometries);
-                Query docValQuery = new CartesianShapeDocValuesQuery(FIELD_NAME, relation, geometries);
+            Geometry geometry = ShapeTestUtils.randomGeometry(false);
+            for (ShapeRelation relation : ShapeRelation.values()) {
+                Query indexQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, true, false);
+                Query docValQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, false, true);
                 assertQueries(s, indexQuery, docValQuery, numDocs);
             }
         }
@@ -170,10 +170,10 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
 
         IndexSearcher s = newSearcher(r);
         for (int i = 0; i < 25; i++) {
-            XYGeometry[] geometries = randomLuceneQueryGeometries();
-            for (ShapeField.QueryRelation relation : ShapeField.QueryRelation.values()) {
-                Query indexQuery = XYShape.newGeometryQuery(FIELD_NAME, relation, geometries);
-                Query docValQuery = new CartesianShapeDocValuesQuery(FIELD_NAME, relation, geometries);
+            Geometry geometry = ShapeTestUtils.randomGeometry(false);
+            for (ShapeRelation relation : ShapeRelation.values()) {
+                Query indexQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, true, false);
+                Query docValQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, false, true);
                 assertQueries(s, indexQuery, docValQuery, numDocs);
             }
         }
@@ -183,23 +183,5 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
     private void assertQueries(IndexSearcher s, Query indexQuery, Query docValQuery, int numDocs) throws IOException {
         assertEquals(s.count(indexQuery), s.count(docValQuery));
         CheckHits.checkEqual(docValQuery, s.search(indexQuery, numDocs).scoreDocs, s.search(docValQuery, numDocs).scoreDocs);
-    }
-
-    private XYGeometry[] randomLuceneQueryGeometries() {
-        int numGeom = randomIntBetween(1, 3);
-        XYGeometry[] geometries = new XYGeometry[numGeom];
-        for (int i = 0; i < numGeom; i++) {
-            geometries[i] = randomLuceneQueryGeometry();
-        }
-        return geometries;
-    }
-
-    private XYGeometry randomLuceneQueryGeometry() {
-        return switch (randomInt(3)) {
-            case 0 -> LuceneGeometriesUtils.toXYPolygon(ShapeTestUtils.randomPolygon(false));
-            case 1 -> LuceneGeometriesUtils.toXYCircle(ShapeTestUtils.randomCircle(false));
-            case 2 -> LuceneGeometriesUtils.toXYPoint(ShapeTestUtils.randomPoint(false));
-            default -> XShapeTestUtil.nextBox();
-        };
     }
 }

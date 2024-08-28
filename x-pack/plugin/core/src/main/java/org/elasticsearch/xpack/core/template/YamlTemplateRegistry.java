@@ -50,7 +50,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     private final FeatureService featureService;
     private volatile boolean enabled;
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "this-escape" })
     public YamlTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,

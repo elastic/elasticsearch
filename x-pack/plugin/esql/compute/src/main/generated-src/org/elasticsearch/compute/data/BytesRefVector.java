@@ -37,6 +37,9 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     BytesRefVector filter(int... positions);
 
     @Override
+    BytesRefBlock keepMask(BooleanVector mask);
+
+    @Override
     ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**

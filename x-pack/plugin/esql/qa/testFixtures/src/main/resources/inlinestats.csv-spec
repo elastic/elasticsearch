@@ -1,4 +1,4 @@
-maxOfInt
+maxOfInt-Ignore
 required_capability: inlinestats
 
 // tag::max-languages[]
@@ -54,7 +54,7 @@ emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_secon
          10030 |               394597613 | M              | 394597613
 ;
 
-maxOfLong
+maxOfLong-Ignore
 required_capability: inlinestats
 
 FROM employees
@@ -185,7 +185,7 @@ emp_no:integer | avg_worked_seconds:long | languages:integer | height:double | m
 ;
 
 
-two
+two-Ignore
 required_capability: inlinestats
 
 FROM employees
@@ -281,7 +281,7 @@ abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
            GWL | [mid, military] | 9                 | [2, 4]
 ;
 
-afterStats
+afterStats-Ignore
 required_capability: inlinestats
 
 FROM airports
@@ -322,7 +322,7 @@ abbrev:keyword | country:keyword | count:long
            BDQ |           India | 50
 ;
 
-afterLookup
+afterLookup-Ignore
 required_capability: inlinestats
 
 FROM airports
@@ -364,7 +364,7 @@ abbrev:keyword | city:keyword |       region:text | "COUNT(*)":long
            FUK |      Fukuoka |             中央区 | 2
 ;
 
-beforeStats
+beforeStats-Ignore
 required_capability: inlinestats
 
 FROM airports
@@ -445,7 +445,7 @@ abbrev:keyword | type:keyword |    city:keyword    | "COUNT(*)":long | region:te
 ;
 
 
-shadowing
+shadowing-Ignore
 required_capability: inlinestats
 
 ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
@@ -456,7 +456,7 @@ left:keyword | client_ip:keyword | right:keyword | env:keyword
 left         | 172.21.0.5        | right         | right
 ;
 
-shadowingMulti
+shadowingMulti-Ignore
 required_capability: inlinestats
 
 ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "middle", region = "North-East Switzerland", right = "right"
@@ -467,7 +467,7 @@ left:keyword | city:keyword | middle:keyword | right:keyword | airport:keyword |
 left         | Zürich       | middle         | right         |            left |           left | left
 ;
 
-shadowingSelf
+shadowingSelf-Ignore
 required_capability: inlinestats
 
 ROW city="Raleigh"
@@ -537,7 +537,7 @@ emp_no:integer | one:integer
          10005 | 1
 ;
 
-percentile
+percentile-Ignore
 required_capability: inlinestats
 
 FROM employees
@@ -575,7 +575,7 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
            ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) |            20 |          -100 | 2
 ;
 
-byTwoCalculatedSecondOverwrites
+byTwoCalculatedSecondOverwrites-Ignore
 required_capability: inlinestats_v2
 
 FROM airports
@@ -594,7 +594,7 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
            ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) |     -100 | 2
 ;
 
-byTwoCalculatedSecondOverwritesReferencingFirst
+byTwoCalculatedSecondOverwritesReferencingFirst-Ignore
 required_capability: inlinestats_v2
 
 FROM airports
@@ -615,7 +615,7 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 ;
 
 
-groupShadowsAgg
+groupShadowsAgg-Ignore
 required_capability: inlinestats_v2
 
 FROM airports

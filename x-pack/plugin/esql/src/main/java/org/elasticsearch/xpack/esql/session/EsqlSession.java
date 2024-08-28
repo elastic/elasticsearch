@@ -14,6 +14,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -56,24 +58,26 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Phased;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.planner.Mapper;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -84,6 +88,14 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 public class EsqlSession {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSession.class);
+
+    /**
+     * Interface for running the underlying plan.
+     * Abstracts away the underlying execution engine.
+     */
+    public interface PlanRunner {
+        void run(PhysicalPlan plan, ActionListener<Result> listener);
+    }
 
     private final String sessionId;
     private final Configuration configuration;
@@ -134,69 +146,115 @@ public class EsqlSession {
     /**
      * Execute an ESQL request.
      */
-    public void execute(
-        EsqlQueryRequest request,
-        EsqlExecutionInfo executionInfo,
-        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
-        ActionListener<Result> listener
-    ) {
+    public void execute(EsqlQueryRequest request, EsqlExecutionInfo executionInfo, PlanRunner planRunner, ActionListener<Result> listener) {
         LOGGER.debug("ESQL query:\n{}", request.query());
         analyzedPlan(
             parse(request.query(), request.params()),
             executionInfo,
             listener.delegateFailureAndWrap(
-                (next, analyzedPlan) -> executeOptimizedPlan(request, executionInfo, runPhase, optimizedPlan(analyzedPlan), next)
+                (next, analyzedPlan) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(analyzedPlan), next)
             )
         );
     }
 
     /**
      * Execute an analyzed plan. Most code should prefer calling {@link #execute} but
-     * this is public for testing. See {@link Phased} for the sequence of operations.
+     * this is public for testing.
      */
     public void executeOptimizedPlan(
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
-        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        PlanRunner planRunner,
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
-        LogicalPlan firstPhase = Phased.extractFirstPhase(optimizedPlan);
-        if (firstPhase == null) {
-            runPhase.accept(logicalPlanToPhysicalPlan(optimizedPlan, request), listener);
+        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
+        // execute any potential subplans
+        executeSubPlans(physicalPlan, planRunner, executionInfo, request, listener);
+    }
+
+    private record PlanTuple(PhysicalPlan physical, LogicalPlan logical) {};
+
+    private void executeSubPlans(
+        PhysicalPlan physicalPlan,
+        PlanRunner runner,
+        EsqlExecutionInfo executionInfo,
+        EsqlQueryRequest request,
+        ActionListener<Result> listener
+    ) {
+        List<PlanTuple> subplans = new ArrayList<>();
+
+        // Currently the inlinestats are limited and supported as streaming operators, thus present inside the fragment as logical plans
+        // Below they get collected, translated into a separate, coordinator based plan and the results 'broadcasted' as a local relation
+        physicalPlan.forEachUp(FragmentExec.class, f -> {
+            f.fragment().forEachUp(InlineJoin.class, ij -> {
+                // extract the right side of the plan and replace its source
+                LogicalPlan subplan = InlineJoin.replaceStub(ij.left(), ij.right());
+                // mark the new root node as optimized
+                subplan.setOptimized();
+                PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
+                subplans.add(new PlanTuple(subqueryPlan, ij.right()));
+            });
+        });
+
+        Iterator<PlanTuple> iterator = subplans.iterator();
+
+        // TODO: merge into one method
+        if (subplans.size() > 0) {
+            // code-path to execute subplans
+            executeSubPlan(new ArrayList<>(), physicalPlan, iterator, executionInfo, runner, listener);
         } else {
-            executePhased(new ArrayList<>(), optimizedPlan, request, executionInfo, firstPhase, runPhase, listener);
+            // execute main plan
+            runner.run(physicalPlan, listener);
         }
     }
 
-    private void executePhased(
+    private void executeSubPlan(
         List<DriverProfile> profileAccumulator,
-        LogicalPlan mainPlan,
-        EsqlQueryRequest request,
+        PhysicalPlan plan,
+        Iterator<PlanTuple> subPlanIterator,
         EsqlExecutionInfo executionInfo,
-        LogicalPlan firstPhase,
-        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        PlanRunner runner,
         ActionListener<Result> listener
     ) {
-        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan(firstPhase), request);
-        runPhase.accept(physicalPlan, listener.delegateFailureAndWrap((next, result) -> {
+        PlanTuple tuple = subPlanIterator.next();
+
+        runner.run(tuple.physical, listener.delegateFailureAndWrap((next, result) -> {
             try {
                 profileAccumulator.addAll(result.profiles());
-                LogicalPlan newMainPlan = optimizedPlan(Phased.applyResultsFromFirstPhase(mainPlan, physicalPlan.output(), result.pages()));
-                LogicalPlan newFirstPhase = Phased.extractFirstPhase(newMainPlan);
-                if (newFirstPhase == null) {
-                    PhysicalPlan finalPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request);
-                    runPhase.accept(finalPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
+                LocalRelation resultWrapper = resultToPlan(tuple.logical, result);
+
+                // replace the original logical plan with the backing result
+                final PhysicalPlan newPlan = plan.transformUp(FragmentExec.class, f -> {
+                    LogicalPlan frag = f.fragment();
+                    return f.withFragment(
+                        frag.transformUp(
+                            InlineJoin.class,
+                            ij -> ij.right() == tuple.logical ? InlineJoin.inlineData(ij, resultWrapper) : ij
+                        )
+                    );
+                });
+                if (subPlanIterator.hasNext() == false) {
+                    runner.run(newPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
                         profileAccumulator.addAll(finalResult.profiles());
                         finalListener.onResponse(new Result(finalResult.schema(), finalResult.pages(), profileAccumulator, executionInfo));
                     }));
                 } else {
-                    executePhased(profileAccumulator, newMainPlan, request, executionInfo, newFirstPhase, runPhase, next);
+                    // continue executing the subplans
+                    executeSubPlan(profileAccumulator, newPlan, subPlanIterator, executionInfo, runner, next);
                 }
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
             }
         }));
+    }
+
+    private LocalRelation resultToPlan(LogicalPlan plan, Result result) {
+        List<Page> pages = result.pages();
+        List<Attribute> schema = result.schema();
+        // if (pages.size() > 1) {
+        Block[] blocks = SessionUtils.fromPages(schema, pages);
+        return new LocalRelation(plan.source(), schema, LocalSupplier.of(blocks));
     }
 
     private LogicalPlan parse(String query, QueryParams params) {

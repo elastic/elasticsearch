@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -599,7 +600,10 @@ public final class EsqlTestUtils {
                 Files.walkFileTree(path, EnumSet.allOf(FileVisitOption.class), 1, new SimpleFileVisitor<>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                        if (Regex.simpleMatch(filePattern, file.toString())) {
+                        // remove the path folder from the URL
+                        String name = Strings.replace(file.toUri().toString(), path.toUri().toString(), StringUtils.EMPTY);
+                        Tuple<String, String> entrySplit = pathAndName(name);
+                        if (root.equals(entrySplit.v1()) && Regex.simpleMatch(filePattern, entrySplit.v2())) {
                             matches.add(file.toUri().toURL());
                         }
                         return FileVisitResult.CONTINUE;

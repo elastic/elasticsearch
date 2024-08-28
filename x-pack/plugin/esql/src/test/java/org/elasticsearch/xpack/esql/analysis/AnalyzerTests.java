@@ -1947,7 +1947,7 @@ public class AnalyzerTests extends ESTestCase {
                  * on it and discover that it doesn't exist in the index. It doesn't!
                  * We don't expect it to. It exists only in the lookup table.
                  */
-                .item(containsString("name{r}"))
+                .item(containsString("name{f}"))
         );
     }
 

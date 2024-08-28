@@ -27,7 +27,7 @@ import java.util.Objects;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Aggregate extends UnaryPlan implements Stats {
+public class Aggregate extends UnaryPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "Aggregate",
@@ -109,7 +109,10 @@ public class Aggregate extends UnaryPlan implements Stats {
         return new Aggregate(source(), newChild, aggregateType, groupings, aggregates);
     }
 
-    @Override
+    public Aggregate with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
+        return with(child(), newGroupings, newAggregates);
+    }
+
     public Aggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
         return new Aggregate(source(), child, aggregateType(), newGroupings, newAggregates);
     }

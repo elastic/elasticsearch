@@ -18,8 +18,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.planner.Mapper;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -28,8 +27,6 @@ import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 import org.elasticsearch.xpack.esql.stats.PlanningMetricsManager;
 import org.elasticsearch.xpack.esql.stats.QueryMetric;
-
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -47,7 +44,7 @@ public class PlanExecutor {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
-        this.mapper = new Mapper(functionRegistry);
+        this.mapper = new Mapper();
         this.metrics = new Metrics();
         this.verifier = new Verifier(metrics);
         this.planningMetricsManager = new PlanningMetricsManager(meterRegistry);
@@ -60,7 +57,7 @@ public class PlanExecutor {
         EnrichPolicyResolver enrichPolicyResolver,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
-        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        EsqlSession.PlanRunner planRunner,
         ActionListener<Result> listener
     ) {
         final PlanningMetrics planningMetrics = new PlanningMetrics();
@@ -79,7 +76,7 @@ public class PlanExecutor {
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);
-        session.execute(request, executionInfo, runPhase, wrap(x -> {
+        session.execute(request, executionInfo, planRunner, wrap(x -> {
             planningMetricsManager.publish(planningMetrics, true);
             listener.onResponse(x);
         }, ex -> {

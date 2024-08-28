@@ -10,7 +10,7 @@ Use {es} to search, index, store, and analyze data of all shapes and sizes in ne
 {es} has a lot of features. Explore the full list on the https://www.elastic.co/elasticsearch/features[product webpage^].
 ====
 
-{es} is the heart of the <<elasticsearch-intro-elastic-stack,Elastic Stack>> and powers the Elastic https://www.elastic.co/enterprise-search[Search], https://www.elastic.co/observability[Observability] and https://www.elastic.co/security[Security] solutions.
+{es} is the heart of the the <<elasticsearch-intro-elastic-stack,{stack}>> and powers the Elastic https://www.elastic.co/enterprise-search[Search], https://www.elastic.co/observability[Observability] and https://www.elastic.co/security[Security] solutions.
 
 {es} is used for a wide and growing range of use cases. Here are a few examples:
 
@@ -19,7 +19,7 @@ Use {es} to search, index, store, and analyze data of all shapes and sizes in ne
 * *Vector database*. Store and search vectorized data, and create vector embeddings with built-in and third-party natural language processing (NLP) models.
 * *Retrieval augmented generation (RAG)*. Use {es} as a retrieval engine to augment Generative AI models.
 * *Application and security monitoring*. Monitor and analyze application performance and security data effectively.
-* *Machine learning*. Use machine learning to automatically model the behavior of your data in real time.
+* *Machine learning*. Use {ml} to automatically model the behavior of your data in real-time.
 
 This is just a sample of search, observability, and security use cases enabled by {es}. 
 Refer to our https://www.elastic.co/customers/success-stories[customer success stories] for concrete examples across a range of industry verticals.

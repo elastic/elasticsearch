@@ -879,6 +879,7 @@ class NodeConstruction {
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
         final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(
             client,
+            indexingLimits,
             threadPool.getThreadContext(),
             clusterService.getClusterSettings()
         );

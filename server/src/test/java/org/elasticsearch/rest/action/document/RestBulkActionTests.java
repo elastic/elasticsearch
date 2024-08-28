@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -65,7 +66,7 @@ public class RestBulkActionTests extends ESTestCase {
             params.put("pipeline", "timestamps");
             new RestBulkAction(
                 settings(IndexVersion.current()).build(),
-                new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY), () -> false)
+                new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), new ThreadContext(Settings.EMPTY), () -> false)
             ).handleRequest(
                 new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk").withParams(params).withContent(new BytesArray("""
                     {"index":{"_id":"1"}}
@@ -100,7 +101,12 @@ public class RestBulkActionTests extends ESTestCase {
             {
                 new RestBulkAction(
                     settings(IndexVersion.current()).build(),
-                    new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY), () -> false)
+                    new IncrementalBulkService(
+                        mock(Client.class),
+                        mock(IndexingPressure.class),
+                        new ThreadContext(Settings.EMPTY),
+                        () -> false
+                    )
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -124,7 +130,12 @@ public class RestBulkActionTests extends ESTestCase {
                 bulkCalled.set(false);
                 new RestBulkAction(
                     settings(IndexVersion.current()).build(),
-                    new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY), () -> false)
+                    new IncrementalBulkService(
+                        mock(Client.class),
+                        mock(IndexingPressure.class),
+                        new ThreadContext(Settings.EMPTY),
+                        () -> false
+                    )
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -147,7 +158,12 @@ public class RestBulkActionTests extends ESTestCase {
                 bulkCalled.set(false);
                 new RestBulkAction(
                     settings(IndexVersion.current()).build(),
-                    new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY), () -> false)
+                    new IncrementalBulkService(
+                        mock(Client.class),
+                        mock(IndexingPressure.class),
+                        new ThreadContext(Settings.EMPTY),
+                        () -> false
+                    )
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -171,7 +187,12 @@ public class RestBulkActionTests extends ESTestCase {
                 bulkCalled.set(false);
                 new RestBulkAction(
                     settings(IndexVersion.current()).build(),
-                    new IncrementalBulkService(mock(Client.class), new ThreadContext(Settings.EMPTY), () -> false)
+                    new IncrementalBulkService(
+                        mock(Client.class),
+                        mock(IndexingPressure.class),
+                        new ThreadContext(Settings.EMPTY),
+                        () -> false
+                    )
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -224,7 +245,7 @@ public class RestBulkActionTests extends ESTestCase {
         RestBulkAction.ChunkHandler chunkHandler = new RestBulkAction.ChunkHandler(
             true,
             request,
-            new IncrementalBulkService.Handler(null, null, null, null, null, null) {
+            new IncrementalBulkService.Handler(null, null, null, null, null, null, null) {
 
                 @Override
                 public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {

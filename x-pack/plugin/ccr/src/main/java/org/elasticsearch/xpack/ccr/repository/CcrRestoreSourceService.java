@@ -245,7 +245,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
         private long readFileBytes(String fileName, ByteArray reference) throws IOException {
             try (Releasable ignored = keyedLock.acquire(fileName)) {
-                var context = fileName.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.READ;
+                var context = fileName.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.DEFAULT;
                 final IndexInput indexInput = cachedInputs.computeIfAbsent(fileName, f -> {
                     try {
                         return commitRef.getIndexCommit().getDirectory().openInput(fileName, context);

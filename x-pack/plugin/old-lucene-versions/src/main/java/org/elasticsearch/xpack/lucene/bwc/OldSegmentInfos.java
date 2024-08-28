@@ -305,7 +305,7 @@ public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
             byte[] segmentID = new byte[StringHelper.ID_LENGTH];
             input.readBytes(segmentID, 0, segmentID.length);
             Codec codec = readCodec(input);
-            SegmentInfo info = codec.segmentInfoFormat().read(directory, segName, segmentID, IOContext.READ);
+            SegmentInfo info = codec.segmentInfoFormat().read(directory, segName, segmentID, IOContext.DEFAULT);
             info.setCodec(codec);
             totalDocs += info.maxDoc();
             long delGen = CodecUtil.readBELong(input);

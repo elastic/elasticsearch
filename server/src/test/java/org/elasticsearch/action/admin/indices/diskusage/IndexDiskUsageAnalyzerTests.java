@@ -686,7 +686,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         final String[] files;
         final Directory directory;
         if (sis.getUseCompoundFile()) {
-            directory = sis.getCodec().compoundFormat().getCompoundReader(reader.directory(), sis, IOContext.READ);
+            directory = sis.getCodec().compoundFormat().getCompoundReader(reader.directory(), sis, IOContext.DEFAULT);
             files = directory.listAll();
         } else {
             directory = reader.directory();

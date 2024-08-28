@@ -55,6 +55,6 @@ You can apply for access to Azure OpenAI by completing the form at https://aka.m
 
 // tag::alibabacloud-ai-search[]
 * An AlibabaCloud Account with https://console.aliyun.com[AlibabaCloud] access
-* An API key generated for your account from https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[API keys section]
+* An API key generated for your account from the https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[API keys section]
 
 // end::alibabacloud-ai-search[]

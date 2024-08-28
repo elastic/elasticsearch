@@ -73,7 +73,7 @@ for the `rerank` task are:
 
 * `ops-bge-reranker-larger`
 
-You can find the supported `rerank` service_id at https://help.aliyun.com/zh/open-search/search-platform/developer-reference/ranker-api-details[rerank detail]
+For the supported `rerank` service_id, refer to the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/ranker-api-details[documentation].
 
 `host`:::
 (Required, string)

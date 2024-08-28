@@ -59,13 +59,11 @@ public class RestBulkAction extends BaseRestHandler {
     public static final Setting<Boolean> INCREMENTAL_BULK = boolSetting("rest.incremental_bulk", true, Setting.Property.NodeScope);
 
     private final boolean allowExplicitIndex;
-    private final boolean incrementalBulk;
     private final IncrementalBulkService bulkHandler;
 
     public RestBulkAction(Settings settings, IncrementalBulkService bulkHandler) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.bulkHandler = bulkHandler;
-        this.incrementalBulk = INCREMENTAL_BULK.get(settings);
     }
 
     @Override
@@ -87,7 +85,7 @@ public class RestBulkAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (incrementalBulk == false) {
+        if (bulkHandler.incrementalBulkEnabled() == false) {
             if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
                 request.param("type");
             }

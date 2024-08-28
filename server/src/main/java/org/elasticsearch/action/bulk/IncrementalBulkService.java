@@ -12,23 +12,38 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class IncrementalBulkService {
 
     private final Client client;
     private final ThreadContext threadContext;
+    private final Enabled enabled;
 
     public IncrementalBulkService(Client client, ThreadContext threadContext) {
         this.client = client;
         this.threadContext = threadContext;
+        this.enabled = new Enabled();
+    }
+
+    public IncrementalBulkService(Client client, ThreadContext threadContext, ClusterSettings clusterSettings) {
+        this.client = client;
+        this.threadContext = threadContext;
+        this.enabled = new Enabled(clusterSettings);
+    }
+
+    public boolean incrementalBulkEnabled() {
+        return enabled.incrementalBulkEnabled();
     }
 
     public Handler newBulkRequest() {
@@ -37,6 +52,22 @@ public class IncrementalBulkService {
 
     public Handler newBulkRequest(@Nullable String waitForActiveShards, @Nullable TimeValue timeout, @Nullable String refresh) {
         return new Handler(client, threadContext, threadContext.newStoredContext(), waitForActiveShards, timeout, refresh);
+    }
+
+    public static class Enabled {
+
+        private final AtomicBoolean incrementalBulksEnabled = new AtomicBoolean(true);
+
+        public Enabled() {}
+
+        public Enabled(ClusterSettings clusterSettings) {
+            incrementalBulksEnabled.set(clusterSettings.get(RestBulkAction.INCREMENTAL_BULK));
+            clusterSettings.addSettingsUpdateConsumer(RestBulkAction.INCREMENTAL_BULK, incrementalBulksEnabled::set);
+        }
+
+        public boolean incrementalBulkEnabled() {
+            return incrementalBulksEnabled.get();
+        }
     }
 
     public static class Handler implements Releasable {

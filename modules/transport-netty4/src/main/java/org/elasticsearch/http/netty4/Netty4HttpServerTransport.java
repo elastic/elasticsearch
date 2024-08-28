@@ -36,6 +36,7 @@ import io.netty.util.AttributeKey;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
@@ -96,6 +97,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final TLSConfig tlsConfig;
     private final AcceptChannelHandler.AcceptPredicate acceptChannelPredicate;
     private final HttpValidator httpValidator;
+    private final IncrementalBulkService.Enabled enabled;
     private final ThreadWatchdog threadWatchdog;
     private final int readTimeoutMillis;
 
@@ -134,6 +136,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.acceptChannelPredicate = acceptChannelPredicate;
         this.httpValidator = httpValidator;
         this.threadWatchdog = networkService.getThreadWatchdog();
+        this.enabled = new IncrementalBulkService.Enabled(clusterSettings);
 
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
 
@@ -279,7 +282,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     public ChannelHandler configureServerChannelHandler() {
-        return new HttpChannelHandler(this, handlingSettings, tlsConfig, acceptChannelPredicate, httpValidator);
+        return new HttpChannelHandler(this, handlingSettings, tlsConfig, acceptChannelPredicate, httpValidator, enabled);
     }
 
     static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("es-http-channel");
@@ -292,19 +295,22 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final TLSConfig tlsConfig;
         private final BiPredicate<String, InetSocketAddress> acceptChannelPredicate;
         private final HttpValidator httpValidator;
+        private final IncrementalBulkService.Enabled enabled;
 
         protected HttpChannelHandler(
             final Netty4HttpServerTransport transport,
             final HttpHandlingSettings handlingSettings,
             final TLSConfig tlsConfig,
             @Nullable final BiPredicate<String, InetSocketAddress> acceptChannelPredicate,
-            @Nullable final HttpValidator httpValidator
+            @Nullable final HttpValidator httpValidator,
+            IncrementalBulkService.Enabled enabled
         ) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
             this.tlsConfig = tlsConfig;
             this.acceptChannelPredicate = acceptChannelPredicate;
             this.httpValidator = httpValidator;
+            this.enabled = enabled;
         }
 
         @Override
@@ -367,7 +373,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             // combines the HTTP message pieces into a single full HTTP request (with headers and body)
             final HttpObjectAggregator aggregator = new Netty4HttpAggregator(
                 handlingSettings.maxContentLength(),
-                httpPreRequest -> httpPreRequest.uri().contains("_bulk") == false
+                httpPreRequest -> enabled.incrementalBulkEnabled() && httpPreRequest.uri().contains("_bulk") == false
             );
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             ch.pipeline()

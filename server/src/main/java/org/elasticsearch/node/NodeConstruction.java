@@ -877,7 +877,11 @@ class NodeConstruction {
         terminationHandler = getSinglePlugin(terminationHandlers, TerminationHandler.class).orElse(null);
 
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
-        final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(client, threadPool.getThreadContext());
+        final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(
+            client,
+            threadPool.getThreadContext(),
+            clusterService.getClusterSettings()
+        );
 
         ActionModule actionModule = new ActionModule(
             settings,

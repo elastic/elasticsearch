@@ -45,6 +45,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.Request;
@@ -418,7 +419,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                         handlingSettings,
                         TLSConfig.noTLS(),
                         null,
-                        randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
+                        randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null),
+                        new IncrementalBulkService.Enabled(clusterSettings)
                     ) {
                         @Override
                         protected void initChannel(Channel ch) throws Exception {

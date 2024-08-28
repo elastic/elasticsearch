@@ -506,12 +506,12 @@ public class BulkRequest extends ActionRequest
         return Map.of();
     }
 
-    record IncrementalState(Map<ShardId, Exception> shardLevelFailures) implements Writeable {
+    record IncrementalState(Map<ShardId, Exception> shardLevelFailures, boolean indexingPressureAccounted) implements Writeable {
 
-        static final IncrementalState EMPTY = new IncrementalState(Collections.emptyMap());
+        static final IncrementalState EMPTY = new IncrementalState(Collections.emptyMap(), false);
 
         IncrementalState(StreamInput in) throws IOException {
-            this(in.readMap(ShardId::new, input -> input.readException()));
+            this(in.readMap(ShardId::new, input -> input.readException()), false);
         }
 
         @Override

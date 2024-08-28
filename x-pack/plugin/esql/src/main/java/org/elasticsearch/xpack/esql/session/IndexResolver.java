@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -16,6 +18,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSeedNodeLeftException;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
@@ -73,16 +80,25 @@ public class IndexResolver {
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
-    public void resolveAsMergedMapping(String indexWildcard, Set<String> fieldNames, ActionListener<IndexResolution> listener) {
+    public void resolveAsMergedMapping(
+        String indexWildcard,
+        Set<String> fieldNames,
+        EsqlExecutionInfo executionInfo,
+        ActionListener<IndexResolution> listener
+    ) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames),
-            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, executionInfo, response)))
         );
     }
 
     // public for testing only
-    public IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
+    public IndexResolution mergedMappings(
+        String indexPattern,
+        EsqlExecutionInfo executionInfo,
+        FieldCapabilitiesResponse fieldCapsResponse
+    ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
             return IndexResolution.notFound(indexPattern);
@@ -150,9 +166,66 @@ public class IndexResolver {
         }
 
         Set<String> concreteIndices = new HashSet<>(fieldCapsResponse.getIndexResponses().size());
+        boolean isCrossClusterQuery = false;
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
-            concreteIndices.add(ir.getIndexName());
+            String indexExpression = ir.getIndexName();
+            concreteIndices.add(indexExpression);
+
+            String clusterAlias = parseClusterAlias(indexExpression);
+            // only populate EsqlExecutionInfo if this is a cross-cluster query
+            if (isCrossClusterQuery || clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
+                isCrossClusterQuery = true;
+                EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+                // populate the EsqlExecutionInfo cluster map with responses from each cluster coming back from field-caps
+                if (cluster == null) {
+                    executionInfo.swapCluster(
+                        clusterAlias,
+                        (k, v) -> new EsqlExecutionInfo.Cluster(
+                            clusterAlias,
+                            indexExpression,
+                            executionInfo.isSkipUnavailable(clusterAlias)
+                        )
+                    );
+                } else {
+                    String newIndexExpr = cluster.getIndexExpression() + "," + indexExpression;
+                    executionInfo.swapCluster(
+                        clusterAlias,
+                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setIndexExpression(newIndexExpr).build()
+                    );
+                }
+            }
         }
+
+        // check for "remote unavailable" type errors that occurred during field-caps lookup on remote clusters
+        if (isCrossClusterQuery && fieldCapsResponse.getFailures() != null) {
+            Set<String> clusterAliasesWithErrors = new HashSet<>();
+            for (FieldCapabilitiesFailure failure : fieldCapsResponse.getFailures()) {
+                if (isRemoteUnavailableException(failure.getException())) {
+                    for (String indexExpression : failure.getIndices()) {
+                        if (indexExpression.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0) {
+                            clusterAliasesWithErrors.add(parseClusterAlias(indexExpression));
+                        }
+                    }
+                }
+            }
+
+            for (String clusterAlias : clusterAliasesWithErrors) {
+                EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+                assert cluster != null : "EsqlExecutionInfo was set up incorrectly; null entry for cluster: " + clusterAlias;
+                if (cluster.isSkipUnavailable()) {
+                    executionInfo.swapCluster(
+                        clusterAlias,
+                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(cluster).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED).build()
+                    );
+                } else {
+                    // MP FIXME this causes a 500 - is that what we want to return? _search returns 400 when skip_unavailable=false.
+                    throw new IllegalStateException(
+                        "Placeholder error for failing an ESQL search. Required remote cluster could not be contacted:" + clusterAlias
+                    );
+                }
+            }
+        }
+
         return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices));
     }
 
@@ -272,5 +345,50 @@ public class IndexResolver {
         req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);
         req.setMergeResults(false);
         return req;
+    }
+
+    // MP TODO - copied/modified from PainlessExecuteAction
+    /**
+     * @param indexExpression expects a single index expression at a time
+     * @return cluster alias in the index expression. If none is present, returns RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
+     */
+    static String parseClusterAlias(String indexExpression) {
+        assert indexExpression != null : "Must not pass null indexExpression";
+        String trimmed = indexExpression.trim();
+        String sep = String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
+        if (trimmed.startsWith(sep) || trimmed.endsWith(sep)) {
+            throw new IllegalArgumentException(
+                "Unable to parse one single valid index name from the provided index expression: [" + indexExpression + "]"
+            );
+        }
+        String[] parts = indexExpression.split(sep, 2);
+        if (parts.length == 1) {
+            return RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        } else if (parts.length == 2) {
+            return parts[0];
+        } else {
+            throw new IllegalArgumentException(
+                "Unable to parse one single valid index name from the provided index expression: [" + indexExpression + "]"
+            );
+        }
+    }
+
+    // MP TODO: - copied from TransportResolveClusterAction/CCSUsage - probably needs to go into ExceptionHelper?
+    private static boolean isRemoteUnavailableException(Exception e) {
+        Throwable unwrap = ExceptionsHelper.unwrap(
+            e,
+            ConnectTransportException.class,
+            NoSuchRemoteClusterException.class,
+            NoSeedNodeLeftException.class
+        );
+        if (unwrap != null) {
+            return true;
+        }
+        Throwable ill = ExceptionsHelper.unwrap(e, IllegalStateException.class, IllegalArgumentException.class);
+        if (ill != null && (ill.getMessage().contains("Unable to open any connections") || ill.getMessage().contains("unknown host"))) {
+            return true;
+        }
+        // doesn't look like any of the known remote exceptions
+        return false;
     }
 }

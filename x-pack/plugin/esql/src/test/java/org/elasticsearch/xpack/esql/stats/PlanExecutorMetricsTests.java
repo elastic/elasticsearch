@@ -104,7 +104,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         // test a failed query: xyz field doesn't exist
         request.query("from test | stats m = max(xyz)");
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase = (p, r) -> fail("this shouldn't happen");
-        planExecutor.esql(request, randomAlphaOfLength(10), EsqlTestUtils.TEST_CFG, enrichResolver, runPhase, new ActionListener<>() {
+        planExecutor.esql(request, randomAlphaOfLength(10), EsqlTestUtils.TEST_CFG, enrichResolver, null, runPhase, new ActionListener<>() {
             @Override
             public void onResponse(Result result) {
                 fail("this shouldn't happen");
@@ -124,7 +124,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         // fix the failing query: foo field does exist
         request.query("from test | stats m = max(foo)");
         runPhase = (p, r) -> r.onResponse(null);
-        planExecutor.esql(request, randomAlphaOfLength(10), EsqlTestUtils.TEST_CFG, enrichResolver, runPhase, new ActionListener<>() {
+        planExecutor.esql(request, randomAlphaOfLength(10), EsqlTestUtils.TEST_CFG, enrichResolver, null, runPhase, new ActionListener<>() {
             @Override
             public void onResponse(Result result) {}
 

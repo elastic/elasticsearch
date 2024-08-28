@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -419,6 +420,7 @@ public class CsvTests extends ESTestCase {
             new EsqlQueryRequest(),
             runPhase(bigArrays, physicalOperationProviders),
             analyzed,
+            new EsqlExecutionInfo(),
             listener.delegateFailureAndWrap(
                 // Wrap so we can capture the warnings in the calling thread
                 (next, result) -> next.onResponse(
@@ -553,6 +555,6 @@ public class CsvTests extends ESTestCase {
             }
         };
         listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
-        runner.runToCompletion(drivers, listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, List.of())));
+        runner.runToCompletion(drivers, listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, List.of(), null)));
     }
 }

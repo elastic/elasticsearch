@@ -56,6 +56,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -133,6 +134,7 @@ public class ComputeService {
         CancellableTask rootTask,
         PhysicalPlan physicalPlan,
         Configuration configuration,
+        EsqlExecutionInfo executionInfo,
         ActionListener<Result> listener
     ) {
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
@@ -173,7 +175,7 @@ public class ComputeService {
                 var computeListener = new ComputeListener(
                     transportService,
                     rootTask,
-                    listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles()))
+                    listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo))
                 )
             ) {
                 runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
@@ -200,7 +202,7 @@ public class ComputeService {
             var computeListener = new ComputeListener(
                 transportService,
                 rootTask,
-                listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles()))
+                listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo))
             )
         ) {
             // run compute on the coordinator

@@ -25,10 +25,12 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -63,6 +65,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final EnrichLookupService enrichLookupService;
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
+    private final RemoteClusterService remoteClusterService;
 
     @Inject
     @SuppressWarnings("this-escape")
@@ -112,6 +115,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             threadPool,
             bigArrays
         );
+        remoteClusterService = transportService.getRemoteClusterService();
     }
 
     @Override
@@ -160,11 +164,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.tables()
         );
         String sessionId = sessionID(task);
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias));
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase = (physicalPlan, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,
             physicalPlan,
             configuration,
+            executionInfo,
             resultListener
         );
 
@@ -173,6 +179,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             sessionId,
             configuration,
             enrichPolicyResolver,
+            executionInfo,
             runPhase,
             listener.map(result -> toResponse(task, request, configuration, result))
         );

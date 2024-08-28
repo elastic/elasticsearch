@@ -35,6 +35,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -358,7 +359,8 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveAsMergedMapping(indexName, IndexResolver.ALL_FIELDS, refs.acquire(indexResult -> {
+                        EsqlExecutionInfo bogus = new EsqlExecutionInfo();  // FIXME after doing the EsqlSession pathways
+                        indexResolver.resolveAsMergedMapping(indexName, IndexResolver.ALL_FIELDS, bogus, refs.acquire(indexResult -> {
                             if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
                                 EsIndex esIndex = indexResult.get();
                                 var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));

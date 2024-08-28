@@ -17,6 +17,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -119,13 +120,17 @@ public class EsqlSession {
      */
     public void execute(
         EsqlQueryRequest request,
+        EsqlExecutionInfo executionInfo,
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
         ActionListener<Result> listener
     ) {
         LOGGER.debug("ESQL query:\n{}", request.query());
         analyzedPlan(
             parse(request.query(), request.params()),
-            listener.delegateFailureAndWrap((next, analyzedPlan) -> executeAnalyzedPlan(request, runPhase, analyzedPlan, next))
+            executionInfo,
+            listener.delegateFailureAndWrap(
+                (next, analyzedPlan) -> executeAnalyzedPlan(request, runPhase, analyzedPlan, executionInfo, next)
+            )
         );
     }
 
@@ -137,13 +142,14 @@ public class EsqlSession {
         EsqlQueryRequest request,
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
         LogicalPlan analyzedPlan,
+        EsqlExecutionInfo executionInfo,
         ActionListener<Result> listener
     ) {
         LogicalPlan firstPhase = Phased.extractFirstPhase(analyzedPlan);
         if (firstPhase == null) {
             runPhase.accept(logicalPlanToPhysicalPlan(analyzedPlan, request), listener);
         } else {
-            executePhased(new ArrayList<>(), analyzedPlan, request, firstPhase, runPhase, listener);
+            executePhased(new ArrayList<>(), analyzedPlan, request, firstPhase, executionInfo, runPhase, listener);
         }
     }
 
@@ -152,6 +158,7 @@ public class EsqlSession {
         LogicalPlan mainPlan,
         EsqlQueryRequest request,
         LogicalPlan firstPhase,
+        EsqlExecutionInfo executionInfo,
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
         ActionListener<Result> listener
     ) {
@@ -165,10 +172,10 @@ public class EsqlSession {
                     PhysicalPlan finalPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request);
                     runPhase.accept(finalPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
                         profileAccumulator.addAll(finalResult.profiles());
-                        finalListener.onResponse(new Result(finalResult.schema(), finalResult.pages(), profileAccumulator));
+                        finalListener.onResponse(new Result(finalResult.schema(), finalResult.pages(), profileAccumulator, executionInfo));
                     }));
                 } else {
-                    executePhased(profileAccumulator, newMainPlan, request, newFirstPhase, runPhase, next);
+                    executePhased(profileAccumulator, newMainPlan, request, newFirstPhase, executionInfo, runPhase, next);
                 }
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
@@ -182,13 +189,13 @@ public class EsqlSession {
         return parsed;
     }
 
-    public void analyzedPlan(LogicalPlan parsed, ActionListener<LogicalPlan> listener) {
+    public void analyzedPlan(LogicalPlan parsed, EsqlExecutionInfo executionInfo, ActionListener<LogicalPlan> listener) {
         if (parsed.analyzed()) {
             listener.onResponse(parsed);
             return;
         }
 
-        preAnalyze(parsed, (indices, policies) -> {
+        preAnalyze(parsed, executionInfo, (indices, policies) -> {
             Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
             var plan = analyzer.analyze(parsed);
             plan.setAnalyzed();
@@ -197,7 +204,12 @@ public class EsqlSession {
         }, listener);
     }
 
-    private <T> void preAnalyze(LogicalPlan parsed, BiFunction<IndexResolution, EnrichResolution, T> action, ActionListener<T> listener) {
+    private <T> void preAnalyze(
+        LogicalPlan parsed,
+        EsqlExecutionInfo executionInfo,
+        BiFunction<IndexResolution, EnrichResolution, T> action,
+        ActionListener<T> listener
+    ) {
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         var unresolvedPolicies = preAnalysis.enriches.stream()
             .map(e -> new EnrichPolicyResolver.UnresolvedPolicy((String) e.policyName().fold(), e.mode()))
@@ -213,7 +225,7 @@ public class EsqlSession {
                 .stream()
                 .map(ResolvedEnrichPolicy::matchField)
                 .collect(Collectors.toSet());
-            preAnalyzeIndices(parsed, l.delegateFailureAndWrap((ll, indexResolution) -> {
+            preAnalyzeIndices(parsed, executionInfo, l.delegateFailureAndWrap((ll, indexResolution) -> {
                 if (indexResolution.isValid()) {
                     Set<String> newClusters = enrichPolicyResolver.groupIndicesPerCluster(
                         indexResolution.get().concreteIndices().toArray(String[]::new)
@@ -235,7 +247,12 @@ public class EsqlSession {
         }));
     }
 
-    private <T> void preAnalyzeIndices(LogicalPlan parsed, ActionListener<IndexResolution> listener, Set<String> enrichPolicyMatchFields) {
+    private <T> void preAnalyzeIndices(
+        LogicalPlan parsed,
+        EsqlExecutionInfo executionInfo,
+        ActionListener<IndexResolution> listener,
+        Set<String> enrichPolicyMatchFields
+    ) {
         PreAnalyzer.PreAnalysis preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         if (preAnalysis.indices.size() > 1) {
@@ -245,7 +262,7 @@ public class EsqlSession {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
-            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
+            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, executionInfo, listener);
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)

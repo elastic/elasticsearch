@@ -22,6 +22,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
@@ -37,6 +38,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.IntSupplier;
 
 /**
  * A query that uses a script to compute documents' scores.
@@ -103,30 +105,40 @@ public class ScriptScoreQuery extends Query {
         }
 
         return new Weight(this) {
-            @Override
-            public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-                if (minScore == null) {
-                    final BulkScorer subQueryBulkScorer = subQueryWeight.bulkScorer(context);
-                    if (subQueryBulkScorer == null) {
-                        return null;
-                    }
-                    return new ScriptScoreBulkScorer(subQueryBulkScorer, subQueryScoreMode, makeScoreScript(context), boost);
-                } else {
-                    return super.bulkScorer(context);
-                }
-            }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
-                Scorer subQueryScorer = subQueryWeight.scorer(context);
-                if (subQueryScorer == null) {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                ScorerSupplier subQueryScorerSupplier = subQueryWeight.scorerSupplier(context);
+                if (subQueryScorerSupplier == null) {
                     return null;
                 }
-                Scorer scriptScorer = new ScriptScorer(this, makeScoreScript(context), subQueryScorer, subQueryScoreMode, boost, null);
-                if (minScore != null) {
-                    scriptScorer = new MinScoreScorer(this, scriptScorer, minScore);
-                }
-                return scriptScorer;
+
+                return new ScorerSupplier() {
+                    @Override
+                    public Scorer get(long leadCost) throws IOException {
+                        Scorer subQueryScorer = subQueryScorerSupplier.get(leadCost);
+                        Scorer scriptScorer = new ScriptScorer(makeScoreScript(context), subQueryScorer, subQueryScoreMode, boost, null);
+                        if (minScore != null) {
+                            scriptScorer = new MinScoreScorer(scriptScorer, minScore);
+                        }
+                        return scriptScorer;
+                    }
+
+                    @Override
+                    public BulkScorer bulkScorer() throws IOException {
+                        if (minScore == null) {
+                            final BulkScorer subQueryBulkScorer = subQueryScorerSupplier.bulkScorer();
+                            return new ScriptScoreBulkScorer(subQueryBulkScorer, subQueryScoreMode, makeScoreScript(context), boost);
+                        } else {
+                            return super.bulkScorer();
+                        }
+                    }
+
+                    @Override
+                    public long cost() {
+                        return subQueryScorerSupplier.cost();
+                    }
+                };
             }
 
             @Override
@@ -137,7 +149,6 @@ public class ScriptScoreQuery extends Query {
                 }
                 ExplanationHolder explanationHolder = new ExplanationHolder();
                 Scorer scorer = new ScriptScorer(
-                    this,
                     makeScoreScript(context),
                     subQueryWeight.scorer(context),
                     subQueryScoreMode,
@@ -230,14 +241,12 @@ public class ScriptScoreQuery extends Query {
         private final ExplanationHolder explanation;
 
         ScriptScorer(
-            Weight weight,
             ScoreScript scoreScript,
             Scorer subQueryScorer,
             ScoreMode subQueryScoreMode,
             float boost,
             ExplanationHolder explanation
         ) {
-            super(weight);
             this.scoreScript = scoreScript;
             if (subQueryScoreMode == ScoreMode.COMPLETE) {
                 scoreScript.setScorer(subQueryScorer);
@@ -291,19 +300,27 @@ public class ScriptScoreQuery extends Query {
         private final ScoreScript scoreScript;
         private final Scorable subQueryScorer;
         private final float boost;
+        private final IntSupplier docIDSupplier;
 
-        ScriptScorable(ScoreScript scoreScript, Scorable subQueryScorer, ScoreMode subQueryScoreMode, float boost) {
+        ScriptScorable(
+            ScoreScript scoreScript,
+            Scorable subQueryScorer,
+            ScoreMode subQueryScoreMode,
+            float boost,
+            IntSupplier docIDSupplier
+        ) {
             this.scoreScript = scoreScript;
             if (subQueryScoreMode == ScoreMode.COMPLETE) {
                 scoreScript.setScorer(subQueryScorer);
             }
             this.subQueryScorer = subQueryScorer;
             this.boost = boost;
+            this.docIDSupplier = docIDSupplier;
         }
 
         @Override
         public float score() throws IOException {
-            int docId = docID();
+            int docId = docIDSupplier.getAsInt();
             scoreScript.setDocument(docId);
             float score = (float) scoreScript.execute(null);
             if (score < 0f || Float.isNaN(score)) {
@@ -319,10 +336,6 @@ public class ScriptScoreQuery extends Query {
             return score * boost;
         }
 
-        @Override
-        public int docID() {
-            return subQueryScorer.docID();
-        }
     }
 
     /**
@@ -349,9 +362,18 @@ public class ScriptScoreQuery extends Query {
 
         private LeafCollector wrapCollector(LeafCollector collector) {
             return new FilterLeafCollector(collector) {
+
+                private int docID;
+
                 @Override
                 public void setScorer(Scorable scorer) throws IOException {
-                    in.setScorer(new ScriptScorable(scoreScript, scorer, subQueryScoreMode, boost));
+                    in.setScorer(new ScriptScorable(scoreScript, scorer, subQueryScoreMode, boost, () -> docID));
+                }
+
+                @Override
+                public void collect(int doc) throws IOException {
+                    this.docID = doc;
+                    super.collect(doc);
                 }
             };
         }

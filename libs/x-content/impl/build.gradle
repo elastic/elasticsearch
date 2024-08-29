@@ -12,7 +12,7 @@ base {
   archivesName = "x-content-impl"
 }
 
-String jacksonVersion = "2.15.0"
+String jacksonVersion = "2.17.2"
 
 dependencies {
   compileOnly project(':libs:elasticsearch-core')

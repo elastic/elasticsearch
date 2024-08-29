@@ -451,7 +451,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         final List<String> spaces = List.of("space1", "space2", "space3", "space4", "*");
         final List<Profile> profiles = spaces.stream().map(space -> {
             final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
-            final String lastName = randomAlphaOfLengthBetween(3, 8);
+            final String lastName = randomAlphaOfLengthBetween(3, 8) + space;
             final Authentication.RealmRef realmRef = randomBoolean()
                 ? AuthenticationTestHelper.randomRealmRef(false)
                 : new Authentication.RealmRef(

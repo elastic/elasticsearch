@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.plugins.Plugin;
@@ -142,6 +143,11 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
         }
 
         @Override
+        public QueryBuilder topDocsQuery() {
+            return null;
+        }
+
+        @Override
         public RetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
             assertNull(ctx.getPointInTimeBuilder());
             assertNull(ctx.convertToInnerHitsRewriteContext());
@@ -198,6 +204,11 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
         @Override
         public boolean isCompound() {
             return true;
+        }
+
+        @Override
+        public QueryBuilder topDocsQuery() {
+            return null;
         }
 
         @Override

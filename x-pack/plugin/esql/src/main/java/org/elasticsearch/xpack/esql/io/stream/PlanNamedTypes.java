@@ -12,35 +12,17 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
-import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.TopN;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -71,8 +53,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.Entry.of;
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
 
 /**
  * A utility class that consists solely of static methods that describe how to serialize and
@@ -108,18 +88,13 @@ public final class PlanNamedTypes {
             // Physical Plan Nodes
             of(PhysicalPlan.class, AggregateExec.ENTRY),
             of(PhysicalPlan.class, DissectExec.ENTRY),
-            of(PhysicalPlan.class, EsQueryExec.class, PlanNamedTypes::writeEsQueryExec, PlanNamedTypes::readEsQueryExec),
+            of(PhysicalPlan.class, EsQueryExec.ENTRY),
             of(PhysicalPlan.class, EsSourceExec.ENTRY),
-            of(PhysicalPlan.class, EvalExec.class, PlanNamedTypes::writeEvalExec, PlanNamedTypes::readEvalExec),
+            of(PhysicalPlan.class, EvalExec.ENTRY),
             of(PhysicalPlan.class, EnrichExec.class, PlanNamedTypes::writeEnrichExec, PlanNamedTypes::readEnrichExec),
-            of(PhysicalPlan.class, ExchangeExec.class, PlanNamedTypes::writeExchangeExec, PlanNamedTypes::readExchangeExec),
-            of(PhysicalPlan.class, ExchangeSinkExec.class, PlanNamedTypes::writeExchangeSinkExec, PlanNamedTypes::readExchangeSinkExec),
-            of(
-                PhysicalPlan.class,
-                ExchangeSourceExec.class,
-                PlanNamedTypes::writeExchangeSourceExec,
-                PlanNamedTypes::readExchangeSourceExec
-            ),
+            of(PhysicalPlan.class, ExchangeExec.ENTRY),
+            of(PhysicalPlan.class, ExchangeSinkExec.ENTRY),
+            of(PhysicalPlan.class, ExchangeSourceExec.ENTRY),
             of(PhysicalPlan.class, FieldExtractExec.class, PlanNamedTypes::writeFieldExtractExec, PlanNamedTypes::readFieldExtractExec),
             of(PhysicalPlan.class, FilterExec.class, PlanNamedTypes::writeFilterExec, PlanNamedTypes::readFilterExec),
             of(PhysicalPlan.class, FragmentExec.class, PlanNamedTypes::writeFragmentExec, PlanNamedTypes::readFragmentExec),
@@ -132,81 +107,12 @@ public final class PlanNamedTypes {
             of(PhysicalPlan.class, ProjectExec.class, PlanNamedTypes::writeProjectExec, PlanNamedTypes::readProjectExec),
             of(PhysicalPlan.class, RowExec.class, PlanNamedTypes::writeRowExec, PlanNamedTypes::readRowExec),
             of(PhysicalPlan.class, ShowExec.class, PlanNamedTypes::writeShowExec, PlanNamedTypes::readShowExec),
-            of(PhysicalPlan.class, TopNExec.class, PlanNamedTypes::writeTopNExec, PlanNamedTypes::readTopNExec),
-            // Logical Plan Nodes - a subset of plans that end up being actually serialized
-            of(LogicalPlan.class, Aggregate.ENTRY),
-            of(LogicalPlan.class, Dissect.ENTRY),
-            of(LogicalPlan.class, EsRelation.ENTRY),
-            of(LogicalPlan.class, Eval.ENTRY),
-            of(LogicalPlan.class, Enrich.ENTRY),
-            of(LogicalPlan.class, EsqlProject.ENTRY),
-            of(LogicalPlan.class, Filter.ENTRY),
-            of(LogicalPlan.class, Grok.ENTRY),
-            of(LogicalPlan.class, InlineStats.ENTRY),
-            of(LogicalPlan.class, Join.ENTRY),
-            of(LogicalPlan.class, Limit.ENTRY),
-            of(LogicalPlan.class, LocalRelation.ENTRY),
-            of(LogicalPlan.class, Lookup.ENTRY),
-            of(LogicalPlan.class, MvExpand.ENTRY),
-            of(LogicalPlan.class, OrderBy.ENTRY),
-            of(LogicalPlan.class, Project.ENTRY),
-            of(LogicalPlan.class, TopN.ENTRY)
+            of(PhysicalPlan.class, TopNExec.class, PlanNamedTypes::writeTopNExec, PlanNamedTypes::readTopNExec)
         );
         return declared;
     }
 
     // -- physical plan nodes
-    static EsQueryExec readEsQueryExec(PlanStreamInput in) throws IOException {
-        return new EsQueryExec(
-            Source.readFrom(in),
-            new EsIndex(in),
-            readIndexMode(in),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readOptionalNamedWriteable(QueryBuilder.class),
-            in.readOptionalNamed(Expression.class),
-            in.readOptionalCollectionAsList(readerFromPlanReader(PlanNamedTypes::readFieldSort)),
-            in.readOptionalVInt()
-        );
-    }
-
-    static void writeEsQueryExec(PlanStreamOutput out, EsQueryExec esQueryExec) throws IOException {
-        assert esQueryExec.children().size() == 0;
-        Source.EMPTY.writeTo(out);
-        esQueryExec.index().writeTo(out);
-        writeIndexMode(out, esQueryExec.indexMode());
-        out.writeNamedWriteableCollection(esQueryExec.output());
-        out.writeOptionalNamedWriteable(esQueryExec.query());
-        out.writeOptionalNamedWriteable(esQueryExec.limit());
-        out.writeOptionalCollection(esQueryExec.sorts(), writerFromPlanWriter(PlanNamedTypes::writeFieldSort));
-        out.writeOptionalInt(esQueryExec.estimatedRowSize());
-    }
-
-    public static IndexMode readIndexMode(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_TO_SOURCE)) {
-            return IndexMode.fromString(in.readString());
-        } else {
-            return IndexMode.STANDARD;
-        }
-    }
-
-    public static void writeIndexMode(StreamOutput out, IndexMode indexMode) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_TO_SOURCE)) {
-            out.writeString(indexMode.getName());
-        } else if (indexMode != IndexMode.STANDARD) {
-            throw new IllegalStateException("not ready to support index mode [" + indexMode + "]");
-        }
-    }
-
-    static EvalExec readEvalExec(PlanStreamInput in) throws IOException {
-        return new EvalExec(Source.readFrom(in), in.readPhysicalPlanNode(), in.readCollectionAsList(Alias::new));
-    }
-
-    static void writeEvalExec(PlanStreamOutput out, EvalExec evalExec) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writePhysicalPlanNode(evalExec.child());
-        out.writeCollection(evalExec.fields());
-    }
-
     static EnrichExec readEnrichExec(PlanStreamInput in) throws IOException {
         final Source source = Source.readFrom(in);
         final PhysicalPlan child = in.readPhysicalPlanNode();
@@ -261,47 +167,6 @@ public final class PlanNamedTypes {
             }
         }
         out.writeNamedWriteableCollection(enrich.enrichFields());
-    }
-
-    static ExchangeExec readExchangeExec(PlanStreamInput in) throws IOException {
-        return new ExchangeExec(
-            Source.readFrom(in),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readBoolean(),
-            in.readPhysicalPlanNode()
-        );
-    }
-
-    static void writeExchangeExec(PlanStreamOutput out, ExchangeExec exchangeExec) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeNamedWriteableCollection(exchangeExec.output());
-        out.writeBoolean(exchangeExec.isInBetweenAggs());
-        out.writePhysicalPlanNode(exchangeExec.child());
-    }
-
-    static ExchangeSinkExec readExchangeSinkExec(PlanStreamInput in) throws IOException {
-        return new ExchangeSinkExec(
-            Source.readFrom(in),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readBoolean(),
-            in.readPhysicalPlanNode()
-        );
-    }
-
-    static void writeExchangeSinkExec(PlanStreamOutput out, ExchangeSinkExec exchangeSinkExec) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeNamedWriteableCollection(exchangeSinkExec.output());
-        out.writeBoolean(exchangeSinkExec.isIntermediateAgg());
-        out.writePhysicalPlanNode(exchangeSinkExec.child());
-    }
-
-    static ExchangeSourceExec readExchangeSourceExec(PlanStreamInput in) throws IOException {
-        return new ExchangeSourceExec(Source.readFrom(in), in.readNamedWriteableCollectionAsList(Attribute.class), in.readBoolean());
-    }
-
-    static void writeExchangeSourceExec(PlanStreamOutput out, ExchangeSourceExec exchangeSourceExec) throws IOException {
-        out.writeNamedWriteableCollection(exchangeSourceExec.output());
-        out.writeBoolean(exchangeSourceExec.isIntermediateAgg());
     }
 
     static FieldExtractExec readFieldExtractExec(PlanStreamInput in) throws IOException {
@@ -458,21 +323,5 @@ public final class PlanNamedTypes {
         out.writeCollection(topNExec.order());
         out.writeNamedWriteable(topNExec.limit());
         out.writeOptionalVInt(topNExec.estimatedRowSize());
-    }
-
-    // -- ancillary supporting classes of plan nodes, etc
-
-    static EsQueryExec.FieldSort readFieldSort(PlanStreamInput in) throws IOException {
-        return new EsQueryExec.FieldSort(
-            FieldAttribute.readFrom(in),
-            in.readEnum(Order.OrderDirection.class),
-            in.readEnum(Order.NullsPosition.class)
-        );
-    }
-
-    static void writeFieldSort(PlanStreamOutput out, EsQueryExec.FieldSort fieldSort) throws IOException {
-        fieldSort.field().writeTo(out);
-        out.writeEnum(fieldSort.direction());
-        out.writeEnum(fieldSort.nulls());
     }
 }

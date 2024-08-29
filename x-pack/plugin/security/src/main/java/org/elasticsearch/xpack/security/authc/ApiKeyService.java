@@ -100,6 +100,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -137,6 +138,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE;
 import static org.elasticsearch.TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
@@ -363,29 +365,10 @@ public class ApiKeyService implements Closeable {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
             final TransportVersion transportVersion = getMinTransportVersion();
-            if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
-                && hasRemoteIndices(request.getRoleDescriptors())) {
-                // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
-                listener.onFailure(
-                    new IllegalArgumentException(
-                        "all nodes must have version ["
-                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
-                            + "] or higher to support remote indices privileges for API keys"
-                    )
-                );
+            if (validateRoleDescriptorsForMixedCluster(listener, request.getRoleDescriptors(), transportVersion) == false) {
                 return;
             }
-            if (transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS) && hasRemoteCluster(request.getRoleDescriptors())) {
-                // Creating API keys with roles which define remote cluster privileges is not allowed in a mixed cluster.
-                listener.onFailure(
-                    new IllegalArgumentException(
-                        "all nodes must have version ["
-                            + ROLE_REMOTE_CLUSTER_PRIVS
-                            + "] or higher to support remote cluster privileges for API keys"
-                    )
-                );
-                return;
-            }
+
             if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
                 && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
                 listener.onFailure(
@@ -407,15 +390,63 @@ public class ApiKeyService implements Closeable {
                 return;
             }
 
-            final Set<RoleDescriptor> userRolesWithoutDescription = removeUserRoleDescriptorDescriptions(userRoleDescriptors);
-            final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemotePrivileges(
-                userRolesWithoutDescription,
+            Set<RoleDescriptor> filteredRoleDescriptors = filterRoleDescriptorsForMixedCluster(
+                userRoleDescriptors,
                 transportVersion,
                 request.getId()
             );
 
-            createApiKeyAndIndexIt(authentication, request, filteredUserRoleDescriptors, listener);
+            createApiKeyAndIndexIt(authentication, request, filteredRoleDescriptors, listener);
         }
+    }
+
+    private Set<RoleDescriptor> filterRoleDescriptorsForMixedCluster(
+        final Set<RoleDescriptor> userRoleDescriptors,
+        final TransportVersion transportVersion,
+        final String... apiKeyIds
+    ) {
+        final Set<RoleDescriptor> userRolesWithoutDescription = removeUserRoleDescriptorDescriptions(userRoleDescriptors);
+        return maybeRemoveRemotePrivileges(userRolesWithoutDescription, transportVersion, apiKeyIds);
+    }
+
+    private boolean validateRoleDescriptorsForMixedCluster(
+        final ActionListener<?> listener,
+        final List<RoleDescriptor> roleDescriptors,
+        final TransportVersion transportVersion
+    ) {
+        if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY) && hasRemoteIndices(roleDescriptors)) {
+            // API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "all nodes must have version ["
+                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
+                        + "] or higher to support remote indices privileges for API keys"
+                )
+            );
+            return false;
+        }
+        if (transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS) && hasRemoteCluster(roleDescriptors)) {
+            // API keys with roles which define remote cluster privileges is not allowed in a mixed cluster.
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "all nodes must have version ["
+                        + ROLE_REMOTE_CLUSTER_PRIVS
+                        + "] or higher to support remote cluster privileges for API keys"
+                )
+            );
+            return false;
+        }
+        if (transportVersion.before(ADD_MANAGE_ROLES_PRIVILEGE) && hasGlobalManageRolesPrivilege(roleDescriptors)) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "all nodes must have version ["
+                        + ADD_MANAGE_ROLES_PRIVILEGE
+                        + "] or higher to support the manage roles privilege for API keys"
+                )
+            );
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -456,6 +487,13 @@ public class ApiKeyService implements Closeable {
 
     private static boolean hasRemoteCluster(Collection<RoleDescriptor> roleDescriptors) {
         return roleDescriptors != null && roleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteClusterPermissions);
+    }
+
+    private static boolean hasGlobalManageRolesPrivilege(Collection<RoleDescriptor> roleDescriptors) {
+        return roleDescriptors != null
+            && roleDescriptors.stream()
+                .flatMap(roleDescriptor -> Arrays.stream(roleDescriptor.getConditionalClusterPrivileges()))
+                .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege);
     }
 
     private static IllegalArgumentException validateWorkflowsRestrictionConstraints(
@@ -594,28 +632,11 @@ public class ApiKeyService implements Closeable {
         }
 
         final TransportVersion transportVersion = getMinTransportVersion();
-        if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY) && hasRemoteIndices(request.getRoleDescriptors())) {
-            // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "all nodes must have version ["
-                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
-                        + "] or higher to support remote indices privileges for API keys"
-                )
-            );
+
+        if (validateRoleDescriptorsForMixedCluster(listener, request.getRoleDescriptors(), transportVersion) == false) {
             return;
         }
-        if (transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS) && hasRemoteCluster(request.getRoleDescriptors())) {
-            // Updating API keys with roles which define remote cluster privileges is not allowed in a mixed cluster.
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "all nodes must have version ["
-                        + ROLE_REMOTE_CLUSTER_PRIVS
-                        + "] or higher to support remote indices privileges for API keys"
-                )
-            );
-            return;
-        }
+
         final Exception workflowsValidationException = validateWorkflowsRestrictionConstraints(
             transportVersion,
             request.getRoleDescriptors(),
@@ -627,22 +648,22 @@ public class ApiKeyService implements Closeable {
         }
 
         final String[] apiKeyIds = request.getIds().toArray(String[]::new);
-        final Set<RoleDescriptor> userRolesWithoutDescription = removeUserRoleDescriptorDescriptions(userRoleDescriptors);
-        final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemotePrivileges(
-            userRolesWithoutDescription,
-            transportVersion,
-            apiKeyIds
-        );
 
         if (logger.isDebugEnabled()) {
             logger.debug("Updating [{}] API keys", buildDelimitedStringWithLimit(10, apiKeyIds));
         }
 
+        Set<RoleDescriptor> filteredRoleDescriptors = filterRoleDescriptorsForMixedCluster(
+            userRoleDescriptors,
+            transportVersion,
+            apiKeyIds
+        );
+
         findVersionedApiKeyDocsForSubject(
             authentication,
             apiKeyIds,
             ActionListener.wrap(
-                versionedDocs -> updateApiKeys(authentication, request, filteredUserRoleDescriptors, versionedDocs, listener),
+                versionedDocs -> updateApiKeys(authentication, request, filteredRoleDescriptors, versionedDocs, listener),
                 ex -> listener.onFailure(traceLog("bulk update", ex))
             )
         );

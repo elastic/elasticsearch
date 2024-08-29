@@ -1,0 +1,38 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name 'x-pack-otel-data'
+  description 'The OTEL plugin defines OTEL data streams and ingest pipelines.'
+  classname 'org.elasticsearch.xpack.oteldata.OTelPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation project(path: ':x-pack:plugin:stack')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':modules:data-streams')
+  clusterModules project(':modules:data-streams')
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:ingest-geoip')
+  clusterModules project(':modules:ingest-user-agent')
+  clusterModules project(':modules:lang-mustache')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(xpackModule('analytics'))
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('mapper-aggregate-metric'))
+  clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(xpackModule('mapper-counted-keyword'))
+  clusterModules project(xpackModule('stack'))
+  clusterModules project(xpackModule('wildcard'))
+  clusterModules project(xpackModule('mapper-version'))
+}

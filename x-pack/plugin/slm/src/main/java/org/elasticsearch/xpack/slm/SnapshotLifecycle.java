@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -92,6 +93,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
     private final SetOnce<SnapshotRetentionService> snapshotRetentionService = new SetOnce<>();
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
     private final SetOnce<SlmHealthIndicatorService> slmHealthIndicatorService = new SetOnce<>();
+    private final SetOnce<FeatureService> featureService = new SetOnce<>();
     private final Settings settings;
 
     public SnapshotLifecycle(Settings settings) {
@@ -124,7 +126,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         ClusterService clusterService = services.clusterService();
         ThreadPool threadPool = services.threadPool();
         final List<Object> components = new ArrayList<>();
-
+        featureService.set(services.featureService());
         SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(
             settings,
             clusterService,
@@ -236,7 +238,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
     }
 
     List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
-        return List.of(new ReservedSnapshotAction());
+        return List.of(new ReservedSnapshotAction(featureService.get()));
     }
 
     @Override

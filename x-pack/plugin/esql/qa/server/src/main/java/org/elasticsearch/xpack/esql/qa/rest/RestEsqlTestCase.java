@@ -576,16 +576,18 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             () -> runEsqlSync(
                 requestObjectBuilder().query("row a = 1 | eval x = ?, y = ?")
                     .params(
-                        "[{\"1\": \"v1\"}, {\"1-\": \"v1\"}, {\"_a\": \"v1\"}, {\"@-#\": \"v1\"}, true, 123, "
-                            + "{\"type\": \"byte\", \"value\": 5}]"
+                        "[{\"1\": \"v1\"}, {\"1-\": \"v1\"}, {\"-a\": \"v1\"}, {\"@-#\": \"v1\"}, true, 123, "
+                            + "{\"type\": \"byte\", \"value\": 5}, {\"_1\": \"v1\"}, {\"_a\": \"v1\"}]"
                     )
             )
         );
         String error = EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", "");
         assertThat(error, containsString("[1] is not a valid parameter name"));
         assertThat(error, containsString("[1-] is not a valid parameter name"));
-        assertThat(error, containsString("[_a] is not a valid parameter name"));
+        assertThat(error, containsString("[-a] is not a valid parameter name"));
         assertThat(error, containsString("[@-#] is not a valid parameter name"));
+        assertThat(error, not(containsString("[_a] is not a valid parameter name")));
+        assertThat(error, not(containsString("[_1] is not a valid parameter name")));
         assertThat(error, containsString("Params cannot contain both named and unnamed parameters"));
         assertThat(error, containsString("Cannot parse more than one key:value pair as parameter"));
         re = expectThrows(
@@ -600,7 +602,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             EntityUtils.toString(re.getResponse().getEntity()),
             containsString("No parameter is defined for position 2, did you mean position 1")
         );
-
         re = expectThrows(
             ResponseException.class,
             () -> runEsqlSync(requestObjectBuilder().query("row a = ?n0").params("[{\"n1\": \"v1\"}]"))
@@ -903,17 +904,24 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         checkKeepOnCompletion(requestObject, json);
         String id = (String) json.get("id");
 
+        var supportsAsyncHeaders = clusterHasCapability("POST", "/_query", List.of(), List.of("async_query_status_headers")).orElse(false);
+
         if (id == null) {
             // no id returned from an async call, must have completed immediately and without keep_on_completion
             assertThat(requestObject.keepOnCompletion(), either(nullValue()).or(is(false)));
             assertThat((boolean) json.get("is_running"), is(false));
+            if (supportsAsyncHeaders) {
+                assertThat(response.getHeader("X-Elasticsearch-Async-Id"), nullValue());
+                assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is("?0"));
+            }
             assertWarnings(response, expectedWarnings, expectedWarningsRegex);
             json.remove("is_running"); // remove this to not mess up later map assertions
             return Collections.unmodifiableMap(json);
         } else {
             // async may not return results immediately, so may need an async get
             assertThat(id, is(not(emptyOrNullString())));
-            if ((boolean) json.get("is_running") == false) {
+            boolean isRunning = (boolean) json.get("is_running");
+            if (isRunning == false) {
                 // must have completed immediately so keep_on_completion must be true
                 assertThat(requestObject.keepOnCompletion(), is(true));
                 assertWarnings(response, expectedWarnings, expectedWarningsRegex);
@@ -925,6 +933,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 assertThat(json.get("columns"), is(equalTo(List.<Map<String, String>>of()))); // no partial results
                 assertThat(json.get("pages"), nullValue());
             }
+
+            if (supportsAsyncHeaders) {
+                assertThat(response.getHeader("X-Elasticsearch-Async-Id"), is(id));
+                assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is(isRunning ? "?1" : "?0"));
+            }
+
             // issue a second request to "async get" the results
             Request getRequest = prepareAsyncGetRequest(id);
             getRequest.setOptions(options);

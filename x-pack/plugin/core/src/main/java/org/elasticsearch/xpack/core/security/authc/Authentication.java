@@ -54,6 +54,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -1319,6 +1320,24 @@ public final class Authentication implements ToXContentObject {
                     )
                 );
             }
+
+            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)
+                && streamVersion.before(ROLE_REMOTE_CLUSTER_PRIVS)) {
+                metadata = new HashMap<>(metadata);
+                metadata.put(
+                    AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                    maybeRemoveRemoteClusterFromRoleDescriptors(
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
+                    )
+                );
+                metadata.put(
+                    AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                    maybeRemoveRemoteClusterFromRoleDescriptors(
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                    )
+                );
+            }
+
             if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
                 metadata = new HashMap<>(metadata);
@@ -1397,7 +1416,15 @@ public final class Authentication implements ToXContentObject {
         }
     }
 
+    static BytesReference maybeRemoveRemoteClusterFromRoleDescriptors(BytesReference roleDescriptorsBytes) {
+        return maybeRemoveTopLevelFromRoleDescriptors(roleDescriptorsBytes, RoleDescriptor.Fields.REMOTE_CLUSTER.getPreferredName());
+    }
+
     static BytesReference maybeRemoveRemoteIndicesFromRoleDescriptors(BytesReference roleDescriptorsBytes) {
+        return maybeRemoveTopLevelFromRoleDescriptors(roleDescriptorsBytes, RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName());
+    }
+
+    static BytesReference maybeRemoveTopLevelFromRoleDescriptors(BytesReference roleDescriptorsBytes, String topLevelField) {
         if (roleDescriptorsBytes == null || roleDescriptorsBytes.length() == 0) {
             return roleDescriptorsBytes;
         }
@@ -1408,7 +1435,7 @@ public final class Authentication implements ToXContentObject {
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> roleDescriptor = (Map<String, Object>) value;
-                boolean removed = roleDescriptor.remove(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName()) != null;
+                boolean removed = roleDescriptor.remove(topLevelField) != null;
                 if (removed) {
                     removedAtLeastOne.set(true);
                 }

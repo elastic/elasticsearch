@@ -32,6 +32,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
@@ -146,7 +147,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Specific {@link IOContext} indicating that we will read only the Lucene file footer (containing the file checksum)
      * See {@link MetadataSnapshot#checksumFromLuceneFile}.
      */
-    public static final IOContext READONCE_CHECKSUM = new IOContext(IOContext.READONCE, true);
+    public static final IOContext READONCE_CHECKSUM = new IOContext(IOContext.Context.DEFAULT, null, null, ReadAdvice.SEQUENTIAL);
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final StoreDirectory directory;

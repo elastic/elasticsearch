@@ -9,6 +9,7 @@ package org.elasticsearch.blobcache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -327,6 +328,9 @@ public class SharedBytes extends AbstractRefCounted {
                 int startPosition = dst.position();
                 dst.put(startPosition, mappedByteBuffer, position, bytesRead).position(startPosition + bytesRead);
             } else {
+                if (fileChannel.isOpen() == false) {
+                    throw new AlreadyClosedException("Cache file has been closed");
+                }
                 bytesRead = fileChannel.read(dst, pageStart + position);
             }
             readBytes.accept(bytesRead);
@@ -339,6 +343,9 @@ public class SharedBytes extends AbstractRefCounted {
             assert position % PAGE_SIZE == 0;
             assert src.remaining() % PAGE_SIZE == 0;
             checkOffsets(position, src.remaining());
+            if (fileChannel.isOpen() == false) {
+                throw new AlreadyClosedException("Cache file has been closed");
+            }
             int bytesWritten = fileChannel.write(src, pageStart + position);
             writeBytes.accept(bytesWritten);
             return bytesWritten;

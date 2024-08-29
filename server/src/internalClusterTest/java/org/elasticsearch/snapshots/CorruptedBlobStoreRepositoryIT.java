@@ -31,7 +31,6 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.blobstore.BlobStoreCorruptionUtils;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -734,7 +733,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         createFullSnapshot("test-repo", "test-snap");
     }
 
-    public void testSnapshotWithCorruptShardLevelIndexFile() throws Exception {
+    public void testSnapshotWithMissingShardLevelIndexFile() throws Exception {
         disableRepoConsistencyCheck("This test uses a purposely broken repository so it would fail consistency checks");
 
         Path repo = randomRepoPath();
@@ -750,7 +749,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             .setIndices("test-idx-*")
             .get();
 
-        logger.info("--> corrupting shard level index file");
+        logger.info("--> deleting shard level index file");
         final Path indicesPath = repo.resolve("indices");
         for (IndexId indexId : getRepositoryData("test-repo").getIndices().values()) {
             final Path shardGen;
@@ -759,10 +758,25 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("Failed to find shard index blob"));
             }
-            BlobStoreCorruptionUtils.corruptFileContents(shardGen);
+            Files.delete(shardGen);
         }
 
-        logger.info("--> creating another snapshot");
+        if (randomBoolean()) {
+            logger.info(
+                "--> restoring the snapshot, the repository should not have lost any shard data despite deleting index-N, "
+                    + "because it uses snap-*.data files and not the index-N to determine what files to restore"
+            );
+            indicesAdmin().prepareDelete("test-idx-1", "test-idx-2").get();
+            RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+                TEST_REQUEST_TIMEOUT,
+                "test-repo",
+                "test-snap-1"
+            ).setWaitForCompletion(true).get();
+            assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
+            ensureGreen("test-idx-1", "test-idx-2");
+        }
+
+        logger.info("--> creating another snapshot, which should re-create the missing file");
         try (var ignored = new BlobStoreIndexShardSnapshotsIntegritySuppressor()) {
             CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
                 TEST_REQUEST_TIMEOUT,
@@ -770,22 +784,38 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                 "test-snap-2"
             ).setWaitForCompletion(true).setIndices("test-idx-1").get();
             assertEquals(
-                createSnapshotResponse.getSnapshotInfo().totalShards() - 1,
+                createSnapshotResponse.getSnapshotInfo().totalShards(),
                 createSnapshotResponse.getSnapshotInfo().successfulShards()
             );
         }
 
-        logger.info(
-            "--> restoring the first snapshot, the repository should not have lost any shard data despite corrupting index-N, "
-                + "because it uses snap-*.data files and not the index-N to determine what files to restore"
-        );
-        indicesAdmin().prepareDelete("test-idx-1", "test-idx-2").get();
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+        if (randomBoolean()) {
+            indicesAdmin().prepareDelete("test-idx-1").get();
+            RestoreSnapshotResponse restoreSnapshotResponse2 = clusterAdmin().prepareRestoreSnapshot(
+                TEST_REQUEST_TIMEOUT,
+                "test-repo",
+                randomFrom("test-snap-1", "test-snap-2")
+            ).setIndices("test-idx-1").setWaitForCompletion(true).get();
+            assertEquals(0, restoreSnapshotResponse2.getRestoreInfo().failedShards());
+            ensureGreen("test-idx-1", "test-idx-2");
+        }
+
+        logger.info("--> creating another snapshot, which should succeed since the shard gen file now exists again");
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
             TEST_REQUEST_TIMEOUT,
             "test-repo",
-            "test-snap-1"
-        ).setWaitForCompletion(true).get();
-        assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
+            "test-snap-3"
+        ).setWaitForCompletion(true).setIndices("test-idx-1").get();
+        assertEquals(createSnapshotResponse.getSnapshotInfo().totalShards(), createSnapshotResponse.getSnapshotInfo().successfulShards());
+
+        indicesAdmin().prepareDelete("test-idx-1").get();
+        RestoreSnapshotResponse restoreSnapshotResponse3 = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            "test-repo",
+            randomFrom("test-snap-1", "test-snap-2", "test-snap-3")
+        ).setIndices("test-idx-1").setWaitForCompletion(true).get();
+        assertEquals(0, restoreSnapshotResponse3.getRestoreInfo().failedShards());
+        ensureGreen("test-idx-1", "test-idx-2");
     }
 
     public void testDeletesWithUnexpectedIndexBlob() throws Exception {

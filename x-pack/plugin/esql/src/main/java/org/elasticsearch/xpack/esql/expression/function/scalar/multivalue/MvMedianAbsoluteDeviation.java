@@ -226,8 +226,9 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         double median = count % 2 == 1 ? values.getDouble(middle) : (values.getDouble(middle - 1) + values.getDouble(middle)) / 2;
         for (int i = 0; i < count; i++) {
             double value = values.getDouble(firstValue + i);
+            // Double differences between median and the values may potentially result in +/-Infinity.
+            // As we use that value just to sort, the MAD should remain finite.
             doubles.values[i] = value > median ? value - median : median - value;
-            assert Double.isFinite(doubles.values[i]) : "Overflow on median differences";
         }
         return doubleMedianOf(doubles.values, count);
     }
@@ -240,7 +241,8 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         // TODO quickselect
         Arrays.sort(values, 0, count);
         int middle = count / 2;
-        return count % 2 == 1 ? values[middle] : (values[middle - 1] / 2 + values[middle] / 2);
+        double median = count % 2 == 1 ? values[middle] : (values[middle - 1] / 2 + values[middle] / 2);
+        return NumericUtils.asFiniteNumber(median);
     }
 
     @MvEvaluator(

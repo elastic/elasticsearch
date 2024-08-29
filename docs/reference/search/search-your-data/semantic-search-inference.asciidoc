@@ -17,6 +17,7 @@ Azure based examples use models available through https://ai.azure.com/explore/m
 or https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models[Azure OpenAI].
 Mistral examples use the `mistral-embed` model from https://docs.mistral.ai/getting-started/models/[the Mistral API].
 Amazon Bedrock examples use the `amazon.titan-embed-text-v1` model from https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html[the Amazon Bedrock base models].
+AlibabaCloud AI Search examples use the `ops-text-embedding-zh-001` model from https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-embedding-api-details[the AlibabaCloud AI Search base models].
 
 Click the name of the service you want to use on any of the widgets below to review the corresponding instructions.
 

@@ -41,7 +41,7 @@ public class ReleaseVersions {
 
     private static final Pattern VERSION_LINE = Pattern.compile("(\\d+\\.\\d+\\.\\d+),(\\d+)");
 
-    public static IntFunction<String> generateVersionsLookup(Class<?> versionContainer) {
+    public static IntFunction<String> generateVersionsLookup(Class<?> versionContainer, int current) {
         if (USES_VERSIONS == false) return Integer::toString;
 
         try {
@@ -52,6 +52,9 @@ public class ReleaseVersions {
             }
 
             NavigableMap<Integer, List<Version>> versions = new TreeMap<>();
+            // add the current version id, which won't be in the csv
+            versions.put(current, List.of(Version.CURRENT));
+
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(versionsFile, StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
@@ -121,8 +124,8 @@ public class ReleaseVersions {
                     // too hard to guess what version this id might be for using the next version - just use it directly
                     upperBound = upperRange.getValue().get(0).toString();
                 } else {
-                    // likely a version created after the last release tagged version - ok
-                    upperBound = "snapshot[" + id + "]";
+                    // a newer version than all we know about? Can't map it...
+                    upperBound = "[" + id + "]";
                 }
             }
 

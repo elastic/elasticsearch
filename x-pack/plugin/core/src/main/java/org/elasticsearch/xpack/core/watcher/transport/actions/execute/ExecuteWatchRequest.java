@@ -59,12 +59,8 @@ public class ExecuteWatchRequest extends ActionRequest {
         id = in.readOptionalString();
         ignoreCondition = in.readBoolean();
         recordExecution = in.readBoolean();
-        if (in.readBoolean()) {
-            alternativeInput = in.readGenericMap();
-        }
-        if (in.readBoolean()) {
-            triggerData = in.readGenericMap();
-        }
+        alternativeInput = in.readOptional(StreamInput::readGenericMap);
+        triggerData = in.readOptional(StreamInput::readGenericMap);
         long actionModesCount = in.readLong();
         actionModes = new HashMap<>();
         for (int i = 0; i < actionModesCount; i++) {
@@ -83,14 +79,8 @@ public class ExecuteWatchRequest extends ActionRequest {
         out.writeOptionalString(id);
         out.writeBoolean(ignoreCondition);
         out.writeBoolean(recordExecution);
-        out.writeBoolean(alternativeInput != null);
-        if (alternativeInput != null) {
-            out.writeGenericMap(alternativeInput);
-        }
-        out.writeBoolean(triggerData != null);
-        if (triggerData != null) {
-            out.writeGenericMap(triggerData);
-        }
+        out.writeOptional(StreamOutput::writeGenericMap, alternativeInput);
+        out.writeOptional(StreamOutput::writeGenericMap, triggerData);
         out.writeLong(actionModes.size());
         for (Map.Entry<String, ActionExecutionMode> entry : actionModes.entrySet()) {
             out.writeString(entry.getKey());

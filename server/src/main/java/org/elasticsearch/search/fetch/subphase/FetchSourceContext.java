@@ -14,13 +14,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ParseField;
@@ -32,7 +27,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Context used to fetch the {@code _source}.
@@ -67,56 +61,6 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             return of(fetchSource);
         }
         return new FetchSourceContext(fetchSource, includes, excludes, includeVectors);
-    }
-
-    public static FetchSourceContext of(FetchSourceContext original, IndexShard indexShard) {
-        MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
-        if (original.includeVectors() == null) {
-            String[] inferenceFields = mappingLookup
-                .inferenceFields()
-                .keySet()
-                .toArray(String[]::new);
-
-            return FetchSourceContext.of(
-                original.fetchSource(),
-                original.includes(),
-                ArrayUtils.concat(original.excludes(), inferenceFields)
-            );
-        } else if (original.includeVectors()) {
-            return original;
-        } else {
-            String[] excludeFields = original.excludes();
-            String[] inferenceFields = mappingLookup
-                .inferenceFields()
-                .keySet()
-                .toArray(String[]::new);
-
-            excludeFields = ArrayUtils.concat(excludeFields, inferenceFields);
-
-            String[] denseVectors = mappingLookup
-                .getFullNameToFieldType()
-                .entrySet()
-                .stream()
-                .filter(entry -> entry.getValue() instanceof DenseVectorFieldMapper.DenseVectorFieldType)
-                .map(Map.Entry::getKey)
-                .toArray(String[]::new);
-            excludeFields = ArrayUtils.concat(excludeFields, denseVectors);
-
-            String[] sparseVectors = mappingLookup
-                .getFullNameToFieldType()
-                .entrySet()
-                .stream()
-                .filter(entry -> entry.getValue() instanceof SparseVectorFieldMapper.SparseVectorFieldType)
-                .map(Map.Entry::getKey)
-                .toArray(String[]::new);
-            excludeFields = ArrayUtils.concat(excludeFields, sparseVectors);
-
-            return FetchSourceContext.of(
-                original.fetchSource(),
-                original.includes(),
-                excludeFields
-            );
-        }
     }
 
     public static FetchSourceContext readFrom(StreamInput in) throws IOException {

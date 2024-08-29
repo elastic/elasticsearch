@@ -14,7 +14,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
@@ -93,13 +92,6 @@ public class FetchContext {
      */
     public String getIndexName() {
         return searchContext.indexShard().shardId().getIndexName();
-    }
-
-    /**
-     * The shard that contains the index
-     */
-    public IndexShard getIndexShard() {
-        return searchContext.indexShard();
     }
 
     /**

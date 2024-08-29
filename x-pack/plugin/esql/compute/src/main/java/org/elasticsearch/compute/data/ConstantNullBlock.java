@@ -49,6 +49,11 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public ToMask toMask() {
+        return new ToMask(blockFactory.newConstantBooleanVector(false, positionCount), false);
+    }
+
+    @Override
     public boolean isNull(int position) {
         return true;
     }

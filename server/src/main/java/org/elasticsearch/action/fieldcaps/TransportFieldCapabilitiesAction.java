@@ -174,7 +174,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             if (resp.canMatch() && resp.getIndexMappingHash() != null) {
                 FieldCapabilitiesIndexResponse curr = indexMappingHashToResponses.putIfAbsent(resp.getIndexMappingHash(), resp);
                 if (curr != null) {
-                    resp = new FieldCapabilitiesIndexResponse(resp.getIndexName(), curr.getIndexMappingHash(), curr.get(), true);
+                    resp = new FieldCapabilitiesIndexResponse(
+                        resp.getIndexName(),
+                        curr.getIndexMappingHash(),
+                        curr.get(),
+                        true,
+                        curr.getIndexMode()
+                    );
                 }
             }
             if (request.includeEmptyFields()) {
@@ -186,7 +192,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     }
                     Map<String, IndexFieldCapabilities> mergedCaps = new HashMap<>(a.get());
                     mergedCaps.putAll(b.get());
-                    return new FieldCapabilitiesIndexResponse(a.getIndexName(), a.getIndexMappingHash(), mergedCaps, true);
+                    return new FieldCapabilitiesIndexResponse(
+                        a.getIndexName(),
+                        a.getIndexMappingHash(),
+                        mergedCaps,
+                        true,
+                        a.getIndexMode()
+                    );
                 });
             }
             if (fieldCapTask.isCancelled()) {
@@ -249,7 +261,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
                         String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
                         handleIndexResponse.accept(
-                            new FieldCapabilitiesIndexResponse(indexName, resp.getIndexMappingHash(), resp.get(), resp.canMatch())
+                            new FieldCapabilitiesIndexResponse(
+                                indexName,
+                                resp.getIndexMappingHash(),
+                                resp.get(),
+                                resp.canMatch(),
+                                resp.getIndexMode()
+                            )
                         );
                     }
                     for (FieldCapabilitiesFailure failure : response.getFailures()) {

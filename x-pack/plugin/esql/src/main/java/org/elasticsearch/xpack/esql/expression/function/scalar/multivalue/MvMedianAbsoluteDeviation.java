@@ -27,15 +27,12 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongSubtractExact;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToBigInteger;
 
 /**
  * Reduce a multivalued field to a single valued field containing the median absolute deviation of the values.
@@ -167,7 +164,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
             // From here, this array contains unsigned longs
             longs.values[i] = unsignedDifference(value, median);
         }
-        long mad = unsignedLongMedianOfAsLong(longs.values, longs.count);
+        long mad = NumericUtils.unsignedLongAsLongExact(unsignedLongMedianOf(longs.values, longs.count));
         longs.count = 0;
         return mad;
     }
@@ -186,7 +183,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
             // From here, this array contains unsigned longs
             longs.values[i] = unsignedDifference(value, median);
         }
-        return unsignedLongMedianOfAsLong(longs.values, count);
+        return NumericUtils.unsignedLongAsLongExact(unsignedLongMedianOf(longs.values, count));
     }
 
     static long single(long value) {
@@ -198,18 +195,6 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         Arrays.sort(values, 0, count);
         int middle = count / 2;
         return count % 2 == 1 ? values[middle] : avgWithoutOverflow(values[middle - 1], values[middle]);
-    }
-
-    static long unsignedLongMedianOfAsLong(long[] values, int count) {
-        // TODO quickselect
-        Arrays.sort(values, 0, count);
-        int middle = count / 2;
-        if (count % 2 == 1) {
-            return NumericUtils.unsignedLongAsLongExact(values[middle]);
-        }
-        BigInteger a = unsignedLongToBigInteger(values[middle - 1]);
-        BigInteger b = unsignedLongToBigInteger(values[middle]);
-        return a.add(b).shiftRight(1).longValueExact();
     }
 
     static class Doubles {
@@ -296,9 +281,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         if (count % 2 == 1) {
             median = values.getLong(middle);
         } else {
-            BigInteger a = unsignedLongToBigInteger(values.getLong(middle - 1));
-            BigInteger b = unsignedLongToBigInteger(values.getLong(middle));
-            median = bigIntegerToUnsignedLong(a.add(b).shiftRight(1));
+            median = unsignedLongAvgWithoutOverflow(values.getLong(middle - 1), values.getLong(middle));
         }
         for (int i = 0; i < count; i++) {
             long value = values.getLong(firstValue + i);
@@ -318,9 +301,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         if (count % 2 == 1) {
             return values[middle];
         }
-        BigInteger a = unsignedLongToBigInteger(values[middle - 1]);
-        BigInteger b = unsignedLongToBigInteger(values[middle]);
-        return bigIntegerToUnsignedLong(a.add(b).shiftRight(1));
+        return unsignedLongAvgWithoutOverflow(values[middle - 1], values[middle]);
     }
 
     // Utility methods
@@ -343,6 +324,13 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         // This method rounds negative values down instead of towards zero, like (a + b) / 2 would.
         // Here we rectify up if the average is negative and the two values have different parities.
         return value < 0 && ((a & 1) ^ (b & 1)) == 1 ? value + 1 : value;
+    }
+
+    /**
+     * Average two {@code unsigned long}s without any overflow.
+     */
+    static long unsignedLongAvgWithoutOverflow(long a, long b) {
+        return (a >> 1) + (b >> 1) + (a & b & 1);
     }
 
     /**

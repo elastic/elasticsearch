@@ -60,50 +60,13 @@ public class MvMedianAbsoluteDeviationTests extends AbstractMultivalueFunctionTe
             return equalTo(mad);
         });
 
-        cases.addAll(
-            List.of(
-                // Simple cases
-                new TestCaseSupplier(
-                    "mv_median_absolute_deviation(<1, 2>)",
-                    List.of(DataType.INTEGER),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(new TestCaseSupplier.TypedData(List.of(1, 2), DataType.INTEGER, "field")),
-                        "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
-                        DataType.INTEGER,
-                        equalTo(0)
-                    )
-                ),
-                new TestCaseSupplier(
-                    "mv_median_absolute_deviation(<-1, -2>)",
-                    List.of(DataType.INTEGER),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(new TestCaseSupplier.TypedData(List.of(-1, -2), DataType.INTEGER, "field")),
-                        "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
-                        DataType.INTEGER,
-                        equalTo(0)
-                    )
-                ),
+        // Simple cases
+        cases.addAll(makeCases(List.of(1, 2, 5), 1, true));
+        cases.addAll(makeCases(List.of(1, 2), 0, false));
+        cases.addAll(makeCases(List.of(-1, -2), 0, false));
+        cases.addAll(makeCases(List.of(0, 2, 5, 6), 2, false));
 
-                // Custom double overflow, as "MAX_DOUBLE + 1000 == MAX_DOUBLE"
-                new TestCaseSupplier(
-                    "mv_median_absolute_deviation(<min_double, big_number, same_big_number>)",
-                    List.of(DataType.DOUBLE),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(
-                                List.of(-Double.MAX_VALUE, Double.MAX_VALUE / 4, Double.MAX_VALUE / 4),
-                                DataType.DOUBLE,
-                                "field"
-                            )
-                        ),
-                        "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
-                        DataType.DOUBLE,
-                        equalTo(0.)
-                    )
-                )
-            )
-        );
-
+        // Overflow cases
         cases.addAll(
             overflowCasesFor(
                 DataType.INTEGER,
@@ -138,7 +101,60 @@ public class MvMedianAbsoluteDeviationTests extends AbstractMultivalueFunctionTe
             )
         );
 
+        // Custom double overflow. Can't be checked in the generic overflow cases, as "MAX_DOUBLE + 1000 == MAX_DOUBLE"
+        cases.add(
+            new TestCaseSupplier(
+                "mv_median_absolute_deviation(<min_double, big_number, same_big_number>)",
+                List.of(DataType.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(
+                            List.of(-Double.MAX_VALUE, Double.MAX_VALUE / 4, Double.MAX_VALUE / 4),
+                            DataType.DOUBLE,
+                            "field"
+                        )
+                    ),
+                    "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
+                    DataType.DOUBLE,
+                    equalTo(0.)
+                )
+            )
+        );
+
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases, (v, p) -> "numeric");
+    }
+
+    /**
+     * Makes cases for the given data, for each type
+     */
+    private static List<TestCaseSupplier> makeCases(List<Number> data, Number expectedResult, boolean withDoubles) {
+        var types = new ArrayList<>(List.of(DataType.INTEGER, DataType.LONG));
+        if (withDoubles) {
+            types.add(DataType.DOUBLE);
+        }
+        if (data.stream().noneMatch(d -> d.doubleValue() < 0)) {
+            types.add(DataType.UNSIGNED_LONG);
+        }
+        return types.stream().map(type -> {
+            var convertedData = data.stream().map(d -> {
+                var convertedValue = DataTypeConverter.convert(d, type);
+                if (convertedValue instanceof BigInteger bi) {
+                    return NumericUtils.asLongUnsigned(bi);
+                }
+                return convertedValue;
+            }).toList();
+
+            return new TestCaseSupplier(
+                "<" + convertedData + "> (" + type + ")",
+                List.of(type),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(convertedData, type, "field")),
+                    "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
+                    type,
+                    equalTo(DataTypeConverter.convert(expectedResult, type))
+                )
+            );
+        }).toList();
     }
 
     private static List<TestCaseSupplier> overflowCasesFor(

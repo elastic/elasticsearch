@@ -212,7 +212,7 @@ PUT google-vertex-ai-embeddings
     "properties": {
       "content_embedding": { <1>
         "type": "dense_vector", <2>
-        "dims": 256, <3>
+        "dims": 768, <3>
         "element_type": "float",
         "similarity": "dot_product" <4>
       },

@@ -35,6 +35,8 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.TermsSetQueryScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -232,7 +234,11 @@ public class ExpressionScriptEngine implements ScriptEngine {
                             placeholder.setValue(((Number) value).doubleValue());
                         }
                     });
-                    return expr.evaluate(functionValuesArray);
+                    try {
+                        return expr.evaluate(functionValuesArray);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
                 }
             };
         };

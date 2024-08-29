@@ -17,6 +17,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -24,6 +25,7 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 
+import java.io.IOException;
 import java.util.function.Predicate;
 
 /** Utility class to filter parent and children clauses when building nested
@@ -52,15 +54,15 @@ public final class NestedHelper {
             // We only handle term(s) queries and range queries, which should already
             // cover a high majority of use-cases
             return mightMatchNestedDocs(((TermQuery) query).getTerm().field());
-        } else if (query instanceof TermInSetQuery) {
-            PrefixCodedTerms terms = ((TermInSetQuery) query).getTermData();
-            if (terms.size() > 0) {
-                PrefixCodedTerms.TermIterator it = terms.iterator();
-                it.next();
-                return mightMatchNestedDocs(it.field());
-            } else {
-                return false;
+        } else if (query instanceof TermInSetQuery termInSetQuery) {
+            try {
+                if (termInSetQuery.getTermsCount() > 0) {
+                    return mightMatchNestedDocs(termInSetQuery.getField());
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e); // cannot happen
             }
+            return false;
         } else if (query instanceof PointRangeQuery) {
             return mightMatchNestedDocs(((PointRangeQuery) query).getField());
         } else if (query instanceof IndexOrDocValuesQuery) {

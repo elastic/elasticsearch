@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -33,6 +34,7 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.nio.channels.SeekableByteChannel;
@@ -777,7 +779,26 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         }
 
         logger.info("--> creating another snapshot, which should re-create the missing file");
-        try (var ignored = new BlobStoreIndexShardSnapshotsIntegritySuppressor()) {
+        try (
+            var ignored = new BlobStoreIndexShardSnapshotsIntegritySuppressor();
+            var mockLog = MockLog.capture(BlobStoreRepository.class)
+        ) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "fallback message",
+                    "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
+                    Level.ERROR,
+                    "shard generation [*] in [test-repo][*] not found - falling back to reading all shard snapshots"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "shard blobs list",
+                    "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
+                    Level.ERROR,
+                    "read shard snapshots [*] due to missing shard generation [*] in [test-repo][*]"
+                )
+            );
             CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
                 TEST_REQUEST_TIMEOUT,
                 "test-repo",
@@ -787,6 +808,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                 createSnapshotResponse.getSnapshotInfo().totalShards(),
                 createSnapshotResponse.getSnapshotInfo().successfulShards()
             );
+            mockLog.assertAllExpectationsMatched();
         }
 
         if (randomBoolean()) {

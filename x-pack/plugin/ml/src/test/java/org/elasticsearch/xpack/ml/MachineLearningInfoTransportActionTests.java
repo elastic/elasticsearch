@@ -165,8 +165,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                     true,
                     isAnomalyDetectionEnabled,
                     isDataFrameAnalyticsEnabled,
-                    isNlpEnabled,
-                    true
+                    isNlpEnabled
                 )
             )
         );

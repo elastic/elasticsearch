@@ -15,7 +15,7 @@ The following examples use the:
 * `all-mpnet-base-v2` model from https://huggingface.co/sentence-transformers/all-mpnet-base-v2[HuggingFace]
 * `text-embedding-ada-002` second generation embedding model for OpenAI
 * models available through https://ai.azure.com/explore/models?selectedTask=embeddings[Azure AI Studio] or https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models[Azure OpenAI]
-* `text-embedding-004` model for https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/text-embeddings-api#generative-ai-get-text-embedding-python_vertex_ai_sdk[Google Vertex AI]
+* `text-embedding-004` model for https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/text-embeddings-api[Google Vertex AI]
 * `mistral-embed` model for https://docs.mistral.ai/getting-started/models/[Mistral]
 * `amazon.titan-embed-text-v1` model for https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html[Amazon Bedrock]
 * `ops-text-embedding-zh-001` model for https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-embedding-api-details[AlibabaCloud AI]
@@ -78,8 +78,8 @@ Once the upload is complete, you can see an index named `test-data` with 182469 
 [[reindexing-data-infer]]
 ==== Ingest the data through the {infer} ingest pipeline
 
-Create the embeddings from the text by reindexing the data through the {infer}
-pipeline that uses the chosen model as the inference model.
+Create the embeddings from the text by reindexing the data through the {infer} pipeline that uses the chosen model as the {infer} model.
+This step - with using the {ref}/docs-reindex.html[reindex API] - simulates data ingestion through a pipeline.
 
 include::{es-ref-dir}/tab-widgets/inference-api/infer-api-reindex-widget.asciidoc[]
 

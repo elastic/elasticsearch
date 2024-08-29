@@ -169,7 +169,7 @@ and the `output_field` that will contain the {infer} results.
 
 [source,console]
 --------------------------------------------------
-PUT _ingest/pipeline/google_vertex_ai_embeddings
+PUT _ingest/pipeline/google_vertex_ai_pipeline
 {
   "processors": [
     {

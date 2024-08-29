@@ -187,17 +187,18 @@ PUT _inference/text_embedding/google_vertex_ai_embeddings <1>
     "service": "googlevertexai",
     "service_settings": {
         "service_account_json": "<service_account_json>", <2>
-        "model_id": "text-embedding-004",
-        "location": "europe-west3", <3>
-        "project_id": "<project_id>" <4>
+        "model_id": "text-embedding-004", <3>
+        "location": "<location>", <4>
+        "project_id": "<project_id>" <5>
     }
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
 <1> The task type is `text_embedding` in the path and the `inference_id` which is the unique identifier of the {infer} endpoint is `google_vertex_ai_embeddings`.
 <2> A valid service account in JSON format for the Google Vertex AI API.
-<3> The name of the location to use for the {infer} task. Refer to https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations[Generative AI on Vertex AI locations] for available locations.
-<4> The name of the project to use for the {infer} task. 
+<3> For the list of the available models, refer to the https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/text-embeddings-api[Text embeddings API] page.
+<4> The name of the location to use for the {infer} task. Refer to https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations[Generative AI on Vertex AI locations] for available locations.
+<5> The name of the project to use for the {infer} task. 
 
 // end::google-vertex-ai[]
 

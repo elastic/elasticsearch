@@ -167,7 +167,7 @@ POST _reindex?wait_for_completion=false
   },
   "dest": {
     "index": "google-vertex-ai-embeddings",
-    "pipeline": "google_vertex_ai_embeddings"
+    "pipeline": "google_vertex_ai_pipeline"
   }
 }
 ----

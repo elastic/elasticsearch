@@ -116,7 +116,7 @@ class FieldCapabilitiesFetcher {
         final MappingMetadata mapping = indexService.getMetadata().mapping();
         String indexMappingHash;
         if (includeEmptyFields || enableFieldHasValue == false) {
-            indexMappingHash = mapping != null ? mapping.getSha256() + ":" + indexMode : null;
+            indexMappingHash = mapping != null ? mapping.getSha256() + indexMode : null;
         } else {
             // even if the mapping is the same if we return only fields with values we need
             // to make sure that we consider all the shard-mappings pair, that is why we

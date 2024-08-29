@@ -339,7 +339,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             assert storedFieldsReaderOrd == leaf.ord : storedFieldsReaderOrd + " != " + leaf.ord;
             storedFieldsReader.document(segmentDocID, fields);
         } else {
-            leaf.reader().document(segmentDocID, fields);
+            leaf.reader().storedFields().document(segmentDocID, fields);
         }
 
         final Translog.Operation op;

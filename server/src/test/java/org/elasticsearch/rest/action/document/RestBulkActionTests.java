@@ -245,7 +245,7 @@ public class RestBulkActionTests extends ESTestCase {
         RestBulkAction.ChunkHandler chunkHandler = new RestBulkAction.ChunkHandler(
             true,
             request,
-            new IncrementalBulkService.Handler(null, null, null, null, null, null, null) {
+            () -> new IncrementalBulkService.Handler(null, null, null, null, null, null) {
 
                 @Override
                 public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {

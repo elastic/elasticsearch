@@ -70,15 +70,7 @@ public class IncrementalBulkService {
     }
 
     public Handler newBulkRequest(@Nullable String waitForActiveShards, @Nullable TimeValue timeout, @Nullable String refresh) {
-        return new Handler(
-            client,
-            threadContext,
-            threadContext.newStoredContext(),
-            indexingPressure,
-            waitForActiveShards,
-            timeout,
-            refresh
-        );
+        return new Handler(client, threadContext, indexingPressure, waitForActiveShards, timeout, refresh);
     }
 
     public static class Enabled implements Supplier<Boolean> {
@@ -104,7 +96,6 @@ public class IncrementalBulkService {
 
         private final Client client;
         private final ThreadContext threadContext;
-        private final ThreadContext.StoredContext requestContext;
         private final IndexingPressure indexingPressure;
         private final ActiveShardCount waitForActiveShards;
         private final TimeValue timeout;
@@ -114,13 +105,13 @@ public class IncrementalBulkService {
         private final ArrayList<BulkResponse> responses = new ArrayList<>(2);
         private boolean globalFailure = false;
         private boolean incrementalRequestSubmitted = false;
+        private ThreadContext.StoredContext requestContext;
         private Exception bulkActionLevelFailure = null;
         private BulkRequest bulkRequest = null;
 
         protected Handler(
             Client client,
             ThreadContext threadContext,
-            ThreadContext.StoredContext requestContext,
             IndexingPressure indexingPressure,
             @Nullable String waitForActiveShards,
             @Nullable TimeValue timeout,
@@ -128,7 +119,7 @@ public class IncrementalBulkService {
         ) {
             this.client = client;
             this.threadContext = threadContext;
-            this.requestContext = requestContext;
+            this.requestContext = threadContext.newStoredContext();
             this.indexingPressure = indexingPressure;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
@@ -163,7 +154,10 @@ public class IncrementalBulkService {
                                 public void onFailure(Exception e) {
                                     handleBulkFailure(isFirstRequest, e);
                                 }
-                            }, nextItems));
+                            }, () -> {
+                                requestContext = threadContext.newStoredContext();
+                                nextItems.run();
+                            }));
                         }
                     } else {
                         nextItems.run();
@@ -185,7 +179,6 @@ public class IncrementalBulkService {
             } else {
                 assert bulkRequest != null;
                 if (internalAddItems(items, releasable)) {
-
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                         requestContext.restore();
                         client.bulk(bulkRequest, new ActionListener<>() {

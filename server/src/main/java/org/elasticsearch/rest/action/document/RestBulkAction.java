@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -38,6 +39,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -128,15 +130,10 @@ public class RestBulkAction extends BaseRestHandler {
                 request.param("type");
             }
 
-            return new ChunkHandler(
-                allowExplicitIndex,
-                request,
-                bulkHandler.newBulkRequest(
-                    request.param("wait_for_active_shards"),
-                    request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT),
-                    request.param("refresh")
-                )
-            );
+            String waitForActiveShards = request.param("wait_for_active_shards");
+            TimeValue timeout = request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT);
+            String refresh = request.param("refresh");
+            return new ChunkHandler(allowExplicitIndex, request, () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, refresh));
         }
     }
 
@@ -154,14 +151,15 @@ public class RestBulkAction extends BaseRestHandler {
         private final Boolean defaultRequireAlias;
         private final boolean defaultRequireDataStream;
         private final BulkRequestParser parser;
-        private final IncrementalBulkService.Handler handler;
+        private final Supplier<IncrementalBulkService.Handler> handlerSupplier;
+        private IncrementalBulkService.Handler handler;
 
         private volatile RestChannel restChannel;
         private boolean isException;
         private final ArrayDeque<ReleasableBytesReference> unParsedChunks = new ArrayDeque<>(4);
         private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
 
-        ChunkHandler(boolean allowExplicitIndex, RestRequest request, IncrementalBulkService.Handler handler) {
+        ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
             this.allowExplicitIndex = allowExplicitIndex;
             this.request = request;
             this.defaultIndex = request.param("index");
@@ -171,18 +169,21 @@ public class RestBulkAction extends BaseRestHandler {
             this.defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", false);
             this.defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false);
             this.defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
-            this.parser = new BulkRequestParser(true, request.getRestApiVersion());
-            this.handler = handler;
+            // TODO: Fix type deprecation logging
+            this.parser = new BulkRequestParser(false, request.getRestApiVersion());
+            this.handlerSupplier = handlerSupplier;
         }
 
         @Override
         public void accept(RestChannel restChannel) {
             this.restChannel = restChannel;
+            this.handler = handlerSupplier.get();
             request.contentStream().next();
         }
 
         @Override
         public void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast) {
+            assert handler != null;
             assert channel == restChannel;
             if (isException) {
                 chunk.close();

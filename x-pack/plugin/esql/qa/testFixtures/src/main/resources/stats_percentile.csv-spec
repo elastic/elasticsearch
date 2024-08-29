@@ -143,6 +143,21 @@ MEDIAN(salary):double | MEDIAN_ABSOLUTE_DEVIATION(salary):double
 // end::median-absolute-deviation-result[]
 ;
 
+medianAbsoluteDeviationFold
+ROW x = [0, 2, 5, 6]
+| STATS
+    int_constant = MEDIAN_ABSOLUTE_DEVIATION([0, 2, 5, 6]::integer),
+    int_var = MEDIAN_ABSOLUTE_DEVIATION(x::integer),
+    long_constant = MEDIAN_ABSOLUTE_DEVIATION([0, 2, 5, 6]::long),
+    long_var = MEDIAN_ABSOLUTE_DEVIATION(x::long),
+    double_constant = MEDIAN_ABSOLUTE_DEVIATION([0, 2, 5, 6]::double),
+    double_var = MEDIAN_ABSOLUTE_DEVIATION(x::double)
+;
+
+int_constant:double | int_var:double | long_constant:double | long_var:double | double_constant:double | double_var:double
+2                   | 2              | 2                    | 2               | 2                      | 2
+;
+
 medianViaExpression
 from employees | stats p50 = percentile(salary_change, 25*2);
 

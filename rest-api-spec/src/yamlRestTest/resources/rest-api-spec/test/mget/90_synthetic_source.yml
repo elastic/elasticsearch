@@ -97,10 +97,19 @@ keyword with normalizer:
           keyword_without_doc_values: "The five BOXING wizards jump Quickly"
 
   - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 3
+        body:
+          keyword: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+          keyword_with_ignore_above: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+          keyword_without_doc_values: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+
+  - do:
       mget:
         index: test-keyword-with-normalizer
         body:
-          ids:    [1, 2]
+          ids:    [ 1, 2, 3 ]
   - match: { docs.0._index: "test-keyword-with-normalizer" }
   - match: { docs.0._id: "1" }
   - match:
@@ -116,6 +125,14 @@ keyword with normalizer:
         keyword: "The five BOXING wizards jump Quickly"
         keyword_with_ignore_above: "The five BOXING wizards jump Quickly"
         keyword_without_doc_values: "The five BOXING wizards jump Quickly"
+
+  - match: { docs.2._index: "test-keyword-with-normalizer" }
+  - match: { docs.2._id: "3" }
+  - match:
+      docs.2._source:
+        keyword: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+        keyword_with_ignore_above: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+        keyword_without_doc_values: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
 
 ---
 stored text:

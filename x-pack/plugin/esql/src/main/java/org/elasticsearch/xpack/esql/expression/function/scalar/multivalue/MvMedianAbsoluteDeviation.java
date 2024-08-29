@@ -47,15 +47,10 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
         description = "Converts a multivalued field into a single valued field containing the median absolute deviation.",
-        examples = {
-            @Example(file = "math", tag = "mv_median_absolute_deviation"),
-            @Example(
-                description = "If the field has an even number of values, "
-                    + "the medians will be calculated as the average of the middle two values. "
-                    + "If the column is not floating point, the average rounds *down*.",
-                file = "math",
-                tag = "mv_median_absolute_deviation_round_down"
-            ) }
+        note = "If the field has an even number of values, "
+            + "the medians will be calculated as the average of the middle two values. "
+            + "If the column is not floating point, the averages round towards 0.",
+        examples = @Example(file = "mv_median_absolute_deviation", tag = "example")
     )
     public MvMedianAbsoluteDeviation(
         Source source,

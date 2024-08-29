@@ -454,7 +454,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
         // TODO: estimate streamed content size for circuit breaker,
         // something like http_max_chunk_size * avg_compression_ratio(for compressed content)
-        final int contentLength = request.isFullContent() ? request.contentLength() : 0;
+        final int contentLength = request.contentLength();
         try {
             if (handler.canTripCircuitBreaker()) {
                 inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
@@ -462,7 +462,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, methodHandlers);
+            final var resourceHandlingChannel = new ResourceHandlingHttpChannel(
+                channel,
+                circuitBreakerService,
+                contentLength,
+                methodHandlers
+            );
+            channel.request().getHttpChannel().addCloseListener(ActionListener.running(resourceHandlingChannel::close));
+            responseChannel = resourceHandlingChannel;
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
@@ -958,10 +965,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         private void close() {
             // attempt to close once atomically
-            if (closed.compareAndSet(false, true) == false) {
-                throw new IllegalStateException("Channel is already closed");
+            if (closed.compareAndSet(false, true)) {
+                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
             }
-            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
         }
     }
 

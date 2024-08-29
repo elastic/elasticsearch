@@ -54,6 +54,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -76,6 +77,7 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
@@ -164,12 +166,9 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             // await stream handler is ready and request full content
             var handler = ctx.awaitRestChannelAccepted(opaqueId);
             assertBusy(() -> assertEquals(1, handler.stream.chunkQueue().size()));
-
-            // enable auto-read to receive channel close event
-            handler.stream.channel().config().setAutoRead(true);
-
-            // terminate connection and wait resources are released
             ctx.clientChannel.close();
+
+            handler.stream.next();
             assertBusy(() -> assertEquals(0, handler.stream.chunkQueue().size()));
         }
     }
@@ -336,6 +335,52 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 resp.release();
             }
         }
+    }
+
+    // ensures that we trip circuit breaker when send uncompressed request with known content-length
+    public void testCircuitBreakerUncompressed() throws Exception {
+        // Update circuit breaker settings
+        setCircuitBreakerInFlightLimit("100b", "1.0");
+        try (var ctx = setupClientCtx()) {
+            for (var reqNo = 0; reqNo < randomIntBetween(2, 10); reqNo++) {
+                var id = (opaqueId(reqNo));
+                var contentSize = 1000;
+                var req = httpRequest(id, contentSize);
+                var content = randomContent(contentSize, true);
+
+                ctx.clientChannel.writeAndFlush(req);
+                ctx.clientChannel.writeAndFlush(content);
+
+                var resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
+                assertEquals(HttpResponseStatus.TOO_MANY_REQUESTS, resp.status());
+                resp.release();
+            }
+        } finally {
+            resetCircuitBreakerSettings();
+        }
+
+    }
+
+    private void setCircuitBreakerInFlightLimit(String limit, String overhead) {
+        updateClusterSettings(
+            Settings.builder()
+                .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), limit)
+                .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), overhead)
+        );
+    }
+
+    private void resetCircuitBreakerSettings() {
+        Settings.Builder resetSettings = Settings.builder();
+        Stream.of(
+            HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
+            HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING,
+            HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
+            HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING
+        ).forEach(s -> resetSettings.putNull(s.getKey()));
+        updateClusterSettings(resetSettings);
     }
 
     private int maxContentLength() {

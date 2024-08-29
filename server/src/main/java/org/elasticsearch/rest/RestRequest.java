@@ -25,6 +25,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.http.HttpUtils;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.ToXContent;
@@ -279,11 +280,17 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public boolean hasContent() {
-        return isStreamedContent() || contentLength() > 0;
+        return (HttpUtils.isChunkedTransferEncoding(httpRequest) && isStreamedContent()) || contentLength() > 0;
     }
 
     public int contentLength() {
-        return httpRequest.body().asFull().bytes().length();
+        if (isFullContent()) {
+            return httpRequest.body().asFull().bytes().length();
+        } else if (HttpUtils.isChunkedTransferEncoding(httpRequest)) {
+            return 0;
+        } else {
+            return HttpUtils.contentLengthHeader(httpRequest);
+        }
     }
 
     public boolean isFullContent() {

@@ -169,9 +169,6 @@ tests:
 - class: org.elasticsearch.search.retriever.rankdoc.RankDocsSortBuilderTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/112312
-- class: org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTests
-  method: testGetMultiThreaded
-  issue: https://github.com/elastic/elasticsearch/issues/112314
 
 # Examples:
 #

@@ -78,15 +78,15 @@ public class SecuritySettingsIT extends SecurityInBasicRestTestCase {
         {
             Request req = new Request("PUT", "/_security/settings");
             req.setJsonEntity("""
-            {
-                "security": {
-                    "index.routing.allocation.include._tier_preference": "data_hot"
-                },
-                "security-profile": {
-                    "index.routing.allocation.include._tier_preference": "data_hot"
+                {
+                    "security": {
+                        "index.routing.allocation.include._tier_preference": "data_hot"
+                    },
+                    "security-profile": {
+                        "index.routing.allocation.include._tier_preference": "data_hot"
+                    }
                 }
-            }
-            """);
+                """);
             Response resp = adminClient().performRequest(req);
             assertOK(resp);
             Request getRequest = new Request("GET", "/_security/settings");
@@ -100,15 +100,15 @@ public class SecuritySettingsIT extends SecurityInBasicRestTestCase {
         {
             Request req = new Request("PUT", "/_security/settings");
             req.setJsonEntity("""
-            {
-                "security": {
-                    "index.routing.allocation.include._tier_preference": null
-                },
-                "security-profile": {
-                    "index.routing.allocation.include._tier_preference": null
+                {
+                    "security": {
+                        "index.routing.allocation.include._tier_preference": null
+                    },
+                    "security-profile": {
+                        "index.routing.allocation.include._tier_preference": null
+                    }
                 }
-            }
-            """);
+                """);
             Response resp = adminClient().performRequest(req);
             assertOK(resp);
             Request getRequest = new Request("GET", "/_security/settings");

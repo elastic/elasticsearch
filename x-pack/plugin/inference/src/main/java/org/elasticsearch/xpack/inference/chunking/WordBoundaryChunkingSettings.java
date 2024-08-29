@@ -13,27 +13,27 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
-public class WordBoundaryChunkingSettings extends ChunkingSettings {
+public class WordBoundaryChunkingSettings implements ChunkingSettings {
     public static final String NAME = "WordBoundaryChunkingSettings";
-    protected static final String STRATEGY = ChunkingStrategy.WORD.toString();
+    private static final ChunkingStrategy STRATEGY = ChunkingStrategy.WORD;
     protected final int maxChunkSize;
     protected final int overlap;
 
     public WordBoundaryChunkingSettings(Integer maxChunkSize, Integer overlap) {
-        super(STRATEGY);
         this.maxChunkSize = maxChunkSize;
         this.overlap = overlap;
     }
 
     public WordBoundaryChunkingSettings(StreamInput in) throws IOException {
-        super(STRATEGY);
         maxChunkSize = in.readInt();
         overlap = in.readInt();
     }
@@ -46,13 +46,17 @@ public class WordBoundaryChunkingSettings extends ChunkingSettings {
             ModelConfigurations.CHUNKING_SETTINGS,
             validationException
         );
-        Integer overlap = ServiceUtils.extractRequiredPositiveIntegerLessThanOrEqualToMax(
-            map,
-            ChunkingSettingsOptions.OVERLAP.toString(),
-            maxChunkSize != null ? maxChunkSize / 2 : null,
-            ModelConfigurations.CHUNKING_SETTINGS,
-            validationException
-        );
+
+        Integer overlap = null;
+        if (maxChunkSize != null) {
+            overlap = ServiceUtils.extractRequiredPositiveIntegerLessThanOrEqualToMax(
+                map,
+                ChunkingSettingsOptions.OVERLAP.toString(),
+                maxChunkSize / 2,
+                ModelConfigurations.CHUNKING_SETTINGS,
+                validationException
+            );
+        }
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -87,5 +91,23 @@ public class WordBoundaryChunkingSettings extends ChunkingSettings {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(maxChunkSize);
         out.writeInt(overlap);
+    }
+
+    @Override
+    public ChunkingStrategy getChunkingStrategy() {
+        return STRATEGY;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        WordBoundaryChunkingSettings that = (WordBoundaryChunkingSettings) o;
+        return Objects.equals(maxChunkSize, that.maxChunkSize) && Objects.equals(overlap, that.overlap);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(maxChunkSize, overlap);
     }
 }

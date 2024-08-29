@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.chunking;
 
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -17,6 +18,7 @@ public class ChunkingSettingsTests extends ESTestCase {
 
     public static ChunkingSettings createRandomChunkingSettings() {
         ChunkingStrategy randomStrategy = randomFrom(ChunkingStrategy.values());
+
         switch (randomStrategy) {
             case WORD -> {
                 var maxChunkSize = randomNonNegativeInt();
@@ -25,9 +27,7 @@ public class ChunkingSettingsTests extends ESTestCase {
             case SENTENCE -> {
                 return new SentenceBoundaryChunkingSettings(randomNonNegativeInt());
             }
-            default -> {
-                return new DefaultChunkingSettings();
-            }
+            default -> throw new IllegalArgumentException("Unsupported random strategy [" + randomStrategy + "]");
         }
     }
 

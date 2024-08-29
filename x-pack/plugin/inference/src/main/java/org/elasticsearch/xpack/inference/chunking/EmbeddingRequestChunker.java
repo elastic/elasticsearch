@@ -106,9 +106,7 @@ public class EmbeddingRequestChunker {
     private void splitIntoBatchedRequests(List<String> inputs) {
         Function<String, List<String>> chunkFunction;
         if (chunkingSettings != null) {
-            var chunkingStrategy = chunkingSettings.getChunkingStrategy() != null
-                ? ChunkingStrategy.fromString(chunkingSettings.getChunkingStrategy())
-                : null;
+            var chunkingStrategy = chunkingSettings.getChunkingStrategy() != null ? chunkingSettings.getChunkingStrategy() : null;
             var chunker = ChunkerBuilder.fromChunkingStrategy(chunkingStrategy);
             chunkFunction = input -> chunker.chunk(input, chunkingSettings);
         } else {

@@ -13,25 +13,25 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
-public class SentenceBoundaryChunkingSettings extends ChunkingSettings {
+public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
     public static final String NAME = "SentenceBoundaryChunkingSettings";
-    protected static final String STRATEGY = ChunkingStrategy.SENTENCE.toString();
+    private static final ChunkingStrategy STRATEGY = ChunkingStrategy.SENTENCE;
     protected final int maxChunkSize;
 
     public SentenceBoundaryChunkingSettings(Integer maxChunkSize) {
-        super(STRATEGY);
         this.maxChunkSize = maxChunkSize;
     }
 
     public SentenceBoundaryChunkingSettings(StreamInput in) throws IOException {
-        super(STRATEGY);
         maxChunkSize = in.readInt();
     }
 
@@ -75,5 +75,23 @@ public class SentenceBoundaryChunkingSettings extends ChunkingSettings {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(maxChunkSize);
+    }
+
+    @Override
+    public ChunkingStrategy getChunkingStrategy() {
+        return STRATEGY;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SentenceBoundaryChunkingSettings that = (SentenceBoundaryChunkingSettings) o;
+        return Objects.equals(maxChunkSize, that.maxChunkSize);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(maxChunkSize);
     }
 }

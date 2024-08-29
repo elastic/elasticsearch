@@ -29,8 +29,6 @@ import java.util.Locale;
  */
 public class WordBoundaryChunker implements Chunker {
 
-    private static final int DEFAULT_MAX_CHUNK_SIZE = 250;
-    private static final int DEFAULT_OVERLAP = 100;
     private BreakIterator wordIterator;
 
     public WordBoundaryChunker() {
@@ -50,8 +48,6 @@ public class WordBoundaryChunker implements Chunker {
     public List<String> chunk(String input, ChunkingSettings chunkingSettings) {
         if (chunkingSettings instanceof WordBoundaryChunkingSettings wordBoundaryChunkerSettings) {
             return chunk(input, wordBoundaryChunkerSettings.maxChunkSize, wordBoundaryChunkerSettings.overlap);
-        } else if (chunkingSettings instanceof DefaultChunkingSettings) {
-            return chunk(input, DEFAULT_MAX_CHUNK_SIZE, DEFAULT_OVERLAP);
         } else {
             throw new IllegalArgumentException(Strings.format("WordBoundaryChunker can't use ChunkingSettings %s", chunkingSettings));
         }

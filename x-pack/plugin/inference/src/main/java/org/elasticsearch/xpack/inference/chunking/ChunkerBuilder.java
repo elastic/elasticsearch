@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.chunking;
 
+import org.elasticsearch.inference.ChunkingStrategy;
+
 public class ChunkerBuilder {
     public static Chunker fromChunkingStrategy(ChunkingStrategy chunkingStrategy) {
         if (chunkingStrategy == null) {

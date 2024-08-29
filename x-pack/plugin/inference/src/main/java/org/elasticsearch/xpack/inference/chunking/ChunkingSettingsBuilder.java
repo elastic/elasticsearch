@@ -8,13 +8,16 @@
 package org.elasticsearch.xpack.inference.chunking;
 
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.ChunkingStrategy;
 
 import java.util.Map;
 
 public class ChunkingSettingsBuilder {
+    public static final WordBoundaryChunkingSettings DEFAULT_SETTINGS = new WordBoundaryChunkingSettings(250, 100);
+
     public static ChunkingSettings fromMap(Map<String, Object> settings) {
         if (settings.isEmpty()) {
-            return new DefaultChunkingSettings();
+            return DEFAULT_SETTINGS;
         }
         if (settings.containsKey(ChunkingSettingsOptions.STRATEGY.toString()) == false) {
             throw new IllegalArgumentException("Can't generate Chunker without ChunkingStrategy provided");

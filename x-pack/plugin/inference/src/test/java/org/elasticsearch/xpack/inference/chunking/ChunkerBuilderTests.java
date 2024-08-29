@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.chunking;
 
+import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;

@@ -25,7 +25,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.ml.inference.assignment.ChunkingSettingsFeatureFlag;
+import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator;
@@ -271,7 +271,7 @@ public class OpenAiService extends SenderService {
                 input,
                 EMBEDDING_MAX_BATCH_SIZE,
                 EmbeddingRequestChunker.EmbeddingType.FLOAT,
-                model.getConfigurations().getChunkingSettings()
+                openAiModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
         } else {
             batchedRequests = new EmbeddingRequestChunker(input, EMBEDDING_MAX_BATCH_SIZE, EmbeddingRequestChunker.EmbeddingType.FLOAT)

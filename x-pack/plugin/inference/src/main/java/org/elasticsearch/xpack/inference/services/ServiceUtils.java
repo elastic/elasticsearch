@@ -417,13 +417,13 @@ public final class ServiceUtils {
     public static Integer extractRequiredPositiveIntegerLessThanOrEqualToMax(
         Map<String, Object> map,
         String settingName,
-        Integer maxValue,
+        int maxValue,
         String scope,
         ValidationException validationException
     ) {
         Integer field = extractRequiredPositiveInteger(map, settingName, scope, validationException);
 
-        if (maxValue != null && field != null && field > maxValue) {
+        if (field != null && field > maxValue) {
             validationException.addValidationError(
                 ServiceUtils.mustBeLessThanOrEqualNumberErrorMessage(settingName, scope, field, maxValue)
             );

@@ -8,13 +8,16 @@
 package org.elasticsearch.xpack.inference.chunking;
 
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.ChunkingStrategy;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-public class SentenceBoundaryChunkingSettingsTests extends ESTestCase {
+public class SentenceBoundaryChunkingSettingsTests extends AbstractWireSerializingTestCase<SentenceBoundaryChunkingSettings> {
 
     public void testMaxChunkSizeNotProvided() {
         assertThrows(
@@ -29,7 +32,7 @@ public class SentenceBoundaryChunkingSettingsTests extends ESTestCase {
             buildChunkingSettingsMap(Optional.of(maxChunkSize))
         );
 
-        assertEquals(settings.getChunkingStrategy(), ChunkingStrategy.SENTENCE.toString());
+        assertEquals(settings.getChunkingStrategy(), ChunkingStrategy.SENTENCE);
         assertEquals(settings.maxChunkSize, maxChunkSize);
     }
 
@@ -39,5 +42,25 @@ public class SentenceBoundaryChunkingSettingsTests extends ESTestCase {
         maxChunkSize.ifPresent(maxChunkSizeValue -> settingsMap.put(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(), maxChunkSizeValue));
 
         return settingsMap;
+    }
+
+    @Override
+    protected Writeable.Reader<SentenceBoundaryChunkingSettings> instanceReader() {
+        return SentenceBoundaryChunkingSettings::new;
+    }
+
+    @Override
+    protected SentenceBoundaryChunkingSettings createTestInstance() {
+        return new SentenceBoundaryChunkingSettings(randomNonNegativeInt());
+    }
+
+    @Override
+    protected SentenceBoundaryChunkingSettings mutateInstance(SentenceBoundaryChunkingSettings instance) throws IOException {
+        var chunkSize = instance.maxChunkSize;
+        while (chunkSize == instance.maxChunkSize) {
+            chunkSize = randomNonNegativeInt();
+        }
+
+        return new SentenceBoundaryChunkingSettings(chunkSize);
     }
 }

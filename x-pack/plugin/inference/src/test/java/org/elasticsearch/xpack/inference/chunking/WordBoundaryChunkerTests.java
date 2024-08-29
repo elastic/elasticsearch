@@ -138,20 +138,6 @@ public class WordBoundaryChunkerTests extends ESTestCase {
         }
     }
 
-    public void testNumberOfChunksWithDefaultChunkingSettings() {
-        for (int numWords : new int[] { 10, 22, 50, 73, 100 }) {
-            var sb = new StringBuilder();
-            for (int i = 0; i < numWords; i++) {
-                sb.append(i).append(' ');
-            }
-            var whiteSpacedText = sb.toString();
-            assertExpectedNumberOfChunksWithDefaultChunkingSettings(whiteSpacedText, numWords);
-            assertExpectedNumberOfChunksWithDefaultChunkingSettings(whiteSpacedText, numWords);
-            assertExpectedNumberOfChunksWithDefaultChunkingSettings(whiteSpacedText, numWords);
-            assertExpectedNumberOfChunksWithDefaultChunkingSettings(whiteSpacedText, numWords);
-        }
-    }
-
     public void testInvalidChunkingSettingsProvided() {
         ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(randomNonNegativeInt());
         assertThrows(IllegalArgumentException.class, () -> { new WordBoundaryChunker().chunk(TEST_TEXT, chunkingSettings); });
@@ -266,12 +252,6 @@ public class WordBoundaryChunkerTests extends ESTestCase {
     ) {
         var chunks = new WordBoundaryChunker().chunk(input, chunkingSettings);
         int expected = expectedNumberOfChunks(numWords, chunkingSettings.maxChunkSize, chunkingSettings.overlap);
-        assertEquals(expected, chunks.size());
-    }
-
-    private void assertExpectedNumberOfChunksWithDefaultChunkingSettings(String input, int numWords) {
-        var chunks = new WordBoundaryChunker().chunk(input, new DefaultChunkingSettings());
-        int expected = expectedNumberOfChunks(numWords, DEFAULT_MAX_CHUNK_SIZE, DEFAULT_OVERLAP);
         assertEquals(expected, chunks.size());
     }
 

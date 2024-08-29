@@ -55,6 +55,7 @@ public class EsqlExecutionInfo implements ToXContentFragment {
     public final Map<String, Cluster> clusterInfo;
     private final Predicate<String> skipUnavailablePredicate;
     private final long id;  // MP FIXME - TMP for my debugging
+    private TimeValue overallTook;  // TODO may not want this here long term, but recording here for now
 
     public EsqlExecutionInfo() {
         this(Predicates.always());  // default all clusters to skip_unavailable=true
@@ -74,6 +75,10 @@ public class EsqlExecutionInfo implements ToXContentFragment {
     // MP FIXME - remove
     public long id() {
         return id;
+    }
+
+    public void setOverallTookTime(TimeValue took) {
+        this.overallTook = took;
     }
 
     // MP TODO: is there a better way to supply this info? Awkward to have it here
@@ -154,7 +159,7 @@ public class EsqlExecutionInfo implements ToXContentFragment {
 
     @Override
     public String toString() {
-        return "EsqlExecutionInfo{" + "clusters=" + clusterInfo + '}';
+        return "EsqlExecutionInfo{" + "overallTook=" + overallTook + ", clusterInfo=" + clusterInfo + '}';
     }
 
     /**

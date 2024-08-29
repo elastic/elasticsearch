@@ -266,7 +266,8 @@ public final class EsqlTestUtils {
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             query,
             false,
-            TABLES
+            TABLES,
+            System.currentTimeMillis()
         );
     }
 

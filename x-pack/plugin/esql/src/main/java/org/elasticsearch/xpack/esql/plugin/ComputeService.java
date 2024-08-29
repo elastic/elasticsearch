@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -139,6 +140,12 @@ public class ComputeService {
         ActionListener<Result> listener
     ) {
         System.err.println("-------------------------------------");
+        System.err.printf(
+            "====== Configuration: [%s]; query-start-time-millis:[%s]; now:[%s]",
+            configuration.clusterName(),
+            configuration.getQueryStartTimeMillis(),
+            configuration.now().toString()
+        );
         System.err.println("====== ComputeService execute: START: " + executionInfo);  // info here was set by field-caps call
         System.err.println("-------------------------------------");
 
@@ -219,6 +226,8 @@ public class ComputeService {
                     "DEBUG 13: CREATING RESULT .......: "
                         + new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo)
                 );
+                long tookTimeMillis = System.currentTimeMillis() - configuration.getQueryStartTimeMillis();
+                executionInfo.setOverallTookTime(new TimeValue(tookTimeMillis));
                 System.err.println("-------------------------------------");
                 System.err.println("====== ComputeService FINAL: executionInfo: " + executionInfo);
                 System.err.println("-------------------------------------");

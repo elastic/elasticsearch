@@ -200,10 +200,10 @@ final class ComputeListener implements Releasable {
                 clusterAlias,
                 esqlExecutionInfo.getCluster(clusterAlias)
             );
-            // MP TODO: if we get here does that mean that the remote search is finished and was SUCCESSFUL?
-            // MP TODO: if yes, where does the failure path go - how do we update the ExecutionInfo with failure info?
             esqlExecutionInfo.swapCluster(
                 clusterAlias,
+                // MP TODO: Not sure this is right - is this called only after the can_match? If yes, then this is not done running
+                // MP TODO: how do we get a callback that it is finished overall after the DataNodeRequestHandler part has run?
                 (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
                     .setTook(resp.getTook())
                     .build()

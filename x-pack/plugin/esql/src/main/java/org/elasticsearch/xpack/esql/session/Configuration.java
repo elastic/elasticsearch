@@ -51,6 +51,7 @@ public class Configuration implements Writeable {
     private final boolean profile;
 
     private final Map<String, Map<String, Column>> tables;
+    private final long queryStartTimeMillis;
 
     public Configuration(
         ZoneId zi,
@@ -62,7 +63,8 @@ public class Configuration implements Writeable {
         int resultTruncationDefaultSize,
         String query,
         boolean profile,
-        Map<String, Map<String, Column>> tables
+        Map<String, Map<String, Column>> tables,
+        long queryStartTimeMillis
     ) {
         this.zoneId = zi.normalized();
         this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
@@ -76,6 +78,7 @@ public class Configuration implements Writeable {
         this.profile = profile;
         this.tables = tables;
         assert tables != null;
+        this.queryStartTimeMillis = queryStartTimeMillis;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -98,6 +101,11 @@ public class Configuration implements Writeable {
         } else {
             this.tables = Map.of();
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_COMPUTE_RESPONSE)) {
+            this.queryStartTimeMillis = in.readLong();
+        } else {
+            this.queryStartTimeMillis = -1;  // MP TODO: what should this be set to?
+        }
     }
 
     @Override
@@ -118,6 +126,9 @@ public class Configuration implements Writeable {
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REQUEST_TABLES)) {
             out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, (o2, column) -> column.writeTo(o2)));
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_COMPUTE_RESPONSE)) {
+            out.writeLong(queryStartTimeMillis);
         }
     }
 
@@ -163,7 +174,12 @@ public class Configuration implements Writeable {
      * Note: Currently, it returns {@link System#currentTimeMillis()}, but this value will be serialized between nodes.
      */
     public long absoluteStartedTimeInMillis() {
+        // MP TODO: I'm confused - Why is this not a fixed value taken at the start of the query processing?
         return System.currentTimeMillis();
+    }
+
+    public long getQueryStartTimeMillis() {
+        return queryStartTimeMillis;
     }
 
     /**

@@ -161,9 +161,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             clusterService.getClusterSettings().get(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE),
             request.query(),
             request.profile(),
-            request.tables()
+            request.tables(),
+            System.currentTimeMillis()
         );
         String sessionId = sessionID(task);
+        // MP TODO: should EsqlExecutionInfo be added to the Configuration object?
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias));
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase = (physicalPlan, resultListener) -> computeService.execute(
             sessionId,

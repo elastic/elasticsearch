@@ -14,6 +14,7 @@ import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -34,10 +35,10 @@ public class TopLevelObjectFieldDataGenerator {
             dynamicMapping = DynamicMapping.FORCED;
             this.mappingParameters = Map.of();
         } else {
-            this.mappingParameters = specification.dataSource()
+            this.mappingParameters = new HashMap<>(specification.dataSource()
                 .get(new DataSourceRequest.ObjectMappingParametersGenerator(false))
                 .mappingGenerator()
-                .get();
+                .get());
             // Top-level object can't be disabled because @timestamp is a required field in data streams.
             this.mappingParameters.remove("enabled");
 

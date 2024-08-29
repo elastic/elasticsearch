@@ -15,6 +15,7 @@ import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -99,11 +100,28 @@ public class DataGeneratorTests extends ESTestCase {
 
             @Override
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
+                if (request.dynamicMapping() == DynamicMapping.FORBIDDEN || request.dynamicMapping() == DynamicMapping.SUPPORTED) {
+                    return new DataSourceResponse.FieldTypeGenerator(
+                        () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(
+                            FieldType.values()[generatedFields++ % FieldType.values().length],
+                            false
+                        )
+                    );
+                }
+
                 return new DataSourceResponse.FieldTypeGenerator(
-                    () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(
-                        FieldType.values()[generatedFields++ % FieldType.values().length],
-                        false
-                    )
+                    () -> {
+                        var fieldType = FieldType.values()[generatedFields++ % FieldType.values().length];
+                        // Does not really work with dynamic mapping.
+                        if (fieldType == FieldType.UNSIGNED_LONG) {
+                            fieldType = FieldType.values()[generatedFields++ % FieldType.values().length];
+                        }
+
+                        return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(
+                            fieldType,
+                            true
+                        );
+                    }
                 );
             }
         };
@@ -172,7 +190,7 @@ public class DataGeneratorTests extends ESTestCase {
 
             @Override
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-                return new DataSourceResponse.FieldTypeGenerator(() -> FieldType.LONG);
+                return new DataSourceResponse.FieldTypeGenerator(() -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG, false));
             }
         };
 

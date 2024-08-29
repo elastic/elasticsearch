@@ -39,6 +39,7 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
         var expectedMapping = """
             {
               "_doc" : {
+                "dynamic" : "false",
                 "properties" : {
                   "f1" : {
                     "dynamic" : "false",
@@ -184,7 +185,6 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
 
         @Override
         public DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
-
             return childFieldGenerator;
         }
 

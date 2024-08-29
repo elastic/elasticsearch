@@ -72,6 +72,12 @@ public class BigArrayVectorTests extends SerializationTestCase {
             assertEmptyLookup(blockFactory, vector.asBlock());
             assertSerialization(block);
             assertThat(vector.toString(), containsString("BooleanBigArrayVector[positions=" + positionCount));
+            try (ToMask mask = block.toMask()) {
+                assertThat(mask.hadMultivaluedFields(), equalTo(false));
+                for (int p = 0; p < values.length; p++) {
+                    assertThat(mask.mask().getBoolean(p), equalTo(values[p]));
+                }
+            }
         }
     }
 

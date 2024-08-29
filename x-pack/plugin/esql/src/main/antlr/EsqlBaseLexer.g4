@@ -29,7 +29,7 @@ options {
  *
  * Since the tokens/modes are in development, simply define them under the
  * "// in development section" and follow the section comments in that section.
- * That is use the DEV_ prefix and use the {isDevVersion()}? conditional.
+ * That is use the DEV_ prefix and use the {this.isDevVersion()}? conditional.
  * They are defined at the end of the file, to minimize the impact on the existing
  * token types.
  *
@@ -80,15 +80,15 @@ WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 // Before adding a new in-development command, to sandbox the behavior when running in production environments
 //
 // For example: to add myCommand use the following declaration:
-// DEV_MYCOMMAND : {isDevVersion()}? 'mycommand' -> ...
+// DEV_MYCOMMAND : {this.isDevVersion()}? 'mycommand' -> ...
 //
 // Once the command has been stabilized, remove the DEV_ prefix and the {}? conditional and move the command to the
 // main section while preserving alphabetical order:
 // MYCOMMAND : 'mycommand' -> ...
-DEV_INLINESTATS : {isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
-DEV_LOOKUP :      {isDevVersion()}? 'lookup'        -> pushMode(LOOKUP_MODE);
-DEV_MATCH :       {isDevVersion()}? 'match'         -> pushMode(EXPRESSION_MODE);
-DEV_METRICS :     {isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
+DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
+DEV_LOOKUP :      {this.isDevVersion()}? 'lookup'        -> pushMode(LOOKUP_MODE);
+DEV_MATCH :       {this.isDevVersion()}? 'match'         -> pushMode(EXPRESSION_MODE);
+DEV_METRICS :     {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
 
 //
 // Catch-all for unrecognized commands - don't define any beyond this line
@@ -211,7 +211,7 @@ SLASH : '/';
 PERCENT : '%';
 
 // move it in the main section if the feature gets promoted
-DEV_MATCH_OP : {isDevVersion()}? DEV_MATCH -> type(DEV_MATCH);
+DEV_MATCH_OP : {this.isDevVersion()}? DEV_MATCH -> type(DEV_MATCH);
 
 NAMED_OR_POSITIONAL_PARAM
     : PARAM (LETTER | UNDERSCORE) UNQUOTED_ID_BODY*

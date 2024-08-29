@@ -1627,6 +1627,21 @@ inner_width:integer | centered_title:keyword
 20 | <       Title        >
 ;
 
+spaceNumberFromIndex
+required_capability: space
+FROM employees
+| EVAL s = CONCAT("<",SPACE(languages),">")
+| WHERE emp_no < 10005
+| SORT emp_no
+| KEEP emp_no, languages, s;
+
+emp_no:integer | languages:integer | s:keyword
+10001 | 2 | <  >
+10002 | 5 | <     >
+10003 | 4 | <    >
+10004 | 5 | <     >
+;
+
 spaceZero
 required_capability: space
 ROW s = SPACE(0);

@@ -57,7 +57,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
     private final RequestBasedTaskRunner taskRunner;
 
     // used to control the flow of data from the Apache client, if we're producing more bytes than we can consume then we'll pause
-    private final AtomicLong totalByteSize = new AtomicLong(0);
+    private final AtomicLong bytesInQueue = new AtomicLong(0);
     private final Object ioLock = new Object();
     private volatile IOControl savedIoControl;
 
@@ -100,7 +100,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
         }
 
         // always check if totalByteSize > the configured setting in case the settings change
-        if (totalByteSize.accumulateAndGet(allBytes.length, Long::sum) >= settings.getMaxResponseSize().getBytes()) {
+        if (bytesInQueue.accumulateAndGet(allBytes.length, Long::sum) >= settings.getMaxResponseSize().getBytes()) {
             pauseProducer(ioControl);
         }
 
@@ -199,6 +199,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
             while (resultQueue.isEmpty() == false && ex == null && subscriptionCanceled.get() == false && requestCount.decrement()) {
                 var nextRequest = resultQueue.poll();
                 subscriber.onNext(nextRequest);
+                bytesInQueue.updateAndGet(current -> Long.min(0, current - nextRequest.body().length));
             }
 
             if (isDone() && subscriptionCanceled.get() == false && requestCount.decrement()) {

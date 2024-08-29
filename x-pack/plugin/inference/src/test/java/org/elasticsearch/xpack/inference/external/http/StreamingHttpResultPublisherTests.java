@@ -42,6 +42,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class StreamingHttpResultPublisherTests extends ESTestCase {
@@ -179,6 +180,35 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
 
         subscriber.requestData();
         verify(ioControl).requestInput();
+    }
+
+    /**
+     * When the publisher sends data to the subscriber
+     * Then we should decrement the current number of bytes in the queue
+     */
+    public void testTotalBytesDecrement() throws IOException {
+        var currentMessage = "message".getBytes(StandardCharsets.UTF_8);
+        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(currentMessage.length));
+
+        var subscriber = new TestSubscriber();
+        publisher.responseReceived(mock(HttpResponse.class));
+        publisher.subscribe(subscriber);
+        subscriber.requestData();
+        subscriber.httpResult = null;
+
+        var ioControl = mock(IOControl.class);
+        publisher.consumeContent(contentDecoder(currentMessage), ioControl);
+        // consumeContent should check that bytesInQueue == consumedBytes and pause
+        verify(ioControl).suspendInput();
+
+        // requesting data should reduce bytesInQueue and resume
+        subscriber.requestData();
+        verify(ioControl).requestInput();
+
+        // bytesInQueue should be 0, so increase maxResponseSize and verify we don't pause when we consume the same number of bytes
+        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(currentMessage.length + 1));
+        publisher.consumeContent(contentDecoder(currentMessage), ioControl);
+        verifyNoMoreInteractions(ioControl);
     }
 
     /**

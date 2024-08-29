@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -80,7 +79,10 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
         ActionRequestValidationException validationException = null;
         final String username = request.username();
         if (isDisablingOwnUser(request)) {
-            validationException = addValidationError("users may not update the enabled status of their own account", validationException);
+            validationException = addValidationError(
+                "native and reserved realm users may not update the enabled status of their own account",
+                validationException
+            );
         }
         if (ClientReservedRealm.isReserved(username, settings)) {
             if (AnonymousUser.isAnonymousUsername(username, settings)) {
@@ -118,8 +120,7 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
             final var realmType = effectiveSubject.getRealm().getType();
             // Only native or reserved realm users can be disabled via the API. If the realm of the effective subject is neither,
             // the target must be a different user
-            return (ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType))
-                && effectiveSubject.getUser().principal().equals(request.username());
+            return (NativeRealmSettings.TYPE.equals(realmType)) && effectiveSubject.getUser().principal().equals(request.username());
         }
         return false;
     }

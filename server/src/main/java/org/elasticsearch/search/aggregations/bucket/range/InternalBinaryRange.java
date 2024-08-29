@@ -72,8 +72,8 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
             String key = in.getTransportVersion().equals(TransportVersions.V_8_0_0) ? in.readString()
                 : in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_1) ? in.readOptionalString()
                 : in.readString();
-            BytesRef from = in.readBoolean() ? in.readBytesRef() : null;
-            BytesRef to = in.readBoolean() ? in.readBytesRef() : null;
+            BytesRef from = in.readOptional(StreamInput::readBytesRef);
+            BytesRef to = in.readOptional(StreamInput::readBytesRef);
             long docCount = in.readLong();
             InternalAggregations aggregations = InternalAggregations.readFrom(in);
 
@@ -89,14 +89,8 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
             } else {
                 out.writeString(key == null ? generateKey(from, to, format) : key);
             }
-            out.writeBoolean(from != null);
-            if (from != null) {
-                out.writeBytesRef(from);
-            }
-            out.writeBoolean(to != null);
-            if (to != null) {
-                out.writeBytesRef(to);
-            }
+            out.writeOptional(StreamOutput::writeBytesRef, from);
+            out.writeOptional(StreamOutput::writeBytesRef, to);
             out.writeLong(docCount);
             aggregations.writeTo(out);
         }

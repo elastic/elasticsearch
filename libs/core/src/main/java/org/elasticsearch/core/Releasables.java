@@ -150,7 +150,8 @@ public enum Releasables {
 
                 private void assertFirstRun() {
                     var previousRun = firstCompletion.compareAndExchange(null, new Exception("already executed"));
-                    assert previousRun == null : "[" + delegate + "] " + previousRun; // reports the stack traces of both completions
+                    // reports the stack traces of both completions
+                    assert previousRun == null : new AssertionError(delegate.toString(), previousRun);
                 }
 
                 @Override

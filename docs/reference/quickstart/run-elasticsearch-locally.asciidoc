@@ -125,6 +125,10 @@ The service is started with a trial license. The trial license enables all featu
 
 To connect to the {es} cluster from a language client, you can use basic authentication with the `elastic` username and the password you set in the environment variable.
 
+.*Expand* for examples
+[%collapsible]
+==============
+
 You'll use the following connection details:
 
 * **{es} endpoint**: `http://localhost:9200`
@@ -159,6 +163,8 @@ curl -u elastic:$ELASTIC_PASSWORD \
   -H 'Content-Type: application/json'
 ----
 // NOTCONSOLE
+
+==============
 
 [discrete]
 [[local-dev-next-steps]]

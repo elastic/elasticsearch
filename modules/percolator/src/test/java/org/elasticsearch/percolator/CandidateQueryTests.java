@@ -929,7 +929,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                     v
                 );
                 BooleanQuery candidateQuery = (BooleanQuery) query.getCandidateMatchesQuery();
-                assertThat(candidateQuery.clauses().get(0).getQuery(), instanceOf(CoveringQuery.class));
+                assertThat(candidateQuery.clauses().get(0).query(), instanceOf(CoveringQuery.class));
                 TopDocs topDocs = shardSearcher.search(query, 10);
                 assertEquals(2L, topDocs.totalHits.value);
                 assertEquals(2, topDocs.scoreDocs.length);
@@ -968,7 +968,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                     v
                 );
                 BooleanQuery candidateQuery = (BooleanQuery) query.getCandidateMatchesQuery();
-                assertThat(candidateQuery.clauses().get(0).getQuery(), instanceOf(TermInSetQuery.class));
+                assertThat(candidateQuery.clauses().get(0).query(), instanceOf(TermInSetQuery.class));
 
                 TopDocs topDocs = shardSearcher.search(query, 10);
                 assertEquals(2L, topDocs.totalHits.value);

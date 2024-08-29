@@ -230,7 +230,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         assertThat(outerMustClauses.size(), equalTo(1));
         assertThat(outerFilterClauses.size(), equalTo(1));
 
-        return outerMustClauses.get(0).getQuery();
+        return outerMustClauses.get(0).query();
     }
 
     @Override

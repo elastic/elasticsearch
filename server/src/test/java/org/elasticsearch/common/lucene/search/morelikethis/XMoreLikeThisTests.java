@@ -177,7 +177,7 @@ public class XMoreLikeThisTests extends ESTestCase {
             expectedTerms[idx++] = new Term("text", text);
         }
         for (BooleanClause clause : clauses) {
-            Term term = ((TermQuery) clause.getQuery()).getTerm();
+            Term term = ((TermQuery) clause.query()).getTerm();
             assertTrue(Arrays.asList(expectedTerms).contains(term));
         }
 

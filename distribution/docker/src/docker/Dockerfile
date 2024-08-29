@@ -23,10 +23,6 @@
 ARG BASE_REGISTRY=registry1.dso.mil
 ARG BASE_IMAGE=ironbank/redhat/ubi/ubi9
 ARG BASE_TAG=9.4
-<% } else if (docker_base == "wolfi") { %>
-ARG BASE_REGISTRY=docker.elastic.co
-ARG BASE_IMAGE=wolfi/chainguard-base
-ARG BASE_TAG=latest@sha256:c16d3ad6cebf387e8dd2ad769f54320c4819fbbaa21e729fad087c7ae223b4d0
 <% } %>
 
 ################################################################################

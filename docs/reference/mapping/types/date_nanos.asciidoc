@@ -152,7 +152,7 @@ of official GA features.
 
 `date_nanos` fields support <<synthetic-source,synthetic `_source`>> in their
 default configuration. Synthetic `_source` cannot be used together with
-<<copy-to,`copy_to`>> or with <<doc-values,`doc_values`>> disabled.
+<<copy-to,`copy_to`>>.
 
 Synthetic source always sorts `date_nanos` fields. For example:
 [source,console,id=synthetic-source-date-nanos-example]

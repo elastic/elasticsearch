@@ -34,7 +34,7 @@ public class FixedThreadPoolTests extends ESThreadPoolTestCase {
             .put("thread_pool." + threadPoolName + ".queue_size", queueSize)
             .build();
         try {
-            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP);
+            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
 
             // these tasks will consume the thread pool causing further
             // submissions to queue

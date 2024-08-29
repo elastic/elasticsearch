@@ -2228,14 +2228,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (sorts() != null) {
                 specified.add(SORT_FIELD.getPreferredName());
             }
-            if (rescores() != null) {
-                specified.add(RESCORE_FIELD.getPreferredName());
-            }
             if (minScore() != null) {
                 specified.add(MIN_SCORE_FIELD.getPreferredName());
             }
             if (rankBuilder() != null) {
                 specified.add(RANK_FIELD.getPreferredName());
+            }
+            if (rescores() != null) {
+                specified.add(RESCORE_FIELD.getPreferredName());
             }
             if (specified.isEmpty() == false) {
                 validationException = addValidationError(

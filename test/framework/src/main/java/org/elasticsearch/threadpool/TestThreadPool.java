@@ -22,7 +22,12 @@ public class TestThreadPool extends ThreadPool implements Releasable {
     }
 
     public TestThreadPool(String name, Settings settings, ExecutorBuilder<?>... customBuilders) {
-        super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).put(settings).build(), MeterRegistry.NOOP, customBuilders);
+        super(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).put(settings).build(),
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders(),
+            customBuilders
+        );
     }
 
     @Override

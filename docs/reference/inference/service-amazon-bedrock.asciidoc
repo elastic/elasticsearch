@@ -123,14 +123,6 @@ Alternative to `temperature`. Limits samples to the top-K most likely words, bal
 Should not be used if `temperature` is specified.
 
 =====
-+
-.`task_settings` for the `text_embedding` task type
-[%collapsible%closed]
-=====
-
-There are no `task_settings` available for the `text_embedding` task type.
-
-=====
 
 [discrete]
 [[inference-example-amazonbedrock]]

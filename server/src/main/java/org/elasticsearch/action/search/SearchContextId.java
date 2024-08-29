@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -58,24 +59,36 @@ public final class SearchContextId {
     public static BytesReference encode(
         List<SearchPhaseResult> searchPhaseResults,
         Map<String, AliasFilter> aliasFilter,
-        TransportVersion version
+        TransportVersion version,
+        ShardSearchFailure[] shardFailures
     ) {
+        assert shardFailures.length == 0 || version.onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)
+            : "[allow_partial_search_results] cannot be enabled on a cluster that has not been fully upgraded to version ["
+                + TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT
+                + "] or higher.";
         try (var out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             TransportVersion.writeVersion(version, out);
-            out.writeCollection(searchPhaseResults, SearchContextId::writeSearchPhaseResult);
+            boolean allowNullContextId = out.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT);
+            int shardSize = searchPhaseResults.size() + (allowNullContextId ? shardFailures.length : 0);
+            out.writeVInt(shardSize);
+            for (var searchResult : searchPhaseResults) {
+                final SearchShardTarget target = searchResult.getSearchShardTarget();
+                target.getShardId().writeTo(out);
+                new SearchContextIdForNode(target.getClusterAlias(), target.getNodeId(), searchResult.getContextId()).writeTo(out);
+            }
+            if (allowNullContextId) {
+                for (var failure : shardFailures) {
+                    failure.shard().getShardId().writeTo(out);
+                    new SearchContextIdForNode(failure.shard().getClusterAlias(), null, null).writeTo(out);
+                }
+            }
             out.writeMap(aliasFilter, StreamOutput::writeWriteable);
             return out.bytes();
         } catch (IOException e) {
             assert false : e;
             throw new IllegalArgumentException(e);
         }
-    }
-
-    private static void writeSearchPhaseResult(StreamOutput out, SearchPhaseResult searchPhaseResult) throws IOException {
-        final SearchShardTarget target = searchPhaseResult.getSearchShardTarget();
-        target.getShardId().writeTo(out);
-        new SearchContextIdForNode(target.getClusterAlias(), target.getNodeId(), searchPhaseResult.getContextId()).writeTo(out);
     }
 
     public static SearchContextId decode(NamedWriteableRegistry namedWriteableRegistry, BytesReference id) {

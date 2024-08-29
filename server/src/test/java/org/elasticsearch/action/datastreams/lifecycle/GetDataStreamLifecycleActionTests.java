@@ -34,10 +34,10 @@ public class GetDataStreamLifecycleActionTests extends ESTestCase {
         TimeValue globalMaxRetention = TimeValue.timeValueDays(50);
         DataStreamLifecycle lifecycle = new DataStreamLifecycle(new DataStreamLifecycle.Retention(configuredRetention), null, null);
         {
-            boolean isSystemDataStream = true;
+            boolean isInternalDataStream = true;
             GetDataStreamLifecycleAction.Response.DataStreamLifecycle explainIndexDataStreamLifecycle = createDataStreamLifecycle(
                 lifecycle,
-                isSystemDataStream
+                isInternalDataStream
             );
             Map<String, Object> resultMap = getXContentMap(explainIndexDataStreamLifecycle, globalDefaultRetention, globalMaxRetention);
             Map<String, Object> lifecycleResult = (Map<String, Object>) resultMap.get("lifecycle");
@@ -46,10 +46,10 @@ public class GetDataStreamLifecycleActionTests extends ESTestCase {
             assertThat(lifecycleResult.get("retention_determined_by"), equalTo("data_stream_configuration"));
         }
         {
-            boolean isSystemDataStream = false;
+            boolean isInternalDataStream = false;
             GetDataStreamLifecycleAction.Response.DataStreamLifecycle explainIndexDataStreamLifecycle = createDataStreamLifecycle(
                 lifecycle,
-                isSystemDataStream
+                isInternalDataStream
             );
             Map<String, Object> resultMap = getXContentMap(explainIndexDataStreamLifecycle, globalDefaultRetention, globalMaxRetention);
             Map<String, Object> lifecycleResult = (Map<String, Object>) resultMap.get("lifecycle");
@@ -61,9 +61,9 @@ public class GetDataStreamLifecycleActionTests extends ESTestCase {
 
     private GetDataStreamLifecycleAction.Response.DataStreamLifecycle createDataStreamLifecycle(
         DataStreamLifecycle lifecycle,
-        boolean isSystemDataStream
+        boolean isInternalDataStream
     ) {
-        return new GetDataStreamLifecycleAction.Response.DataStreamLifecycle(randomAlphaOfLength(50), lifecycle, isSystemDataStream);
+        return new GetDataStreamLifecycleAction.Response.DataStreamLifecycle(randomAlphaOfLength(50), lifecycle, isInternalDataStream);
     }
 
     /*

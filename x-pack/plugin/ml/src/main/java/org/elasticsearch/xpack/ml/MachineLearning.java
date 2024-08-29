@@ -902,7 +902,7 @@ public class MachineLearning extends Plugin
 
     @Override
     public List<RescorerSpec<?>> getRescorers() {
-        if (enabled && machineLearningExtension.get().isLearningToRankEnabled()) {
+        if (enabled) {
             return List.of(
                 new RescorerSpec<>(
                     LearningToRankRescorerBuilder.NAME,
@@ -1864,10 +1864,8 @@ public class MachineLearning extends Plugin
             )
         );
         namedXContent.addAll(new CorrelationNamedContentProvider().getNamedXContentParsers());
-        // LTR Combine with Inference named content provider when feature flag is removed
-        if (machineLearningExtension.get().isLearningToRankEnabled()) {
-            namedXContent.addAll(new MlLTRNamedXContentProvider().getNamedXContentParsers());
-        }
+        namedXContent.addAll(new MlLTRNamedXContentProvider().getNamedXContentParsers());
+
         return namedXContent;
     }
 
@@ -1958,10 +1956,8 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(MlAutoscalingNamedWritableProvider.getNamedWriteables());
         namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
         namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
-        // LTR Combine with Inference named content provider when feature flag is removed
-        if (machineLearningExtension.get().isLearningToRankEnabled()) {
-            namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
-        }
+        namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
+
         return namedWriteables;
     }
 

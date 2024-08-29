@@ -701,8 +701,8 @@ public class ElasticsearchAssertions {
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery q = (BooleanQuery) query;
         assertThat(q.clauses(), hasSize(greaterThan(i)));
-        assertThat(q.clauses().get(i).getQuery(), instanceOf(subqueryType));
-        return subqueryType.cast(q.clauses().get(i).getQuery());
+        assertThat(q.clauses().get(i).query(), instanceOf(subqueryType));
+        return subqueryType.cast(q.clauses().get(i).query());
     }
 
     /**

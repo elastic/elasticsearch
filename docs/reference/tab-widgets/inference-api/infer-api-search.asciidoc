@@ -531,3 +531,68 @@ query from the `amazon-bedrock-embeddings` index sorted by their proximity to th
 // NOTCONSOLE
 
 // end::amazon-bedrock[]
+
+// tag::alibabacloud-ai-search[]
+
+[source,console]
+--------------------------------------------------
+GET alibabacloud-ai-search-embeddings/_search
+{
+  "knn": {
+    "field": "content_embedding",
+    "query_vector_builder": {
+      "text_embedding": {
+        "model_id": "alibabacloud_ai_search_embeddings",
+        "model_text": "Calculate fuel cost"
+      }
+    },
+    "k": 10,
+    "num_candidates": 100
+  },
+  "_source": [
+    "id",
+    "content"
+  ]
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+As a result, you receive the top 10 documents that are closest in meaning to the
+query from the `alibabacloud-ai-search-embeddings` index sorted by their proximity to the query:
+
+[source,consol-result]
+--------------------------------------------------
+"hits": [
+      {
+        "_index": "alibabacloud-ai-search-embeddings",
+        "_id": "DDd5OowBHxQKHyc3TDSC",
+        "_score": 0.83704096,
+        "_source": {
+          "id": 862114,
+          "body": "How to calculate fuel cost for a road trip. By Tara Baukus Mello • Bankrate.com. Dear Driving for Dollars, My family is considering taking a long road trip to finish off the end of the summer, but I'm a little worried about gas prices and our overall fuel cost.It doesn't seem easy to calculate since we'll be traveling through many states and we are considering several routes.y family is considering taking a long road trip to finish off the end of the summer, but I'm a little worried about gas prices and our overall fuel cost. It doesn't seem easy to calculate since we'll be traveling through many states and we are considering several routes."
+        }
+      },
+      {
+        "_index": "alibabacloud-ai-search-embeddings",
+        "_id": "ajd5OowBHxQKHyc3TDSC",
+        "_score": 0.8345704,
+        "_source": {
+          "id": 820622,
+          "body": "Home Heating Calculator. Typically, approximately 50% of the energy consumed in a home annually is for space heating. When deciding on a heating system, many factors will come into play: cost of fuel, installation cost, convenience and life style are all important.This calculator can help you estimate the cost of fuel for different heating appliances.hen deciding on a heating system, many factors will come into play: cost of fuel, installation cost, convenience and life style are all important. This calculator can help you estimate the cost of fuel for different heating appliances."
+        }
+      },
+      {
+        "_index": "alibabacloud-ai-search-embeddings",
+        "_id": "Djd5OowBHxQKHyc3TDSC",
+        "_score": 0.8327426,
+        "_source": {
+          "id": 8202683,
+          "body": "Fuel is another important cost. This cost will depend on your boat, how far you travel, and how fast you travel. A 33-foot sailboat traveling at 7 knots should be able to travel 300 miles on 50 gallons of diesel fuel.If you are paying $4 per gallon, the trip would cost you $200.Most boats have much larger gas tanks than cars.uel is another important cost. This cost will depend on your boat, how far you travel, and how fast you travel. A 33-foot sailboat traveling at 7 knots should be able to travel 300 miles on 50 gallons of diesel fuel."
+        }
+      },
+      (...)
+    ]
+--------------------------------------------------
+// NOTCONSOLE
+
+// end::alibabacloud-ai-search[]

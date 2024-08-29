@@ -875,6 +875,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "from a | enrich typo:countries on foo",
             "line 1:18: Unrecognized value [typo], ENRICH policy qualifier needs to be one of [_ANY, _COORDINATOR, _REMOTE]"
         );
+
+        // TODO: add cases with qualifier/AS clause
     }
 
     public void testMvExpand() {

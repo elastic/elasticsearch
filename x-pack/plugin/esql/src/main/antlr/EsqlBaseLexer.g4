@@ -359,6 +359,7 @@ RENAME_WS
     : WS -> channel(HIDDEN)
     ;
 
+// | ENRICH ON key AS qualifier
 // | ENRICH ON key WITH fields
 mode ENRICH_MODE;
 ENRICH_PIPE : PIPE -> type(PIPE), popMode;
@@ -366,6 +367,7 @@ ENRICH_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(SETT
 
 ON : 'on'     -> pushMode(ENRICH_FIELD_MODE);
 WITH : 'with' -> pushMode(ENRICH_FIELD_MODE);
+ENRICH_AS : AS -> pushMode(ENRICH_FIELD_MODE);
 
 // similar to that of an index
 // see https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
@@ -402,6 +404,7 @@ ENRICH_FIELD_COMMA : COMMA -> type(COMMA);
 ENRICH_FIELD_DOT: DOT -> type(DOT);
 
 ENRICH_FIELD_WITH : WITH -> type(WITH) ;
+ENRICH_FIELD_AS : AS -> type(AS) ;
 
 ENRICH_FIELD_ID_PATTERN
     : ID_PATTERN -> type(ID_PATTERN)

@@ -323,11 +323,9 @@ public class TransportNodesActionTests extends ESTestCase {
 
     public DataNodesOnlyTransportNodesAction getDataNodesOnlyTransportNodesAction(TransportService transportService) {
         return new DataNodesOnlyTransportNodesAction(
-            THREAD_POOL,
             clusterService,
             transportService,
             new ActionFilters(Collections.emptySet()),
-            TestNodesRequest::new,
             TestNodeRequest::new,
             THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         );
@@ -383,11 +381,9 @@ public class TransportNodesActionTests extends ESTestCase {
     private static class DataNodesOnlyTransportNodesAction extends TestTransportNodesAction {
 
         DataNodesOnlyTransportNodesAction(
-            ThreadPool threadPool,
             ClusterService clusterService,
             TransportService transportService,
             ActionFilters actionFilters,
-            Writeable.Reader<TestNodesRequest> request,
             Writeable.Reader<TestNodeRequest> nodeRequest,
             Executor nodeExecutor
         ) {
@@ -395,16 +391,12 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         @Override
-        protected void resolveRequest(TestNodesRequest request, ClusterState clusterState) {
-            request.setConcreteNodes(clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new));
+        protected DiscoveryNode[] resolveRequest(TestNodesRequest request, ClusterState clusterState) {
+            return clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
         }
     }
 
     private static class TestNodesRequest extends BaseNodesRequest<TestNodesRequest> {
-        TestNodesRequest(StreamInput in) throws IOException {
-            super(in);
-        }
-
         TestNodesRequest(String... nodesIds) {
             super(nodesIds);
         }

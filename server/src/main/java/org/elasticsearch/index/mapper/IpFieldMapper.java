@@ -47,6 +47,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -131,7 +132,7 @@ public class IpFieldMapper extends FieldMapper {
                 return InetAddresses.forString(nullValueAsString);
             } catch (Exception e) {
                 if (indexCreatedVersion.onOrAfter(IndexVersions.V_8_0_0)) {
-                    throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
+                    throw new MapperParsingException("Error parsing [null_value] on field [" + leafName() + "]: " + e.getMessage(), e);
                 } else {
                     DEPRECATION_LOGGER.warn(
                         DeprecationCategory.MAPPINGS,
@@ -139,7 +140,7 @@ public class IpFieldMapper extends FieldMapper {
                         "Error parsing ["
                             + nullValue.getValue()
                             + "] as IP in [null_value] on field ["
-                            + name()
+                            + leafName()
                             + "]); [null_value] will be ignored"
                     );
                     return null;
@@ -154,7 +155,7 @@ public class IpFieldMapper extends FieldMapper {
             IpFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), IpFieldScript.CONTEXT);
             return factory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(name(), script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -170,9 +171,9 @@ public class IpFieldMapper extends FieldMapper {
                 dimension.setValue(true);
             }
             return new IpFieldMapper(
-                name(),
+                leafName(),
                 new IpFieldType(
-                    context.buildFullName(name()),
+                    context.buildFullName(leafName()),
                     indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
                     stored.getValue(),
                     hasDocValues.getValue(),
@@ -539,7 +540,7 @@ public class IpFieldMapper extends FieldMapper {
                 context.addIgnoredField(fieldType().name());
                 if (storeIgnored) {
                     // Save a copy of the field so synthetic source can load it
-                    context.doc().add(IgnoreMalformedStoredValues.storedField(name(), context.parser()));
+                    context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
                 }
                 return;
             } else {
@@ -589,16 +590,21 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).dimension(dimension).init(this);
+        return new Builder(leafName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).dimension(dimension).init(this);
     }
 
     @Override
     public void doValidate(MappingLookup lookup) {
-        if (dimension && null != lookup.nestedLookup().getNestedParent(name())) {
+        if (dimension && null != lookup.nestedLookup().getNestedParent(fullPath())) {
             throw new IllegalArgumentException(
-                TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
+                TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + fullPath() + "]"
             );
         }
+    }
+
+    @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
     }
 
     @Override
@@ -608,15 +614,21 @@ public class IpFieldMapper extends FieldMapper {
         }
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+                "field ["
+                    + fullPath()
+                    + "] of type ["
+                    + typeName()
+                    + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new SortedSetDocValuesSyntheticFieldLoader(name(), simpleName(), null, ignoreMalformed) {
+
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
             @Override
             protected BytesRef convert(BytesRef value) {
                 byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
@@ -628,6 +640,12 @@ public class IpFieldMapper extends FieldMapper {
                 // No need to copy because convert has made a deep copy
                 return value;
             }
-        };
+        });
+
+        if (ignoreMalformed) {
+            layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
+        }
+
+        return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
     }
 }

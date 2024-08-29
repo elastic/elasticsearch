@@ -47,7 +47,7 @@ NOTE: Collapsing is applied to the top hits only and does not affect aggregation
 [[expand-collapse-results]]
 ==== Expand collapse results
 
-It is also possible to expand each collapsed top hits with the `inner_hits` option.
+It is also possible to expand each collapsed top hits with the <<inner-hits, `inner hits`>> option.
 
 [source,console]
 ----
@@ -86,7 +86,7 @@ GET /my-index-000001/_search
 
 See <<inner-hits, inner hits>> for the complete list of supported options and the format of the response.
 
-It is also possible to request multiple `inner_hits` for each collapsed hit. This can be useful when you want to get
+It is also possible to request multiple <<inner-hits, `inner hits`>> for each collapsed hit. This can be useful when you want to get
 multiple representations of the collapsed hits.
 
 [source,console]
@@ -145,8 +145,7 @@ The `max_concurrent_group_searches` request parameter can be used to control
 the maximum number of concurrent searches allowed in this phase.
 The default is based on the number of data nodes and the default search thread pool size.
 
-WARNING: `collapse` cannot be used in conjunction with <<scroll-search-results, scroll>> or
-<<rescore, rescore>>.
+WARNING: `collapse` cannot be used in conjunction with <<scroll-search-results, scroll>>.
 
 [discrete]
 [[collapsing-with-search-after]]
@@ -174,6 +173,65 @@ GET /my-index-000001/_search
 }
 ----
 // TEST[setup:my_index]
+
+[discrete]
+[[rescore-collapse-results]]
+==== Rescore collapse results
+
+You can use field collapsing alongside the <<rescore, `rescore`>> search parameter.
+Rescorers run on every shard for the top-ranked document per collapsed field.
+To maintain a reliable order, it is recommended to cluster documents sharing the same collapse
+field value on one shard.
+This is achieved by assigning the collapse field value as the <<search-routing, routing key>>
+during indexing:
+
+[source,console]
+----
+POST /my-index-000001/_doc?routing=xyz      <1>
+{
+  "@timestamp": "2099-11-15T13:12:00",
+  "message": "You know for search!",
+  "user.id": "xyz"
+}
+----
+// TEST[setup:my_index]
+<1> Assign routing with the collapse field value (`user.id`).
+
+By doing this, you guarantee that only one top document per
+collapse key gets rescored globally.
+
+The following request utilizes field collapsing on the `user.id`
+field and then rescores the top groups with a <<query-rescorer, query rescorer>>:
+
+[source,console]
+----
+GET /my-index-000001/_search
+{
+  "query": {
+    "match": {
+      "message": "you know for search"
+    }
+  },
+  "collapse": {
+    "field": "user.id"
+  },
+  "rescore" : {
+      "window_size" : 50,
+      "query" : {
+         "rescore_query" : {
+            "match_phrase": {
+                "message": "you know for search"
+            }
+         },
+         "query_weight" : 0.3,
+         "rescore_query_weight" : 1.4
+      }
+   }
+}
+----
+// TEST[setup:my_index]
+
+WARNING: Rescorers are not applied to <<inner-hits, `inner hits`>>.
 
 [discrete]
 [[second-level-of-collapsing]]

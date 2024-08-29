@@ -8,44 +8,35 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.nativeaccess.lib.VectorLibrary;
-
 import java.lang.invoke.MethodHandle;
 
 /**
- * Utility class providing vector similarity functions.
+ * Utility interface providing vector similarity functions.
  *
  * <p> MethodHandles are returned to avoid a static reference to MemorySegment,
  * which is not in the currently lowest compile version, JDK 17. Code consuming
  * the method handles will, by definition, require access to MemorySegment.
  */
-public final class VectorSimilarityFunctions implements VectorLibrary {
-
-    private final VectorLibrary vectorLibrary;
-
-    VectorSimilarityFunctions(VectorLibrary vectorLibrary) {
-        this.vectorLibrary = vectorLibrary;
-    }
-
+public interface VectorSimilarityFunctions {
     /**
-     * Produces a method handle returning the dot product of byte (signed int8) vectors.
+     * Produces a method handle returning the dot product of byte (unsigned int7) vectors.
+     *
+     * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
      *
      * <p> The type of the method handle will have {@code int} as return type, The type of
      * its first and second arguments will be {@code MemorySegment}, whose contents is the
      * vector data bytes. The third argument is the length of the vector data.
      */
-    public MethodHandle dotProductHandle() {
-        return vectorLibrary.dotProductHandle();
-    }
+    MethodHandle dotProductHandle7u();
 
     /**
-     * Produces a method handle returning the square distance of byte (signed int8) vectors.
+     * Produces a method handle returning the square distance of byte (unsigned int7) vectors.
+     *
+     * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
      *
      * <p> The type of the method handle will have {@code int} as return type, The type of
      * its first and second arguments will be {@code MemorySegment}, whose contents is the
      * vector data bytes. The third argument is the length of the vector data.
      */
-    public MethodHandle squareDistanceHandle() {
-        return vectorLibrary.squareDistanceHandle();
-    }
+    MethodHandle squareDistanceHandle7u();
 }

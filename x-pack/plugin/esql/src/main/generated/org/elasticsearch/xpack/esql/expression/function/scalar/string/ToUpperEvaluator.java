@@ -16,8 +16,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToUpper}.
@@ -34,10 +34,10 @@ public final class ToUpperEvaluator implements EvalOperator.ExpressionEvaluator 
 
   public ToUpperEvaluator(Source source, EvalOperator.ExpressionEvaluator val, Locale locale,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.locale = locale;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -66,7 +66,7 @@ public final class ToUpperEvaluator implements EvalOperator.ExpressionEvaluator 
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(ToUpper.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), locale));
+        result.appendBytesRef(ToUpper.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), this.locale));
       }
       return result.build();
     }
@@ -76,7 +76,7 @@ public final class ToUpperEvaluator implements EvalOperator.ExpressionEvaluator 
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(ToUpper.process(valVector.getBytesRef(p, valScratch), locale));
+        result.appendBytesRef(ToUpper.process(valVector.getBytesRef(p, valScratch), this.locale));
       }
       return result.build();
     }

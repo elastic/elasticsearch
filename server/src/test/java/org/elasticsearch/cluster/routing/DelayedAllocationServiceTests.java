@@ -109,7 +109,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             assertThat(unassignedShards.size(), equalTo(0));
         } else {
             assertThat(unassignedShards.size(), equalTo(1));
-            assertThat(unassignedShards.get(0).unassignedInfo().isDelayed(), equalTo(false));
+            assertThat(unassignedShards.get(0).unassignedInfo().delayed(), equalTo(false));
         }
 
         delayedAllocationService.clusterChanged(new ClusterChangedEvent("test", newState, prevState));
@@ -169,7 +169,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         // make sure the replica is marked as delayed (i.e. not reallocated)
         assertEquals(1, UnassignedInfo.getNumberOfDelayedUnassigned(stateWithDelayedShard));
         ShardRouting delayedShard = stateWithDelayedShard.getRoutingNodes().unassigned().iterator().next();
-        assertEquals(baseTimestampNanos, delayedShard.unassignedInfo().getUnassignedTimeInNanos());
+        assertEquals(baseTimestampNanos, delayedShard.unassignedInfo().unassignedTimeNanos());
 
         // mock ClusterService.submitStateUpdateTask() method
         CountDownLatch latch = new CountDownLatch(1);
@@ -318,8 +318,8 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         final ClusterState stateWithDelayedShards = clusterState;
         assertEquals(2, UnassignedInfo.getNumberOfDelayedUnassigned(stateWithDelayedShards));
         RoutingNodes.UnassignedShards.UnassignedIterator iter = stateWithDelayedShards.getRoutingNodes().unassigned().iterator();
-        assertEquals(baseTimestampNanos, iter.next().unassignedInfo().getUnassignedTimeInNanos());
-        assertEquals(baseTimestampNanos, iter.next().unassignedInfo().getUnassignedTimeInNanos());
+        assertEquals(baseTimestampNanos, iter.next().unassignedInfo().unassignedTimeNanos());
+        assertEquals(baseTimestampNanos, iter.next().unassignedInfo().unassignedTimeNanos());
 
         // mock ClusterService.submitStateUpdateTask() method
         CountDownLatch latch1 = new CountDownLatch(1);
@@ -491,7 +491,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         // make sure the replica is marked as delayed (i.e. not reallocated)
         assertEquals(1, UnassignedInfo.getNumberOfDelayedUnassigned(stateWithDelayedShard));
         ShardRouting delayedShard = stateWithDelayedShard.getRoutingNodes().unassigned().iterator().next();
-        assertEquals(nodeLeftTimestampNanos, delayedShard.unassignedInfo().getUnassignedTimeInNanos());
+        assertEquals(nodeLeftTimestampNanos, delayedShard.unassignedInfo().unassignedTimeNanos());
 
         assertNull(delayedAllocationService.delayedRerouteTask.get());
         long delayUntilClusterChangeEvent = TimeValue.timeValueNanos(randomInt((int) shorterDelaySetting.nanos() - 1)).nanos();

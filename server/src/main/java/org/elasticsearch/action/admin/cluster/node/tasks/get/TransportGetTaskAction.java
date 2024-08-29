@@ -24,12 +24,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -141,9 +141,17 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         } else {
             if (request.getWaitForCompletion()) {
                 final ListenableActionFuture<Void> future = new ListenableActionFuture<>();
-                RemovedTaskListener removedTaskListener = task -> {
-                    if (task.equals(runningTask)) {
-                        future.onResponse(null);
+                RemovedTaskListener removedTaskListener = new RemovedTaskListener() {
+                    @Override
+                    public void onRemoved(Task task) {
+                        if (task.equals(runningTask)) {
+                            future.onResponse(null);
+                        }
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "Waiting for task completion " + runningTask;
                     }
                 };
                 taskManager.registerRemovedTaskListener(removedTaskListener);

@@ -279,6 +279,15 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return flags.isSet(Flag.DenseVector);
     }
 
+    public IndicesStatsRequest sparseVector(boolean sparseVector) {
+        flags.set(Flag.SparseVector, sparseVector);
+        return this;
+    }
+
+    public boolean sparseVector() {
+        return flags.isSet(Flag.SparseVector);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

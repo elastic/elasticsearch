@@ -65,7 +65,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         origin = in.readOptionalString();
     }
 
-    public IndicesAliasesRequest() {}
+    public IndicesAliasesRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     /**
      * Request to take one or more actions on one or more indexes and alias combinations.

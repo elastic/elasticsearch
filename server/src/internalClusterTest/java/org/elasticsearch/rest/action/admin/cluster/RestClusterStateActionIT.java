@@ -13,6 +13,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
+
 public class RestClusterStateActionIT extends ESIntegTestCase {
 
     @Override
@@ -22,7 +24,7 @@ public class RestClusterStateActionIT extends ESIntegTestCase {
 
     public void testInfiniteTimeOut() throws IOException {
         final var request = new Request("GET", "/_cluster/state/none");
-        request.addParameter("master_timeout", "-1");
+        request.addParameter(REST_MASTER_TIMEOUT_PARAM, "-1");
         getRestClient().performRequest(request);
     }
 }

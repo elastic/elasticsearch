@@ -35,6 +35,32 @@ and the `output_field` that will contain the {infer} results.
 
 // end::cohere[]
 
+// tag::elser[]
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/elser_embeddings
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": "elser_embeddings", <1>
+        "input_output": { <2>
+          "input_field": "content",
+          "output_field": "content_embedding"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+<1> The name of the inference endpoint you created by using the
+<<put-inference-api>>, it's referred to as `inference_id` in that step.
+<2> Configuration object that defines the `input_field` for the {infer} process
+and the `output_field` that will contain the {infer} results.
+
+// end::elser[]
+
 // tag::hugging-face[]
 
 [source,console]
@@ -112,3 +138,107 @@ PUT _ingest/pipeline/azure_openai_embeddings
 and the `output_field` that will contain the {infer} results.
 
 // end::azure-openai[]
+
+// tag::azure-ai-studio[]
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/azure_ai_studio_embeddings
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": "azure_ai_studio_embeddings", <1>
+        "input_output": { <2>
+          "input_field": "content",
+          "output_field": "content_embedding"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+<1> The name of the inference endpoint you created by using the
+<<put-inference-api>>, it's referred to as `inference_id` in that step.
+<2> Configuration object that defines the `input_field` for the {infer} process
+and the `output_field` that will contain the {infer} results.
+
+// end::azure-ai-studio[]
+
+// tag::mistral[]
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/mistral_embeddings
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": "mistral_embeddings", <1>
+        "input_output": { <2>
+          "input_field": "content",
+          "output_field": "content_embedding"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+<1> The name of the inference endpoint you created by using the
+<<put-inference-api>>, it's referred to as `inference_id` in that step.
+<2> Configuration object that defines the `input_field` for the {infer} process
+and the `output_field` that will contain the {infer} results.
+
+// end::mistral[]
+
+// tag::amazon-bedrock[]
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/amazon_bedrock_embeddings
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": "amazon_bedrock_embeddings", <1>
+        "input_output": { <2>
+          "input_field": "content",
+          "output_field": "content_embedding"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+<1> The name of the inference endpoint you created by using the
+<<put-inference-api>>, it's referred to as `inference_id` in that step.
+<2> Configuration object that defines the `input_field` for the {infer} process
+and the `output_field` that will contain the {infer} results.
+
+// end::amazon-bedrock[]
+
+// tag::alibabacloud-ai-search[]
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/alibabacloud_ai_search_embeddings
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": "alibabacloud_ai_search_embeddings", <1>
+        "input_output": { <2>
+          "input_field": "content",
+          "output_field": "content_embedding"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+<1> The name of the inference endpoint you created by using the
+<<put-inference-api>>, it's referred to as `inference_id` in that step.
+<2> Configuration object that defines the `input_field` for the {infer} process
+and the `output_field` that will contain the {infer} results.
+
+// end::alibabacloud-ai-search[]

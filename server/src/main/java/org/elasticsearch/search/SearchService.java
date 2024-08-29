@@ -84,6 +84,7 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseContext;
@@ -112,6 +113,9 @@ import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
+import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
+import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -151,6 +155,7 @@ import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.search.rank.feature.RankFeatureShardPhase.EMPTY_RESULT;
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
@@ -276,6 +281,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final DfsPhase dfsPhase = new DfsPhase();
 
     private final FetchPhase fetchPhase;
+    private final RankFeatureShardPhase rankFeatureShardPhase;
     private volatile boolean enableSearchWorkerThreads;
     private volatile boolean enableQueryPhaseParallelCollection;
 
@@ -314,6 +320,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ThreadPool threadPool,
         ScriptService scriptService,
         BigArrays bigArrays,
+        RankFeatureShardPhase rankFeatureShardPhase,
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
@@ -327,6 +334,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.scriptService = scriptService;
         this.responseCollectorService = responseCollectorService;
         this.bigArrays = bigArrays;
+        this.rankFeatureShardPhase = rankFeatureShardPhase;
         this.fetchPhase = fetchPhase;
         this.multiBucketConsumerService = new MultiBucketConsumerService(
             clusterService,
@@ -468,6 +476,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     protected ReaderContext removeReaderContext(long id) {
+        logger.trace("removing reader context [{}]", id);
         return activeReaders.remove(id);
     }
 
@@ -713,12 +722,38 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+    public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
+        final ReaderContext readerContext = findReaderContext(request.contextId(), request);
+        final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
+        final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
+        runAsync(getExecutor(readerContext.indexShard()), () -> {
+            try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.RANK_FEATURE, false)) {
+                int[] docIds = request.getDocIds();
+                if (docIds == null || docIds.length == 0) {
+                    searchContext.rankFeatureResult().shardResult(EMPTY_RESULT);
+                    searchContext.rankFeatureResult().incRef();
+                    return searchContext.rankFeatureResult();
+                }
+                rankFeatureShardPhase.prepareForFetch(searchContext, request);
+                fetchPhase.execute(searchContext, docIds, null);
+                rankFeatureShardPhase.processFetch(searchContext);
+                var rankFeatureResult = searchContext.rankFeatureResult();
+                rankFeatureResult.incRef();
+                return rankFeatureResult;
+            } catch (Exception e) {
+                assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
+                // we handle the failure in the failure listener below
+                throw e;
+            }
+        }, wrapFailureListener(listener, readerContext, markAsUsed));
+    }
+
     private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime) {
         try (
             Releasable scope = tracer.withScope(context.getTask());
             SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)
         ) {
-            fetchPhase.execute(context, shortcutDocIdsToLoad(context));
+            fetchPhase.execute(context, shortcutDocIdsToLoad(context), null);
             if (reader.singleSession()) {
                 freeReaderContext(reader.id());
             }
@@ -871,7 +906,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 try (
                     SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())
                 ) {
-                    fetchPhase.execute(searchContext, request.docIds());
+                    fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks());
                     if (readerContext.singleSession()) {
                         freeReaderContext(request.contextId());
                     }
@@ -1096,7 +1131,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 reader,
                 request,
                 shardTarget,
-                threadPool::relativeTimeInMillis,
+                threadPool.relativeTimeInMillisSupplier(),
                 timeout,
                 fetchPhase,
                 lowLevelCancellation,
@@ -1142,6 +1177,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public boolean freeReaderContext(ShardSearchContextId contextId) {
+        logger.trace("freeing reader context [{}]", contextId);
         if (sessionId.equals(contextId.getSessionId())) {
             try (ReaderContext context = removeReaderContext(contextId.getId())) {
                 return context != null;
@@ -1426,7 +1462,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             for (SubSearchSourceBuilder subSearchSourceBuilder : source.subSearches()) {
                 queries.add(subSearchSourceBuilder.toSearchQuery(context.getSearchExecutionContext()));
             }
-            context.rankShardContext(source.rankBuilder().buildRankShardContext(queries, context.from()));
+            context.queryPhaseRankShardContext(source.rankBuilder().buildQueryPhaseShardContext(queries, context.from()));
         }
     }
 
@@ -1454,9 +1490,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.collapse() != null) {
             if (hasScroll) {
                 throw new IllegalArgumentException("cannot use `collapse` in a scroll context");
-            }
-            if (source.rescores() != null && source.rescores().isEmpty() == false) {
-                throw new IllegalArgumentException("cannot use `collapse` in conjunction with `rescore`");
             }
         }
         if (source.slice() != null) {
@@ -1546,6 +1579,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return this.responseCollectorService;
     }
 
+    public long getDefaultKeepAliveInMillis() {
+        return defaultKeepAlive;
+    }
+
     /**
      * Used to indicate which result object should be instantiated when creating a search context
      */
@@ -1560,6 +1597,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             @Override
             void addResultsObject(SearchContext context) {
                 context.addQueryResult();
+            }
+        },
+        RANK_FEATURE {
+            @Override
+            void addResultsObject(SearchContext context) {
+                context.addRankFeatureResult();
             }
         },
         FETCH {
@@ -1783,8 +1826,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices) {
-        return indicesService.getRewriteContext(nowInMillis, resolvedIndices);
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
+        return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
@@ -1802,7 +1845,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
-                return new AggregationReduceContext.ForPartial(bigArrays, scriptService, isCanceled, aggs);
+                return new AggregationReduceContext.ForPartial(
+                    bigArrays,
+                    scriptService,
+                    isCanceled,
+                    aggs,
+                    multiBucketConsumerService.createForPartial()
+                );
             }
 
             @Override
@@ -1812,7 +1861,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     scriptService,
                     isCanceled,
                     aggs,
-                    multiBucketConsumerService.create()
+                    multiBucketConsumerService.createForFinal()
                 );
             }
         };

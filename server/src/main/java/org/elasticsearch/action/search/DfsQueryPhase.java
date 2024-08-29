@@ -9,6 +9,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -152,10 +153,11 @@ final class DfsQueryPhase extends SearchPhase {
             scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
             String nestedPath = dfsKnnResults.getNestedPath();
             QueryBuilder query = new KnnScoreDocQueryBuilder(
-                scoreDocs.toArray(new ScoreDoc[0]),
+                scoreDocs.toArray(Lucene.EMPTY_SCORE_DOCS),
                 source.knnSearch().get(i).getField(),
-                source.knnSearch().get(i).getQueryVector()
-            ).boost(source.knnSearch().get(i).boost());
+                source.knnSearch().get(i).getQueryVector(),
+                source.knnSearch().get(i).getSimilarity()
+            ).boost(source.knnSearch().get(i).boost()).queryName(source.knnSearch().get(i).queryName());
             if (nestedPath != null) {
                 query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());
             }

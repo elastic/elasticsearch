@@ -95,22 +95,22 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     protected AutoFollowStats getAutoFollowStats() {
-        return client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet().getAutoFollowStats();
+        return client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request(TEST_REQUEST_TIMEOUT)).actionGet().getAutoFollowStats();
     }
 
     protected ResumeFollowAction.Request getResumeFollowRequest(String followerIndex) {
-        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request(TEST_REQUEST_TIMEOUT);
         request.setFollowerIndex(followerIndex);
         request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(1));
         request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(1));
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("10s", "20s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
         }
         return request;
     }
 
     protected PutFollowAction.Request getPutFollowRequest(String leaderIndex, String followerIndex) {
-        PutFollowAction.Request request = new PutFollowAction.Request();
+        PutFollowAction.Request request = new PutFollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setRemoteCluster("local");
         request.setLeaderIndex(leaderIndex);
         request.setFollowerIndex(followerIndex);
@@ -118,7 +118,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(1));
         request.waitForActiveShards(ActiveShardCount.ONE);
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("10s", "20s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
         }
         return request;
     }

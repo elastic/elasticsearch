@@ -126,6 +126,13 @@ public class DockerTests extends PackagingTestCase {
         rm(tempDir);
     }
 
+    @Override
+    protected void dumpDebug() {
+        final Result containerLogs = getContainerLogs();
+        logger.warn("Elasticsearch log stdout:\n" + containerLogs.stdout());
+        logger.warn("Elasticsearch log stderr:\n" + containerLogs.stderr());
+    }
+
     /**
      * Checks that the Docker image can be run, and that it passes various checks.
      */
@@ -1011,12 +1018,11 @@ public class DockerTests extends PackagingTestCase {
      * Check that when available system memory is constrained by Docker, the machine-dependant heap sizing
      * logic sets the correct heap size, based on the container limits.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104786")
     public void test150MachineDependentHeap() throws Exception {
-        final List<String> xArgs = machineDependentHeapTest("942m", List.of());
+        final List<String> xArgs = machineDependentHeapTest("1536m", List.of());
 
-        // This is roughly 0.4 * 942
-        assertThat(xArgs, hasItems("-Xms376m", "-Xmx376m"));
+        // This is roughly 0.5 * 1536
+        assertThat(xArgs, hasItems("-Xms768m", "-Xmx768m"));
     }
 
     /**
@@ -1220,11 +1226,12 @@ public class DockerTests extends PackagingTestCase {
             builder().envVar("readiness.port", "9399").envVar("xpack.security.enabled", "false").envVar("discovery.type", "single-node")
         );
         waitForElasticsearch(installation);
-        assertTrue(readinessProbe(9399));
+        dumpDebug();
+        // readiness may still take time as file settings are applied into cluster state (even non-existent file settings)
+        assertBusy(() -> assertTrue(readinessProbe(9399)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99508")
-    public void test600Interrupt() {
+    public void test600Interrupt() throws Exception {
         waitForElasticsearch(installation, "elastic", PASSWORD);
         final Result containerLogs = getContainerLogs();
 
@@ -1234,10 +1241,12 @@ public class DockerTests extends PackagingTestCase {
         final int maxPid = infos.stream().map(i -> i.pid()).max(Integer::compareTo).get();
 
         sh.run("bash -c 'kill -int " + maxPid + "'"); // send ctrl+c to all java processes
-        final Result containerLogsAfter = getContainerLogs();
 
-        assertThat("Container logs should contain stopping ...", containerLogsAfter.stdout(), containsString("stopping ..."));
-        assertThat("No errors stdout", containerLogsAfter.stdout(), not(containsString("java.security.AccessControlException:")));
-        assertThat("No errors stderr", containerLogsAfter.stderr(), not(containsString("java.security.AccessControlException:")));
+        assertBusy(() -> {
+            final Result containerLogsAfter = getContainerLogs();
+            assertThat("Container logs should contain stopping ...", containerLogsAfter.stdout(), containsString("stopping ..."));
+            assertThat("No errors stdout", containerLogsAfter.stdout(), not(containsString("java.security.AccessControlException:")));
+            assertThat("No errors stderr", containerLogsAfter.stderr(), not(containsString("java.security.AccessControlException:")));
+        });
     }
 }

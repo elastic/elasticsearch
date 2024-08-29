@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns an integer that indicates the position of a keyword substring within another string
+Returns an integer that indicates the position of a keyword substring within another string.

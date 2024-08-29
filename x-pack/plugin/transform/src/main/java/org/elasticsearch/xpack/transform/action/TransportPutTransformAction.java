@@ -15,16 +15,18 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -81,11 +83,11 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         );
         this.settings = settings;
         this.client = client;
-        this.transformConfigManager = transformServices.getConfigManager();
+        this.transformConfigManager = transformServices.configManager();
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
-        this.auditor = transformServices.getAuditor();
+        this.auditor = transformServices.auditor();
     }
 
     @Override
@@ -110,12 +112,14 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         );
 
         // <2> Validate source and destination indices
+
+        var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ActionListener<Void> checkPrivilegesListener = validateTransformListener.delegateFailureAndWrap(
             (l, aVoid) -> ClientHelper.executeAsyncWithOrigin(
-                client,
+                new ParentTaskAssigningClient(client, parentTaskId),
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
-                new ValidateTransformAction.Request(config, request.isDeferValidation(), request.timeout()),
+                new ValidateTransformAction.Request(config, request.isDeferValidation(), request.ackTimeout()),
                 l
             )
         );

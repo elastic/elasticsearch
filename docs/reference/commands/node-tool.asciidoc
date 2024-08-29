@@ -31,6 +31,10 @@ This tool has a number of modes:
   from the cluster state in case where it contains incompatible settings that
   prevent the cluster from forming.
 
+* `elasticsearch-node remove-index-settings` can be used to remove index settings
+  from the cluster state in case where it contains incompatible index settings that
+  prevent the cluster from forming.
+
 * `elasticsearch-node remove-customs` can be used to remove custom metadata
   from the cluster state in case where it contains broken metadata that
   prevents the cluster state from being loaded.
@@ -105,6 +109,26 @@ The intended use is:
 * Stop the node
 * Run `elasticsearch-node remove-settings name-of-setting-to-remove` on the node
 * Repeat for all other master-eligible nodes
+* Start the nodes
+
+[discrete]
+==== Removing index settings
+
+There may be situations where an index contains index settings
+that prevent the cluster from forming. Since the cluster cannot form,
+it is not possible to remove these settings using the
+<<indices-update-settings>> API.
+
+The `elasticsearch-node remove-index-settings` tool allows you to forcefully remove
+those index settings from the on-disk cluster state. The tool takes a
+list of index settings as parameters that should be removed, and also supports
+wildcard patterns.
+
+The intended use is:
+
+* Stop the node
+* Run `elasticsearch-node remove-index-settings name-of-index-setting-to-remove` on the node
+* Repeat for all nodes
 * Start the nodes
 
 [discrete]
@@ -434,6 +458,37 @@ You can also use wildcards to remove multiple settings, for example using
 [source,txt]
 ----
 node$ ./bin/elasticsearch-node remove-settings xpack.monitoring.*
+----
+
+[discrete]
+==== Removing index settings
+
+If your indices contain index settings that prevent the cluster
+from forming, you can run the following command to remove one
+or more index settings.
+
+[source,txt]
+----
+node$ ./bin/elasticsearch-node remove-index-settings index.my_plugin.foo
+
+    WARNING: Elasticsearch MUST be stopped before running this tool.
+
+You should only run this tool if you have incompatible index settings in the
+cluster state that prevent the cluster from forming.
+This tool can cause data loss and its use should be your last resort.
+
+Do you want to proceed?
+
+Confirm [y/N] y
+
+Index settings were successfully removed from the cluster state
+----
+
+You can also use wildcards to remove multiple index settings, for example using
+
+[source,txt]
+----
+node$ ./bin/elasticsearch-node remove-index-settings index.my_plugin.*
 ----
 
 [discrete]

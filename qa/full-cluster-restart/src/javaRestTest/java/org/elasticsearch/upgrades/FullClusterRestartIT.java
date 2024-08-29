@@ -48,7 +48,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -81,8 +80,8 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_COMPRESS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -921,9 +920,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         final String indexName = "test_empty_shard";
 
         if (isRunningAgainstOldCluster()) {
-            Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            Settings.Builder settings = indexSettings(1, 1)
                 // if the node with the replica is the first to be restarted, while a replica is still recovering
                 // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                 // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
@@ -1289,7 +1286,11 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         // the format can change depending on the ES node version running & this test code running
         assertThat(
             XContentMapValues.extractValue("snapshots.version", snapResponse),
-            either(Matchers.<Object>equalTo(List.of(tookOnVersion))).or(equalTo(List.of(tookOnIndexVersion.toString())))
+            anyOf(
+                equalTo(List.of(tookOnVersion)),
+                equalTo(List.of(tookOnIndexVersion.toString())),
+                equalTo(List.of(tookOnIndexVersion.toReleaseVersion()))
+            )
         );
 
         // Remove the routing setting and template so we can test restoring them.
@@ -1519,14 +1520,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
      */
     public void testTurnOffTranslogRetentionAfterUpgraded() throws Exception {
         if (isRunningAgainstOldCluster()) {
-            createIndex(
-                index,
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                    .build()
-            );
+            createIndex(index, indexSettings(1, 1).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
             ensureGreen(index);
             int numDocs = randomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
@@ -1546,9 +1540,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     public void testResize() throws Exception {
         int numDocs;
         if (isRunningAgainstOldCluster()) {
-            final Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
+            final Settings.Builder settings = indexSettings(3, 1);
             if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
             }

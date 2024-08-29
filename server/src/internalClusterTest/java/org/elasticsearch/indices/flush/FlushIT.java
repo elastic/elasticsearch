@@ -105,15 +105,18 @@ public class FlushIT extends ESIntegTestCase {
         List<String> dataNodes = internalCluster().startDataOnlyNodes(
             2,
             Settings.builder()
-                .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), randomTimeValue(10, 1000, "ms"))
-                .put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), randomTimeValue(10, 1000, "ms"))
+                .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), randomTimeValue(10, 1000, TimeUnit.MILLISECONDS))
+                .put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), randomTimeValue(10, 1000, TimeUnit.MILLISECONDS))
                 .build()
         );
         assertAcked(
             indicesAdmin().prepareCreate(indexName)
                 .setSettings(
-                    indexSettings(1, 1).put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(200, 500, "ms"))
-                        .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(50, 200, "ms"))
+                    indexSettings(1, 1).put(
+                        IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(),
+                        randomTimeValue(200, 500, TimeUnit.MILLISECONDS)
+                    )
+                        .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(50, 200, TimeUnit.MILLISECONDS))
                         .put("index.routing.allocation.include._name", String.join(",", dataNodes))
                         .build()
                 )

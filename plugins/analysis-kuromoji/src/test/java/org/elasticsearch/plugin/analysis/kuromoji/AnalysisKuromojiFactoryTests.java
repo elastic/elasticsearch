@@ -34,6 +34,8 @@ public class AnalysisKuromojiFactoryTests extends AnalysisFactoryTestCase {
         filters.put("japanesereadingform", KuromojiReadingFormFilterFactory.class);
         filters.put("japanesekatakanastem", KuromojiKatakanaStemmerFactory.class);
         filters.put("japanesenumber", KuromojiNumberFilterFactory.class);
+        filters.put("japanesehiraganauppercase", HiraganaUppercaseFilterFactory.class);
+        filters.put("japanesekatakanauppercase", KatakanaUppercaseFilterFactory.class);
         return filters;
     }
 

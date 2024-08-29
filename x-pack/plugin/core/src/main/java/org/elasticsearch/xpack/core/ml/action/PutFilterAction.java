@@ -47,7 +47,7 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
             return new Request(filter.build());
         }
 
-        private MlFilter filter;
+        private final MlFilter filter;
 
         public Request(StreamInput in) throws IOException {
             super(in);

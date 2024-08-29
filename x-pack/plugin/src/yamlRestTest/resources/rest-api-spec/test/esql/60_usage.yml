@@ -52,7 +52,6 @@ setup:
       esql.query:
         body:
           query: 'from test | where data > 2 | sort count desc | limit 5 | stats m = max(data)'
-          version: 2024.04.01
 
   - do: {xpack.usage: {}}
   - match: { esql.available: true }

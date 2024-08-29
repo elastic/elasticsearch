@@ -144,4 +144,5 @@ public class IndexPrivilegeTests extends ESTestCase {
         );
         assertThat(Operations.subsetOf(crossClusterReplicationInternal.automaton, IndexPrivilege.get(Set.of("all")).automaton), is(true));
     }
+
 }

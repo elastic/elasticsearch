@@ -8,113 +8,30 @@
 
 package org.elasticsearch.gradle.internal.doc;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.JsonParser;
-
-import org.gradle.api.InvalidUserDataException;
-
-import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 
-public class Snippet {
-    static final int NOT_FINISHED = -1;
-
-    /**
-     * Path to the file containing this snippet. Relative to docs.dir of the
-     * SnippetsTask that created it.
-     */
-    Path path;
-    int start;
-    int end = NOT_FINISHED;
-    public String contents;
-
-    Boolean console = null;
-    boolean test = false;
-    boolean testResponse = false;
-    boolean testSetup = false;
-    boolean testTearDown = false;
-    String skip = null;
-    boolean continued = false;
-    String language = null;
-    String catchPart = null;
-    String setup = null;
-    String teardown = null;
-    boolean curl;
-    List<String> warnings = new ArrayList();
-    boolean skipShardsFailures = false;
-    String name;
-
-    public Snippet(Path path, int start, String name) {
-        this.path = path;
-        this.start = start;
-        this.name = name;
-    }
-
-    public void validate() {
-        if (language == null) {
-            throw new InvalidUserDataException(
-                name
-                    + ": "
-                    + "Snippet missing a language. This is required by "
-                    + "Elasticsearch's doc testing infrastructure so we "
-                    + "be sure we don't accidentally forget to test a "
-                    + "snippet."
-            );
-        }
-        assertValidCurlInput();
-        assertValidJsonInput();
-    }
-
-    String getLocation() {
-        return path + "[" + start + ":" + end + "]";
-    }
-
-    private void assertValidCurlInput() {
-        // Try to detect snippets that contain `curl`
-        if ("sh".equals(language) || "shell".equals(language)) {
-            curl = contents.contains("curl");
-            if (console == Boolean.FALSE && curl == false) {
-                throw new InvalidUserDataException(name + ": " + "No need for NOTCONSOLE if snippet doesn't " + "contain `curl`.");
-            }
-        }
-    }
-
-    private void assertValidJsonInput() {
-        if (testResponse && ("js" == language || "console-result" == language) && null == skip) {
-            String quoted = contents
-                // quote values starting with $
-                .replaceAll("([:,])\\s*(\\$[^ ,\\n}]+)", "$1 \"$2\"")
-                // quote fields starting with $
-                .replaceAll("(\\$[^ ,\\n}]+)\\s*:", "\"$1\":");
-
-            JsonFactory jf = new JsonFactory();
-            jf.configure(JsonParser.Feature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER, true);
-            JsonParser jsonParser;
-
-            try {
-                jsonParser = jf.createParser(quoted);
-                while (jsonParser.isClosed() == false) {
-                    jsonParser.nextToken();
-                }
-            } catch (JsonParseException e) {
-                throw new InvalidUserDataException(
-                    "Invalid json in "
-                        + name
-                        + ". The error is:\n"
-                        + e.getMessage()
-                        + ".\n"
-                        + "After substitutions and munging, the json looks like:\n"
-                        + quoted,
-                    e
-                );
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
+public record Snippet(
+    Path path,
+    int start,
+    int end,
+    String contents,
+    Boolean console,
+    boolean test,
+    boolean testResponse,
+    boolean testSetup,
+    boolean testTearDown,
+    String skip,
+    boolean continued,
+    String language,
+    String catchPart,
+    String setup,
+    String teardown,
+    boolean curl,
+    List<String> warnings,
+    boolean skipShardsFailures,
+    String name
+) {
 
     @Override
     public String toString() {

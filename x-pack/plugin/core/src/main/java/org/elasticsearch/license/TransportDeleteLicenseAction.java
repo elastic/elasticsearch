@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,6 +63,10 @@ public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNod
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) throws ElasticsearchException {
-        licenseService.removeLicense(listener.map(r -> AcknowledgedResponse.of(r.isAcknowledged())));
+        licenseService.removeLicense(
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            listener.map(r -> AcknowledgedResponse.of(r.isAcknowledged()))
+        );
     }
 }

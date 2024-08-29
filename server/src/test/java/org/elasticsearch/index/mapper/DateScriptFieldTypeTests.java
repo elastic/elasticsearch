@@ -234,6 +234,11 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
 
                     @Override
+                    public boolean needs_termStats() {
+                        return false;
+                    }
+
+                    @Override
                     public ScoreScript newInstance(DocReader docReader) throws IOException {
                         return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
                             @Override
@@ -295,7 +300,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     private Query randomDistanceFeatureQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.distanceFeatureQuery(randomDate(), randomTimeValue(), ctx);
+        return ft.distanceFeatureQuery(randomDate(), randomTimeValue().getStringRep(), ctx);
     }
 
     @Override

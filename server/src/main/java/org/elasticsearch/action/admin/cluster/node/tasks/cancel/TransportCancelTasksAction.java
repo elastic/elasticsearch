@@ -17,7 +17,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +47,6 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             transportService,
             actionFilters,
             CancelTasksRequest::new,
-            ListTasksResponse::new,
             TaskInfo::from,
             // Cancellation is usually lightweight, and runs on the transport thread if the task didn't even start yet, but some
             // implementations of CancellableTask#onCancelled() are nontrivial so we use GENERIC here. TODO could it be SAME?

@@ -25,10 +25,6 @@ public final class MapperMergeContext {
         this.newFieldsBudget = newFieldsBudget;
     }
 
-    static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, long newFieldsBudget) {
-        return root(isSourceSynthetic, isDataStream, MergeReason.MAPPING_UPDATE, newFieldsBudget);
-    }
-
     /**
      * The root context, to be used when merging a tree of mappers
      */
@@ -55,7 +51,7 @@ public final class MapperMergeContext {
      * @param name the name of the child context
      * @return a new {@link MapperMergeContext} with this context as its parent
      */
-    MapperMergeContext createChildContext(String name, ObjectMapper.Dynamic dynamic) {
+    public MapperMergeContext createChildContext(String name, ObjectMapper.Dynamic dynamic) {
         return createChildContext(mapperBuilderContext.createChildContext(name, dynamic));
     }
 
@@ -69,7 +65,7 @@ public final class MapperMergeContext {
         return new MapperMergeContext(childContext, newFieldsBudget);
     }
 
-    MapperBuilderContext getMapperBuilderContext() {
+    public MapperBuilderContext getMapperBuilderContext() {
         return mapperBuilderContext;
     }
 

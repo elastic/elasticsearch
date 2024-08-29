@@ -70,7 +70,11 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }, MAPPINGS, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             Map<String, AliasMetadata> aliasMap = new HashMap<>();
-            while ((p.nextToken()) != XContentParser.Token.END_OBJECT) {
+            XContentParser.Token token;
+            while ((token = p.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == null) {
+                    break;
+                }
                 AliasMetadata alias = AliasMetadata.Builder.fromXContent(p);
                 aliasMap.put(alias.alias(), alias);
             }
@@ -213,18 +217,14 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, null, null);
+        return toXContent(builder, params, null);
     }
 
     /**
      * Converts the template to XContent and passes the RolloverConditions, when provided, to the lifecycle.
      */
-    public XContentBuilder toXContent(
-        XContentBuilder builder,
-        Params params,
-        @Nullable RolloverConfiguration rolloverConfiguration,
-        @Nullable DataStreamGlobalRetention globalRetention
-    ) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
+        throws IOException {
         builder.startObject();
         if (this.settings != null) {
             builder.startObject(SETTINGS.getPreferredName());
@@ -254,7 +254,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }
         if (this.lifecycle != null) {
             builder.field(LIFECYCLE.getPreferredName());
-            lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
+            lifecycle.toXContent(builder, params, rolloverConfiguration, null, false);
         }
         builder.endObject();
         return builder;

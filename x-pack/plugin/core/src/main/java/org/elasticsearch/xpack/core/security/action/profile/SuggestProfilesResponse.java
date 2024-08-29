@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.action.profile;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
@@ -73,10 +72,6 @@ public class SuggestProfilesResponse extends ActionResponse implements ToXConten
     }
 
     public record ProfileHit(Profile profile, float score) implements Writeable, ToXContentObject {
-
-        public ProfileHit(StreamInput in) throws IOException {
-            this(new Profile(in), in.readFloat());
-        }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {

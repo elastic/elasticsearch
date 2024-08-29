@@ -3,6 +3,7 @@
   "type" : "eval",
   "name" : "mv_dedupe",
   "description" : "Remove duplicate values from a multivalued field.",
+  "note" : "`MV_DEDUPE` may, but won't always, sort the values in the column.",
   "signatures" : [
     {
       "params" : [
@@ -10,7 +11,7 @@
           "name" : "field",
           "type" : "boolean",
           "optional" : false,
-          "description" : ""
+          "description" : "Multivalue expression."
         }
       ],
       "variadic" : false,
@@ -20,13 +21,37 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "cartesian_point",
           "optional" : false,
-          "description" : ""
+          "description" : "Multivalue expression."
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "cartesian_point"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "cartesian_shape",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "cartesian_shape"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -34,7 +59,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "Multivalue expression."
         }
       ],
       "variadic" : false,
@@ -44,9 +69,33 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geo_point"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geo_shape",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geo_shape"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "Multivalue expression."
         }
       ],
       "variadic" : false,
@@ -58,7 +107,7 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : ""
+          "description" : "Multivalue expression."
         }
       ],
       "variadic" : false,
@@ -70,7 +119,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : ""
+          "description" : "Multivalue expression."
         }
       ],
       "variadic" : false,
@@ -82,7 +131,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "Multivalue expression."
         }
       ],
       "variadic" : false,
@@ -94,7 +143,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : ""
+          "description" : "Multivalue expression."
         }
       ],
       "variadic" : false,
@@ -106,11 +155,14 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : ""
+          "description" : "Multivalue expression."
         }
       ],
       "variadic" : false,
       "returnType" : "version"
     }
+  ],
+  "examples" : [
+    "ROW a=[\"foo\", \"foo\", \"bar\", \"foo\"]\n| EVAL dedupe_a = MV_DEDUPE(a)"
   ]
 }

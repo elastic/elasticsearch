@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
+import org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
@@ -80,6 +82,28 @@ public final class ApiKey implements ToXContentObject {
             return name().toLowerCase(Locale.ROOT);
         }
     }
+
+    public record Version(int version) implements VersionId<Version> {
+        @Override
+        public int id() {
+            return version;
+        }
+    }
+
+    public static class VersionComponent implements ComponentVersionNumber {
+
+        @Override
+        public String componentId() {
+            return "api_key_version";
+        }
+
+        @Override
+        public VersionId<?> versionNumber() {
+            return CURRENT_API_KEY_VERSION;
+        }
+    }
+
+    public static final ApiKey.Version CURRENT_API_KEY_VERSION = new ApiKey.Version(8_15_00_99);
 
     private final String name;
     private final String id;

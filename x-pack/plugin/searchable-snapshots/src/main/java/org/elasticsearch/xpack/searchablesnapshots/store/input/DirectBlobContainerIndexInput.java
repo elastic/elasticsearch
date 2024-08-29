@@ -285,7 +285,11 @@ public final class DirectBlobContainerIndexInput extends BlobCacheBufferedIndexI
     }
 
     @Override
-    public DirectBlobContainerIndexInput clone() {
+    public IndexInput clone() {
+        var bufferClone = tryCloneBuffer();
+        if (bufferClone != null) {
+            return bufferClone;
+        }
         final DirectBlobContainerIndexInput clone = (DirectBlobContainerIndexInput) super.clone();
         // Clones might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
         // solution: do not optimize sequential reads on clones.

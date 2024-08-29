@@ -170,13 +170,24 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
 
     public void testResultEvaluatedOnDataStream() throws IOException {
         String dataStreamName = "test-datastream";
-        IndexMetadata originalIndexMeta = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+        long ts = System.currentTimeMillis();
+        IndexMetadata originalIndexMeta = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1, ts))
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        IndexMetadata failureOriginalIndexMeta = IndexMetadata.builder(DataStream.getDefaultFailureStoreName(dataStreamName, 1, ts))
             .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        IndexMetadata rolledIndexMeta = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
+        IndexMetadata rolledIndexMeta = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2, ts))
+            .settings(settings(IndexVersion.current()).put("index.write.wait_for_active_shards", "3"))
+            .numberOfShards(1)
+            .numberOfReplicas(3)
+            .build();
+        IndexMetadata failureRolledIndexMeta = IndexMetadata.builder(DataStream.getDefaultFailureStoreName(dataStreamName, 2, ts))
             .settings(settings(IndexVersion.current()).put("index.write.wait_for_active_shards", "3"))
             .numberOfShards(1)
             .numberOfReplicas(3)
@@ -186,28 +197,53 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             ShardRoutingRoleStrategy.NO_SHARD_CREATION,
             rolledIndexMeta.getIndex()
         );
+        IndexRoutingTable.Builder failureRoutingTable = new IndexRoutingTable.Builder(
+            ShardRoutingRoleStrategy.NO_SHARD_CREATION,
+            failureRolledIndexMeta.getIndex()
+        );
         routingTable.addShard(
             TestShardRouting.newShardRouting(rolledIndexMeta.getIndex().getName(), 0, "node", null, true, ShardRoutingState.STARTED)
         );
         routingTable.addShard(
             TestShardRouting.newShardRouting(rolledIndexMeta.getIndex().getName(), 0, "node2", null, false, ShardRoutingState.STARTED)
         );
+        failureRoutingTable.addShard(
+            TestShardRouting.newShardRouting(failureRolledIndexMeta.getIndex().getName(), 0, "node", null, true, ShardRoutingState.STARTED)
+        );
+        failureRoutingTable.addShard(
+            TestShardRouting.newShardRouting(
+                failureRolledIndexMeta.getIndex().getName(),
+                0,
+                "node2",
+                null,
+                false,
+                ShardRoutingState.STARTED
+            )
+        );
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
                     .put(
-                        DataStreamTestHelper.newInstance(dataStreamName, List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()))
+                        DataStreamTestHelper.newInstance(
+                            dataStreamName,
+                            List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()),
+                            List.of(failureOriginalIndexMeta.getIndex(), failureRolledIndexMeta.getIndex())
+                        )
                     )
                     .put(originalIndexMeta, true)
                     .put(rolledIndexMeta, true)
+                    .put(failureOriginalIndexMeta, true)
+                    .put(failureRolledIndexMeta, true)
             )
-            .routingTable(RoutingTable.builder().add(routingTable.build()).build())
+            .routingTable(RoutingTable.builder().add(routingTable.build()).add(failureRoutingTable.build()).build())
             .build();
 
         WaitForActiveShardsStep waitForActiveShardsStep = createRandomInstance();
 
-        ClusterStateWaitStep.Result result = waitForActiveShardsStep.isConditionMet(originalIndexMeta.getIndex(), clusterState);
+        boolean useFailureStore = randomBoolean();
+        IndexMetadata indexToOperateOn = useFailureStore ? failureOriginalIndexMeta : originalIndexMeta;
+        ClusterStateWaitStep.Result result = waitForActiveShardsStep.isConditionMet(indexToOperateOn.getIndex(), clusterState);
         assertThat(result.isComplete(), is(false));
 
         XContentBuilder expected = new WaitForActiveShardsStep.ActiveShardsInfo(2, "3", false).toXContent(

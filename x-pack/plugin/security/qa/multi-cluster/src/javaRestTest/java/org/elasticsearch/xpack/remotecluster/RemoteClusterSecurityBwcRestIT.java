@@ -99,6 +99,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
             final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
             putRoleRequest.setJsonEntity("""
                 {
+                  "description": "This description should not be sent to remote clusters.",
                   "cluster": ["manage_own_api_key"],
                   "indices": [
                     {
@@ -111,6 +112,12 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                       "names": ["remote_index1"],
                       "privileges": ["read", "read_cross_cluster"],
                       "clusters": ["my_remote_cluster"]
+                    }
+                  ],
+                  "remote_cluster": [
+                    {
+                      "privileges": ["monitor_enrich"],
+                      "clusters": ["*"]
                     }
                   ]
                 }""");
@@ -155,6 +162,12 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                           "names": ["remote_index1", "remote_index2"],
                           "privileges": ["read", "read_cross_cluster"],
                           "clusters": ["my_remote_*", "non_existing_remote_cluster"]
+                        }
+                      ],
+                      "remote_cluster": [
+                        {
+                          "privileges": ["monitor_enrich"],
+                          "clusters": ["*"]
                         }
                       ]
                     }

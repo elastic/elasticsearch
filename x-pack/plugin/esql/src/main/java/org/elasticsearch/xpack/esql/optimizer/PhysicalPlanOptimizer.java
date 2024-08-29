@@ -8,31 +8,33 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
+import org.elasticsearch.xpack.esql.core.rule.Rule;
+import org.elasticsearch.xpack.esql.core.rule.RuleExecutor;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
-import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.AttributeMap;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
-import org.elasticsearch.xpack.ql.rule.Rule;
-import org.elasticsearch.xpack.ql.rule.RuleExecutor;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -44,8 +46,8 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 
 /**
- * Performs global (coordinator) optimization of the physical plan.
- * Local (data-node) optimizations occur later by operating just on a plan fragment (subplan).
+ * This class is part of the planner. Performs global (coordinator) optimization of the physical plan. Local (data-node) optimizations
+ * occur later by operating just on a plan {@link FragmentExec} (subplan).
  */
 public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, PhysicalOptimizerContext> {
     private static final Iterable<RuleExecutor.Batch<PhysicalPlan>> rules = initializeRules(true);
@@ -117,6 +119,14 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                     if (p instanceof MvExpandExec mvee) {
                         attributes.remove(mvee.expanded());
                     }
+                    if (p instanceof HashJoinExec join) {
+                        attributes.removeAll(join.addedFields());
+                        for (Attribute rhs : join.rightFields()) {
+                            if (join.leftFields().stream().anyMatch(x -> x.semanticEquals(rhs)) == false) {
+                                attributes.remove(rhs);
+                            }
+                        }
+                    }
                     if (p instanceof EnrichExec ee) {
                         for (NamedExpression enrichField : ee.enrichFields()) {
                             // TODO: why is this different then the remove above?
@@ -140,7 +150,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                             // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
                             // to avoid the block from being trimmed
                             if (output.isEmpty()) {
-                                var alias = new Alias(logicalFragment.source(), "<all-fields-projected>", null, Literal.NULL, null, true);
+                                var alias = new Alias(logicalFragment.source(), "<all-fields-projected>", Literal.NULL, null, true);
                                 List<Alias> fields = singletonList(alias);
                                 logicalFragment = new Eval(logicalFragment.source(), logicalFragment, fields);
                                 output = Expressions.asAttributes(fields);

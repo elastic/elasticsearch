@@ -31,7 +31,7 @@ public final class CsvSpecReader {
         private final StringBuilder earlySchema = new StringBuilder();
         private final StringBuilder query = new StringBuilder();
         private final StringBuilder data = new StringBuilder();
-        private final List<String> requiredFeatures = new ArrayList<>();
+        private final List<String> requiredCapabilities = new ArrayList<>();
         private CsvTestCase testCase;
 
         private CsvSpecParser() {}
@@ -43,8 +43,8 @@ public final class CsvSpecReader {
                 if (line.startsWith(SCHEMA_PREFIX)) {
                     assertThat("Early schema already declared " + earlySchema, earlySchema.length(), is(0));
                     earlySchema.append(line.substring(SCHEMA_PREFIX.length()).trim());
-                } else if (line.toLowerCase(Locale.ROOT).startsWith("required_feature:")) {
-                    requiredFeatures.add(line.substring("required_feature:".length()).trim());
+                } else if (line.toLowerCase(Locale.ROOT).startsWith("required_capability:")) {
+                    requiredCapabilities.add(line.substring("required_capability:".length()).trim());
                 } else {
                     if (line.endsWith(";")) {
                         // pick up the query
@@ -52,8 +52,8 @@ public final class CsvSpecReader {
                         query.append(line.substring(0, line.length() - 1).trim());
                         testCase.query = query.toString();
                         testCase.earlySchema = earlySchema.toString();
-                        testCase.requiredFeatures = List.copyOf(requiredFeatures);
-                        requiredFeatures.clear();
+                        testCase.requiredCapabilities = List.copyOf(requiredCapabilities);
+                        requiredCapabilities.clear();
                         earlySchema.setLength(0);
                         query.setLength(0);
                     }
@@ -111,7 +111,7 @@ public final class CsvSpecReader {
         private final List<String> expectedWarningsRegexString = new ArrayList<>();
         private final List<Pattern> expectedWarningsRegex = new ArrayList<>();
         public boolean ignoreOrder;
-        public List<String> requiredFeatures = List.of();
+        public List<String> requiredCapabilities = List.of();
 
         // The emulated-specific warnings must always trail the non-emulated ones, if these are present. Otherwise, the closing bracket
         // would need to be changed to a less common sequence (like `]#` maybe).

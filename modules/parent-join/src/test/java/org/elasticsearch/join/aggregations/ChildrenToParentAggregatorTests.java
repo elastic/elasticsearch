@@ -68,7 +68,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             assertEquals(0, childrenToParent.getDocCount());
             Aggregation parentAggregation = childrenToParent.getAggregations().get("in_parent");
             assertEquals(0, childrenToParent.getDocCount());
-            assertNotNull("Aggregations: " + childrenToParent.getAggregations().asMap(), parentAggregation);
+            assertNotNull("Aggregations: " + childrenToParent.getAggregations().asList(), parentAggregation);
             assertEquals(Double.POSITIVE_INFINITY, ((Min) parentAggregation).value(), Double.MIN_VALUE);
             assertFalse(JoinAggregationInspectionHelper.hasValue(childrenToParent));
         });

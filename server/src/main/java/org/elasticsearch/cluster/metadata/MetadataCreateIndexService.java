@@ -12,6 +12,8 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -23,7 +25,6 @@ import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -65,6 +66,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -468,6 +470,8 @@ public class MetadataCreateIndexService {
         final ActionListener<Void> rerouteListener
     ) throws Exception {
         // create the index here (on the master) to validate it can be created, as well as adding the mapping
+        assert indicesService.hasIndex(temporaryIndexMeta.getIndex()) == false
+            : Strings.format("Index [%s] already exists", temporaryIndexMeta.getIndex().getName());
         return indicesService.<ClusterState, Exception>withTempIndexService(temporaryIndexMeta, indexService -> {
             try {
                 updateIndexMappingsAndBuildSortOrder(indexService, request, mappings, sourceMetadata);
@@ -487,7 +491,8 @@ public class MetadataCreateIndexService {
                     temporaryIndexMeta.getSettings(),
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
-                    temporaryIndexMeta.isSystem()
+                    temporaryIndexMeta.isSystem(),
+                    currentState.getMinTransportVersion()
                 );
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
@@ -508,7 +513,6 @@ public class MetadataCreateIndexService {
 
             ClusterState updated = clusterStateCreateIndex(
                 currentState,
-                request.blocks(),
                 indexMetadata,
                 metadataTransformer,
                 allocationService.getShardRoutingRoleStrategy()
@@ -1225,7 +1229,6 @@ public class MetadataCreateIndexService {
      */
     static ClusterState clusterStateCreateIndex(
         ClusterState currentState,
-        Set<ClusterBlock> clusterBlocks,
         IndexMetadata indexMetadata,
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy
@@ -1239,15 +1242,13 @@ public class MetadataCreateIndexService {
             newMetadata = currentState.metadata().withAddedIndex(indexMetadata);
         }
 
-        String indexName = indexMetadata.getIndex().getName();
-        ClusterBlocks.Builder blocks = createClusterBlocksBuilder(currentState, indexName, clusterBlocks);
-        blocks.updateBlocks(indexMetadata);
+        var blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
+        blocksBuilder.updateBlocks(indexMetadata);
 
-        ClusterState updatedState = ClusterState.builder(currentState).blocks(blocks).metadata(newMetadata).build();
+        var routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, currentState.routingTable())
+            .addAsNew(newMetadata.index(indexMetadata.getIndex().getName()));
 
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, updatedState.routingTable())
-            .addAsNew(updatedState.metadata().index(indexName));
-        return ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
+        return ClusterState.builder(currentState).blocks(blocksBuilder).metadata(newMetadata).routingTable(routingTableBuilder).build();
     }
 
     static IndexMetadata buildIndexMetadata(
@@ -1257,10 +1258,15 @@ public class MetadataCreateIndexService {
         Settings indexSettings,
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
-        boolean isSystem
+        boolean isSystem,
+        TransportVersion minClusterTransportVersion
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
+        if (minClusterTransportVersion.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+            // promote to UNKNOWN for older versions since they don't know how to handle event.ingested in cluster state
+            indexMetadataBuilder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, minClusterTransportVersion);
+        }
         // now, update the mappings with the actual source
         Map<String, MappingMetadata> mappingsMetadata = new HashMap<>();
         DocumentMapper docMapper = documentMapperSupplier.get();
@@ -1313,16 +1319,6 @@ public class MetadataCreateIndexService {
             }
         }
         return builder;
-    }
-
-    private static ClusterBlocks.Builder createClusterBlocksBuilder(ClusterState currentState, String index, Set<ClusterBlock> blocks) {
-        ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
-        if (blocks.isEmpty() == false) {
-            for (ClusterBlock block : blocks) {
-                blocksBuilder.addIndexBlock(index, block);
-            }
-        }
-        return blocksBuilder;
     }
 
     private static void updateIndexMappingsAndBuildSortOrder(

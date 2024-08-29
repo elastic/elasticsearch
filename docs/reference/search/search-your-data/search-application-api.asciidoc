@@ -18,7 +18,7 @@ Search Application templates:
 * Reduce request size
 * Ensure security and performance, as the query is predefined and can't be changed arbitrarily
 
-This document provides some sample templates to get you started using <<search-application-overview,search applications>> for additional use cases.
+This document provides information and sample templates to get you started using <<search-application-overview,search applications>> for additional use cases.
 These templates are designed to be easily modified to meet your needs.
 Once you've created a search application with a template, you can search your search application using this template.
 
@@ -36,11 +36,121 @@ Learn more by reading about <<search-template,search templates>>.
 
 If no template is stored with a search application, a minimal <<search-application-api-default-template, default search template>> will be applied at search time.
 The default template implements a simple search use case.
-You can check your query parameters against the current template using the <<search-application-render-query,Render search application query>> API call.
+
+To create a search application with the default template, issue a <<put-search-application, create or update Search Application>> request without specifying a template:
+
+// NOTE for test setup: The create search application command will return a warning
+// when a template is not specified. This will break docs tests.
+// Therefore the setup specifies the default search template
+// even though we're using the default template in examples.
+
+////
+
+[source,console]
+--------------------------------------------------
+PUT index1
+{
+  "mappings": {
+    "properties": {
+      "image-vector": {
+        "type": "dense_vector",
+        "dims": 3
+      }
+    }
+  }
+}
+
+PUT index2
+
+PUT _application/search_application/my_search_application
+{
+  "indices": [ "index1", "index2" ],
+  "template": {
+    "script": {
+      "source": {
+        "query": {
+          "query_string": {
+            "query": "{{query_string}}",
+            "default_field": "{{default_field}}"
+          }
+        }
+      },
+      "params": {
+        "query_string": "*",
+        "default_field": "*"
+      }
+    }
+  }
+}
+
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _application/search_application/my_search_application
+
+DELETE index1
+
+DELETE index2
+--------------------------------------------------
+// TEARDOWN
+////
+
+[source,console]
+----
+PUT _application/search_application/my_search_application
+{
+  "indices": ["index1", "index2"]
+}
+----
+// TEST[warning:Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes.]
+
+You can then use the <<get-search-application, get search application>> API call to view your newly created search application, which will also include the default template that was created for you:
+
+[source,console]
+----
+GET _application/search_application/my_search_application
+----
+// TEST[continued]
+// TEST[warning:Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes.]
+
+In this case, the response would be:
+
+[source,console-result]
+----
+{
+  "name": "my_search_application",
+  "indices": [
+    "index1",
+    "index2"
+  ],
+  "updated_at_millis": 1715802354482,
+  "template": {
+    "script": {
+      "source": """{
+  "query": {
+    "query_string": {
+        "query": "{{query_string}}",
+        "default_field": "{{default_field}}"
+        }
+    }
+}
+""",
+      "lang": "mustache",
+      "params": {
+        "default_field": "*",
+        "query_string": "*"
+      }
+    }
+  }
+}
+----
+// TESTRESPONSE[s/"updated_at_millis": 1715802354482/"updated_at_millis": $body.$_path/]
 
 The default template is very minimal:
 
-[source,js]
+[source,console-result]
 ----
 {
   "template": {
@@ -61,19 +171,87 @@ The default template is very minimal:
   }
 }
 ----
-// NOTCONSOLE
+// TEST[skip:This is not a console result but NOTCONSOLE annotation by itself still fails the test]
 
 This may be useful for initial exploration of search templates, but you'll likely want to update this.
 
-Here are some things to note about this default template:
+NOTE: This template does not support additional parameters, including `from`, `size` or `boost`.
+If you need to use these, you can customize the template associated with your search application accordingly to include them as parameters.
 
-* A call to `/_application/search_application/<your_search_application>` with no parameters will return all results, in a similar manner to a parameterless call to `/_search`.
-* Searching with the `query_string` and/or `default_field` parameters will perform a <<query-dsl-query-string-query,`query_string`>> query.
-* This template does not support additional parameters, including `from`, `size` or `boost`.
+You can see the parameters and their default values by viewing the template, but it also may be valuable to view the query that will be generated if you <<search-application-search,search your search application>> with various parameters.
+
+You can use the <<search-application-render-query,render search application query>> to view the query this template would generate, including with default parameters.
+For example, searching the search application with no parameters:
+
+[source,console]
+----
+POST _application/search_application/my_search_application/_render_query
+----
+// TEST[continued]
+
+will return:
+
+[source,console-result]
+----
+{
+  "query": {
+    "query_string": {
+      "query": "*",
+      "default_field": "*",
+      "fields": []
+    }
+  }
+}
+----
+// TEST[continued]
+
+This uses the default parameters that were defined with the template.
+You can also specify one or mre parameters to the render call, for example:
+
+[source,console]
+----
+POST _application/search_application/my_search_application/_render_query
+{
+  "params": {
+    "query_string": "rock climbing"
+  }
+}
+----
+// TEST[continued]
+
+will return:
+
+[source,console-result]
+----
+{
+  "query": {
+    "query_string": {
+      "query": "rock climbing",
+      "default_field": "*",
+      "fields": []
+    }
+  }
+}
+----
+// TEST[continued]
+
+In this case, the `{{query_string}}` parameter has been replaced with the value `rock climbing`, and the `{{default_field}}` parameter was not specified so used the default value of `*`.
+
+When you actually perform a search with no parameters, it will execute the underlying query that the render call returned.
+In this case, a search with no parameters will return all results, in a similar manner to a parameterless call to `/_search`.
+
+[source,console]
+----
+POST _application/search_application/my_search_application/_search
+----
+// TEST[continued]
+
+
+Searching with the `query_string` and/or `default_field` parameters will perform a <<query-dsl-query-string-query,`query_string`>> query.
 
 [WARNING]
 ====
-This template is subject to change in future versions of the Search Applications feature.
+The default template is subject to change in future versions of the Search Applications feature.
 ====
 
 Try some of the other examples in this document to experiment with specific use cases, or try creating your own!
@@ -95,14 +273,14 @@ With the default template, a search looks like this:
 
 [source,console]
 ----
-POST _application/search_application/<my_search_application>/_search
+POST _application/search_application/my_search_application/_search
 {
   "params": {
-    "query_string": "my first query"
+    "query_string": "kayaking"
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[continued]
 
 In this example, we've overridden the `query_string` parameter's default value of `*`.
 Since we didn't specify `default_field` the value of this parameter will still be `*`.
@@ -116,6 +294,12 @@ This may be helpful when experimenting with specific search queries that you wan
 
 If your search application's name is `my_search_application`, your alias will be `my_search_application`.
 You can search this using the <<search-search,search API>>.
+
+[discrete]
+[[search-application-cross-cluster-search]]
+===== Cross cluster search
+
+Search applications do not currently support {ccs} because it is not possible to add a remote cluster's index or index pattern to an index alias.
 
 [NOTE]
 ====
@@ -141,7 +325,7 @@ The following template supports a `multi_match` search over specified fields and
 ----
 PUT _application/search_application/my_search_application
 {
-  "indices": ["my_index1", "my_index2"],
+  "indices": ["index1", "index2"],
   "template": {
     "script": {
       "lang": "mustache",
@@ -172,9 +356,9 @@ PUT _application/search_application/my_search_application
   }
 }
 ----
-// TEST[skip:TODO]
 
 A search query using this template might look like this:
+
 [source,console]
 ----
 POST _application/search_application/my_search_application/_search
@@ -190,7 +374,7 @@ POST _application/search_application/my_search_application/_search
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[continued]
 
 The `text_fields` parameters can be overridden with new/different fields and boosts to experiment with the best configuration for your use case.
 This template also supports pagination and `explain` via parameters.
@@ -208,7 +392,7 @@ It outperforms all other ranking algorithms, and often surpasses the best indivi
 PUT _application/search_application/my-search-app
 {
   "indices": [
-    "search-my-crawler"
+    "index1"
   ],
   "template": {
     "script": {
@@ -233,18 +417,17 @@ PUT _application/search_application/my-search-app
               {
                 "standard": {
                   "query": {
-                    "text_expansion": {
-                      "ml.inference.{{.}}_expanded.predicted_value": {
-                        "model_text": "{{query_string}}",
-                        "model_id": "<elser_model_id>"
-                      }
+                    "sparse_vector": {
+                      "field": "ml.inference.{{.}}_expanded.predicted_value",
+                      "inference_id": "<elser_inference_id>",
+                      "query": "{{query_string}}"
                     }
                   }
                 }
-              }
+              },
               {{/elser_fields}}
             ],
-            "window_size": {{rrf.window_size}},
+            "rank_window_size": {{rrf.rank_window_size}},
             "rank_constant": {{rrf.rank_constant}}
           }
         }
@@ -255,7 +438,7 @@ PUT _application/search_application/my-search-app
         "text_fields": ["title", "meta_description"],
         "query_string": "",
         "rrf": {
-          "window_size": 100,
+          "rank_window_size": 100,
           "rank_constant": 60
         }
       }
@@ -263,7 +446,6 @@ PUT _application/search_application/my-search-app
   }
 }
 ----
-// TEST[skip:TODO]
 
 NOTE: Replace `<elser_model_id>` with the model ID of your ELSER deployment.
 
@@ -278,13 +460,13 @@ POST _application/search_application/my-search-app/_search
     "elser_fields": ["title", "meta_description"],
     "text_fields": ["title", "meta_description"],
     "rrf": {
-      "window_size": 50,
+      "rank_window_size": 50,
       "rank_constant": 25
     }
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[skip:ELSER requires inference]
 
 [discrete]
 [[search-application-api-catchall-template]]
@@ -303,8 +485,8 @@ It also provides a simple default `query_string` query if no parameters are spec
 PUT _application/search_application/my_search_application
 {
   "indices": [
-    "my_index1",
-    "my_index2"
+    "index1",
+    "index2"
   ],
   "template": {
     "script": {
@@ -326,12 +508,10 @@ PUT _application/search_application/my_search_application
               {{#elser}}
               {{#elser_fields}}
               {
-                "text_expansion": {
-                  "ml.inference.{{name}}_expanded.predicted_value": {
-                    "model_text": "{{query_string}}",
-                    "model_id": ".elser_model_1",
-                    "boost": "{{boost}}"
-                  }
+                "sparse_vector": {
+                  "field": "ml.inference.{{.}}_expanded.predicted_value",
+                  "inference_id": "<elser_inference_id>",
+                  "query": "{{query_string}}"
                 }
               },
               {{/elser_fields}}
@@ -385,9 +565,9 @@ PUT _application/search_application/my_search_application
   }
 }
 ----
-// TEST[skip:TODO]
 
 A text search query using this template might look like this:
+
 [source,console]
 ----
 POST _application/search_application/my_search_application/_search
@@ -404,9 +584,10 @@ POST _application/search_application/my_search_application/_search
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[skip:ELSER requires inference]
 
 An ELSER search query using this template will look like the following example:
+
 [source,console]
 ----
 POST _application/search_application/my_search_application/_search
@@ -421,9 +602,10 @@ POST _application/search_application/my_search_application/_search
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[skip:ELSER requires inference]
 
 A combined text search and ELSER search query using this template will look like the following example:
+
 [source,console]
 ----
 POST _application/search_application/my_search_application/_search
@@ -441,7 +623,7 @@ POST _application/search_application/my_search_application/_search
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[skip:ELSER requires inference]
 
 [TIP]
 ====
@@ -462,11 +644,12 @@ Finally, a parameterless search using this template would fall back to a default
 ----
 POST _application/search_application/my_search_application/_search
 ----
-// TEST[skip:TODO]
+// TEST[continued]
 
 [discrete]
 [[search-application-api-elser-template]]
 ===== ELSER search
+
 This example supports a streamlined version of ELSER search.
 
 [source,console]
@@ -474,8 +657,8 @@ This example supports a streamlined version of ELSER search.
 PUT _application/search_application/my_search_application
 {
   "indices": [
-    "my_index1",
-    "my_index2"
+    "index1",
+    "index2"
     ],
     "template": {
       "script": {
@@ -487,12 +670,11 @@ PUT _application/search_application/my_search_application
               "should": [
                 {{#elser_fields}}
                 {
-                  "text_expansion": {
-                    "ml.inference.{{name}}_expanded.predicted_value": {
-                      "model_text": "{{query_string}}",
-                      "model_id": "<elser_model_id>"
+                  "sparse_vector": {
+                      "field": "ml.inference.{{.}}_expanded.predicted_value",
+                      "inference_id": "<elser_inference_id>",
+                      "query": "{{query_string}}"
                     }
-                  }
                 },
                 {{/elser_fields}}
                 ]
@@ -517,7 +699,6 @@ PUT _application/search_application/my_search_application
     }
 }
 ----
-// TEST[skip:TODO]
 
 NOTE: Replace `<elser_model_id>` with the model ID of your ELSER deployment.
 
@@ -532,12 +713,13 @@ POST _application/search_application/my_search_application/_search
     }
   }
 ----
-// TEST[skip:TODO]
+// TEST[skip:ELSER requires inference]
 
 
 [discrete]
 [[search-applications-knn-template]]
 ===== kNN search
+
 This example supports <<knn-search,k-nearest neighbor (kNN) search>>
 
 A template supporting exact kNN search will look like the following example:
@@ -547,7 +729,7 @@ A template supporting exact kNN search will look like the following example:
 PUT _application/search_application/my_search_application
 {
   "indices": [
-    "my_product_index"
+    "index1"
   ],
   "template": {
     "script": {
@@ -585,9 +767,9 @@ PUT _application/search_application/my_search_application
   }
 }
 ----
-// TEST[skip:TODO]
 
 A search query using this template will look like the following example:
+
 [source,console]
 ----
 POST _application/search_application/my_search_application/_search
@@ -599,7 +781,7 @@ POST _application/search_application/my_search_application/_search
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[continued]
 
 A template supporting approximate kNN search will look like the following example:
 
@@ -608,7 +790,7 @@ A template supporting approximate kNN search will look like the following exampl
 PUT _application/search_application/my_search_application
 {
   "indices": [
-    "my_product_index"
+    "index1"
   ],
   "template": {
     "script": {
@@ -635,9 +817,9 @@ PUT _application/search_application/my_search_application
   }
 }
 ----
-// TEST[skip:TODO]
 
 A search query using this template will look like the following example:
+
 [source,console]
 ----
 POST _application/search_application/my_search_application/_search
@@ -652,4 +834,4 @@ POST _application/search_application/my_search_application/_search
 }
 
 ----
-// TEST[skip:TODO]
+// TEST[continued]

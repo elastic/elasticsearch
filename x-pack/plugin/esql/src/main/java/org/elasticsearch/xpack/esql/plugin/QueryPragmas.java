@@ -41,8 +41,6 @@ public final class QueryPragmas implements Writeable {
         DataPartitioning.SEGMENT
     );
 
-    public static final Setting<Boolean> TIME_SERIES_MODE = Setting.boolSetting("time_series", false);
-
     /**
      * Size of a page in entries with {@code 0} being a special value asking
      * to adaptively size based on the number of columns in the page.
@@ -140,10 +138,6 @@ public final class QueryPragmas implements Writeable {
         return settings.isEmpty();
     }
 
-    public boolean timeSeriesMode() {
-        return TIME_SERIES_MODE.get(settings);
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -155,5 +149,10 @@ public final class QueryPragmas implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(settings);
+    }
+
+    @Override
+    public String toString() {
+        return settings.toString();
     }
 }

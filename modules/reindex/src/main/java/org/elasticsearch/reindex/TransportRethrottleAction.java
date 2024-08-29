@@ -17,9 +17,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.LeaderBulkByScrollTaskState;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -44,7 +44,6 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
             transportService,
             actionFilters,
             RethrottleRequest::new,
-            ListTasksResponse::new,
             TaskInfo::from,
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );

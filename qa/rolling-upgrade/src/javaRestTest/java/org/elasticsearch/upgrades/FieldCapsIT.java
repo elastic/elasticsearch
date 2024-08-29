@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
  * the co-ordinating node if older nodes were included in the system
  */
 @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103473")
-public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
+public class FieldCapsIT extends AbstractRollingUpgradeTestCase {
 
     public FieldCapsIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

@@ -21,7 +21,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
@@ -36,18 +35,15 @@ import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
-import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
-import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -415,43 +411,51 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             true,
             true,
             true,
+            true,
+            null,
+            null,
             null,
             concreteSecurityIndexName,
             healthStatus,
             IndexMetadata.State.OPEN,
-            null,
-            "my_uuid"
+            "my_uuid",
+            Set.of()
         );
     }
 
     public void testCacheClearOnIndexHealthChange() {
-        final AtomicInteger numInvalidation = new AtomicInteger(0);
-        final NativeRoleMappingStore store = buildRoleMappingStoreForInvalidationTesting(numInvalidation, true);
+        final AtomicInteger numGlobalInvalidation = new AtomicInteger(0);
+        final AtomicInteger numLocalInvalidation = new AtomicInteger(0);
+        final NativeRoleMappingStore store = buildRoleMappingStoreForInvalidationTesting(numGlobalInvalidation, numLocalInvalidation, true);
 
         int expectedInvalidation = 0;
         // existing to no longer present
         SecurityIndexManager.State previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
         SecurityIndexManager.State currentState = dummyState(null);
         store.onSecurityIndexStateChange(previousState, currentState);
-        assertEquals(++expectedInvalidation, numInvalidation.get());
+        assertEquals(++expectedInvalidation, numLocalInvalidation.get());
+        assertEquals(0, numGlobalInvalidation.get());
 
         // doesn't exist to exists
         previousState = dummyState(null);
         currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
         store.onSecurityIndexStateChange(previousState, currentState);
-        assertEquals(++expectedInvalidation, numInvalidation.get());
+        assertEquals(++expectedInvalidation, numLocalInvalidation.get());
+        assertEquals(0, numGlobalInvalidation.get());
 
         // green or yellow to red
         previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
         currentState = dummyState(ClusterHealthStatus.RED);
         store.onSecurityIndexStateChange(previousState, currentState);
-        assertEquals(expectedInvalidation, numInvalidation.get());
+        assertEquals(expectedInvalidation, numLocalInvalidation.get());
+        assertEquals(0, numGlobalInvalidation.get());
 
         // red to non red
         previousState = dummyState(ClusterHealthStatus.RED);
         currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
         store.onSecurityIndexStateChange(previousState, currentState);
-        assertEquals(++expectedInvalidation, numInvalidation.get());
+        assertEquals(++expectedInvalidation, numLocalInvalidation.get());
+        assertEquals(0, numGlobalInvalidation.get());
 
         // green to yellow or yellow to green
         previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
@@ -459,28 +463,38 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             previousState.indexHealth == ClusterHealthStatus.GREEN ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN
         );
         store.onSecurityIndexStateChange(previousState, currentState);
-        assertEquals(expectedInvalidation, numInvalidation.get());
+        assertEquals(expectedInvalidation, numLocalInvalidation.get());
+        assertEquals(0, numGlobalInvalidation.get());
     }
 
     public void testCacheClearOnIndexOutOfDateChange() {
-        final AtomicInteger numInvalidation = new AtomicInteger(0);
-        final NativeRoleMappingStore store = buildRoleMappingStoreForInvalidationTesting(numInvalidation, true);
+        final AtomicInteger numGlobalInvalidation = new AtomicInteger(0);
+        final AtomicInteger numLocalInvalidation = new AtomicInteger(0);
+        final NativeRoleMappingStore store = buildRoleMappingStoreForInvalidationTesting(numGlobalInvalidation, numLocalInvalidation, true);
 
         store.onSecurityIndexStateChange(indexState(false, null), indexState(true, null));
-        assertEquals(1, numInvalidation.get());
+        assertEquals(0, numGlobalInvalidation.get());
+        assertEquals(1, numLocalInvalidation.get());
 
         store.onSecurityIndexStateChange(indexState(true, null), indexState(false, null));
-        assertEquals(2, numInvalidation.get());
+        assertEquals(0, numGlobalInvalidation.get());
+        assertEquals(2, numLocalInvalidation.get());
     }
 
     public void testCacheIsNotClearedIfNoRealmsAreAttached() {
-        final AtomicInteger numInvalidation = new AtomicInteger(0);
-        final NativeRoleMappingStore store = buildRoleMappingStoreForInvalidationTesting(numInvalidation, false);
+        final AtomicInteger numGlobalInvalidation = new AtomicInteger(0);
+        final AtomicInteger numLocalInvalidation = new AtomicInteger(0);
+        final NativeRoleMappingStore store = buildRoleMappingStoreForInvalidationTesting(
+            numGlobalInvalidation,
+            numLocalInvalidation,
+            false
+        );
 
         final SecurityIndexManager.State noIndexState = dummyState(null);
         final SecurityIndexManager.State greenIndexState = dummyState(ClusterHealthStatus.GREEN);
         store.onSecurityIndexStateChange(noIndexState, greenIndexState);
-        assertEquals(0, numInvalidation.get());
+        assertEquals(0, numGlobalInvalidation.get());
+        assertEquals(0, numLocalInvalidation.get());
     }
 
     public void testPutRoleMappingWillValidateTemplateRoleNamesBeforeSave() {
@@ -499,7 +513,11 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> nativeRoleMappingStore.putRoleMapping(putRoleMappingRequest, null));
     }
 
-    private NativeRoleMappingStore buildRoleMappingStoreForInvalidationTesting(AtomicInteger invalidationCounter, boolean attachRealm) {
+    private NativeRoleMappingStore buildRoleMappingStoreForInvalidationTesting(
+        AtomicInteger globalInvalidationCounter,
+        AtomicInteger localInvalidationCounter,
+        boolean attachRealm
+    ) {
         final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
 
         final ThreadPool threadPool = mock(ThreadPool.class);
@@ -518,7 +536,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
             @SuppressWarnings("unchecked")
             ActionListener<ClearRealmCacheResponse> listener = (ActionListener<ClearRealmCacheResponse>) invocationOnMock.getArguments()[2];
-            invalidationCounter.incrementAndGet();
+            globalInvalidationCounter.incrementAndGet();
             listener.onResponse(new ClearRealmCacheResponse(new ClusterName("cluster"), Collections.emptyList(), Collections.emptyList()));
             return null;
         }).when(client).execute(eq(ClearRealmCacheAction.INSTANCE), any(ClearRealmCacheRequest.class), anyActionListener());
@@ -531,26 +549,13 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         );
 
         if (attachRealm) {
-            final Environment env = TestEnvironment.newEnvironment(settings);
-            final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("ldap", realmName);
-            final RealmConfig realmConfig = new RealmConfig(
-                identifier,
-                Settings.builder().put(settings).put(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0).build(),
-                env,
-                threadContext
-            );
-            final CachingUsernamePasswordRealm mockRealm = new CachingUsernamePasswordRealm(realmConfig, threadPool) {
-                @Override
-                protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult<User>> listener) {
-                    listener.onResponse(AuthenticationResult.notHandled());
-                }
-
-                @Override
-                protected void doLookupUser(String username, ActionListener<User> listener) {
-                    listener.onResponse(null);
-                }
-            };
-            store.refreshRealmOnChange(mockRealm);
+            CachingRealm mockRealm = mock(CachingRealm.class);
+            when(mockRealm.name()).thenReturn("mockRealm");
+            doAnswer(inv -> {
+                localInvalidationCounter.incrementAndGet();
+                return null;
+            }).when(mockRealm).expireAll();
+            store.clearRealmCacheOnChange(mockRealm);
         }
         return store;
     }

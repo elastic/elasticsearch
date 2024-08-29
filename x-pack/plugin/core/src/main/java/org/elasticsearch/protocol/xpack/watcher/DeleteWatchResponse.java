@@ -16,11 +16,9 @@ import java.util.Objects;
 
 public class DeleteWatchResponse extends ActionResponse implements ToXContentObject {
 
-    private String id;
-    private long version;
-    private boolean found;
-
-    public DeleteWatchResponse() {}
+    private final String id;
+    private final long version;
+    private final boolean found;
 
     public DeleteWatchResponse(String id, long version, boolean found) {
         this.id = id;
@@ -38,18 +36,6 @@ public class DeleteWatchResponse extends ActionResponse implements ToXContentObj
 
     public boolean isFound() {
         return found;
-    }
-
-    private void setId(String id) {
-        this.id = id;
-    }
-
-    private void setVersion(long version) {
-        this.version = version;
-    }
-
-    private void setFound(boolean found) {
-        this.found = found;
     }
 
     @Override

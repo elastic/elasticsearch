@@ -11,7 +11,6 @@ package org.elasticsearch.ingest.geoip.stats;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -20,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -64,11 +64,6 @@ public class GeoIpStatsAction {
                 return false;
             }
             return true;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            TransportAction.localOnly();
         }
     }
 
@@ -136,8 +131,8 @@ public class GeoIpStatsAction {
                 builder.field("hits", cacheStats.hits());
                 builder.field("misses", cacheStats.misses());
                 builder.field("evictions", cacheStats.evictions());
-                builder.field("hits_time_in_millis", cacheStats.hitsTimeInMillis());
-                builder.field("misses_time_in_millis", cacheStats.missesTimeInMillis());
+                builder.humanReadableField("hits_time_in_millis", "hits_time", new TimeValue(cacheStats.hitsTimeInMillis()));
+                builder.humanReadableField("misses_time_in_millis", "misses_time", new TimeValue(cacheStats.missesTimeInMillis()));
                 builder.endObject();
                 builder.endObject();
             }
@@ -171,7 +166,7 @@ public class GeoIpStatsAction {
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
             downloaderStats = in.readBoolean() ? new GeoIpDownloaderStats(in) : null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.GEOIP_CACHE_STATS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 cacheStats = in.readBoolean() ? new CacheStats(in) : null;
             } else {
                 cacheStats = null;
@@ -222,7 +217,7 @@ public class GeoIpStatsAction {
             if (downloaderStats != null) {
                 downloaderStats.writeTo(out);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.GEOIP_CACHE_STATS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeBoolean(cacheStats != null);
                 if (cacheStats != null) {
                     cacheStats.writeTo(out);

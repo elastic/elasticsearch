@@ -101,6 +101,21 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         assertThat(proxyNodes, containsInAnyOrder("node-2"));
     }
 
+    public void testDisconnectedException() {
+        assertEquals(
+            "Unable to connect to [remote-cluster]",
+            expectThrows(ConnectTransportException.class, remoteConnectionManager::getAnyRemoteConnection).getMessage()
+        );
+
+        assertEquals(
+            "Unable to connect to [remote-cluster]",
+            expectThrows(
+                ConnectTransportException.class,
+                () -> remoteConnectionManager.getConnection(DiscoveryNodeUtils.create("node-1", address))
+            ).getMessage()
+        );
+    }
+
     public void testResolveRemoteClusterAlias() throws ExecutionException, InterruptedException {
         DiscoveryNode remoteNode1 = DiscoveryNodeUtils.create("remote-node-1", address);
         PlainActionFuture<Void> future = new PlainActionFuture<>();

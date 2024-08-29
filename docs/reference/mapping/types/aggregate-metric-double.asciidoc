@@ -260,7 +260,7 @@ any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
 `aggregate_metric-double` fields support <<synthetic-source,synthetic `_source`>> in their default
-configuration. Synthetic `_source` cannot be used together with <<ignore-malformed,`ignore_malformed`>>.
+configuration.
 
 For example:
 [source,console,id=synthetic-source-aggregate-metric-double-example]

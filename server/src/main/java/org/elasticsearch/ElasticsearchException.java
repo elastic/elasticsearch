@@ -1902,35 +1902,37 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             175,
             TransportVersions.V_8_12_0
         ),
-        SEARCH_TIMEOUT_EXCEPTION(
-            SearchTimeoutException.class,
-            SearchTimeoutException::new,
-            176,
-            TransportVersions.SEARCH_TIMEOUT_EXCEPTION_ADDED
-        ),
-        INGEST_GRAPH_STRUCTURE_EXCEPTION(
-            GraphStructureException.class,
-            GraphStructureException::new,
-            177,
-            TransportVersions.INGEST_GRAPH_STRUCTURE_EXCEPTION
-        ),
+        SEARCH_TIMEOUT_EXCEPTION(SearchTimeoutException.class, SearchTimeoutException::new, 176, TransportVersions.V_8_13_0),
+        INGEST_GRAPH_STRUCTURE_EXCEPTION(GraphStructureException.class, GraphStructureException::new, 177, TransportVersions.V_8_13_0),
         FAILURE_INDEX_NOT_SUPPORTED_EXCEPTION(
             FailureIndexNotSupportedException.class,
             FailureIndexNotSupportedException::new,
             178,
-            TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS
+            TransportVersions.V_8_14_0
         ),
         NOT_PERSISTENT_TASK_NODE_EXCEPTION(
             NotPersistentTaskNodeException.class,
             NotPersistentTaskNodeException::new,
             179,
-            TransportVersions.ADD_PERSISTENT_TASK_EXCEPTIONS
+            TransportVersions.V_8_14_0
         ),
         PERSISTENT_TASK_NODE_NOT_ASSIGNED_EXCEPTION(
             PersistentTaskNodeNotAssignedException.class,
             PersistentTaskNodeNotAssignedException::new,
             180,
-            TransportVersions.ADD_PERSISTENT_TASK_EXCEPTIONS
+            TransportVersions.V_8_14_0
+        ),
+        RESOURCE_ALREADY_UPLOADED_EXCEPTION(
+            ResourceAlreadyUploadedException.class,
+            ResourceAlreadyUploadedException::new,
+            181,
+            TransportVersions.ADD_RESOURCE_ALREADY_UPLOADED_EXCEPTION
+        ),
+        INGEST_PIPELINE_EXCEPTION(
+            org.elasticsearch.ingest.IngestPipelineException.class,
+            org.elasticsearch.ingest.IngestPipelineException::new,
+            182,
+            TransportVersions.INGEST_PIPELINE_EXCEPTION_ADDED
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

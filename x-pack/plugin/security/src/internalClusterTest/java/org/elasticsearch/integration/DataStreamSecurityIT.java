@@ -68,7 +68,7 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
         assertAcked(client.execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet());
 
         String dataStreamName = "logs-es";
-        var request = new CreateDataStreamAction.Request(dataStreamName);
+        var request = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName);
         assertAcked(client.execute(CreateDataStreamAction.INSTANCE, request).actionGet());
         assertAcked(client.admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
 
@@ -90,7 +90,12 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
                         ? original.getIndices().get(0).getName() + "-broken"
                         : original.getIndices().get(0).getName();
                     DataStream broken = original.copy()
-                        .setIndices(List.of(new Index(brokenIndexName, "broken"), original.getIndices().get(1)))
+                        .setBackingIndices(
+                            original.getBackingIndices()
+                                .copy()
+                                .setIndices(List.of(new Index(brokenIndexName, "broken"), original.getIndices().get(1)))
+                                .build()
+                        )
                         .build();
                     brokenDataStreamHolder.set(broken);
                     return ClusterState.builder(currentState)
@@ -120,7 +125,11 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
         assertAcked(
             client.execute(
                 ModifyDataStreamsAction.INSTANCE,
-                new ModifyDataStreamsAction.Request(List.of(DataStreamAction.removeBackingIndex(dataStreamName, ghostReference.getName())))
+                new ModifyDataStreamsAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    List.of(DataStreamAction.removeBackingIndex(dataStreamName, ghostReference.getName()))
+                )
             )
         );
         ClusterState after = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();

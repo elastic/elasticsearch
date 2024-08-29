@@ -9,9 +9,11 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -21,19 +23,22 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -56,12 +61,15 @@ import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentParser;
-import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -69,15 +77,18 @@ import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -117,6 +128,7 @@ public abstract class Engine implements Closeable {
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
     protected static final String DOC_STATS_SOURCE = "doc_stats";
     public static final long UNKNOWN_PRIMARY_TERM = -1L;
+    public static final String ROOT_DOC_FIELD_NAME = "__root_doc_for_nested";
 
     protected final ShardId shardId;
     protected final Logger logger;
@@ -230,19 +242,32 @@ public abstract class Engine implements Closeable {
     /**
      * Returns the {@link DenseVectorStats} for this engine
      */
-    public DenseVectorStats denseVectorStats() {
+    public DenseVectorStats denseVectorStats(MappingLookup mappingLookup) {
+        if (mappingLookup == null) {
+            return new DenseVectorStats(0);
+        }
+
+        List<String> fields = new ArrayList<>();
+        for (Mapper mapper : mappingLookup.fieldMappers()) {
+            if (mapper instanceof DenseVectorFieldMapper) {
+                fields.add(mapper.fullPath());
+            }
+        }
+        if (fields.isEmpty()) {
+            return new DenseVectorStats(0);
+        }
         try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL)) {
-            return denseVectorStats(searcher.getIndexReader());
+            return denseVectorStats(searcher.getIndexReader(), fields);
         }
     }
 
-    protected final DenseVectorStats denseVectorStats(IndexReader indexReader) {
+    protected final DenseVectorStats denseVectorStats(IndexReader indexReader, List<String> fields) {
         long valueCount = 0;
         // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
         // the next scheduled refresh to go through and refresh the stats as well
         for (LeafReaderContext readerContext : indexReader.leaves()) {
             try {
-                valueCount += getDenseVectorValueCount(readerContext.reader());
+                valueCount += getDenseVectorValueCount(readerContext.reader(), fields);
             } catch (IOException e) {
                 logger.trace(() -> "failed to get dense vector stats for [" + readerContext + "]", e);
             }
@@ -250,9 +275,10 @@ public abstract class Engine implements Closeable {
         return new DenseVectorStats(valueCount);
     }
 
-    private long getDenseVectorValueCount(final LeafReader atomicReader) throws IOException {
+    private long getDenseVectorValueCount(final LeafReader atomicReader, List<String> fields) throws IOException {
         long count = 0;
-        for (FieldInfo info : atomicReader.getFieldInfos()) {
+        for (var field : fields) {
+            var info = atomicReader.getFieldInfos().fieldInfo(field);
             if (info.getVectorDimension() > 0) {
                 switch (info.getVectorEncoding()) {
                     case FLOAT32 -> {
@@ -264,6 +290,57 @@ public abstract class Engine implements Closeable {
                         count += values != null ? values.size() : 0;
                     }
                 }
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Returns the {@link SparseVectorStats} for this engine
+     */
+    public SparseVectorStats sparseVectorStats(MappingLookup mappingLookup) {
+        if (mappingLookup == null) {
+            return new SparseVectorStats(0);
+        }
+        List<BytesRef> fields = new ArrayList<>();
+        for (Mapper mapper : mappingLookup.fieldMappers()) {
+            if (mapper instanceof SparseVectorFieldMapper) {
+                fields.add(new BytesRef(mapper.fullPath()));
+            }
+        }
+        if (fields.isEmpty()) {
+            return new SparseVectorStats(0);
+        }
+        Collections.sort(fields);
+        try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL)) {
+            return sparseVectorStats(searcher.getIndexReader(), fields);
+        }
+    }
+
+    protected final SparseVectorStats sparseVectorStats(IndexReader indexReader, List<BytesRef> fields) {
+        long valueCount = 0;
+        // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
+        // the next scheduled refresh to go through and refresh the stats as well
+        for (LeafReaderContext readerContext : indexReader.leaves()) {
+            try {
+                valueCount += getSparseVectorValueCount(readerContext.reader(), fields);
+            } catch (IOException e) {
+                logger.trace(() -> "failed to get sparse vector stats for [" + readerContext + "]", e);
+            }
+        }
+        return new SparseVectorStats(valueCount);
+    }
+
+    private long getSparseVectorValueCount(final LeafReader atomicReader, List<BytesRef> fields) throws IOException {
+        long count = 0;
+        Terms terms = atomicReader.terms(FieldNamesFieldMapper.NAME);
+        if (terms == null) {
+            return count;
+        }
+        TermsEnum termsEnum = terms.iterator();
+        for (var fieldName : fields) {
+            if (termsEnum.seekExact(fieldName)) {
+                count += termsEnum.docFreq();
             }
         }
         return count;
@@ -1014,12 +1091,16 @@ public abstract class Engine implements Closeable {
     public abstract long getIndexBufferRAMBytesUsed();
 
     final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos) {
+        return getSegmentInfo(lastCommittedSegmentInfos, false);
+    }
+
+    final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean includeVectorFormatsInfo) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
         // first, go over and compute the search ones...
         try (Searcher searcher = acquireSearcher("segments", SearcherScope.EXTERNAL)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
-                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), true, segments);
+                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), true, segments, includeVectorFormatsInfo);
             }
         }
 
@@ -1027,7 +1108,7 @@ public abstract class Engine implements Closeable {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segments.containsKey(segmentReader.getSegmentName()) == false) {
-                    fillSegmentInfo(segmentReader, false, segments);
+                    fillSegmentInfo(segmentReader, false, segments, includeVectorFormatsInfo);
                 }
             }
         }
@@ -1063,7 +1144,12 @@ public abstract class Engine implements Closeable {
         return segmentsArr;
     }
 
-    private void fillSegmentInfo(SegmentReader segmentReader, boolean search, Map<String, Segment> segments) {
+    private void fillSegmentInfo(
+        SegmentReader segmentReader,
+        boolean search,
+        Map<String, Segment> segments,
+        boolean includeVectorFormatsInfo
+    ) {
         SegmentCommitInfo info = segmentReader.getSegmentInfo();
         assert segments.containsKey(info.info.name) == false;
         Segment segment = new Segment(info.info.name);
@@ -1078,7 +1164,39 @@ public abstract class Engine implements Closeable {
             logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
         }
         segment.segmentSort = info.info.getIndexSort();
-        segment.attributes = info.info.getAttributes();
+        segment.attributes = new HashMap<>();
+        segment.attributes.putAll(info.info.getAttributes());
+        Map<String, List<String>> knnFormats = null;
+        if (includeVectorFormatsInfo) {
+            try {
+                FieldInfos fieldInfos = segmentReader.getFieldInfos();
+                if (fieldInfos.hasVectorValues()) {
+                    for (FieldInfo fieldInfo : fieldInfos) {
+                        String name = fieldInfo.getName();
+                        if (fieldInfo.hasVectorValues()) {
+                            if (knnFormats == null) {
+                                knnFormats = new HashMap<>();
+                            }
+                            String key = fieldInfo.getAttribute(PerFieldKnnVectorsFormat.PER_FIELD_FORMAT_KEY);
+                            knnFormats.compute(key, (s, a) -> {
+                                if (a == null) {
+                                    a = new ArrayList<>();
+                                }
+                                a.add(name);
+                                return a;
+                            });
+                        }
+                    }
+                }
+            } catch (AlreadyClosedException ace) {
+                // silently ignore
+            }
+        }
+        if (knnFormats != null) {
+            for (Map.Entry<String, List<String>> entry : knnFormats.entrySet()) {
+                segment.attributes.put(entry.getKey(), entry.getValue().toString());
+            }
+        }
         // TODO: add more fine grained mem stats values to per segment info here
         segments.put(info.info.name, segment);
     }
@@ -1087,6 +1205,8 @@ public abstract class Engine implements Closeable {
      * The list of segments in the engine.
      */
     public abstract List<Segment> segments();
+
+    public abstract List<Segment> segments(boolean includeVectorFormatsInfo);
 
     public boolean refreshNeeded() {
         if (store.tryIncRef()) {
@@ -1448,7 +1568,7 @@ public abstract class Engine implements Closeable {
             }
         }
 
-        private final Term uid;
+        private final BytesRef uid;
         private final long version;
         private final long seqNo;
         private final long primaryTerm;
@@ -1456,7 +1576,7 @@ public abstract class Engine implements Closeable {
         private final Origin origin;
         private final long startTime;
 
-        public Operation(Term uid, long seqNo, long primaryTerm, long version, VersionType versionType, Origin origin, long startTime) {
+        public Operation(BytesRef uid, long seqNo, long primaryTerm, long version, VersionType versionType, Origin origin, long startTime) {
             this.uid = uid;
             this.seqNo = seqNo;
             this.primaryTerm = primaryTerm;
@@ -1486,7 +1606,7 @@ public abstract class Engine implements Closeable {
             return this.origin;
         }
 
-        public Term uid() {
+        public BytesRef uid() {
             return this.uid;
         }
 
@@ -1529,7 +1649,7 @@ public abstract class Engine implements Closeable {
         private final long ifPrimaryTerm;
 
         public Index(
-            Term uid,
+            BytesRef uid,
             ParsedDocument doc,
             long seqNo,
             long primaryTerm,
@@ -1555,11 +1675,11 @@ public abstract class Engine implements Closeable {
             this.ifPrimaryTerm = ifPrimaryTerm;
         }
 
-        public Index(Term uid, long primaryTerm, ParsedDocument doc) {
+        public Index(BytesRef uid, long primaryTerm, ParsedDocument doc) {
             this(uid, primaryTerm, doc, Versions.MATCH_ANY);
         } // TEST ONLY
 
-        Index(Term uid, long primaryTerm, ParsedDocument doc, long version) {
+        Index(BytesRef uid, long primaryTerm, ParsedDocument doc, long version) {
             this(
                 uid,
                 doc,
@@ -1641,7 +1761,7 @@ public abstract class Engine implements Closeable {
 
         public Delete(
             String id,
-            Term uid,
+            BytesRef uid,
             long seqNo,
             long primaryTerm,
             long version,
@@ -1662,7 +1782,7 @@ public abstract class Engine implements Closeable {
             this.ifPrimaryTerm = ifPrimaryTerm;
         }
 
-        public Delete(String id, Term uid, long primaryTerm) {
+        public Delete(String id, BytesRef uid, long primaryTerm) {
             this(
                 id,
                 uid,
@@ -1672,21 +1792,6 @@ public abstract class Engine implements Closeable {
                 VersionType.INTERNAL,
                 Origin.PRIMARY,
                 System.nanoTime(),
-                UNASSIGNED_SEQ_NO,
-                0
-            );
-        }
-
-        public Delete(Delete template, VersionType versionType) {
-            this(
-                template.id(),
-                template.uid(),
-                template.seqNo(),
-                template.primaryTerm(),
-                template.version(),
-                versionType,
-                template.origin(),
-                template.startTime(),
                 UNASSIGNED_SEQ_NO,
                 0
             );
@@ -1704,7 +1809,7 @@ public abstract class Engine implements Closeable {
 
         @Override
         public int estimatedSizeInBytes() {
-            return (uid().field().length() + uid().text().length()) * 2 + 20;
+            return uid().length * 2 + 20;
         }
 
         public long getIfSeqNo() {
@@ -1730,7 +1835,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        public Term uid() {
+        public BytesRef uid() {
             throw new UnsupportedOperationException();
         }
 
@@ -1763,7 +1868,7 @@ public abstract class Engine implements Closeable {
 
     public static class Get {
         private final boolean realtime;
-        private final Term uid;
+        private final BytesRef uid;
         private final String id;
         private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
@@ -1774,7 +1879,7 @@ public abstract class Engine implements Closeable {
         public Get(boolean realtime, boolean readFromTranslog, String id) {
             this.realtime = realtime;
             this.id = id;
-            this.uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+            this.uid = Uid.encodeId(id);
             this.readFromTranslog = readFromTranslog;
         }
 
@@ -1786,7 +1891,7 @@ public abstract class Engine implements Closeable {
             return id;
         }
 
-        public Term uid() {
+        public BytesRef uid() {
             return uid;
         }
 
@@ -1910,7 +2015,7 @@ public abstract class Engine implements Closeable {
 
         logger.debug("drainForClose(): draining ops");
         releaseEnsureOpenRef.close();
-        final var future = new PlainActionFuture<Void>() {
+        final var future = new UnsafePlainActionFuture<Void>(ThreadPool.Names.GENERIC) {
             @Override
             protected boolean blockingAllowed() {
                 // TODO remove this blocking, or at least do it elsewhere, see https://github.com/elastic/elasticsearch/issues/89821

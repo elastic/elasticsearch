@@ -52,22 +52,22 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
         assertThat(getSnapshot("test-repo-1", "test-snap").state(), equalTo(SnapshotState.SUCCESS));
 
         logger.info("delete repository");
-        assertAcked(clusterAdmin().prepareDeleteRepository("test-repo-1"));
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-1"));
 
         logger.info("create another repository");
         createRepository("test-repo-2", "fs", repoPath);
 
         logger.info("restore snapshot");
-        clusterAdmin().prepareRestoreSnapshot("test-repo-2", "test-snap")
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo-2", "test-snap")
             .setRestoreGlobalState(true)
             .setIndices("-*")
             .setWaitForCompletion(true)
             .get();
 
         logger.info("make sure old repository wasn't restored");
-        ActionRequestBuilder<?, ?> builder = clusterAdmin().prepareGetRepositories("test-repo-1");
+        ActionRequestBuilder<?, ?> builder = clusterAdmin().prepareGetRepositories(TEST_REQUEST_TIMEOUT, "test-repo-1");
         expectThrows(RepositoryMissingException.class, builder);
-        assertThat(clusterAdmin().prepareGetRepositories("test-repo-2").get().repositories().size(), equalTo(1));
+        assertThat(clusterAdmin().prepareGetRepositories(TEST_REQUEST_TIMEOUT, "test-repo-2").get().repositories().size(), equalTo(1));
     }
 
     public void testShouldRestoreOnlySnapshotMetadata() throws Exception {
@@ -100,7 +100,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
         }));
 
         logger.info("restore snapshot");
-        clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snapshot")
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snapshot")
             .setRestoreGlobalState(true)
             .setIndices("-*")
             .setWaitForCompletion(true)

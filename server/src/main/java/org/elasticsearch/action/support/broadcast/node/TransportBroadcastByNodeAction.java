@@ -76,9 +76,9 @@ public abstract class TransportBroadcastByNodeAction<
 
     private static final Logger logger = LogManager.getLogger(TransportBroadcastByNodeAction.class);
 
-    private final ClusterService clusterService;
-    private final TransportService transportService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    protected final ClusterService clusterService;
+    protected final TransportService transportService;
+    protected final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Executor executor;
 
     final String transportNodeBroadcastAction;

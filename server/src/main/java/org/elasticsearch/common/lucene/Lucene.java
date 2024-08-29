@@ -73,6 +73,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
+import org.elasticsearch.search.retriever.rankdoc.RankDocsSortField;
 import org.elasticsearch.search.sort.ShardDocSortField;
 
 import java.io.IOException;
@@ -101,7 +102,10 @@ public class Lucene {
 
     public static final ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
 
-    public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), EMPTY_SCORE_DOCS);
+    public static final TotalHits TOTAL_HITS_EQUAL_TO_ZERO = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
+    public static final TotalHits TOTAL_HITS_GREATER_OR_EQUAL_TO_ZERO = new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+
+    public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(TOTAL_HITS_EQUAL_TO_ZERO, EMPTY_SCORE_DOCS);
 
     private Lucene() {}
 
@@ -548,6 +552,8 @@ public class Lucene {
             return newSortField;
         } else if (sortField.getClass() == ShardDocSortField.class) {
             return new SortField(sortField.getField(), SortField.Type.LONG, sortField.getReverse());
+        } else if (sortField.getClass() == RankDocsSortField.class) {
+            return new SortField(sortField.getField(), SortField.Type.INT, sortField.getReverse());
         } else {
             return sortField;
         }

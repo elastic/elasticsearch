@@ -27,6 +27,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * The REST handler for get template and head template APIs.
@@ -59,7 +60,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         final GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
 
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
-        getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
+        getIndexTemplatesRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         final boolean implicitAll = getIndexTemplatesRequest.names().length == 0;
 

@@ -63,14 +63,13 @@ avg(salary):double | always_false:boolean
 
 
 in
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from employees | keep emp_no, is_rehired, still_hired | where is_rehired in (still_hired, true) | where is_rehired != still_hired;
 ignoreOrder:true
-warning:Line 1:63: evaluation of [is_rehired in (still_hired, true)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:63: java.lang.IllegalArgumentException: single-value function encountered multi-value
-warning:Line 1:105: evaluation of [is_rehired != still_hired] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:105: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[is_rehired in \(still_hired, true\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[is_rehired != still_hired\] failed, treating result as null. Only first 20 failures recorded.
 emp_no:integer |is_rehired:boolean |still_hired:boolean
 10021          |true               |false
 10029          |true               |false
@@ -236,7 +235,7 @@ emp_no:integer |languages:integer |byte2bool:boolean |short2bool:boolean
 ;
 
 mvSort
-required_feature: esql.mv_sort
+required_capability: mv_sort
 
 row a = [true, false, true, false] | eval sa = mv_sort(a), sb = mv_sort(a, "DESC");
 
@@ -245,7 +244,7 @@ a:boolean                  | sa:boolean                 | sb:boolean
 ;
 
 mvSortEmp
-required_feature: esql.mv_sort
+required_capability: mv_sort
 
 FROM employees
 | eval sd = mv_sort(is_rehired, "DESC"), sa = mv_sort(is_rehired)
@@ -263,7 +262,7 @@ emp_no:integer | is_rehired:boolean       | sa:boolean               | sd:boolea
 ;
 
 mvSlice
-required_feature: esql.mv_sort
+required_capability: mv_sort
 
 row a = [true, false, false, true]
 | eval a1 = mv_slice(a, 1), a2 = mv_slice(a, 2, 3);
@@ -273,7 +272,7 @@ a:boolean                  | a1:boolean | a2:boolean
 ;
 
 mvSliceEmp
-required_feature: esql.mv_sort
+required_capability: mv_sort
 
 from employees
 | eval a1 = mv_slice(is_rehired, 0)
@@ -290,7 +289,7 @@ emp_no:integer | is_rehired:boolean       | a1:boolean
 ;
 
 values
-required_feature: esql.agg_values
+required_capability: agg_values
 
   FROM employees
 | WHERE emp_no <= 10009
@@ -302,7 +301,7 @@ required_feature: esql.agg_values
 ;
 
 valuesGrouped
-required_feature: esql.agg_values
+required_capability: agg_values
 
   FROM employees
 | WHERE emp_no <= 10009
@@ -323,7 +322,7 @@ still_hired:boolean | first_letter:keyword
 ;
 
 valuesGroupedByOrdinals
-required_feature: esql.agg_values
+required_capability: agg_values
 
   FROM employees
 | WHERE emp_no <= 10009
@@ -344,4 +343,36 @@ still_hired:boolean | job_positions:keyword
       true          | Support Engineer
       [false, true] | Tech Lead
       [false, true] | null
+;
+
+implicitCastingEqual
+required_capability: string_literal_auto_casting_extended
+from employees | where still_hired == "true" | sort emp_no | keep emp_no | limit 1;
+
+emp_no:integer
+10001
+;
+
+implicitCastingNotEqual
+required_capability: string_literal_auto_casting_extended
+from employees | where still_hired != "true" | sort emp_no | keep emp_no | limit 1;
+
+emp_no:integer
+10003
+;
+
+implicitCastingIn
+required_capability: string_literal_auto_casting_extended
+from employees | where still_hired in ("true", "false")  | sort emp_no | keep emp_no | limit 1;
+
+emp_no:integer
+10001
+;
+
+implicitCastingInField
+required_capability: string_literal_auto_casting_extended
+from employees | where false in ("true", still_hired)  | sort emp_no | keep emp_no | limit 1;
+
+emp_no:integer
+10003
 ;

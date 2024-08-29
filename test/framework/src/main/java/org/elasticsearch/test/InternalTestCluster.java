@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -60,8 +61,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
@@ -86,6 +85,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.MockNode;
@@ -122,9 +122,8 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -145,6 +144,8 @@ import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOS
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.runInParallel;
+import static org.elasticsearch.test.ESTestCase.safeAwait;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.noRoles;
@@ -241,8 +242,6 @@ public final class InternalTestCluster extends TestCluster {
     private final int numSharedCoordOnlyNodes;
 
     private final NodeConfigurationSource nodeConfigurationSource;
-
-    private final ExecutorService executor;
 
     private final boolean autoManageMasterNodes;
 
@@ -448,16 +447,6 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), randomFrom(random, "write", "metadata_write"));
         builder.put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false);
         defaultSettings = builder.build();
-        executor = EsExecutors.newScaling(
-            "internal_test_cluster_executor",
-            0,
-            Integer.MAX_VALUE,
-            0,
-            TimeUnit.SECONDS,
-            true,
-            EsExecutors.daemonThreadFactory("test_" + clusterName),
-            new ThreadContext(Settings.EMPTY)
-        );
     }
 
     /**
@@ -927,7 +916,6 @@ public final class InternalTestCluster extends TestCluster {
             } finally {
                 nodes = Collections.emptyNavigableMap();
                 Loggers.setLevel(nodeConnectionLogger, initialLogLevel);
-                executor.shutdownNow();
             }
         }
     }
@@ -1290,7 +1278,7 @@ public final class InternalTestCluster extends TestCluster {
         assertNoPendingIndexOperations();
         assertAllPendingWriteLimitsReleased();
         assertOpenTranslogReferences();
-        assertNoSnapshottedIndexCommit();
+        assertNoAcquiredIndexCommit();
     }
 
     private void assertAllPendingWriteLimitsReleased() throws Exception {
@@ -1353,7 +1341,7 @@ public final class InternalTestCluster extends TestCluster {
         }, 60, TimeUnit.SECONDS);
     }
 
-    private void assertNoSnapshottedIndexCommit() throws Exception {
+    private void assertNoAcquiredIndexCommit() throws Exception {
         assertBusy(() -> {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
@@ -1364,7 +1352,7 @@ public final class InternalTestCluster extends TestCluster {
                             if (engine instanceof InternalEngine) {
                                 assertFalse(
                                     indexShard.routingEntry().toString() + " has unreleased snapshotted index commits",
-                                    EngineTestCase.hasSnapshottedCommits(engine)
+                                    EngineTestCase.hasAcquiredIndexCommits(engine)
                                 );
                             }
                         } catch (AlreadyClosedException ignored) {
@@ -1756,19 +1744,7 @@ public final class InternalTestCluster extends TestCluster {
                 .filter(nac -> nodes.containsKey(nac.name) == false) // filter out old masters
                 .count();
             rebuildUnicastHostFiles(nodeAndClients); // ensure that new nodes can find the existing nodes when they start
-            List<Future<?>> futures = nodeAndClients.stream().map(node -> executor.submit(node::startNode)).collect(Collectors.toList());
-
-            try {
-                for (Future<?> future : futures) {
-                    future.get();
-                }
-            } catch (InterruptedException e) {
-                throw new AssertionError("interrupted while starting nodes", e);
-            } catch (ExecutionException e) {
-                RuntimeException re = FutureUtils.rethrowExecutionException(e);
-                re.addSuppressed(new RuntimeException("failed to start nodes"));
-                throw re;
-            }
+            runInParallel(nodeAndClients.size(), i -> nodeAndClients.get(i).startNode());
             nodeAndClients.forEach(this::publishNode);
 
             if (autoManageMasterNodes && newMasters > 0) {
@@ -2432,6 +2408,7 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public void ensureEstimatedStats() {
         if (size() > 0) {
+            awaitIndexShardCloseAsyncTasks();
             // Checks that the breakers have been reset without incurring a
             // network request, because a network request can increment one
             // of the breakers
@@ -2509,6 +2486,7 @@ public final class InternalTestCluster extends TestCluster {
         assertRequestsFinished();
         assertSearchContextsReleased();
         assertNoInFlightDocsInEngine();
+        awaitIndexShardCloseAsyncTasks();
         for (NodeAndClient nodeAndClient : nodes.values()) {
             NodeEnvironment env = nodeAndClient.node().getNodeEnvironment();
             Set<ShardId> shardIds = env.lockedShards();
@@ -2563,15 +2541,18 @@ public final class InternalTestCluster extends TestCluster {
 
     private void assertSearchContextsReleased() {
         for (NodeAndClient nodeAndClient : nodes.values()) {
-            SearchService searchService = getInstance(SearchService.class, nodeAndClient.name);
-            try {
-                assertBusy(() -> {
-                    assertThat(searchService.getActiveContexts(), equalTo(0));
-                    assertThat(searchService.getOpenScrollContexts(), equalTo(0));
-                });
-            } catch (Exception e) {
-                throw new AssertionError("Failed to verify search contexts", e);
+            ESTestCase.ensureAllContextsReleased(getInstance(SearchService.class, nodeAndClient.name));
+        }
+    }
+
+    public void awaitIndexShardCloseAsyncTasks() {
+        final var latch = new CountDownLatch(1);
+        try (var refs = new RefCountingRunnable(latch::countDown)) {
+            for (final var nodeAndClient : nodes.values()) {
+                final var ref = refs.acquire();
+                getInstanceFromNode(IndicesClusterStateService.class, nodeAndClient.node()).onClusterStateShardsClosed(ref::close);
             }
         }
+        safeAwait(latch);
     }
 }

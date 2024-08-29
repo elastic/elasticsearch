@@ -57,6 +57,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
      * @param timeout   How long to wait for the added exclusions to take effect and be removed from the voting configuration.
      */
     public AddVotingConfigExclusionsRequest(String[] nodeIds, String[] nodeNames, TimeValue timeout) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         if (timeout.compareTo(TimeValue.ZERO) < 0) {
             throw new IllegalArgumentException("timeout [" + timeout + "] must be non-negative");
         }

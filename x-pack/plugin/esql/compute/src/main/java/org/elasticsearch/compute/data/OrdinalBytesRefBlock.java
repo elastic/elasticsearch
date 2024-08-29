@@ -9,6 +9,8 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -79,6 +81,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
+    public OrdinalBytesRefBlock asOrdinals() {
+        return this;
+    }
+
+    @Override
     public BytesRefBlock filter(int... positions) {
         if (positions.length * ordinals.getTotalValueCount() >= bytes.getPositionCount() * ordinals.getPositionCount()) {
             OrdinalBytesRefBlock result = null;
@@ -116,6 +123,37 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
                 return builder.mvOrdering(mvOrdering()).build();
             }
         }
+    }
+
+    @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return this;
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return this;
+            }
+            return (BytesRefBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        OrdinalBytesRefBlock result = null;
+        IntBlock filteredOrdinals = ordinals.keepMask(mask);
+        try {
+            result = new OrdinalBytesRefBlock(filteredOrdinals, bytes);
+            bytes.incRef();
+        } finally {
+            if (result == null) {
+                filteredOrdinals.close();
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public ReleasableIterator<BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new BytesRefLookup(this, positions, targetBlockSize);
     }
 
     @Override
@@ -165,11 +203,6 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
-    public int nullValuesCount() {
-        return ordinals.nullValuesCount();
-    }
-
-    @Override
     public boolean mayHaveNulls() {
         return ordinals.mayHaveNulls();
     }
@@ -181,6 +214,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
 
     @Override
     public boolean mayHaveMultivaluedFields() {
+        return ordinals.mayHaveMultivaluedFields();
+    }
+
+    @Override
+    public boolean doesHaveMultivaluedFields() {
         return ordinals.mayHaveMultivaluedFields();
     }
 

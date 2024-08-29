@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -184,7 +185,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
             .setWaitForNodes("3")
             .get();
         assertThat(health.isTimedOut(), equalTo(false));
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
         health = clusterAdmin().prepareHealth()
             .setIndices("test")
             .setWaitForEvents(Priority.LANGUID)
@@ -210,7 +211,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
             .setWaitForNodes("4")
             .get();
         assertThat(health.isTimedOut(), equalTo(false));
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
         health = clusterAdmin().prepareHealth()
             .setIndices("test")
             .setWaitForEvents(Priority.LANGUID)

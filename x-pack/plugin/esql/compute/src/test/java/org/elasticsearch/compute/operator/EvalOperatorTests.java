@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.core.Tuple;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Set;
@@ -80,12 +81,12 @@ public class EvalOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "EvalOperator[evaluator=Addition[lhs=0, rhs=1]]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("EvalOperator[evaluator=Addition[lhs=0, rhs=1]]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 

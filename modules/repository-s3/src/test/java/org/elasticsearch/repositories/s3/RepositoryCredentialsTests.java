@@ -82,6 +82,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
     public void testRepositoryCredentialsOverrideSecureCredentials() {
         final String repositoryName = "repo-creds-override";
         final Settings.Builder repositorySettings = Settings.builder()
+            .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
             // repository settings for credentials override node secure settings
             .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "insecure_aws_key")
             .put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret");
@@ -115,7 +116,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
     public void testReinitSecureCredentials() {
         final String clientName = randomFrom("default", "other");
 
-        final Settings.Builder repositorySettings = Settings.builder();
+        final Settings.Builder repositorySettings = Settings.builder().put(S3Repository.BUCKET_SETTING.getKey(), "bucket");
         final boolean hasInsecureSettings = randomBoolean();
         if (hasInsecureSettings) {
             // repository settings for credentials override node secure settings
@@ -153,7 +154,10 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             final MockSecureSettings newSecureSettings = new MockSecureSettings();
             newSecureSettings.setString("s3.client." + clientName + ".access_key", "new_secret_aws_key");
             newSecureSettings.setString("s3.client." + clientName + ".secret_key", "new_secret_aws_secret");
-            final Settings newSettings = Settings.builder().setSecureSettings(newSecureSettings).build();
+            final Settings newSettings = Settings.builder()
+                .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                .setSecureSettings(newSecureSettings)
+                .build();
             // reload S3 plugin settings
             final PluginsService plugins = getInstanceFromNode(PluginsService.class);
             final ProxyS3RepositoryPlugin plugin = plugins.filterPlugins(ProxyS3RepositoryPlugin.class).findFirst().get();
@@ -202,6 +206,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         createRepository(
             repositoryName,
             Settings.builder()
+                .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
                 .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "insecure_aws_key")
                 .put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret")
                 .build()
@@ -239,7 +244,12 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
     }
 
     private void createRepository(final String name, final Settings repositorySettings) {
-        assertAcked(clusterAdmin().preparePutRepository(name).setType(S3Repository.TYPE).setVerify(false).setSettings(repositorySettings));
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name)
+                .setType(S3Repository.TYPE)
+                .setVerify(false)
+                .setSettings(repositorySettings)
+        );
     }
 
     /**

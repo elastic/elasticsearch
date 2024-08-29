@@ -132,7 +132,7 @@ public abstract class InternalMultiBucketAggregation<
      */
     public static int countInnerBucket(InternalBucket bucket) {
         int count = 0;
-        for (Aggregation agg : bucket.getAggregations().asList()) {
+        for (Aggregation agg : bucket.getAggregations()) {
             count += countInnerBucket(agg);
         }
         return count;
@@ -146,12 +146,12 @@ public abstract class InternalMultiBucketAggregation<
         if (agg instanceof MultiBucketsAggregation multi) {
             for (MultiBucketsAggregation.Bucket bucket : multi.getBuckets()) {
                 ++size;
-                for (Aggregation bucketAgg : bucket.getAggregations().asList()) {
+                for (Aggregation bucketAgg : bucket.getAggregations()) {
                     size += countInnerBucket(bucketAgg);
                 }
             }
         } else if (agg instanceof SingleBucketAggregation single) {
-            for (Aggregation bucketAgg : single.getAggregations().asList()) {
+            for (Aggregation bucketAgg : single.getAggregations()) {
                 size += countInnerBucket(bucketAgg);
             }
         }

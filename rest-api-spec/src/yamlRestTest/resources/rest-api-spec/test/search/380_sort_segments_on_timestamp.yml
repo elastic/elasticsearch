@@ -111,10 +111,10 @@
 
 ---
 "Test if segments are missing @timestamp field we don't get errors":
-  - skip:
-      version: "- 7.99.99"
+  - requires:
+      cluster_features: "gte_v8.0.0"
       reason: "sorting segments was added in 7.16"
-      features: allowed_warnings
+      test_runner_features: "allowed_warnings"
 
   - do:
       indices.create:

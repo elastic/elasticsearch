@@ -23,12 +23,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -129,7 +129,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             .settings(requestSettings)
             .setPreserveExisting(request.isPreserveExisting())
             .reopenShards(request.reopen())
-            .ackTimeout(request.timeout())
+            .ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout());
 
         updateSettingsService.updateSettings(clusterStateUpdateRequest, listener.delegateResponse((l, e) -> {

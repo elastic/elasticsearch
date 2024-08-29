@@ -17,6 +17,8 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+
 public class RestGetDesiredNodesAction extends BaseRestHandler {
     @Override
     public String getName() {
@@ -31,7 +33,7 @@ public class RestGetDesiredNodesAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final GetDesiredNodesAction.Request getDesiredNodesRequest = new GetDesiredNodesAction.Request();
-        getDesiredNodesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getDesiredNodesRequest.masterNodeTimeout()));
+        getDesiredNodesRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         return restChannel -> client.execute(
             GetDesiredNodesAction.INSTANCE,
             getDesiredNodesRequest,

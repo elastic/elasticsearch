@@ -41,11 +41,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.connector.action.PostConnectorAction;
-import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.ConnectorCreateActionResponse;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
-import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorIndexNameAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSyncStatsAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNameAction;
@@ -63,6 +61,7 @@ import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -76,6 +75,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.fromXContentBytesConnectorFiltering;
+import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.sortFilteringRulesByOrder;
 
 /**
  * A service that manages persistent {@link Connector} configurations.
@@ -94,25 +94,28 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Creates or updates the {@link Connector} in the underlying index with a specific doc ID.
-     *
-     * @param request   Request for creating the connector.
+     * Creates or updates the {@link Connector} in the underlying index with a specific doc ID
+     * if connectorId is provided. Otherwise, the connector doc is indexed with auto-generated doc ID.
+     * @param connectorId The id of the connector object. If null, id will be auto-generated.
+     * @param description The description of the connector.
+     * @param indexName   The name of the index associated with the connector. It can be null to indicate that index is not attached yet.
+     * @param isNative    Flag indicating if the connector is native; defaults to false if null.
+     * @param language    The language supported by the connector.
+     * @param name        The name of the connector; defaults to an empty string if null.
+     * @param serviceType The type of service the connector integrates with.
      * @param listener  The action listener to invoke on response/failure.
      */
-    public void createConnectorWithDocId(PutConnectorAction.Request request, ActionListener<DocWriteResponse> listener) {
-
-        String indexName = request.getIndexName();
-        String connectorId = request.getConnectorId();
-
-        Connector connector = createConnectorWithDefaultValues(
-            request.getDescription(),
-            request.getIndexName(),
-            request.getIsNative(),
-            request.getLanguage(),
-            request.getName(),
-            request.getServiceType()
-        );
-
+    public void createConnector(
+        String connectorId,
+        String description,
+        String indexName,
+        Boolean isNative,
+        String language,
+        String name,
+        String serviceType,
+        ActionListener<ConnectorCreateActionResponse> listener
+    ) {
+        Connector connector = createConnectorWithDefaultValues(description, indexName, isNative, language, name, serviceType);
         try {
             isDataIndexNameAlreadyInUse(indexName, connectorId, listener.delegateFailure((l, isIndexNameInUse) -> {
                 if (isIndexNameInUse) {
@@ -125,62 +128,20 @@ public class ConnectorIndexService {
                     return;
                 }
                 try {
-                    final IndexRequest indexRequest = new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
-                        .id(connectorId)
+                    IndexRequest indexRequest = new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                         .source(connector.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
-                    client.index(indexRequest, listener);
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            }));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
 
-    /**
-     * Creates or updates the {@link Connector} in the underlying index with an auto-generated doc ID.
-     *
-     * @param request   Request for creating the connector.
-     * @param listener  The action listener to invoke on response/failure.
-     */
-    public void createConnectorWithAutoGeneratedId(
-        PostConnectorAction.Request request,
-        ActionListener<PostConnectorAction.Response> listener
-    ) {
-
-        String indexName = request.getIndexName();
-
-        Connector connector = createConnectorWithDefaultValues(
-            request.getDescription(),
-            indexName,
-            request.getIsNative(),
-            request.getLanguage(),
-            request.getName(),
-            request.getServiceType()
-        );
-
-        try {
-            isDataIndexNameAlreadyInUse(indexName, null, listener.delegateFailure((l, isIndexNameInUse) -> {
-                if (isIndexNameInUse) {
-                    l.onFailure(
-                        new ElasticsearchStatusException(
-                            "Index name [" + indexName + "] is used by another connector.",
-                            RestStatus.BAD_REQUEST
-                        )
-                    );
-                    return;
-                }
-                try {
-                    final IndexRequest indexRequest = new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
-                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                        .source(connector.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
+                    if (Strings.isNullOrEmpty(connectorId) == false) {
+                        indexRequest = indexRequest.id(connectorId);
+                    }
 
                     client.index(
                         indexRequest,
                         listener.delegateFailureAndWrap(
-                            (ll, indexResponse) -> ll.onResponse(new PostConnectorAction.Response(indexResponse.getId()))
+                            (ll, indexResponse) -> ll.onResponse(
+                                new ConnectorCreateActionResponse(indexResponse.getId(), indexResponse.getResult())
+                            )
                         )
                     );
                 } catch (Exception e) {
@@ -506,19 +467,28 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Updates the error property of a {@link Connector}.
+     * Updates the error property of a {@link Connector}. If error is non-null the resulting {@link ConnectorStatus}
+     * is 'error', otherwise it's 'connected'.
      *
-     * @param request  The request for updating the connector's error.
-     * @param listener The listener for handling responses, including successful updates or errors.
+     * @param connectorId The ID of the {@link Connector} to be updated.
+     * @param error       An instance of error property of {@link Connector}, can be reset to [null].
+     * @param listener    The listener for handling responses, including successful updates or errors.
      */
-    public void updateConnectorError(UpdateConnectorErrorAction.Request request, ActionListener<UpdateResponse> listener) {
+    public void updateConnectorError(String connectorId, String error, ActionListener<UpdateResponse> listener) {
         try {
-            String connectorId = request.getConnectorId();
+
+            ConnectorStatus connectorStatus = Strings.isNullOrEmpty(error) ? ConnectorStatus.CONNECTED : ConnectorStatus.ERROR;
+
             final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
                 new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
                     .id(connectorId)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .source(Map.of(Connector.ERROR_FIELD.getPreferredName(), request.getError()))
+                    .source(new HashMap<>() {
+                        {
+                            put(Connector.ERROR_FIELD.getPreferredName(), error);
+                            put(Connector.STATUS_FIELD.getPreferredName(), connectorStatus.toString());
+                        }
+                    })
             );
             client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                 if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
@@ -588,6 +558,33 @@ public class ConnectorIndexService {
     }
 
     /**
+     * Updates the features of a given {@link Connector}.
+     *
+     * @param connectorId The ID of the {@link Connector} to be updated.
+     * @param features    An instance of {@link ConnectorFeatures}
+     * @param listener    Listener to respond to a successful response or an error.
+     */
+    public void updateConnectorFeatures(String connectorId, ConnectorFeatures features, ActionListener<UpdateResponse> listener) {
+        try {
+            final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                    .id(connectorId)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .source(Map.of(Connector.FEATURES_FIELD.getPreferredName(), features))
+            );
+            client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                    return;
+                }
+                l.onResponse(updateResponse);
+            }));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
      * Updates the draft filtering in a given {@link Connector}.
      *
      * @param connectorId     The ID of the {@link Connector} to be updated.
@@ -615,7 +612,13 @@ public class ConnectorIndexService {
                     ? connectorFilteringSingleton.getDraft().getAdvancedSnippet()
                     : advancedSnippet;
 
-                List<FilteringRule> newDraftRules = rules == null ? connectorFilteringSingleton.getDraft().getRules() : rules;
+                List<FilteringRule> newDraftRules = rules == null
+                    ? connectorFilteringSingleton.getDraft().getRules()
+                    : new ArrayList<>(rules);
+
+                if (rules != null) {
+                    newDraftRules = sortFilteringRulesByOrder(newDraftRules);
+                }
 
                 ConnectorFiltering connectorFilteringWithUpdatedDraft = connectorFilteringSingleton.setDraft(
                     new FilteringRules.Builder().setRules(newDraftRules)
@@ -823,7 +826,7 @@ public class ConnectorIndexService {
                             Connector.IS_NATIVE_FIELD.getPreferredName(),
                             request.isNative(),
                             Connector.STATUS_FIELD.getPreferredName(),
-                            ConnectorStatus.CONFIGURED
+                            ConnectorStatus.CONFIGURED.toString()
                         )
                     )
 
@@ -969,7 +972,7 @@ public class ConnectorIndexService {
                                 Connector.SERVICE_TYPE_FIELD.getPreferredName(),
                                 request.getServiceType(),
                                 Connector.STATUS_FIELD.getPreferredName(),
-                                newStatus
+                                newStatus.toString()
                             )
                         )
 

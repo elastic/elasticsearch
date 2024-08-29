@@ -23,12 +23,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -165,7 +165,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
                 alias.isHidden(true);
             }
         }).collect(Collectors.toSet());
-        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.timeout())
+        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .settings(request.settings())
             .mappings(request.mappings())
@@ -201,7 +201,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             request.index()
         );
 
-        return updateRequest.ackTimeout(request.timeout())
+        return updateRequest.ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .aliases(aliases)
             .waitForActiveShards(ActiveShardCount.ALL)

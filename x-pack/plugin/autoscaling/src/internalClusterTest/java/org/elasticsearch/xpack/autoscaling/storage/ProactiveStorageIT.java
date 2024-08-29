@@ -111,6 +111,8 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
     private void putAutoscalingPolicy(String policyName, Settings settings) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policyName,
             new TreeSet<>(Set.of("data")),
             new TreeMap<>(Map.of("proactive_storage", settings))
@@ -129,6 +131,9 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     .build()
             )
         ).actionGet();
-        client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
+        client().execute(
+            CreateDataStreamAction.INSTANCE,
+            new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
+        ).actionGet();
     }
 }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -22,6 +23,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -112,7 +114,7 @@ public class Setting<T> implements ToXContentObject {
         DeprecatedWarning,
 
         /**
-         * Node scope
+         * Cluster-level or configuration file-level setting. Not an index setting.
          */
         NodeScope,
 
@@ -147,6 +149,7 @@ public class Setting<T> implements ToXContentObject {
          * Indicates that this index-level setting was deprecated in {@link Version#V_7_17_0} and is
          * forbidden in indices created from {@link Version#V_8_0_0} onwards.
          */
+        @UpdateForV9 // introduce IndexSettingDeprecatedInV8AndRemovedInV9 to replace this constant
         IndexSettingDeprecatedInV7AndRemovedInV8,
 
         /**
@@ -581,7 +584,7 @@ public class Setting<T> implements ToXContentObject {
      */
     public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
         if (exists(source) == false) {
-            if (exists(defaultSettings)) {
+            if (existsOrFallbackExists(defaultSettings)) {
                 // If the setting is only in the defaults, use the value from the defaults
                 builder.put(getKey(), getRaw(defaultSettings));
             } else {
@@ -639,6 +642,7 @@ public class Setting<T> implements ToXContentObject {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
+            @UpdateForV9 // https://github.com/elastic/elasticsearch/issues/79666
             String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
             if (this.isDeprecatedWarningOnly()) {
                 Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
@@ -1841,11 +1845,18 @@ public class Setting<T> implements ToXContentObject {
     }
 
     static void logSettingUpdate(Setting<?> setting, Settings current, Settings previous, Logger logger) {
-        if (logger.isInfoEnabled()) {
+        Level level = setting.hasIndexScope() ? Level.DEBUG : Level.INFO;
+        if (logger.isEnabled(level)) {
             if (setting.isFiltered()) {
-                logger.info("updating [{}]", setting.key);
+                logger.log(level, "updating [{}]", setting.key);
             } else {
-                logger.info("updating [{}] from [{}] to [{}]", setting.key, setting.getLogString(previous), setting.getLogString(current));
+                logger.log(
+                    level,
+                    "updating [{}] from [{}] to [{}]",
+                    setting.key,
+                    setting.getLogString(previous),
+                    setting.getLogString(current)
+                );
             }
         }
     }

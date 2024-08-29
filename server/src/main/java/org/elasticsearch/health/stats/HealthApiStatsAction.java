@@ -45,11 +45,6 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            TransportAction.localOnly();
-        }
-
-        @Override
         public String toString() {
             return "health_api_stats";
         }

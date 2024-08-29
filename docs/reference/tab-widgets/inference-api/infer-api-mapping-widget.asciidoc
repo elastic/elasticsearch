@@ -9,6 +9,12 @@
     </button>
     <button role="tab"
             aria-selected="false"
+            aria-controls="infer-api-mapping-elser-tab"
+            id="infer-api-mapping-elser">
+      ELSER
+    </button>
+    <button role="tab"
+            aria-selected="false"
             aria-controls="infer-api-mapping-hf-tab"
             id="infer-api-mapping-hf">
       HuggingFace
@@ -25,6 +31,30 @@
             id="infer-api-mapping-azure-openai">
       Azure OpenAI
     </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-mapping-azure-ai-studio-tab"
+            id="infer-api-mapping-azure-ai-studio">
+      Azure AI Studio
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-mapping-mistral-tab"
+            id="infer-api-mapping-mistral">
+      Mistral
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-mapping-amazon-bedrock-tab"
+            id="infer-api-mapping-amazon-bedrock">
+      Amazon Bedrock
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-mapping-alibabacloud-ai-search-tab"
+            id="infer-api-mapping-alibabacloud-ai-search">
+      AlibabaCloud AI Search
+    </button>
   </div>
   <div tabindex="0"
        role="tabpanel"
@@ -38,8 +68,20 @@ include::infer-api-mapping.asciidoc[tag=cohere]
   </div>
   <div tabindex="0"
        role="tabpanel"
+       id="infer-api-mapping-elser-tab"
+       aria-labelledby="infer-api-mapping-elser"
+       hidden="">
+++++
+
+include::infer-api-mapping.asciidoc[tag=elser]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
        id="infer-api-mapping-hf-tab"
-       aria-labelledby="infer-api-mapping-hf">
+       aria-labelledby="infer-api-mapping-hf"
+       hidden="">
 ++++
 
 include::infer-api-mapping.asciidoc[tag=hugging-face]
@@ -65,6 +107,50 @@ include::infer-api-mapping.asciidoc[tag=openai]
 ++++
 
 include::infer-api-mapping.asciidoc[tag=azure-openai]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-mapping-azure-ai-studio-tab"
+       aria-labelledby="infer-api-mapping-azure-ai-studio"
+       hidden="">
+++++
+
+include::infer-api-mapping.asciidoc[tag=azure-ai-studio]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-mapping-mistral-tab"
+       aria-labelledby="infer-api-mapping-mistral"
+       hidden="">
+++++
+
+include::infer-api-mapping.asciidoc[tag=mistral]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-mapping-amazon-bedrock-tab"
+       aria-labelledby="infer-api-mapping-amazon-bedrock"
+       hidden="">
+++++
+
+include::infer-api-mapping.asciidoc[tag=amazon-bedrock]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-mapping-alibabacloud-ai-search-tab"
+       aria-labelledby="infer-api-mapping-alibabacloud-ai-search"
+       hidden="">
+++++
+
+include::infer-api-mapping.asciidoc[tag=alibabacloud-ai-search]
 
 ++++
   </div>

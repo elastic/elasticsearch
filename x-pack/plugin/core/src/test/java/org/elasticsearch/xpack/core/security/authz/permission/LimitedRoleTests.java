@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
@@ -94,7 +95,7 @@ public class LimitedRoleTests extends ESTestCase {
             .toArray(String[]::new);
 
         Role baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "base-role")
-            .addRemoteGroup(
+            .addRemoteIndicesGroup(
                 Set.of(remoteClusterAlias),
                 baseFieldPermissions,
                 baseQuery,
@@ -102,14 +103,29 @@ public class LimitedRoleTests extends ESTestCase {
                 baseAllowRestrictedIndices,
                 baseIndices
             )
-            // This privilege should be ignored
-            .addRemoteGroup(
+            // This privilege should be ignored (wrong alias)
+            .addRemoteIndicesGroup(
                 Set.of(randomAlphaOfLength(3)),
                 randomFlsPermissions(),
                 randomDlsQuery(),
                 randomIndexPrivilege(),
                 randomBoolean(),
                 randomAlphaOfLengthBetween(4, 6)
+            )
+            .addRemoteClusterPermissions(
+                new RemoteClusterPermissions().addGroup(
+                    new RemoteClusterPermissionGroup(
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                        new String[] { remoteClusterAlias }
+                    )
+                )
+                    // this group should be ignored (wrong alias)
+                    .addGroup(
+                        new RemoteClusterPermissionGroup(
+                            RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                            new String[] { randomAlphaOfLength(3) }
+                        )
+                    )
             )
             .build();
 
@@ -122,23 +138,39 @@ public class LimitedRoleTests extends ESTestCase {
             .sorted() // sorted so we can simplify assertions
             .toArray(String[]::new);
 
+        Set<String> altAliases = Set.of(remoteClusterPrefix + "-*", randomAlphaOfLength(4));
         Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role")
-            .addRemoteGroup(
-                Set.of(remoteClusterPrefix + "-*", randomAlphaOfLength(4)),
+            .addRemoteIndicesGroup(
+                altAliases,
                 limitedFieldPermissions,
                 limitedQuery,
                 limitedPrivilege,
                 limitedAllowRestrictedIndices,
                 limitedIndices
             )
-            // This privilege should be ignored
-            .addRemoteGroup(
+            // This privilege should be ignored (wrong alias)
+            .addRemoteIndicesGroup(
                 Set.of(randomAlphaOfLength(4)),
                 randomFlsPermissions(),
                 randomDlsQuery(),
                 randomIndexPrivilege(),
                 randomBoolean(),
                 randomAlphaOfLength(9)
+            )
+            .addRemoteClusterPermissions(
+                new RemoteClusterPermissions().addGroup(
+                    new RemoteClusterPermissionGroup(
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                        altAliases.toArray(new String[0])
+                    )
+                )
+                    // this group should be ignored (wrong alias)
+                    .addGroup(
+                        new RemoteClusterPermissionGroup(
+                            RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                            new String[] { randomAlphaOfLength(4) }
+                        )
+                    )
             )
             .build();
 
@@ -148,7 +180,7 @@ public class LimitedRoleTests extends ESTestCase {
                 Set.of(
                     new RoleDescriptor(
                         Role.REMOTE_USER_ROLE_NAME,
-                        null,
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                         new IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .privileges(basePrivilege.name())
@@ -167,7 +199,7 @@ public class LimitedRoleTests extends ESTestCase {
                 Set.of(
                     new RoleDescriptor(
                         Role.REMOTE_USER_ROLE_NAME,
-                        null,
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                         new IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .privileges(limitedPrivilege.name())
@@ -187,11 +219,11 @@ public class LimitedRoleTests extends ESTestCase {
         );
 
         // for the existing remote cluster alias, check that the result is equal to the expected intersection
-        assertThat(role.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias), equalTo(expected));
+        assertThat(role.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias, TransportVersion.current()), equalTo(expected));
 
         // and for a random cluster alias, check that it returns empty intersection
         assertThat(
-            role.getRoleDescriptorsIntersectionForRemoteCluster(randomAlphaOfLengthBetween(5, 7)),
+            role.getRoleDescriptorsIntersectionForRemoteCluster(randomAlphaOfLengthBetween(5, 7), TransportVersion.current()),
             equalTo(RoleDescriptorsIntersection.EMPTY)
         );
     }
@@ -216,35 +248,50 @@ public class LimitedRoleTests extends ESTestCase {
         Role.Builder limitedByRole1 = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role-1");
         Role.Builder limitedByRole2 = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role-2");
 
-        // randomly include remote indices privileges in one of the role for the remoteClusterAlias
-        boolean includeRemoteIndicesPermission = randomBoolean();
-        if (includeRemoteIndicesPermission) {
+        // randomly include remote privileges in one of the role for the remoteClusterAlias
+        boolean includeRemotePermission = randomBoolean();
+        if (includeRemotePermission) {
+            RemoteClusterPermissions remoteCluster = new RemoteClusterPermissions().addGroup(
+                new RemoteClusterPermissionGroup(
+                    RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                    new String[] { remoteClusterAlias }
+                )
+            );
             String roleToAddRemoteGroup = randomFrom("b", "l1", "l2");
             switch (roleToAddRemoteGroup) {
-                case "b" -> baseRole.addRemoteGroup(
-                    Set.of(remoteClusterAlias),
-                    randomFlsPermissions(randomAlphaOfLength(3)),
-                    randomDlsQuery(),
-                    randomIndexPrivilege(),
-                    randomBoolean(),
-                    randomAlphaOfLength(3)
-                );
-                case "l1" -> limitedByRole1.addRemoteGroup(
-                    Set.of(remoteClusterAlias),
-                    randomFlsPermissions(randomAlphaOfLength(4)),
-                    randomDlsQuery(),
-                    randomIndexPrivilege(),
-                    randomBoolean(),
-                    randomAlphaOfLength(4)
-                );
-                case "l2" -> limitedByRole2.addRemoteGroup(
-                    Set.of(remoteClusterAlias),
-                    randomFlsPermissions(randomAlphaOfLength(5)),
-                    randomDlsQuery(),
-                    randomIndexPrivilege(),
-                    randomBoolean(),
-                    randomAlphaOfLength(5)
-                );
+                case "b" -> {
+                    baseRole.addRemoteIndicesGroup(
+                        Set.of(remoteClusterAlias),
+                        randomFlsPermissions(randomAlphaOfLength(3)),
+                        randomDlsQuery(),
+                        randomIndexPrivilege(),
+                        randomBoolean(),
+                        randomAlphaOfLength(3)
+                    );
+                    baseRole.addRemoteClusterPermissions(remoteCluster);
+                }
+                case "l1" -> {
+                    limitedByRole1.addRemoteIndicesGroup(
+                        Set.of(remoteClusterAlias),
+                        randomFlsPermissions(randomAlphaOfLength(4)),
+                        randomDlsQuery(),
+                        randomIndexPrivilege(),
+                        randomBoolean(),
+                        randomAlphaOfLength(4)
+                    );
+                    limitedByRole1.addRemoteClusterPermissions(remoteCluster);
+                }
+                case "l2" -> {
+                    limitedByRole2.addRemoteIndicesGroup(
+                        Set.of(remoteClusterAlias),
+                        randomFlsPermissions(randomAlphaOfLength(5)),
+                        randomDlsQuery(),
+                        randomIndexPrivilege(),
+                        randomBoolean(),
+                        randomAlphaOfLength(5)
+                    );
+                    limitedByRole2.addRemoteClusterPermissions(remoteCluster);
+                }
                 default -> throw new IllegalStateException("unexpected case");
             }
         }
@@ -253,7 +300,7 @@ public class LimitedRoleTests extends ESTestCase {
         // Note: defining a remote indices privileges for a remote cluster that we do not request intersection for, should be ignored
         if (randomBoolean()) {
             String otherRemoteClusterAlias = randomValueOtherThan(remoteClusterAlias, () -> randomAlphaOfLengthBetween(4, 6));
-            baseRole.addRemoteGroup(
+            baseRole.addRemoteIndicesGroup(
                 Set.of(otherRemoteClusterAlias),
                 randomFlsPermissions(randomAlphaOfLength(3)),
                 randomDlsQuery(),
@@ -261,7 +308,7 @@ public class LimitedRoleTests extends ESTestCase {
                 randomBoolean(),
                 randomAlphaOfLength(5)
             );
-            limitedByRole1.addRemoteGroup(
+            limitedByRole1.addRemoteIndicesGroup(
                 Set.of(otherRemoteClusterAlias),
                 randomFlsPermissions(randomAlphaOfLength(4)),
                 randomDlsQuery(),
@@ -269,7 +316,7 @@ public class LimitedRoleTests extends ESTestCase {
                 randomBoolean(),
                 randomAlphaOfLength(4)
             );
-            limitedByRole2.addRemoteGroup(
+            limitedByRole2.addRemoteIndicesGroup(
                 Set.of(otherRemoteClusterAlias),
                 randomFlsPermissions(randomAlphaOfLength(5)),
                 randomDlsQuery(),
@@ -280,7 +327,12 @@ public class LimitedRoleTests extends ESTestCase {
         }
 
         Role role = baseRole.build().limitedBy(limitedByRole1.build().limitedBy(limitedByRole2.build()));
-        assertThat(role.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias).roleDescriptorsList().isEmpty(), equalTo(true));
+        assertThat(
+            role.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias, TransportVersion.current())
+                .roleDescriptorsList()
+                .isEmpty(),
+            equalTo(true)
+        );
     }
 
     public void testAuthorize() {

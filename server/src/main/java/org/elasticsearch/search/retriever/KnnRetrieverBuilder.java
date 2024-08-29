@@ -10,7 +10,11 @@ package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
+import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -121,6 +125,16 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     }
 
     @Override
+    public QueryBuilder topDocsQuery() {
+        assert rankDocs != null : "{rankDocs} should have been materialized at this point";
+
+        BoolQueryBuilder knnTopResultsQuery = new BoolQueryBuilder().filter(new RankDocsQueryBuilder(rankDocs))
+            .should(new ExactKnnQueryBuilder(VectorData.fromFloats(queryVector), field, similarity));
+        preFilterQueryBuilders.forEach(knnTopResultsQuery::filter);
+        return knnTopResultsQuery;
+    }
+
+    @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(
             field,
@@ -132,6 +146,9 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         );
         if (preFilterQueryBuilders != null) {
             knnSearchBuilder.addFilterQueries(preFilterQueryBuilders);
+        }
+        if (retrieverName != null) {
+            knnSearchBuilder.queryName(retrieverName);
         }
         List<KnnSearchBuilder> knnSearchBuilders = new ArrayList<>(searchSourceBuilder.knnSearch());
         knnSearchBuilders.add(knnSearchBuilder);

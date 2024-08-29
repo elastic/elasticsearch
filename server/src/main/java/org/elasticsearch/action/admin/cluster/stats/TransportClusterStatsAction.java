@@ -9,7 +9,9 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -25,19 +27,21 @@ import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -61,6 +65,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     TransportClusterStatsAction.ClusterStatsNodeRequest,
     ClusterStatsNodeResponse> {
 
+    public static final ActionType<ClusterStatsResponse> TYPE = new ActionType<>("cluster:monitor/stats");
     private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(
         CommonStatsFlags.Flag.Docs,
         CommonStatsFlags.Flag.Store,
@@ -68,11 +73,13 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         CommonStatsFlags.Flag.QueryCache,
         CommonStatsFlags.Flag.Completion,
         CommonStatsFlags.Flag.Segments,
-        CommonStatsFlags.Flag.DenseVector
+        CommonStatsFlags.Flag.DenseVector,
+        CommonStatsFlags.Flag.SparseVector
     );
 
     private final NodeService nodeService;
     private final IndicesService indicesService;
+    private final RepositoriesService repositoriesService;
     private final SearchUsageHolder searchUsageHolder;
 
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
@@ -85,11 +92,12 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         TransportService transportService,
         NodeService nodeService,
         IndicesService indicesService,
+        RepositoriesService repositoriesService,
         UsageService usageService,
         ActionFilters actionFilters
     ) {
         super(
-            ClusterStatsAction.NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
@@ -98,6 +106,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
         this.nodeService = nodeService;
         this.indicesService = indicesService;
+        this.repositoriesService = repositoriesService;
         this.searchUsageHolder = usageService.getSearchUsageHolder();
         this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
@@ -165,7 +174,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     @Override
     protected ClusterStatsNodeRequest newNodeRequest(ClusterStatsRequest request) {
-        return new ClusterStatsNodeRequest(request);
+        return new ClusterStatsNodeRequest();
     }
 
     @Override
@@ -232,12 +241,14 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             }
         }
 
-        ClusterHealthStatus clusterStatus = null;
-        if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
-            clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
-        }
+        final ClusterState clusterState = clusterService.state();
+        final ClusterHealthStatus clusterStatus = clusterState.nodes().isLocalNodeElectedMaster()
+            ? new ClusterStateHealth(clusterState).getStatus()
+            : null;
 
-        SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+        final SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+
+        final RepositoryUsageStats repositoryUsageStats = repositoriesService.getUsageStats();
 
         return new ClusterStatsNodeResponse(
             nodeInfo.getNode(),
@@ -245,22 +256,19 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             nodeInfo,
             nodeStats,
             shardsStats.toArray(new ShardStats[shardsStats.size()]),
-            searchUsageStats
+            searchUsageStats,
+            repositoryUsageStats
         );
     }
 
+    @UpdateForV9 // this can be replaced with TransportRequest.Empty in v9
     public static class ClusterStatsNodeRequest extends TransportRequest {
 
-        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
-        ClusterStatsRequest request;
+        ClusterStatsNodeRequest() {}
 
         public ClusterStatsNodeRequest(StreamInput in) throws IOException {
             super(in);
-            request = new ClusterStatsRequest(in);
-        }
-
-        ClusterStatsNodeRequest(ClusterStatsRequest request) {
-            this.request = request;
+            skipLegacyNodesRequestHeader(TransportVersions.DROP_UNUSED_NODES_REQUESTS, in);
         }
 
         @Override
@@ -271,7 +279,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            request.writeTo(out);
+            sendLegacyNodesRequestHeader(TransportVersions.DROP_UNUSED_NODES_REQUESTS, out);
         }
     }
 

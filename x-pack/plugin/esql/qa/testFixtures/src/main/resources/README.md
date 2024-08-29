@@ -164,19 +164,27 @@ Finally, this'll appear in the docs as a table kind of like this:
 
 CSV-SPEC tests run against half-upgraded clusters in the
 `x-pack:plugin:esql:qa:server:mixed-cluster` project and will fail if they test
-new behavior against an old node. To stop them from running you should create
-a `NodeFeature` in `EsqlFeatures` for your change. Then you can skip it by
-adding a `required_feature` to your test like so:
+new behavior against an old node. To stop them from running you should add an
+entry to the list of capabilities in `EsqlCapabilities` for your change.
+Then you can skip it by adding a `required_capability` to your test like so:
 ```csv-spec
 mvSlice
-required_feature: esql.mv_sort
+required_capability: mv_sort
+required_capability: mv_slice
 
 row a = [true, false, false, true]
 | eval a1 = mv_slice(a, 1), a2 = mv_slice(a, 2, 3);
 ```
 
-That skips nodes that don't have the `esql.mv_sort` feature.
+That skips nodes that don't have both the `mv_sort` and `mv_slice` capabilities.
 
+NOTE: It is also possible to do this by creating a `NodeFeature` in `EsqlFeatures` for your change.
+In that case the feature should be prefixed with `esql.`, but this prefix should
+not be referenced in the test. For example, the feature `esql.mv_sort` should
+cause a test to be skipped using the same `required_capability: mv_sort` above.
+It is preferable to use `EsqlCapabilities` for new features, although all existing
+`EsqlFeatures` will continue to work. It is not possible to remove an existing
+`EsqlFeature` without breaking backwards compatibility.
 
 ### Warnings
 

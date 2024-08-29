@@ -27,7 +27,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -49,6 +48,7 @@ import org.elasticsearch.index.mapper.KeywordScriptFieldType;
 import org.elasticsearch.index.mapper.LongScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -89,6 +89,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -295,7 +296,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList(), Collections.emptyList());
+        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList());
     }
 
     public void testSearchRequestRuntimeFields() {
@@ -382,8 +383,8 @@ public class SearchExecutionContextTests extends ESTestCase {
 
     public void testSyntheticSourceSearchLookup() throws IOException {
         // Build a mapping using synthetic source
-        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY).setSynthetic().build();
-        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false).setSynthetic().build();
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
             new KeywordFieldMapper.Builder("cat", IndexVersion.current()).ignoreAbove(100)
         ).build(MapperBuilderContext.root(true, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
@@ -524,7 +525,8 @@ public class SearchExecutionContextTests extends ESTestCase {
             null,
             () -> true,
             null,
-            runtimeMappings
+            runtimeMappings,
+            MapperMetrics.NOOP
         );
     }
 
@@ -546,7 +548,10 @@ public class SearchExecutionContextTests extends ESTestCase {
                 ScriptCompiler.NONE,
                 indexAnalyzers,
                 indexSettings,
-                indexSettings.getMode().buildIdFieldMapper(() -> true)
+                indexSettings.getMode().buildIdFieldMapper(() -> true),
+                query -> {
+                    throw new UnsupportedOperationException();
+                }
             )
         );
         when(mapperService.isMultiField(anyString())).then(

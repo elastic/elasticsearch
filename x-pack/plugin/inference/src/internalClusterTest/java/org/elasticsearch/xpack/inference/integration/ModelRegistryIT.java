@@ -25,6 +25,7 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalModel;
@@ -97,10 +98,11 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             statusException.getRootCause().getMessage(),
             containsString("mapping set to strict, dynamic introduction of [unknown_field] within [_doc] is not allowed")
         );
-        assertThat(exceptionHolder.get().getMessage(), containsString("Failed to store inference model [" + inferenceEntityId + "]"));
+        assertThat(exceptionHolder.get().getMessage(), containsString("Failed to store inference endpoint [" + inferenceEntityId + "]"));
     }
 
     public void testGetModel() throws Exception {
+        assumeTrue("Only if 'inference_adaptive_allocations' feature flag is enabled", AdaptiveAllocationsFeatureFlag.isEnabled());
         String inferenceEntityId = "test-get-model";
         Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
@@ -144,7 +146,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(exceptionHolder.get(), not(nullValue()));
         assertThat(
             exceptionHolder.get().getMessage(),
-            containsString("Inference model [test-put-trained-model-config-exists] already exists")
+            containsString("Inference endpoint [test-put-trained-model-config-exists] already exists")
         );
     }
 
@@ -171,7 +173,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         assertThat(exceptionHolder.get(), not(nullValue()));
         assertFalse(deleteResponseHolder.get());
-        assertThat(exceptionHolder.get().getMessage(), containsString("Model not found [model1]"));
+        assertThat(exceptionHolder.get().getMessage(), containsString("Inference endpoint not found [model1]"));
     }
 
     public void testGetModelsByTaskType() throws InterruptedException {
@@ -342,6 +344,11 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             }
 
             @Override
+            public String modelId() {
+                return null;
+            }
+
+            @Override
             public ToXContentObject getFilteredXContentObject() {
                 return this;
             }
@@ -405,7 +412,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("unknown_field", "foo");
-            builder.field(MODEL_ID, getInferenceEntityId());
+            builder.field(INDEX_ONLY_ID_FIELD_NAME, getInferenceEntityId());
             builder.field(TaskType.NAME, getTaskType().toString());
             builder.field(SERVICE, getService());
             builder.field(SERVICE_SETTINGS, getServiceSettings());
@@ -431,7 +438,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("unknown_field", "foo");
-            builder.field(MODEL_ID, getInferenceEntityId());
+            builder.field(INDEX_ONLY_ID_FIELD_NAME, getInferenceEntityId());
             builder.field(TaskType.NAME, getTaskType().toString());
             builder.field(SERVICE, getService());
             builder.field(SERVICE_SETTINGS, getServiceSettings());

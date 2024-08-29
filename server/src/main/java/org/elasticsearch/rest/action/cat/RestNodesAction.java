@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesAction extends AbstractCatAction {
@@ -86,7 +87,7 @@ public class RestNodesAction extends AbstractCatAction {
 
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.clear()
@@ -102,11 +103,11 @@ public class RestNodesAction extends AbstractCatAction {
         nodesStatsRequest.clear()
             .indices(true)
             .addMetrics(
-                NodesStatsRequestParameters.Metric.JVM.metricName(),
-                NodesStatsRequestParameters.Metric.OS.metricName(),
-                NodesStatsRequestParameters.Metric.FS.metricName(),
-                NodesStatsRequestParameters.Metric.PROCESS.metricName(),
-                NodesStatsRequestParameters.Metric.SCRIPT.metricName()
+                NodesStatsRequestParameters.Metric.JVM,
+                NodesStatsRequestParameters.Metric.OS,
+                NodesStatsRequestParameters.Metric.FS,
+                NodesStatsRequestParameters.Metric.PROCESS,
+                NodesStatsRequestParameters.Metric.SCRIPT
             );
         nodesStatsRequest.indices().includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
 

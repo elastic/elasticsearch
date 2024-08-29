@@ -56,6 +56,7 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
          * Constructs a new put component template request with the provided name.
          */
         public Request(String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.name = name;
         }
 

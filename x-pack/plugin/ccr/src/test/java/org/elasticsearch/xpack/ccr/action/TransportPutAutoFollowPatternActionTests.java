@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerPut() {
-        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setName("name1");
         request.setRemoteCluster("eu_cluster");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
@@ -73,7 +73,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
     }
 
     public void testInnerPut_existingLeaderIndices() {
-        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setName("name1");
         request.setRemoteCluster("eu_cluster");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
@@ -129,7 +129,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
     }
 
     public void testInnerPut_existingLeaderIndicesAndAutoFollowMetadata() {
-        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setName("name1");
         request.setRemoteCluster("eu_cluster");
         request.setLeaderIndexPatterns(Arrays.asList("logs-*", "transactions-*"));

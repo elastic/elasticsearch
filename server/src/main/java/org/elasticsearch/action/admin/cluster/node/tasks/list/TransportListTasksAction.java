@@ -17,12 +17,12 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
@@ -60,7 +60,6 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             transportService,
             actionFilters,
             ListTasksRequest::new,
-            ListTasksResponse::new,
             TaskInfo::from,
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );

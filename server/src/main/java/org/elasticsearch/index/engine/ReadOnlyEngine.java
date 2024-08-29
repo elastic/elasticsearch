@@ -244,8 +244,8 @@ public class ReadOnlyEngine extends Engine {
 
     private static SeqNoStats buildSeqNoStats(EngineConfig config, SegmentInfos infos) {
         final SequenceNumbers.CommitInfo seqNoStats = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(infos.userData.entrySet());
-        long maxSeqNo = seqNoStats.maxSeqNo;
-        long localCheckpoint = seqNoStats.localCheckpoint;
+        long maxSeqNo = seqNoStats.maxSeqNo();
+        long localCheckpoint = seqNoStats.localCheckpoint();
         return new SeqNoStats(maxSeqNo, localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong());
     }
 
@@ -426,6 +426,11 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public List<Segment> segments() {
         return Arrays.asList(getSegmentInfo(lastCommittedSegmentInfos));
+    }
+
+    @Override
+    public List<Segment> segments(boolean includeVectorFormatsInfo) {
+        return Arrays.asList(getSegmentInfo(lastCommittedSegmentInfos, includeVectorFormatsInfo));
     }
 
     @Override

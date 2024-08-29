@@ -259,7 +259,7 @@ public interface BlobContainer {
      * @param purpose The purpose of the operation
      * @param key      key of the value to get
      * @param listener a listener, completed with the value read from the register or {@code OptionalBytesReference#MISSING} if the value
-     *                 could not be read due to concurrent activity.
+     *                 could not be read due to concurrent activity (which should not happen).
      */
     default void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
         compareAndExchangeRegister(purpose, key, BytesArray.EMPTY, BytesArray.EMPTY, listener);

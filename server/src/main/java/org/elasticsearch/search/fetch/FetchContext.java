@@ -25,6 +25,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.util.Collections;
@@ -156,6 +157,19 @@ public class FetchContext {
     }
 
     /**
+     * The rank builder used in the original search
+     */
+    public RankBuilder rankBuilder() {
+        return searchContext.request().source() == null ? null : searchContext.request().source().rankBuilder();
+    }
+
+    public List<String> queryNames() {
+        return searchContext.request().source() == null
+            ? Collections.emptyList()
+            : searchContext.request().source().subSearches().stream().map(x -> x.getQueryBuilder().queryName()).toList();
+    }
+
+    /**
      * Should the response include sequence number and primary term metadata
      */
     public boolean seqNoAndPrimaryTerm() {
@@ -175,7 +189,7 @@ public class FetchContext {
                     searchContext.getSearchExecutionContext(),
                     Collections.singletonList(new FieldAndFormat(name, null))
                 );
-            } else if (searchContext.docValuesContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
+            } else if (searchContext.docValuesContext().fields().stream().map(ff -> ff.field).noneMatch(name::equals)) {
                 dvContext.fields().add(new FieldAndFormat(name, null));
             }
         }

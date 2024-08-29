@@ -16,16 +16,6 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 
 public abstract class TransportRequest extends TransportMessage implements TaskAwareRequest {
-    public static class Empty extends TransportRequest {
-        public static final Empty INSTANCE = new Empty();
-
-        public Empty() {}
-
-        public Empty(StreamInput in) throws IOException {
-            super(in);
-        }
-    }
-
     /**
      * Parent of this request. Defaults to {@link TaskId#EMPTY_TASK_ID}, meaning "no parent".
      */

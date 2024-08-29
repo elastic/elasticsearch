@@ -28,6 +28,7 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -440,7 +441,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // Since there's no kNN search action at the transport layer, we just emulate
         // how the action works (it builds a kNN query under the hood)
         float[] queryVector = new float[] { 0.0f, 0.0f, 0.0f };
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 10, null);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 10, 10, null);
 
         // user1 has access to vector field, so the query should match with the document:
         assertResponse(
@@ -474,7 +475,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             }
         );
         // user1 can access field1, so the filtered query should match with the document:
-        KnnVectorQueryBuilder filterQuery1 = new KnnVectorQueryBuilder("vector", queryVector, 10, null).addFilterQuery(
+        KnnVectorQueryBuilder filterQuery1 = new KnnVectorQueryBuilder("vector", queryVector, 10, 10, null).addFilterQuery(
             QueryBuilders.matchQuery("field1", "value1")
         );
         assertHitCount(
@@ -485,7 +486,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         );
 
         // user1 cannot access field2, so the filtered query should not match with the document:
-        KnnVectorQueryBuilder filterQuery2 = new KnnVectorQueryBuilder("vector", queryVector, 10, null).addFilterQuery(
+        KnnVectorQueryBuilder filterQuery2 = new KnnVectorQueryBuilder("vector", queryVector, 10, 10, null).addFilterQuery(
             QueryBuilders.matchQuery("field2", "value2")
         );
         assertHitCount(
@@ -1157,7 +1158,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         }
     }
 
-    static String openPointInTime(String userName, TimeValue keepAlive, String... indices) {
+    static BytesReference openPointInTime(String userName, TimeValue keepAlive, String... indices) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
         final OpenPointInTimeResponse response = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(userName, USERS_PASSWD))
@@ -1178,7 +1179,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         }
         refresh("test");
 
-        String pitId = openPointInTime("user1", TimeValue.timeValueMinutes(1), "test");
+        BytesReference pitId = openPointInTime("user1", TimeValue.timeValueMinutes(1), "test");
         try {
             for (int from = 0; from < numDocs; from++) {
                 assertResponse(

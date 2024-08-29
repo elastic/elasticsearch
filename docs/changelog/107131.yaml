@@ -1,6 +1,0 @@
-pr: 107131
-summary: "ESQL: Fix bug when combining projections"
-area: ES|QL
-type: bug
-issues:
- - 107083

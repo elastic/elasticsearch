@@ -44,6 +44,7 @@ import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -177,6 +178,7 @@ public final class IndexModule {
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
+    private final MapperMetrics mapperMetrics;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -195,7 +197,8 @@ public final class IndexModule {
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        final SlowLogFieldProvider slowLogFieldProvider
+        final SlowLogFieldProvider slowLogFieldProvider,
+        final MapperMetrics mapperMetrics
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
@@ -206,6 +209,7 @@ public final class IndexModule {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.mapperMetrics = mapperMetrics;
     }
 
     /**
@@ -536,7 +540,8 @@ public final class IndexModule {
                 recoveryStateFactory,
                 indexFoldersDeletionListener,
                 snapshotCommitSupplier,
-                indexCommitListener.get()
+                indexCommitListener.get(),
+                mapperMetrics
             );
             success = true;
             return indexService;
@@ -646,7 +651,11 @@ public final class IndexModule {
                 throw new UnsupportedOperationException("no index query shard context available");
             },
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
-            scriptService
+            scriptService,
+            query -> {
+                throw new UnsupportedOperationException("no index query shard context available");
+            },
+            mapperMetrics
         );
     }
 

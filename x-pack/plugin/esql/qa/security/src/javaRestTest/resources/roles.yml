@@ -32,6 +32,28 @@ user2:
         - create_index
         - indices:admin/refresh
 
+metadata1_read2:
+  cluster: []
+  indices:
+    - names: [ 'index-user1' ]
+      privileges: [ 'view_index_metadata' ]
+    - names: [ 'index-user2' ]
+      privileges: [ 'read' ]
+
+alias_user1:
+  cluster: []
+  indices:
+    - names: [ 'first-alias' ]
+      privileges:
+        - read
+
+alias_user2:
+  cluster: []
+  indices:
+    - names: [ 'second-alias' ]
+      privileges:
+        - read
+
 user3:
   cluster: []
   indices:

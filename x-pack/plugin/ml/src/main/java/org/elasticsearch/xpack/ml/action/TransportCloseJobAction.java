@@ -21,13 +21,13 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.CancellableTask;
@@ -75,7 +75,6 @@ public class TransportCloseJobAction extends TransportTasksAction<
 
     private final ThreadPool threadPool;
     private final Client client;
-    private final ClusterService clusterService;
     private final AnomalyDetectionAuditor auditor;
     private final PersistentTasksService persistentTasksService;
     private final JobConfigProvider jobConfigProvider;
@@ -101,12 +100,10 @@ public class TransportCloseJobAction extends TransportTasksAction<
             actionFilters,
             CloseJobAction.Request::new,
             CloseJobAction.Response::new,
-            CloseJobAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;
         this.client = client;
-        this.clusterService = clusterService;
         this.auditor = auditor;
         this.persistentTasksService = persistentTasksService;
         this.jobConfigProvider = jobConfigProvider;

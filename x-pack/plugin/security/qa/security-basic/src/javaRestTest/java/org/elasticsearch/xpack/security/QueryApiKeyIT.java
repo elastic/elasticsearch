@@ -138,7 +138,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         // Search for fields outside of the allowlist fails
         ResponseException responseException = assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, """
             { "query": { "prefix": {"api_key_hash": "{PBKDF2}10000$"} } }""");
-        assertThat(responseException.getMessage(), containsString("Field [api_key_hash] is not allowed for API Key query"));
+        assertThat(responseException.getMessage(), containsString("Field [api_key_hash] is not allowed for querying"));
 
         // Search for fields that are not allowed in Query DSL but used internally by the service itself
         final String fieldName = randomFrom("doc_type", "api_key_invalidated", "invalidation_time");

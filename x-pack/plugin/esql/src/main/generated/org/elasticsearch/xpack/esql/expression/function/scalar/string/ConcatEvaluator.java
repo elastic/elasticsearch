@@ -19,8 +19,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Concat}.
@@ -37,10 +37,10 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public ConcatEvaluator(Source source, BreakingBytesRefBuilder scratch,
       EvalOperator.ExpressionEvaluator[] values, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.scratch = scratch;
     this.values = values;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -87,7 +87,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
           int o = valuesBlocks[i].getFirstValueIndex(p);
           valuesValues[i] = valuesBlocks[i].getBytesRef(o, valuesScratch[i]);
         }
-        result.appendBytesRef(Concat.process(scratch, valuesValues));
+        result.appendBytesRef(Concat.process(this.scratch, valuesValues));
       }
       return result.build();
     }
@@ -105,7 +105,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getBytesRef(p, valuesScratch[i]);
         }
-        result.appendBytesRef(Concat.process(scratch, valuesValues));
+        result.appendBytesRef(Concat.process(this.scratch, valuesValues));
       }
       return result.build();
     }

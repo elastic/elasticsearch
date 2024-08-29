@@ -54,7 +54,7 @@ public class MlPlatformArchitecturesUtil {
     }
 
     static NodesInfoRequestBuilder getNodesInfoBuilderWithMlNodeArchitectureInfo(Client client) {
-        return client.admin().cluster().prepareNodesInfo().clear().setNodesIds("ml:true").setOs(true).setPlugins(true);
+        return client.admin().cluster().prepareNodesInfo("ml:true").clear().setOs(true).setPlugins(true);
     }
 
     private static Set<String> getArchitecturesSetFromNodesInfoResponse(NodesInfoResponse nodesInfoResponse) {

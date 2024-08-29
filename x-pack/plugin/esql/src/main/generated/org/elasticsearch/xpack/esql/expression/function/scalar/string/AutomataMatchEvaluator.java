@@ -18,8 +18,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link AutomataMatch}.
@@ -38,11 +38,11 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
 
   public AutomataMatchEvaluator(Source source, EvalOperator.ExpressionEvaluator input,
       ByteRunAutomaton automaton, String pattern, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.input = input;
     this.automaton = automaton;
     this.pattern = pattern;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -71,17 +71,17 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(AutomataMatch.process(inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch), automaton, pattern));
+        result.appendBoolean(AutomataMatch.process(inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch), this.automaton, this.pattern));
       }
       return result.build();
     }
   }
 
   public BooleanVector eval(int positionCount, BytesRefVector inputVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(AutomataMatch.process(inputVector.getBytesRef(p, inputScratch), automaton, pattern));
+        result.appendBoolean(p, AutomataMatch.process(inputVector.getBytesRef(p, inputScratch), this.automaton, this.pattern));
       }
       return result.build();
     }

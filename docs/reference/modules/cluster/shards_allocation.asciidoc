@@ -15,7 +15,8 @@ Enable or disable allocation for specific kinds of shards:
 * `new_primaries` -   Allows shard allocation only for primary shards for new indices.
 * `none` -            No shard allocations of any kind are allowed for any indices.
 
-This setting does not affect the recovery of local primary shards when
+This setting only affects future allocations, and does not re-allocate or un-allocate currently allocated shards.
+It also does not affect the recovery of local primary shards when
 restarting a node. A restarted node that has a copy of an unassigned primary
 shard will recover that primary immediately, assuming that its allocation id matches
 one of the active allocation ids in the cluster state.
@@ -98,9 +99,9 @@ the cluster:
 Specify when shard rebalancing is allowed:
 
 
-* `always` -                    Always allow rebalancing.
+* `always` -                    (default) Always allow rebalancing.
 * `indices_primaries_active` -  Only when all primaries in the cluster are allocated.
-* `indices_all_active` -        (default) Only when all shards (primaries and replicas) in the cluster are allocated.
+* `indices_all_active` -        Only when all shards (primaries and replicas) in the cluster are allocated.
 --
 
 `cluster.routing.rebalance.enable`::

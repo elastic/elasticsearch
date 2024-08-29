@@ -63,8 +63,8 @@ public final class CborXContentImpl implements XContent {
     }
 
     @Override
-    public byte streamSeparator() {
-        throw new XContentParseException("cbor does not support stream parsing...");
+    public byte bulkSeparator() {
+        throw new XContentParseException("cbor does not support bulk parsing...");
     }
 
     @Override

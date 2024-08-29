@@ -246,14 +246,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private void doSetVersion(String version) {
         String distroName = "testclusters" + path.replace(":", "-") + "-" + this.name + "-" + version;
         NamedDomainObjectContainer<ElasticsearchDistribution> container = DistributionDownloadPlugin.getContainer(project);
-        if (container.findByName(distroName) == null) {
-            container.create(distroName);
-        }
-        ElasticsearchDistribution distro = container.getByName(distroName);
-        distro.setVersion(version);
-        distro.setArchitecture(Architecture.current());
-        setDistributionType(distro, testDistribution);
-        distributions.add(distro);
+        // TODO Refactor test using register<> for reducing overhead
+        ElasticsearchDistribution distribution = container.maybeCreate(distroName);
+        distribution.setVersion(version);
+        distribution.setArchitecture(Architecture.current());
+        setDistributionType(distribution, testDistribution);
+        distributions.add(distribution);
     }
 
     @Internal
@@ -1107,11 +1105,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             return;
         }
 
-        boolean foundNettyLeaks = false;
+        boolean foundLeaks = false;
         for (String logLine : errorsAndWarnings.keySet()) {
-            if (logLine.contains("ResourceLeakDetector]")) {
+            if (logLine.contains("ResourceLeakDetector") || logLine.contains("LeakTracker")) {
                 tailLogs = true;
-                foundNettyLeaks = true;
+                foundLeaks = true;
                 break;
             }
         }
@@ -1140,8 +1138,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 });
             }
         }
-        if (foundNettyLeaks) {
-            throw new TestClustersException("Found Netty ByteBuf leaks in node logs.");
+        if (foundLeaks) {
+            throw new TestClustersException("Found resource leaks in node log: " + from);
         }
     }
 

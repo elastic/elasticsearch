@@ -38,6 +38,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -52,6 +53,7 @@ import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
+import org.elasticsearch.rest.ChunkedZipResponse;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.AcceptChannelHandler;
@@ -94,6 +96,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final TLSConfig tlsConfig;
     private final AcceptChannelHandler.AcceptPredicate acceptChannelPredicate;
     private final HttpValidator httpValidator;
+    private final ThreadWatchdog threadWatchdog;
     private final int readTimeoutMillis;
 
     private final int maxCompositeBufferComponents;
@@ -130,6 +133,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.tlsConfig = tlsConfig;
         this.acceptChannelPredicate = acceptChannelPredicate;
         this.httpValidator = httpValidator;
+        this.threadWatchdog = networkService.getThreadWatchdog();
 
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
 
@@ -311,7 +315,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 ch.pipeline()
                     .addLast(
                         "accept_channel_handler",
-                        new AcceptChannelHandler(acceptChannelPredicate, HttpServerTransport.HTTP_PROFILE_NAME)
+                        new AcceptChannelHandler(
+                            acceptChannelPredicate,
+                            HttpServerTransport.HTTP_PROFILE_NAME,
+                            transport.getThreadPool().getThreadContext()
+                        )
                     );
             }
             if (tlsConfig.isTLSEnabled()) {
@@ -375,9 +383,26 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 })
                 .addLast("aggregator", aggregator);
             if (handlingSettings.compression()) {
-                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()));
+                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()) {
+                    @Override
+                    protected Result beginEncode(HttpResponse httpResponse, String acceptEncoding) throws Exception {
+                        if (ChunkedZipResponse.ZIP_CONTENT_TYPE.equals(httpResponse.headers().get("content-type"))) {
+                            return null;
+                        } else {
+                            return super.beginEncode(httpResponse, acceptEncoding);
+                        }
+                    }
+                });
             }
-            ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(transport.pipeliningMaxEvents, transport));
+            ch.pipeline()
+                .addLast(
+                    "pipelining",
+                    new Netty4HttpPipeliningHandler(
+                        transport.pipeliningMaxEvents,
+                        transport,
+                        transport.threadWatchdog.getActivityTrackerForCurrentThread()
+                    )
+                );
             transport.serverAcceptedChannel(nettyHttpChannel);
         }
 

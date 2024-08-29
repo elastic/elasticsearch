@@ -104,7 +104,6 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
                 values.write(b);
                 ignoreMalformedValues.write(b);
                 b.endArray();
-                return;
         }
     }
 
@@ -231,5 +230,10 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
             return DocValues.singleton(single);
         }
         return null;
+    }
+
+    @Override
+    public String fieldName() {
+        return name;
     }
 }

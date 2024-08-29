@@ -56,6 +56,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     protected final double max;
     protected final double sum;
 
+    @SuppressWarnings("this-escape")
     public InternalStats(
         String name,
         long count,
@@ -70,6 +71,24 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         this.sum = sum;
         this.min = min;
         this.max = max;
+        verifyFormattingStats();
+    }
+
+    private void verifyFormattingStats() {
+        if (format != DocValueFormat.RAW) {
+            verifyFormattingStat(Fields.MIN, format, min);
+            verifyFormattingStat(Fields.MAX, format, max);
+            verifyFormattingStat(Fields.AVG, format, getAvg());
+            verifyFormattingStat(Fields.SUM, format, sum);
+        }
+    }
+
+    private static void verifyFormattingStat(String stat, DocValueFormat format, double value) {
+        try {
+            format.format(value);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Cannot format stat [" + stat + "] with format [" + format.toString() + "]", e);
+        }
     }
 
     /**

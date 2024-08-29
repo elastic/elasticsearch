@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.ml.inference.ltr;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -26,9 +29,12 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConf
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRankRescorerBuilder> {
 
@@ -40,6 +46,7 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
     static {
         PARSER.declareString(Builder::setModelId, MODEL_FIELD);
         PARSER.declareObject(Builder::setParams, (p, c) -> p.map(), PARAMS_FIELD);
+        PARSER.declareRequiredFieldSet(MODEL_FIELD.getPreferredName());
     }
 
     public static LearningToRankRescorerBuilder fromXContent(XContentParser parser, LearningToRankService learningToRankService) {
@@ -125,6 +132,47 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
             return doSearchRewrite(ctx);
         }
         return doCoordinatorNodeRewrite(ctx);
+    }
+
+    @Override
+    public ActionRequestValidationException validate(SearchSourceBuilder source, ActionRequestValidationException validationException) {
+        validationException = super.validate(source, validationException);
+
+        int searchRequestPaginationSize = source.from() + source.size();
+
+        if (windowSize() < searchRequestPaginationSize) {
+            return addValidationError(
+                "rescorer [window_size] is too small and should be at least the value of [from + size: "
+                    + searchRequestPaginationSize
+                    + "] but was ["
+                    + windowSize()
+                    + "]",
+                validationException
+            );
+        }
+
+        @SuppressWarnings("rawtypes")
+        List<RescorerBuilder> rescorers = source.rescores();
+        assert rescorers != null && rescorers.contains(this);
+
+        for (int i = rescorers.indexOf(this) + 1; i < rescorers.size(); i++) {
+            RescorerBuilder<?> nextRescorer = rescorers.get(i);
+            int nextRescorerWindowSize = nextRescorer.windowSize() != null ? nextRescorer.windowSize() : DEFAULT_WINDOW_SIZE;
+            if (windowSize() < nextRescorerWindowSize) {
+                return addValidationError(
+                    "unable to add a rescorer with [window_size: "
+                        + nextRescorerWindowSize
+                        + "] because a rescorer of type ["
+                        + getWriteableName()
+                        + "] with a smaller [window_size: "
+                        + windowSize()
+                        + "] has been added before",
+                    validationException
+                );
+            }
+        }
+
+        return validationException;
     }
 
     /**
@@ -256,8 +304,7 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        // TODO: update transport version when released!
-        return TransportVersion.current();
+        return TransportVersions.LTR_SERVERLESS_RELEASE;
     }
 
     @Override

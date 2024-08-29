@@ -18,8 +18,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToBase64}.
@@ -36,10 +36,10 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
 
   public ToBase64Evaluator(Source source, EvalOperator.ExpressionEvaluator field,
       BytesRefBuilder oScratch, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.field = field;
     this.oScratch = oScratch;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -69,7 +69,7 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
           continue position;
         }
         try {
-          result.appendBytesRef(ToBase64.process(fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch), oScratch));
+          result.appendBytesRef(ToBase64.process(fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch), this.oScratch));
         } catch (ArithmeticException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -84,7 +84,7 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
       BytesRef fieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBytesRef(ToBase64.process(fieldVector.getBytesRef(p, fieldScratch), oScratch));
+          result.appendBytesRef(ToBase64.process(fieldVector.getBytesRef(p, fieldScratch), this.oScratch));
         } catch (ArithmeticException e) {
           warnings.registerException(e);
           result.appendNull();

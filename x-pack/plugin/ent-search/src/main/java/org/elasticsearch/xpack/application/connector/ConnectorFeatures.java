@@ -35,10 +35,6 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
     @Nullable
     private final FeatureEnabled documentLevelSecurityEnabled;
     @Nullable
-    private final Boolean filteringAdvancedConfigEnabled;
-    @Nullable
-    private final Boolean filteringRulesEnabled;
-    @Nullable
     private final FeatureEnabled incrementalSyncEnabled;
     @Nullable
     private final FeatureEnabled nativeConnectorAPIKeysEnabled;
@@ -49,23 +45,17 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
      * Constructs a new instance of ConnectorFeatures.
      *
      * @param documentLevelSecurityEnabled  A flag indicating whether document-level security is enabled.
-     * @param filteringAdvancedConfig       A flag indicating whether advanced filtering configuration is enabled.
-     * @param filteringRules                A flag indicating whether filtering rules are enabled.
      * @param incrementalSyncEnabled        A flag indicating whether incremental sync is enabled.
      * @param nativeConnectorAPIKeysEnabled A flag indicating whether support for api keys is enabled for native connectors.
      * @param syncRulesFeatures             An {@link SyncRulesFeatures} object indicating if basic and advanced sync rules are enabled.
      */
     private ConnectorFeatures(
         FeatureEnabled documentLevelSecurityEnabled,
-        Boolean filteringAdvancedConfig,
-        Boolean filteringRules,
         FeatureEnabled incrementalSyncEnabled,
         FeatureEnabled nativeConnectorAPIKeysEnabled,
         SyncRulesFeatures syncRulesFeatures
     ) {
         this.documentLevelSecurityEnabled = documentLevelSecurityEnabled;
-        this.filteringAdvancedConfigEnabled = filteringAdvancedConfig;
-        this.filteringRulesEnabled = filteringRules;
         this.incrementalSyncEnabled = incrementalSyncEnabled;
         this.nativeConnectorAPIKeysEnabled = nativeConnectorAPIKeysEnabled;
         this.syncRulesFeatures = syncRulesFeatures;
@@ -73,16 +63,12 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
 
     public ConnectorFeatures(StreamInput in) throws IOException {
         this.documentLevelSecurityEnabled = in.readOptionalWriteable(FeatureEnabled::new);
-        this.filteringAdvancedConfigEnabled = in.readOptionalBoolean();
-        this.filteringRulesEnabled = in.readOptionalBoolean();
         this.incrementalSyncEnabled = in.readOptionalWriteable(FeatureEnabled::new);
         this.nativeConnectorAPIKeysEnabled = in.readOptionalWriteable(FeatureEnabled::new);
         this.syncRulesFeatures = in.readOptionalWriteable(SyncRulesFeatures::new);
     }
 
     private static final ParseField DOCUMENT_LEVEL_SECURITY_ENABLED_FIELD = new ParseField("document_level_security");
-    private static final ParseField FILTERING_ADVANCED_CONFIG_ENABLED_FIELD = new ParseField("filtering_advanced_config");
-    private static final ParseField FILTERING_RULES_ENABLED_FIELD = new ParseField("filtering_rules");
     private static final ParseField INCREMENTAL_SYNC_ENABLED_FIELD = new ParseField("incremental_sync");
     private static final ParseField NATIVE_CONNECTOR_API_KEYS_ENABLED_FIELD = new ParseField("native_connector_api_keys");
     private static final ParseField SYNC_RULES_FIELD = new ParseField("sync_rules");
@@ -91,18 +77,14 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
         "connector_features",
         true,
         args -> new Builder().setDocumentLevelSecurityEnabled((FeatureEnabled) args[0])
-            .setFilteringAdvancedConfig((Boolean) args[1])
-            .setFilteringRules((Boolean) args[2])
-            .setIncrementalSyncEnabled((FeatureEnabled) args[3])
-            .setNativeConnectorAPIKeysEnabled((FeatureEnabled) args[4])
-            .setSyncRulesFeatures((SyncRulesFeatures) args[5])
+            .setIncrementalSyncEnabled((FeatureEnabled) args[1])
+            .setNativeConnectorAPIKeysEnabled((FeatureEnabled) args[2])
+            .setSyncRulesFeatures((SyncRulesFeatures) args[3])
             .build()
     );
 
     static {
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> FeatureEnabled.fromXContent(p), DOCUMENT_LEVEL_SECURITY_ENABLED_FIELD);
-        PARSER.declareBoolean(optionalConstructorArg(), FILTERING_ADVANCED_CONFIG_ENABLED_FIELD);
-        PARSER.declareBoolean(optionalConstructorArg(), FILTERING_RULES_ENABLED_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> FeatureEnabled.fromXContent(p), INCREMENTAL_SYNC_ENABLED_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> FeatureEnabled.fromXContent(p), NATIVE_CONNECTOR_API_KEYS_ENABLED_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SyncRulesFeatures.fromXContent(p), SYNC_RULES_FIELD);
@@ -120,18 +102,28 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
         }
     }
 
+    public FeatureEnabled getDocumentLevelSecurityEnabled() {
+        return documentLevelSecurityEnabled;
+    }
+
+    public FeatureEnabled getIncrementalSyncEnabled() {
+        return incrementalSyncEnabled;
+    }
+
+    public FeatureEnabled getNativeConnectorAPIKeysEnabled() {
+        return nativeConnectorAPIKeysEnabled;
+    }
+
+    public SyncRulesFeatures getSyncRulesFeatures() {
+        return syncRulesFeatures;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
             if (documentLevelSecurityEnabled != null) {
                 builder.field(DOCUMENT_LEVEL_SECURITY_ENABLED_FIELD.getPreferredName(), documentLevelSecurityEnabled);
-            }
-            if (filteringAdvancedConfigEnabled != null) {
-                builder.field(FILTERING_ADVANCED_CONFIG_ENABLED_FIELD.getPreferredName(), filteringAdvancedConfigEnabled);
-            }
-            if (filteringRulesEnabled != null) {
-                builder.field(FILTERING_RULES_ENABLED_FIELD.getPreferredName(), filteringRulesEnabled);
             }
             if (incrementalSyncEnabled != null) {
                 builder.field(INCREMENTAL_SYNC_ENABLED_FIELD.getPreferredName(), incrementalSyncEnabled);
@@ -150,8 +142,6 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(documentLevelSecurityEnabled);
-        out.writeOptionalBoolean(filteringAdvancedConfigEnabled);
-        out.writeOptionalBoolean(filteringRulesEnabled);
         out.writeOptionalWriteable(incrementalSyncEnabled);
         out.writeOptionalWriteable(nativeConnectorAPIKeysEnabled);
         out.writeOptionalWriteable(syncRulesFeatures);
@@ -163,8 +153,6 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
         ConnectorFeatures features = (ConnectorFeatures) o;
         return Objects.equals(documentLevelSecurityEnabled, features.documentLevelSecurityEnabled)
-            && Objects.equals(filteringAdvancedConfigEnabled, features.filteringAdvancedConfigEnabled)
-            && Objects.equals(filteringRulesEnabled, features.filteringRulesEnabled)
             && Objects.equals(incrementalSyncEnabled, features.incrementalSyncEnabled)
             && Objects.equals(nativeConnectorAPIKeysEnabled, features.nativeConnectorAPIKeysEnabled)
             && Objects.equals(syncRulesFeatures, features.syncRulesFeatures);
@@ -172,37 +160,18 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            documentLevelSecurityEnabled,
-            filteringAdvancedConfigEnabled,
-            filteringRulesEnabled,
-            incrementalSyncEnabled,
-            nativeConnectorAPIKeysEnabled,
-            syncRulesFeatures
-        );
+        return Objects.hash(documentLevelSecurityEnabled, incrementalSyncEnabled, nativeConnectorAPIKeysEnabled, syncRulesFeatures);
     }
 
     public static class Builder {
 
         private FeatureEnabled documentLevelSecurityEnabled;
-        private Boolean filteringAdvancedConfig;
-        private Boolean filteringRules;
         private FeatureEnabled incrementalSyncEnabled;
         private FeatureEnabled nativeConnectorAPIKeysEnabled;
         private SyncRulesFeatures syncRulesFeatures;
 
         public Builder setDocumentLevelSecurityEnabled(FeatureEnabled documentLevelSecurityEnabled) {
             this.documentLevelSecurityEnabled = documentLevelSecurityEnabled;
-            return this;
-        }
-
-        public Builder setFilteringAdvancedConfig(Boolean filteringAdvancedConfig) {
-            this.filteringAdvancedConfig = filteringAdvancedConfig;
-            return this;
-        }
-
-        public Builder setFilteringRules(Boolean filteringRules) {
-            this.filteringRules = filteringRules;
             return this;
         }
 
@@ -224,8 +193,6 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
         public ConnectorFeatures build() {
             return new ConnectorFeatures(
                 documentLevelSecurityEnabled,
-                filteringAdvancedConfig,
-                filteringRules,
                 incrementalSyncEnabled,
                 nativeConnectorAPIKeysEnabled,
                 syncRulesFeatures

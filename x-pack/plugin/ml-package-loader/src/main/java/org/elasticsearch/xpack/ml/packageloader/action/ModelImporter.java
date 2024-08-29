@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.packageloader.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -18,10 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.xpack.core.common.notifications.Level;
-import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
@@ -43,9 +39,9 @@ class ModelImporter {
     private final Client client;
     private final String modelId;
     private final ModelPackageConfig config;
-    private final CancellableTask task;
+    private final ModelDownloadTask task;
 
-    ModelImporter(Client client, String modelId, ModelPackageConfig packageConfig, CancellableTask task) {
+    ModelImporter(Client client, String modelId, ModelPackageConfig packageConfig, ModelDownloadTask task) {
         this.client = client;
         this.modelId = Objects.requireNonNull(modelId);
         this.config = Objects.requireNonNull(packageConfig);
@@ -60,7 +56,7 @@ class ModelImporter {
         if (Strings.isNullOrEmpty(config.getVocabularyFile()) == false) {
             uploadVocabulary();
 
-            writeDebugNotification(modelId, format("imported model vocabulary [%s]", config.getVocabularyFile()));
+            logger.debug(() -> format("[%s] imported model vocabulary [%s]", modelId, config.getVocabularyFile()));
         }
 
         URI uri = ModelLoaderUtils.resolvePackageLocation(
@@ -76,6 +72,7 @@ class ModelImporter {
         int totalParts = (int) ((size + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE);
 
         for (int part = 0; part < totalParts - 1; ++part) {
+            task.setProgress(totalParts, part);
             BytesArray definition = chunkIterator.next();
 
             PutTrainedModelDefinitionPartAction.Request modelPartRequest = new PutTrainedModelDefinitionPartAction.Request(
@@ -151,15 +148,5 @@ class ModelImporter {
         }
 
         client.execute(action, request).actionGet();
-    }
-
-    private void writeDebugNotification(String modelId, String message) {
-        client.execute(
-            AuditMlNotificationAction.INSTANCE,
-            new AuditMlNotificationAction.Request(AuditMlNotificationAction.AuditType.INFERENCE, modelId, message, Level.INFO),
-            ActionListener.noop()
-        );
-
-        logger.debug(() -> format("[%s] %s", modelId, message));
     }
 }

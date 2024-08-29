@@ -13,20 +13,17 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class GetAnalyticsCollectionAction {
 
@@ -40,7 +37,8 @@ public class GetAnalyticsCollectionAction {
 
         public static ParseField NAMES_FIELD = new ParseField("names");
 
-        public Request(String[] names) {
+        public Request(TimeValue masterNodeTimeout, String[] names) {
+            super(masterNodeTimeout);
             this.names = Objects.requireNonNull(names, "Collection names cannot be null");
         }
 
@@ -75,19 +73,6 @@ public class GetAnalyticsCollectionAction {
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return Arrays.equals(this.names, request.names);
-        }
-
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
-            "get_analytics_collection_request",
-            p -> new Request(((List<String>) p[0]).toArray(String[]::new))
-        );
-        static {
-            PARSER.declareStringArray(constructorArg(), NAMES_FIELD);
-        }
-
-        public static Request parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
 
         @Override

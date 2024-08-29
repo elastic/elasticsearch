@@ -11,6 +11,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -106,7 +107,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
         internalCluster().startNode();
         internalCluster().startNode();
-        clusterAdmin().prepareReroute().setRetryFailed(true).get();
+        ClusterRerouteUtils.rerouteRetryFailed(client());
     }
 
 }

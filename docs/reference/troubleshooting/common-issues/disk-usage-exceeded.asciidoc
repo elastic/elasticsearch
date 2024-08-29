@@ -4,31 +4,39 @@
 ++++
 <titleabbrev>Watermark errors</titleabbrev>
 ++++
-:keywords: {es}, high watermark, low watermark, full disk
+:keywords: {es}, high watermark, low watermark, full disk, flood stage watermark
 
 When a data node is critically low on disk space and has reached the
 <<cluster-routing-flood-stage,flood-stage disk usage watermark>>, the following
 error is logged: `Error: disk usage exceeded flood-stage watermark, index has read-only-allow-delete block`. 
 
-To prevent a full disk, when a node reaches this watermark, {es} blocks writes
+To prevent a full disk, when a node reaches this watermark, {es} <<index-block-settings,blocks writes>>
 to any index with a shard on the node. If the block affects related system
-indices, {kib} and other {stack} features may become unavailable.
+indices, {kib} and other {stack} features may become unavailable. For example, 
+this could induce {kib}'s `Kibana Server is not Ready yet` 
+{kibana-ref}/access.html#not-ready[error message]. 
 
 {es} will automatically remove the write block when the affected node's disk
-usage goes below the <<cluster-routing-watermark-high,high disk watermark>>. To
-achieve this, {es} automatically moves some of the affected node's shards to
-other nodes in the same data tier.
+usage falls below the <<cluster-routing-watermark-high,high disk watermark>>. 
+To achieve this, {es} attempts to rebalance some of the affected node's shards 
+to other nodes in the same data tier.
 
-To verify that shards are moving off the affected node, use the <<cat-shards,cat
-shards API>>.
+[[fix-watermark-errors-rebalance]]
+==== Monitor rebalancing
+
+To verify that shards are moving off the affected node until it falls below high 
+watermark., use the <<cat-shards,cat shards API>> and <<cat-recovery,cat recovery API>>: 
 
 [source,console]
 ----
 GET _cat/shards?v=true
+
+GET _cat/recovery?v=true&active_only=true
 ----
 
-If shards remain on the node, use the <<cluster-allocation-explain,cluster
-allocation explanation API>> to get an explanation for their allocation status.
+If shards remain on the node keeping it about high watermark, use the 
+<<cluster-allocation-explain,cluster allocation explanation API>> to get an 
+explanation for their allocation status.
 
 [source,console]
 ----
@@ -36,16 +44,18 @@ GET _cluster/allocation/explain
 {
   "index": "my-index",
   "shard": 0,
-  "primary": false,
-  "current_node": "my-node"
+  "primary": false
 }
 ----
 // TEST[s/^/PUT my-index\n/]
 // TEST[s/"primary": false,/"primary": false/]
-// TEST[s/"current_node": "my-node"//]
 
-To immediately restore write operations, you can temporarily increase the disk
-watermarks and remove the write block.
+[[fix-watermark-errors-temporary]]
+==== Temporary Relief
+
+To immediately restore write operations, you can temporarily increase the 
+<<disk-based-shard-allocation,disk watermarks>> and remove the 
+<<index-block-settings,write block>>.
 
 [source,console]
 ----
@@ -70,18 +80,7 @@ PUT */_settings?expand_wildcards=all
 ----
 // TEST[s/^/PUT my-index\n/]
 
-As a long-term solution, we recommend you add nodes to the affected data tiers
-or upgrade existing nodes to increase disk space. To free up additional disk
-space, you can delete unneeded indices using the <<indices-delete-index,delete
-index API>>.
-
-[source,console]
-----
-DELETE my-index
-----
-// TEST[s/^/PUT my-index\n/]
-
-When a long-term solution is in place, reset or reconfigure the disk watermarks.
+When a long-term solution is in place, to reset or reconfigure the disk watermarks:
 
 [source,console]
 ----
@@ -99,3 +98,21 @@ PUT _cluster/settings
   }
 }
 ----
+
+[[fix-watermark-errors-resolve]]
+==== Resolve
+
+As a long-term solution, we recommend you do one of the following best suited 
+to your use case: 
+
+* add nodes to the affected <<data-tiers,data tiers>>
+
+* upgrade existing nodes to increase disk space
++
+TIP: On {ess}, https://support.elastic.co[Elastic Support] intervention may 
+become necessary if <<cluster-health,cluster health>> reaches `status:red`. 
+
+* delete unneeded indices using the <<indices-delete-index,delete index API>>
+
+* update related <<index-lifecycle-management,ILM policy>> to push indices 
+through to later <<data-tiers,data tiers>>

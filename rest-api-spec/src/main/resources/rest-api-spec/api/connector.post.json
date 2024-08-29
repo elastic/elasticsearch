@@ -26,7 +26,7 @@
     },
     "body": {
       "description": "The connector configuration.",
-      "required": true
+      "required": false
     }
   }
 }

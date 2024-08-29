@@ -10,13 +10,13 @@
           "name" : "field",
           "type" : "boolean",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "sort order"
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
         }
       ],
       "variadic" : false,
@@ -26,19 +26,19 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "sort order"
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -46,13 +46,13 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "sort order"
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
         }
       ],
       "variadic" : false,
@@ -64,13 +64,13 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "sort order"
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
         }
       ],
       "variadic" : false,
@@ -82,13 +82,13 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "sort order"
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
         }
       ],
       "variadic" : false,
@@ -100,13 +100,13 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "sort order"
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
         }
       ],
       "variadic" : false,
@@ -118,13 +118,13 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "sort order"
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
         }
       ],
       "variadic" : false,
@@ -136,13 +136,13 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "sort order"
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
         }
       ],
       "variadic" : false,
@@ -154,17 +154,20 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "sort order"
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
         }
       ],
       "variadic" : false,
       "returnType" : "version"
     }
+  ],
+  "examples" : [
+    "ROW a = [4, 2, -3, 2]\n| EVAL sa = mv_sort(a), sd = mv_sort(a, \"DESC\")"
   ]
 }

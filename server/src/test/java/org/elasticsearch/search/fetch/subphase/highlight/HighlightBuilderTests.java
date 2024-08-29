@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -313,7 +314,8 @@ public class HighlightBuilderTests extends ESTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {
@@ -410,12 +412,8 @@ public class HighlightBuilderTests extends ESTestCase {
             Object actualValue = fieldOptionsParameterAccessor.apply(options);
             if (actualValue instanceof String[]) {
                 assertArrayEquals((String[]) expectedValue, (String[]) actualValue);
-            } else if (actualValue instanceof Character[]) {
-                if (expectedValue instanceof char[]) {
-                    assertArrayEquals(HighlightBuilder.convertCharArray((char[]) expectedValue), (Character[]) actualValue);
-                } else {
-                    assertArrayEquals((Character[]) expectedValue, (Character[]) actualValue);
-                }
+            } else if (actualValue instanceof char[]) {
+                assertArrayEquals((char[]) expectedValue, (char[]) actualValue);
             } else {
                 assertEquals(expectedValue, actualValue);
             }

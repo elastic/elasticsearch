@@ -145,7 +145,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertFalse(task.isClosed());
         assertTrue(task.isScheduled());
 
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
         assertFalse("no shards left", task.mustReschedule());
         assertTrue(task.isScheduled());
         task.close();
@@ -222,7 +222,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertTrue(refreshTask.isScheduled());
         assertFalse(refreshTask.isClosed());
 
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
         assertFalse(refreshTask.isScheduled());
         assertTrue(refreshTask.isClosed());
     }
@@ -260,7 +260,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertTrue(fsyncTask.isScheduled());
         assertFalse(fsyncTask.isClosed());
 
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
         assertFalse(fsyncTask.isScheduled());
         assertTrue(fsyncTask.isClosed());
 
@@ -458,5 +458,11 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             .get();
         indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("test");
         assertEquals("20s", indexMetadata.getSettings().get(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()));
+    }
+
+    public static void closeIndexService(IndexService indexService) throws IOException {
+        CloseUtils.executeDirectly(
+            l -> indexService.close("IndexServiceTests#closeIndexService", false, EsExecutors.DIRECT_EXECUTOR_SERVICE, l)
+        );
     }
 }

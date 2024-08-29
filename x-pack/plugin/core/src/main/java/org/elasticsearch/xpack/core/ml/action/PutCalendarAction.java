@@ -49,7 +49,7 @@ public class PutCalendarAction extends ActionType<PutCalendarAction.Response> {
             return new Request(builder.build());
         }
 
-        private Calendar calendar;
+        private final Calendar calendar;
 
         public Request(StreamInput in) throws IOException {
             super(in);

@@ -10,7 +10,6 @@ package org.elasticsearch.threadpool;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,7 +19,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionHandler;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
@@ -35,6 +33,7 @@ import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -55,6 +54,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
@@ -152,12 +152,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     public static final Map<String, ThreadPoolType> THREAD_POOL_TYPES = Map.ofEntries(
         entry(Names.GENERIC, ThreadPoolType.SCALING),
+        entry(Names.CLUSTER_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.GET, ThreadPoolType.FIXED),
         entry(Names.ANALYZE, ThreadPoolType.FIXED),
         entry(Names.WRITE, ThreadPoolType.FIXED),
         entry(Names.SEARCH, ThreadPoolType.FIXED),
         entry(Names.SEARCH_WORKER, ThreadPoolType.FIXED),
         entry(Names.SEARCH_COORDINATION, ThreadPoolType.FIXED),
+        entry(Names.AUTO_COMPLETE, ThreadPoolType.FIXED),
         entry(Names.MANAGEMENT, ThreadPoolType.SCALING),
         entry(Names.FLUSH, ThreadPoolType.SCALING),
         entry(Names.REFRESH, ThreadPoolType.SCALING),
@@ -176,11 +178,20 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     public static final double searchAutoscalingEWMA = 0.1;
 
+    // This value is chosen such that a sudden increase in the task durations would need to persist roughly for 120 samples
+    // for the EWMA value to be mostly representative of the increased task durations. Mostly representative means that the
+    // EWMA value is at least within 90% of the new increased task duration. This value also determines the impact of a single
+    // long-running task on the moving average and limits it roughly to 2% of the (long) task duration, e.g. if the current
+    // moving average is 100ms, and we get one task which takes 20s the new EWMA will be ~500ms.
+    public static final double indexAutoscalingEWMA = 0.02;
+
     private final Map<String, ExecutorHolder> executors;
 
     private final ThreadPoolInfo threadPoolInfo;
 
     private final CachedTimeThread cachedTimeThread;
+
+    private final LongSupplier relativeTimeInMillisSupplier;
 
     private final ThreadContext threadContext;
 
@@ -224,125 +235,22 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      *
      * @param settings
      * @param meterRegistry
+     * @param builtInExecutorBuilders used to construct builders for the built-in thread pools
      * @param customBuilders a list of additional thread pool builders that were defined elsewhere (like a Plugin).
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public ThreadPool(final Settings settings, MeterRegistry meterRegistry, final ExecutorBuilder<?>... customBuilders) {
+    public ThreadPool(
+        final Settings settings,
+        MeterRegistry meterRegistry,
+        BuiltInExecutorBuilders builtInExecutorBuilders,
+        final ExecutorBuilder<?>... customBuilders
+    ) {
         assert Node.NODE_NAME_SETTING.exists(settings);
 
-        final Map<String, ExecutorBuilder> builders = new HashMap<>();
-        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
-        final int halfProc = halfAllocatedProcessors(allocatedProcessors);
-        final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
-        final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
-        final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
         final Map<String, ArrayList<Instrument>> instruments = new HashMap<>();
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
 
-        builders.put(
-            Names.GENERIC,
-            new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30), false)
-        );
-        builders.put(
-            Names.WRITE,
-            new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000, new TaskTrackingConfig(true, 0.1))
-        );
-        int searchOrGetThreadPoolSize = searchOrGetThreadPoolSize(allocatedProcessors);
-        builders.put(
-            Names.GET,
-            new FixedExecutorBuilder(settings, Names.GET, searchOrGetThreadPoolSize, 1000, TaskTrackingConfig.DO_NOT_TRACK)
-        );
-        builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16, TaskTrackingConfig.DO_NOT_TRACK));
-        builders.put(
-            Names.SEARCH,
-            new FixedExecutorBuilder(
-                settings,
-                Names.SEARCH,
-                searchOrGetThreadPoolSize,
-                1000,
-                new TaskTrackingConfig(true, searchAutoscalingEWMA)
-            )
-        );
-        builders.put(
-            Names.SEARCH_WORKER,
-            new FixedExecutorBuilder(settings, Names.SEARCH_WORKER, searchOrGetThreadPoolSize, -1, TaskTrackingConfig.DEFAULT)
-        );
-        builders.put(
-            Names.SEARCH_COORDINATION,
-            new FixedExecutorBuilder(
-                settings,
-                Names.SEARCH_COORDINATION,
-                halfProc,
-                1000,
-                new TaskTrackingConfig(true, searchAutoscalingEWMA)
-            )
-        );
-        builders.put(
-            Names.AUTO_COMPLETE,
-            new FixedExecutorBuilder(settings, Names.AUTO_COMPLETE, Math.max(allocatedProcessors / 4, 1), 100, TaskTrackingConfig.DEFAULT)
-        );
-        builders.put(
-            Names.SEARCH_THROTTLED,
-            new FixedExecutorBuilder(settings, Names.SEARCH_THROTTLED, 1, 100, TaskTrackingConfig.DEFAULT)
-        );
-        builders.put(
-            Names.MANAGEMENT,
-            new ScalingExecutorBuilder(Names.MANAGEMENT, 1, boundedBy(allocatedProcessors, 1, 5), TimeValue.timeValueMinutes(5), false)
-        );
-        builders.put(Names.FLUSH, new ScalingExecutorBuilder(Names.FLUSH, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false));
-        // TODO: remove (or refine) this temporary stateless custom refresh pool sizing once ES-7631 is solved.
-        final int refreshThreads = DiscoveryNode.isStateless(settings) ? allocatedProcessors : halfProcMaxAt10;
-        builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, refreshThreads, TimeValue.timeValueMinutes(5), false));
-        builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false));
-        final int maxSnapshotCores = getMaxSnapshotThreadPoolSize(allocatedProcessors);
-        builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, maxSnapshotCores, TimeValue.timeValueMinutes(5), false));
-        builders.put(
-            Names.SNAPSHOT_META,
-            new ScalingExecutorBuilder(
-                Names.SNAPSHOT_META,
-                1,
-                Math.min(allocatedProcessors * 3, 50),
-                TimeValue.timeValueSeconds(30L),
-                false
-            )
-        );
-        builders.put(
-            Names.FETCH_SHARD_STARTED,
-            new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5), false)
-        );
-        builders.put(
-            Names.FORCE_MERGE,
-            new FixedExecutorBuilder(
-                settings,
-                Names.FORCE_MERGE,
-                oneEighthAllocatedProcessors(allocatedProcessors),
-                -1,
-                TaskTrackingConfig.DO_NOT_TRACK
-            )
-        );
-        builders.put(
-            Names.CLUSTER_COORDINATION,
-            new FixedExecutorBuilder(settings, Names.CLUSTER_COORDINATION, 1, -1, TaskTrackingConfig.DO_NOT_TRACK)
-        );
-        builders.put(
-            Names.FETCH_SHARD_STORE,
-            new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5), false)
-        );
-        builders.put(
-            Names.SYSTEM_READ,
-            new FixedExecutorBuilder(settings, Names.SYSTEM_READ, halfProcMaxAt5, 2000, TaskTrackingConfig.DO_NOT_TRACK)
-        );
-        builders.put(
-            Names.SYSTEM_WRITE,
-            new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, new TaskTrackingConfig(true, 0.1))
-        );
-        builders.put(
-            Names.SYSTEM_CRITICAL_READ,
-            new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_READ, halfProcMaxAt5, 2000, TaskTrackingConfig.DO_NOT_TRACK)
-        );
-        builders.put(
-            Names.SYSTEM_CRITICAL_WRITE,
-            new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_WRITE, halfProcMaxAt5, 1500, new TaskTrackingConfig(true, 0.1))
-        );
+        final Map<String, ExecutorBuilder> builders = new HashMap<>(builtInExecutorBuilders.getBuilders(settings, allocatedProcessors));
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {
@@ -378,6 +286,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING.get(settings).millis()
         );
         this.cachedTimeThread.start();
+        this.relativeTimeInMillisSupplier = new RelativeTimeInMillisSupplier(cachedTimeThread);
     }
 
     private static ArrayList<Instrument> setupMetrics(MeterRegistry meterRegistry, String name, ExecutorHolder holder) {
@@ -438,6 +347,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         this.builders = Map.of();
         this.executors = Map.of();
         this.cachedTimeThread = null;
+        this.relativeTimeInMillisSupplier = this::relativeTimeInMillis;
         this.threadPoolInfo = new ThreadPoolInfo(List.of());
         this.slowSchedulerWarnThresholdNanos = 0L;
         this.threadContext = new ThreadContext(Settings.EMPTY);
@@ -451,7 +361,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      * timestamp, see {@link #absoluteTimeInMillis()}.
      */
     public long relativeTimeInMillis() {
-        return TimeValue.nsecToMSec(relativeTimeInNanos());
+        return cachedTimeThread.relativeTimeInMillis();
+    }
+
+    /**
+     * Effectively the same as {@code this::relativeTimeInMillis}, except that it returns a constant to save on allocation.
+     */
+    public LongSupplier relativeTimeInMillisSupplier() {
+        return relativeTimeInMillisSupplier;
     }
 
     /**
@@ -817,12 +734,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         volatile boolean running = true;
         volatile long relativeNanos;
+        volatile long relativeMillis;
         volatile long absoluteMillis;
 
         CachedTimeThread(String name, long intervalMillis, long thresholdMillis) {
             super(name);
             this.interval = intervalMillis;
             this.relativeNanos = System.nanoTime();
+            this.relativeMillis = TimeValue.nsecToMSec(this.relativeNanos);
             this.absoluteMillis = System.currentTimeMillis();
             this.timeChangeChecker = new TimeChangeChecker(thresholdMillis, absoluteMillis, relativeNanos);
             setDaemon(true);
@@ -840,6 +759,20 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 return relativeNanos;
             }
             return System.nanoTime();
+        }
+
+        /**
+         * Return the current time used for relative calculations. This is {@link System#nanoTime()} converted into milliseconds.
+         * <p>
+         * If {@link ThreadPool#ESTIMATED_TIME_INTERVAL_SETTING} is set to 0
+         * then the cache is disabled and the method calls {@link System#nanoTime()}
+         * whenever called. Typically used for testing.
+         */
+        long relativeTimeInMillis() {
+            if (0 < interval) {
+                return relativeMillis;
+            }
+            return TimeValue.nsecToMSec(System.nanoTime());
         }
 
         /**
@@ -861,6 +794,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public void run() {
             while (running && 0 < interval) {
                 relativeNanos = System.nanoTime();
+                relativeMillis = TimeValue.nsecToMSec(this.relativeNanos);
                 absoluteMillis = System.currentTimeMillis();
                 timeChangeChecker.check(absoluteMillis, relativeNanos);
                 try {
@@ -872,6 +806,24 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                     return;
                 }
             }
+        }
+    }
+
+    private static class RelativeTimeInMillisSupplier implements LongSupplier {
+        private final CachedTimeThread cachedTimeThread;
+
+        private RelativeTimeInMillisSupplier(CachedTimeThread cachedTimeThread) {
+            this.cachedTimeThread = cachedTimeThread;
+        }
+
+        @Override
+        public long getAsLong() {
+            return cachedTimeThread.relativeTimeInMillis();
+        }
+
+        @Override
+        public String toString() {
+            return ThreadPool.class.getCanonicalName() + "::relativeTimeInMillis";
         }
     }
 
@@ -1118,9 +1070,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     public static boolean assertCurrentThreadPool(String... permittedThreadPoolNames) {
         final var threadName = Thread.currentThread().getName();
+        final var executorName = EsExecutors.executorName(threadName);
         assert threadName.startsWith("TEST-")
             || threadName.startsWith("LuceneTestCase")
-            || Arrays.stream(permittedThreadPoolNames).anyMatch(n -> threadName.contains('[' + n + ']'))
+            || Arrays.asList(permittedThreadPoolNames).contains(executorName)
             : threadName + " not in " + Arrays.toString(permittedThreadPoolNames) + " nor a test thread";
         return true;
     }

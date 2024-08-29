@@ -14,11 +14,8 @@ import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
@@ -27,7 +24,7 @@ import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -120,19 +117,18 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
         final SslConfiguration clientSslConfig = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
         final SSLSocketFactory clientSocketFactory = sslService.sslSocketFactory(clientSslConfig);
 
-        final Logger diagnosticLogger = LogManager.getLogger(DiagnosticTrustManager.class);
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-
         // Apache clients implement their own hostname checking, but we don't want that.
         // We use a raw socket so we get the builtin JDK checking (which is what we use for transport protocol SSL checks)
-        try (MockWebServer webServer = initWebServer(sslService); SSLSocket clientSocket = (SSLSocket) clientSocketFactory.createSocket()) {
-            Loggers.addAppender(diagnosticLogger, mockAppender);
+        try (
+            var mockLog = MockLog.capture(DiagnosticTrustManager.class);
+            MockWebServer webServer = initWebServer(sslService);
+            SSLSocket clientSocket = (SSLSocket) clientSocketFactory.createSocket()
+        ) {
 
             String fileName = "/x-pack/plugin/security/build/resources/test/org/elasticsearch/xpack/ssl/SSLErrorMessageTests/ca1.crt"
                 .replace('/', platformFileSeparator());
-            mockAppender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "ssl diagnostic",
                     DiagnosticTrustManager.class.getName(),
                     Level.WARN,
@@ -167,10 +163,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
 
             // Logging message failures are tricky to debug because you just get a "didn't find match" assertion failure.
             // You should be able to check the log output for the text that was logged and compare to the regex above.
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(diagnosticLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

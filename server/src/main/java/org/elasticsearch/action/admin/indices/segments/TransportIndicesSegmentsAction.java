@@ -18,11 +18,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -110,7 +110,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
             assert task instanceof CancellableTask;
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.index());
             IndexShard indexShard = indexService.getShard(shardRouting.id());
-            return new ShardSegments(indexShard.routingEntry(), indexShard.segments());
+            return new ShardSegments(indexShard.routingEntry(), indexShard.segments(request.isIncludeVectorFormatsInfo()));
         });
     }
 }

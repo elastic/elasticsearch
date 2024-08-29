@@ -37,7 +37,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -207,7 +206,7 @@ public class JoinValidationService {
             transportService.sendRequest(
                 connection,
                 JoinHelper.JOIN_PING_ACTION_NAME,
-                TransportRequest.Empty.INSTANCE,
+                new JoinHelper.JoinPingRequest(),
                 REQUEST_OPTIONS,
                 responseHandler
             );
@@ -357,7 +356,7 @@ public class JoinValidationService {
                 transportService.sendRequest(
                     connection,
                     JoinHelper.JOIN_PING_ACTION_NAME,
-                    TransportRequest.Empty.INSTANCE,
+                    new JoinHelper.JoinPingRequest(),
                     REQUEST_OPTIONS,
                     TransportResponseHandler.empty(responseExecutor, listener)
                 );

@@ -10,7 +10,9 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -23,7 +25,7 @@ import java.util.BitSet;
  */
 final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlock {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayBlock.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayBlock.class);
 
     private final BytesRefArrayVector vector;
 
@@ -87,6 +89,11 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
     }
 
     @Override
+    public OrdinalBytesRefBlock asOrdinals() {
+        return null;
+    }
+
+    @Override
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
         return vector.getBytesRef(valueIndex, dest);
     }
@@ -114,6 +121,53 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
             }
             return builder.mvOrdering(mvOrdering()).build();
         }
+    }
+
+    @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return this;
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return this;
+            }
+            return (BytesRefBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        BytesRef scratch = new BytesRef();
+        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (false == mask.getBoolean(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(p);
+                if (valueCount == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                int start = getFirstValueIndex(p);
+                if (valueCount == 1) {
+                    builder.appendBytesRef(getBytesRef(start, scratch));
+                    continue;
+                }
+                int end = start + valueCount;
+                builder.beginPositionEntry();
+                for (int i = start; i < end; i++) {
+                    builder.appendBytesRef(getBytesRef(i, scratch));
+                }
+                builder.endPositionEntry();
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public ReleasableIterator<BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new BytesRefLookup(this, positions, targetBlockSize);
     }
 
     @Override

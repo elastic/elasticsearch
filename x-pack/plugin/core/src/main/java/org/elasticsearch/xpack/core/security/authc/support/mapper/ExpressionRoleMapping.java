@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support.mapper;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -23,6 +24,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionParser;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +41,8 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.common.Strings.format;
 
 /**
  * A representation of a single role-mapping for use in NativeRoleMappingStore.
@@ -67,6 +72,32 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         // skip the doc_type and type fields in case we're parsing directly from the index
         PARSER.declareString(ignored, new ParseField(NativeRoleMappingStoreField.DOC_TYPE_FIELD));
         PARSER.declareString(ignored, new ParseField(UPGRADE_API_TYPE_FIELD));
+    }
+
+    /**
+     * Given the user information (in the form of {@link UserRoleMapper.UserData}) and a collection of {@link ExpressionRoleMapping}s,
+     * this returns the set of role names that should be mapped to the user, according to the provided role mapping rules.
+     */
+    public static Set<String> resolveRoles(
+        UserRoleMapper.UserData user,
+        Collection<ExpressionRoleMapping> mappings,
+        ScriptService scriptService,
+        Logger logger
+    ) {
+        ExpressionModel model = user.asModel();
+        Set<String> roles = mappings.stream()
+            .filter(ExpressionRoleMapping::isEnabled)
+            .filter(m -> m.getExpression().match(model))
+            .flatMap(m -> {
+                Set<String> roleNames = m.getRoleNames(scriptService, model);
+                logger.trace(
+                    () -> format("Applying role-mapping [%s] to user-model [%s] produced role-names [%s]", m.getName(), model, roleNames)
+                );
+                return roleNames.stream();
+            })
+            .collect(Collectors.toSet());
+        logger.debug(() -> format("Mapping user [%s] to roles [%s]", user, roles));
+        return roles;
     }
 
     private final String name;

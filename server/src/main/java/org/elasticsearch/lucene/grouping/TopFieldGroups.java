@@ -16,6 +16,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.util.ArrayList;
@@ -225,7 +226,7 @@ public final class TopFieldGroups extends TopFieldDocs {
                     queue.pop();
                 }
             }
-            hits = hitList.toArray(new ScoreDoc[0]);
+            hits = hitList.toArray(Lucene.EMPTY_SCORE_DOCS);
             values = groupList.toArray(new Object[0]);
         }
         TotalHits totalHits = new TotalHits(totalHitCount, totalHitsRelation);

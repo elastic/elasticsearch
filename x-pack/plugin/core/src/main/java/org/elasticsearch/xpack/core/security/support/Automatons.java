@@ -23,12 +23,16 @@ import org.elasticsearch.core.TimeValue;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.apache.lucene.util.automaton.Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
 import static org.apache.lucene.util.automaton.Operations.concatenate;
@@ -69,6 +73,10 @@ public final class Automatons {
     static final char WILDCARD_CHAR = '?';       // Char equality with support for wildcards
     static final char WILDCARD_ESCAPE = '\\';    // Escape character
 
+    // for testing only -Dtests.jvm.argline="-Dtests.automaton.record.patterns=true"
+    public static boolean recordPatterns = System.getProperty("tests.automaton.record.patterns", "false").equals("true");
+    private static final Map<Automaton, List<String>> patternsMap = new HashMap<>();
+
     private Automatons() {}
 
     /**
@@ -87,10 +95,13 @@ public final class Automatons {
             return EMPTY;
         }
         if (cache == null) {
-            return buildAutomaton(patterns);
+            return maybeRecordPatterns(buildAutomaton(patterns), patterns);
         } else {
             try {
-                return cache.computeIfAbsent(Sets.newHashSet(patterns), p -> buildAutomaton((Set<String>) p));
+                return cache.computeIfAbsent(
+                    Sets.newHashSet(patterns),
+                    p -> maybeRecordPatterns(buildAutomaton((Set<String>) p), patterns)
+                );
             } catch (ExecutionException e) {
                 throw unwrapCacheException(e);
             }
@@ -337,5 +348,24 @@ public final class Automatons {
         settingsList.add(CACHE_ENABLED);
         settingsList.add(CACHE_SIZE);
         settingsList.add(CACHE_TTL);
+    }
+
+    private static Automaton maybeRecordPatterns(Automaton automaton, Collection<String> patterns) {
+        if (recordPatterns) {
+            patternsMap.put(
+                automaton,
+                patterns.stream().map(String::trim).map(s -> s.toLowerCase(Locale.ROOT)).sorted().collect(Collectors.toList())
+            );
+        }
+        return automaton;
+    }
+
+    // test only
+    static List<String> getPatterns(Automaton automaton) {
+        if (recordPatterns) {
+            return patternsMap.get(automaton);
+        } else {
+            throw new IllegalArgumentException("recordPatterns is set to false");
+        }
     }
 }

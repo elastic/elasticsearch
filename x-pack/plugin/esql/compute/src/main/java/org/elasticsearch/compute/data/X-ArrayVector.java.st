@@ -12,7 +12,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -21,6 +23,8 @@ $else$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
@@ -38,13 +42,27 @@ final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
-        + RamUsageEstimator.shallowSizeOfInstance($Type$VectorBlock.class);
+        + RamUsageEstimator.shallowSizeOfInstance($Type$VectorBlock.class)
+        // TODO: remove this if/when we account for memory used by Pages
+        + Block.PAGE_MEM_OVERHEAD_PER_BLOCK;
 
 $if(BytesRef)$
     private final BytesRefArray values;
 
 $else$
     private final $type$[] values;
+$endif$
+
+$if(int)$
+    /**
+     * The minimum value in the block.
+     */
+    private Integer min;
+
+    /**
+     * The minimum value in the block.
+     */
+    private Integer max;
 $endif$
 
     $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
@@ -109,6 +127,13 @@ $endif$
 
 $if(BytesRef)$
     @Override
+    public OrdinalBytesRefVector asOrdinals() {
+        return null;
+    }
+$endif$
+
+$if(BytesRef)$
+    @Override
     public BytesRef getBytesRef(int position, BytesRef dest) {
         return values.get(position, dest);
     }
@@ -147,9 +172,75 @@ $endif$
         }
     }
 
+    @Override
+    public $Type$Block keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new $Type$VectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new $Type$VectorBlock(this);
+            }
+            return ($Type$Block) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+$if(BytesRef)$
+        BytesRef scratch = new BytesRef();
+$endif$
+        try ($Type$Block.Builder builder = blockFactory().new$Type$BlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.append$Type$(get$Type$(p$if(BytesRef)$, scratch$endif$));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public ReleasableIterator<$Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new $Type$Lookup(asBlock(), positions, targetBlockSize);
+    }
+
     public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
     }
+
+$if(int)$
+    /**
+     * The minimum value in the block.
+     */
+    @Override
+    public int min() {
+        if (min == null) {
+            int v = Integer.MAX_VALUE;
+            for (int i = 0; i < getPositionCount(); i++) {
+                v = Math.min(v, values[i]);
+            }
+            min = v;
+        }
+        return min;
+    }
+
+    /**
+     * The maximum value in the block.
+     */
+    @Override
+    public int max() {
+        if (max == null) {
+            int v = Integer.MIN_VALUE;
+            for (int i = 0; i < getPositionCount(); i++) {
+                v = Math.max(v, values[i]);
+            }
+            max = v;
+        }
+        return max;
+    }
+$endif$
 
     @Override
     public long ramBytesUsed() {

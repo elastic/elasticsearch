@@ -323,19 +323,20 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 }
             )
         ) {
-            final ChannelHandler handler = transport.configureServerChannelHandler();
-            final EmbeddedChannel ch = new EmbeddedChannel(handler);
-            // remove these pipeline handlers as they interfere in the test scenario
-            for (String pipelineHandlerName : ch.pipeline().names()) {
-                if (pipelineHandlerName.equals("decoder")
-                    || pipelineHandlerName.equals("encoder")
-                    || pipelineHandlerName.equals("encoder_compress")
-                    || pipelineHandlerName.equals("chunked_writer")) {
-                    ch.pipeline().remove(pipelineHandlerName);
+            safeGet(testThreadPool.generic().submit(() -> {
+                final ChannelHandler handler = transport.configureServerChannelHandler();
+                final EmbeddedChannel ch = new EmbeddedChannel(handler);
+                // remove these pipeline handlers as they interfere in the test scenario
+                for (String pipelineHandlerName : ch.pipeline().names()) {
+                    if (pipelineHandlerName.equals("decoder")
+                        || pipelineHandlerName.equals("encoder")
+                        || pipelineHandlerName.equals("encoder_compress")
+                        || pipelineHandlerName.equals("chunked_writer")) {
+                        ch.pipeline().remove(pipelineHandlerName);
+                    }
                 }
-            }
-            // STEP 0: send a "wrapped" request
-            var writeFuture = testThreadPool.generic().submit(() -> {
+
+                // STEP 0: send a "wrapped" request
                 ch.writeInbound(
                     HttpHeadersAuthenticatorUtils.wrapAsMessageWithAuthenticationContext(
                         new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/wrapped_request")
@@ -343,8 +344,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 );
                 ch.writeInbound(new DefaultLastHttpContent());
                 ch.flushInbound();
-            });
-            writeFuture.get();
+            }));
+
             // STEP 3: assert the wrapped context
             var storedAuthnContext = HttpHeadersAuthenticatorUtils.extractAuthenticationContext(dispatchedHttpRequestReference.get());
             assertThat(storedAuthnContext, notNullValue());
@@ -378,35 +379,33 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 (httpPreRequest, channel, listener) -> listener.onResponse(null)
             )
         ) {
-            final ChannelHandler handler = transport.configureServerChannelHandler();
-            final EmbeddedChannel ch = new EmbeddedChannel(handler);
-            for (String pipelineHandlerName : ch.pipeline().names()) {
-                // remove the decoder AND the header_validator
-                if (pipelineHandlerName.equals("decoder") || pipelineHandlerName.equals("header_validator")
-                // remove these pipeline handlers as they interfere in the test scenario
-                    || pipelineHandlerName.equals("encoder")
-                    || pipelineHandlerName.equals("encoder_compress")
-                    || pipelineHandlerName.equals("chunked_writer")) {
-                    ch.pipeline().remove(pipelineHandlerName);
+            safeGet(testThreadPool.generic().submit(() -> {
+
+                final ChannelHandler handler = transport.configureServerChannelHandler();
+                final EmbeddedChannel ch = new EmbeddedChannel(handler);
+                for (String pipelineHandlerName : ch.pipeline().names()) {
+                    // remove the decoder AND the header_validator
+                    if (pipelineHandlerName.equals("decoder") || pipelineHandlerName.equals("header_validator")
+                    // remove these pipeline handlers as they interfere in the test scenario
+                        || pipelineHandlerName.equals("encoder")
+                        || pipelineHandlerName.equals("encoder_compress")
+                        || pipelineHandlerName.equals("chunked_writer")) {
+                        ch.pipeline().remove(pipelineHandlerName);
+                    }
                 }
-            }
-            // this tests a request that cannot be authenticated, but somehow passed authentication
-            // this is the case of an erroneous internal state
-            var writeFuture = testThreadPool.generic().submit(() -> {
+                // this tests a request that cannot be authenticated, but somehow passed authentication
+                // this is the case of an erroneous internal state
                 ch.writeInbound(new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, "/unauthenticable_request"));
                 ch.flushInbound();
-            });
-            writeFuture.get();
-            ch.flushOutbound();
-            Netty4FullHttpResponse response = ch.readOutbound();
-            assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
-            String responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
-            assertThat(
-                responseContentString,
-                containsString("\"type\":\"security_exception\",\"reason\":\"Request is not authenticated\"")
-            );
-            // this tests a request that CAN be authenticated, but that, somehow, has not been
-            writeFuture = testThreadPool.generic().submit(() -> {
+                ch.flushOutbound();
+                Netty4FullHttpResponse response = ch.readOutbound();
+                assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
+                String responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
+                assertThat(
+                    responseContentString,
+                    containsString("\"type\":\"security_exception\",\"reason\":\"Request is not authenticated\"")
+                );
+                // this tests a request that CAN be authenticated, but that, somehow, has not been
                 ch.writeInbound(
                     HttpHeadersAuthenticatorUtils.wrapAsMessageWithAuthenticationContext(
                         new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/_request")
@@ -414,19 +413,16 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 );
                 ch.writeInbound(new DefaultLastHttpContent());
                 ch.flushInbound();
-            });
-            writeFuture.get();
-            ch.flushOutbound();
-            response = ch.readOutbound();
-            assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
-            responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
-            assertThat(
-                responseContentString,
-                containsString("\"type\":\"security_exception\",\"reason\":\"Request is not authenticated\"")
-            );
-            // this tests the case where authentication passed and the request is to be dispatched, BUT that the authentication context
-            // cannot be instated before dispatching the request
-            writeFuture = testThreadPool.generic().submit(() -> {
+                ch.flushOutbound();
+                response = ch.readOutbound();
+                assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
+                responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
+                assertThat(
+                    responseContentString,
+                    containsString("\"type\":\"security_exception\",\"reason\":\"Request is not authenticated\"")
+                );
+                // this tests the case where authentication passed and the request is to be dispatched, BUT that the authentication context
+                // cannot be instated before dispatching the request
                 HttpMessage authenticableMessage = HttpHeadersAuthenticatorUtils.wrapAsMessageWithAuthenticationContext(
                     new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/unauthenticated_request")
                 );
@@ -436,13 +432,12 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 ch.writeInbound(authenticableMessage);
                 ch.writeInbound(new DefaultLastHttpContent());
                 ch.flushInbound();
-            });
-            writeFuture.get();
-            ch.flushOutbound();
-            response = ch.readOutbound();
-            assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
-            responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
-            assertThat(responseContentString, containsString("\"type\":\"exception\",\"reason\":\"Boom\""));
+                ch.flushOutbound();
+                response = ch.readOutbound();
+                assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
+                responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
+                assertThat(responseContentString, containsString("\"type\":\"exception\",\"reason\":\"Boom\""));
+            }));
         } finally {
             testThreadPool.shutdownNow();
         }
@@ -483,43 +478,41 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 (httpPreRequest, channel, listener) -> listener.onResponse(null)
             )
         ) {
-            final ChannelHandler handler = transport.configureServerChannelHandler();
-            final EmbeddedChannel ch = new EmbeddedChannel(handler);
-            // replace the decoder with the vanilla one that does no wrapping and will trip the header validator
-            ch.pipeline().replace("decoder", "decoder", new HttpRequestDecoder());
-            // remove these pipeline handlers as they interfere in the test scenario
-            for (String pipelineHandlerName : ch.pipeline().names()) {
-                if (pipelineHandlerName.equals("encoder")
-                    || pipelineHandlerName.equals("encoder_compress")
-                    || pipelineHandlerName.equals("chunked_writer")) {
-                    ch.pipeline().remove(pipelineHandlerName);
+            safeGet(testThreadPool.generic().submit(() -> {
+                final ChannelHandler handler = transport.configureServerChannelHandler();
+                final EmbeddedChannel ch = new EmbeddedChannel(handler);
+                // replace the decoder with the vanilla one that does no wrapping and will trip the header validator
+                ch.pipeline().replace("decoder", "decoder", new HttpRequestDecoder());
+                // remove these pipeline handlers as they interfere in the test scenario
+                for (String pipelineHandlerName : ch.pipeline().names()) {
+                    if (pipelineHandlerName.equals("encoder")
+                        || pipelineHandlerName.equals("encoder_compress")
+                        || pipelineHandlerName.equals("chunked_writer")) {
+                        ch.pipeline().remove(pipelineHandlerName);
+                    }
                 }
-            }
-            // tests requests that are not wrapped by the "decoder" and so cannot be authenticated
-            testThreadPool.generic().submit(() -> {
+                // tests requests that are not wrapped by the "decoder" and so cannot be authenticated
                 ch.writeInbound(new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, "/unwrapped_full_request"));
                 ch.flushInbound();
-            }).get();
-            ch.flushOutbound();
-            Netty4FullHttpResponse response = ch.readOutbound();
-            assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
-            var responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
-            assertThat(
-                responseContentString,
-                containsString("\"type\":\"illegal_state_exception\",\"reason\":\"Cannot authenticate unwrapped requests\"")
-            );
-            testThreadPool.generic().submit(() -> {
+                ch.flushOutbound();
+                Netty4FullHttpResponse response = ch.readOutbound();
+                assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
+                var responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
+                assertThat(
+                    responseContentString,
+                    containsString("\"type\":\"illegal_state_exception\",\"reason\":\"Cannot authenticate unwrapped requests\"")
+                );
                 ch.writeInbound(new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/unwrapped_request"));
                 ch.flushInbound();
-            }).get();
-            ch.flushOutbound();
-            response = ch.readOutbound();
-            assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
-            responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
-            assertThat(
-                responseContentString,
-                containsString("\"type\":\"illegal_state_exception\",\"reason\":\"Cannot authenticate unwrapped requests\"")
-            );
+                ch.flushOutbound();
+                response = ch.readOutbound();
+                assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
+                responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
+                assertThat(
+                    responseContentString,
+                    containsString("\"type\":\"illegal_state_exception\",\"reason\":\"Cannot authenticate unwrapped requests\"")
+                );
+            }));
         } finally {
             testThreadPool.shutdownNow();
         }
@@ -571,111 +564,97 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 }
             )
         ) {
-            final ChannelHandler handler = transport.configureServerChannelHandler();
-            assertThat(authnInvocationCount.get(), is(0));
-            assertThat(badDispatchInvocationCount.get(), is(0));
-            // case 1: invalid initial line
-            {
-                EmbeddedChannel ch = new EmbeddedChannel(handler);
-                ByteBuf buf = ch.alloc().buffer();
-                ByteBufUtil.copy(AsciiString.of("This is not a valid HTTP line"), buf);
-                buf.writeByte(HttpConstants.LF);
-                buf.writeByte(HttpConstants.LF);
-                var writeFuture = testThreadPool.generic().submit(() -> {
+            safeGet(testThreadPool.generic().submit(() -> {
+
+                final ChannelHandler handler = transport.configureServerChannelHandler();
+                assertThat(authnInvocationCount.get(), is(0));
+                assertThat(badDispatchInvocationCount.get(), is(0));
+                // case 1: invalid initial line
+                {
+                    EmbeddedChannel ch = new EmbeddedChannel(handler);
+                    ByteBuf buf = ch.alloc().buffer();
+                    ByteBufUtil.copy(AsciiString.of("This is not a valid HTTP line"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                    buf.writeByte(HttpConstants.LF);
                     ch.writeInbound(buf);
                     ch.flushInbound();
-                });
-                writeFuture.get();
-                assertThat(dispatchThrowableReference.get().toString(), containsString("NOT A VALID HTTP LINE"));
-                assertThat(badDispatchInvocationCount.get(), is(1));
-                assertThat(authnInvocationCount.get(), is(0));
-            }
-            // case 2: too long initial line
-            {
-                EmbeddedChannel ch = new EmbeddedChannel(handler);
-                ByteBuf buf = ch.alloc().buffer();
-                ByteBufUtil.copy(AsciiString.of("GET /this/is/a/valid/but/too/long/initial/line HTTP/1.1"), buf);
-                buf.writeByte(HttpConstants.LF);
-                buf.writeByte(HttpConstants.LF);
-                var writeFuture = testThreadPool.generic().submit(() -> {
+                    assertThat(dispatchThrowableReference.get().toString(), containsString("NOT A VALID HTTP LINE"));
+                    assertThat(badDispatchInvocationCount.get(), is(1));
+                    assertThat(authnInvocationCount.get(), is(0));
+                }
+                // case 2: too long initial line
+                {
+                    EmbeddedChannel ch = new EmbeddedChannel(handler);
+                    ByteBuf buf = ch.alloc().buffer();
+                    ByteBufUtil.copy(AsciiString.of("GET /this/is/a/valid/but/too/long/initial/line HTTP/1.1"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                    buf.writeByte(HttpConstants.LF);
                     ch.writeInbound(buf);
                     ch.flushInbound();
-                });
-                writeFuture.get();
-                assertThat(dispatchThrowableReference.get().toString(), containsString("HTTP line is larger than"));
-                assertThat(badDispatchInvocationCount.get(), is(2));
-                assertThat(authnInvocationCount.get(), is(0));
-            }
-            // case 3: invalid header with no colon
-            {
-                EmbeddedChannel ch = new EmbeddedChannel(handler);
-                ByteBuf buf = ch.alloc().buffer();
-                ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
-                buf.writeByte(HttpConstants.LF);
-                ByteBufUtil.copy(AsciiString.of("Host"), buf);
-                buf.writeByte(HttpConstants.LF);
-                buf.writeByte(HttpConstants.LF);
-                var writeFuture = testThreadPool.generic().submit(() -> {
+                    assertThat(dispatchThrowableReference.get().toString(), containsString("HTTP line is larger than"));
+                    assertThat(badDispatchInvocationCount.get(), is(2));
+                    assertThat(authnInvocationCount.get(), is(0));
+                }
+                // case 3: invalid header with no colon
+                {
+                    EmbeddedChannel ch = new EmbeddedChannel(handler);
+                    ByteBuf buf = ch.alloc().buffer();
+                    ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                    ByteBufUtil.copy(AsciiString.of("Host"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                    buf.writeByte(HttpConstants.LF);
                     ch.writeInbound(buf);
                     ch.flushInbound();
-                });
-                writeFuture.get();
-                assertThat(dispatchThrowableReference.get().toString(), containsString("No colon found"));
-                assertThat(badDispatchInvocationCount.get(), is(3));
-                assertThat(authnInvocationCount.get(), is(0));
-            }
-            // case 4: invalid header longer than max allowed
-            {
-                EmbeddedChannel ch = new EmbeddedChannel(handler);
-                ByteBuf buf = ch.alloc().buffer();
-                ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
-                buf.writeByte(HttpConstants.LF);
-                ByteBufUtil.copy(AsciiString.of("Host: this.looks.like.a.good.url.but.is.longer.than.permitted"), buf);
-                buf.writeByte(HttpConstants.LF);
-                buf.writeByte(HttpConstants.LF);
-                var writeFuture = testThreadPool.generic().submit(() -> {
+                    assertThat(dispatchThrowableReference.get().toString(), containsString("No colon found"));
+                    assertThat(badDispatchInvocationCount.get(), is(3));
+                    assertThat(authnInvocationCount.get(), is(0));
+                }
+                // case 4: invalid header longer than max allowed
+                {
+                    EmbeddedChannel ch = new EmbeddedChannel(handler);
+                    ByteBuf buf = ch.alloc().buffer();
+                    ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                    ByteBufUtil.copy(AsciiString.of("Host: this.looks.like.a.good.url.but.is.longer.than.permitted"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                    buf.writeByte(HttpConstants.LF);
                     ch.writeInbound(buf);
                     ch.flushInbound();
-                });
-                writeFuture.get();
-                assertThat(dispatchThrowableReference.get().toString(), containsString("HTTP header is larger than"));
-                assertThat(badDispatchInvocationCount.get(), is(4));
-                assertThat(authnInvocationCount.get(), is(0));
-            }
-            // case 5: invalid header format
-            {
-                EmbeddedChannel ch = new EmbeddedChannel(handler);
-                ByteBuf buf = ch.alloc().buffer();
-                ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
-                buf.writeByte(HttpConstants.LF);
-                ByteBufUtil.copy(AsciiString.of("Host: invalid header value"), buf);
-                buf.writeByte(0x01);
-                buf.writeByte(HttpConstants.LF);
-                buf.writeByte(HttpConstants.LF);
-                var writeFuture = testThreadPool.generic().submit(() -> {
+                    assertThat(dispatchThrowableReference.get().toString(), containsString("HTTP header is larger than"));
+                    assertThat(badDispatchInvocationCount.get(), is(4));
+                    assertThat(authnInvocationCount.get(), is(0));
+                }
+                // case 5: invalid header format
+                {
+                    EmbeddedChannel ch = new EmbeddedChannel(handler);
+                    ByteBuf buf = ch.alloc().buffer();
+                    ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                    ByteBufUtil.copy(AsciiString.of("Host: invalid header value"), buf);
+                    buf.writeByte(0x01);
+                    buf.writeByte(HttpConstants.LF);
+                    buf.writeByte(HttpConstants.LF);
                     ch.writeInbound(buf);
                     ch.flushInbound();
-                });
-                writeFuture.get();
-                assertThat(dispatchThrowableReference.get().toString(), containsString("Validation failed for header 'Host'"));
-                assertThat(badDispatchInvocationCount.get(), is(5));
-                assertThat(authnInvocationCount.get(), is(0));
-            }
-            // case 6: connection closed before all headers are sent
-            {
-                EmbeddedChannel ch = new EmbeddedChannel(handler);
-                ByteBuf buf = ch.alloc().buffer();
-                ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
-                buf.writeByte(HttpConstants.LF);
-                ByteBufUtil.copy(AsciiString.of("Host: localhost"), buf);
-                buf.writeByte(HttpConstants.LF);
-                testThreadPool.generic().submit(() -> {
+                    assertThat(dispatchThrowableReference.get().toString(), containsString("Validation failed for header 'Host'"));
+                    assertThat(badDispatchInvocationCount.get(), is(5));
+                    assertThat(authnInvocationCount.get(), is(0));
+                }
+                // case 6: connection closed before all headers are sent
+                {
+                    EmbeddedChannel ch = new EmbeddedChannel(handler);
+                    ByteBuf buf = ch.alloc().buffer();
+                    ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                    ByteBufUtil.copy(AsciiString.of("Host: localhost"), buf);
+                    buf.writeByte(HttpConstants.LF);
                     ch.writeInbound(buf);
                     ch.flushInbound();
-                }).get();
-                testThreadPool.generic().submit(() -> ch.close().get()).get();
-                assertThat(authnInvocationCount.get(), is(0));
-            }
+                    safeGet(ch.close());
+                    assertThat(authnInvocationCount.get(), is(0));
+                }
+            }));
         } finally {
             testThreadPool.shutdownNow();
         }
@@ -717,130 +696,125 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 }
             )
         ) {
-            final ChannelHandler handler = transport.configureServerChannelHandler();
-            final EmbeddedChannel ch = new EmbeddedChannel(handler);
-            // OPTIONS request with fixed length content written in one chunk
-            {
-                ByteBuf buf = ch.alloc().buffer();
-                ByteBufUtil.copy(AsciiString.of("OPTIONS /url/whatever/fixed-length-single-chunk HTTP/1.1"), buf);
-                buf.writeByte(HttpConstants.LF);
-                if (randomBoolean()) {
-                    ByteBufUtil.copy(AsciiString.of("Host: localhost"), buf);
+            safeGet(testThreadPool.generic().submit(() -> {
+                final ChannelHandler handler = transport.configureServerChannelHandler();
+                final EmbeddedChannel ch = new EmbeddedChannel(handler);
+                // OPTIONS request with fixed length content written in one chunk
+                {
+                    ByteBuf buf = ch.alloc().buffer();
+                    ByteBufUtil.copy(AsciiString.of("OPTIONS /url/whatever/fixed-length-single-chunk HTTP/1.1"), buf);
                     buf.writeByte(HttpConstants.LF);
-                }
-                if (randomBoolean()) {
-                    ByteBufUtil.copy(AsciiString.of("Accept: */*"), buf);
+                    if (randomBoolean()) {
+                        ByteBufUtil.copy(AsciiString.of("Host: localhost"), buf);
+                        buf.writeByte(HttpConstants.LF);
+                    }
+                    if (randomBoolean()) {
+                        ByteBufUtil.copy(AsciiString.of("Accept: */*"), buf);
+                        buf.writeByte(HttpConstants.LF);
+                    }
+                    if (randomBoolean()) {
+                        ByteBufUtil.copy(AsciiString.of("Content-Encoding: gzip"), buf);
+                        buf.writeByte(HttpConstants.LF);
+                    }
+                    if (randomBoolean()) {
+                        ByteBufUtil.copy(
+                            AsciiString.of("Content-Type: " + randomFrom("text/plain; charset=utf-8", "application/json; charset=utf-8")),
+                            buf
+                        );
+                        buf.writeByte(HttpConstants.LF);
+                    }
+                    String content = randomAlphaOfLengthBetween(4, 1024);
+                    // having a "Content-Length" request header is what makes it "fixed length"
+                    ByteBufUtil.copy(AsciiString.of("Content-Length: " + content.length()), buf);
                     buf.writeByte(HttpConstants.LF);
-                }
-                if (randomBoolean()) {
-                    ByteBufUtil.copy(AsciiString.of("Content-Encoding: gzip"), buf);
-                    buf.writeByte(HttpConstants.LF);
-                }
-                if (randomBoolean()) {
-                    ByteBufUtil.copy(
-                        AsciiString.of("Content-Type: " + randomFrom("text/plain; charset=utf-8", "application/json; charset=utf-8")),
-                        buf
-                    );
-                    buf.writeByte(HttpConstants.LF);
-                }
-                String content = randomAlphaOfLengthBetween(4, 1024);
-                // having a "Content-Length" request header is what makes it "fixed length"
-                ByteBufUtil.copy(AsciiString.of("Content-Length: " + content.length()), buf);
-                buf.writeByte(HttpConstants.LF);
-                // end of headers
-                buf.writeByte(HttpConstants.LF);
-                ByteBufUtil.copy(AsciiString.of(content), buf);
-                // write everything in one single chunk
-                testThreadPool.generic().submit(() -> {
-                    ch.writeInbound(buf);
-                    ch.flushInbound();
-                }).get();
-                ch.runPendingTasks();
-                Throwable badRequestCause = badRequestCauseReference.get();
-                assertThat(badRequestCause, instanceOf(HttpHeadersValidationException.class));
-                assertThat(badRequestCause.getCause(), instanceOf(ElasticsearchException.class));
-                assertThat(((ElasticsearchException) badRequestCause.getCause()).status(), is(RestStatus.BAD_REQUEST));
-                assertThat(
-                    ((ElasticsearchException) badRequestCause.getCause()).getDetailedMessage(),
-                    containsString("OPTIONS requests with a payload body are not supported")
-                );
-            }
-            {
-                ByteBuf buf = ch.alloc().buffer();
-                ByteBufUtil.copy(AsciiString.of("OPTIONS /url/whatever/chunked-transfer?encoding HTTP/1.1"), buf);
-                buf.writeByte(HttpConstants.LF);
-                if (randomBoolean()) {
-                    ByteBufUtil.copy(AsciiString.of("Host: localhost"), buf);
-                    buf.writeByte(HttpConstants.LF);
-                }
-                if (randomBoolean()) {
-                    ByteBufUtil.copy(AsciiString.of("Accept: */*"), buf);
-                    buf.writeByte(HttpConstants.LF);
-                }
-                if (randomBoolean()) {
-                    ByteBufUtil.copy(AsciiString.of("Content-Encoding: gzip"), buf);
-                    buf.writeByte(HttpConstants.LF);
-                }
-                if (randomBoolean()) {
-                    ByteBufUtil.copy(
-                        AsciiString.of("Content-Type: " + randomFrom("text/plain; charset=utf-8", "application/json; charset=utf-8")),
-                        buf
-                    );
-                    buf.writeByte(HttpConstants.LF);
-                }
-                // do not write a "Content-Length" header to make the request "variable length"
-                if (randomBoolean()) {
-                    ByteBufUtil.copy(AsciiString.of("Transfer-Encoding: " + randomFrom("chunked", "gzip, chunked")), buf);
-                } else {
-                    ByteBufUtil.copy(AsciiString.of("Transfer-Encoding: chunked"), buf);
-                }
-                buf.writeByte(HttpConstants.LF);
-                buf.writeByte(HttpConstants.LF);
-                // maybe append some chunks as well
-                String[] contentParts = randomArray(0, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 64));
-                for (String content : contentParts) {
-                    ByteBufUtil.copy(AsciiString.of(Integer.toHexString(content.length())), buf);
-                    buf.writeByte(HttpConstants.CR);
+                    // end of headers
                     buf.writeByte(HttpConstants.LF);
                     ByteBufUtil.copy(AsciiString.of(content), buf);
-                    buf.writeByte(HttpConstants.CR);
-                    buf.writeByte(HttpConstants.LF);
-                }
-                testThreadPool.generic().submit(() -> {
+                    // write everything in one single chunk
                     ch.writeInbound(buf);
                     ch.flushInbound();
-                }).get();
-                // append some more chunks as well
-                ByteBuf buf2 = ch.alloc().buffer();
-                contentParts = randomArray(1, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 64));
-                for (String content : contentParts) {
-                    ByteBufUtil.copy(AsciiString.of(Integer.toHexString(content.length())), buf2);
-                    buf2.writeByte(HttpConstants.CR);
-                    buf2.writeByte(HttpConstants.LF);
-                    ByteBufUtil.copy(AsciiString.of(content), buf2);
-                    buf2.writeByte(HttpConstants.CR);
-                    buf2.writeByte(HttpConstants.LF);
+                    ch.runPendingTasks();
+                    Throwable badRequestCause = badRequestCauseReference.get();
+                    assertThat(badRequestCause, instanceOf(HttpHeadersValidationException.class));
+                    assertThat(badRequestCause.getCause(), instanceOf(ElasticsearchException.class));
+                    assertThat(((ElasticsearchException) badRequestCause.getCause()).status(), is(RestStatus.BAD_REQUEST));
+                    assertThat(
+                        ((ElasticsearchException) badRequestCause.getCause()).getDetailedMessage(),
+                        containsString("OPTIONS requests with a payload body are not supported")
+                    );
                 }
-                // finish chunked request
-                ByteBufUtil.copy(AsciiString.of("0"), buf2);
-                buf2.writeByte(HttpConstants.CR);
-                buf2.writeByte(HttpConstants.LF);
-                buf2.writeByte(HttpConstants.CR);
-                buf2.writeByte(HttpConstants.LF);
-                testThreadPool.generic().submit(() -> {
+                {
+                    ByteBuf buf = ch.alloc().buffer();
+                    ByteBufUtil.copy(AsciiString.of("OPTIONS /url/whatever/chunked-transfer?encoding HTTP/1.1"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                    if (randomBoolean()) {
+                        ByteBufUtil.copy(AsciiString.of("Host: localhost"), buf);
+                        buf.writeByte(HttpConstants.LF);
+                    }
+                    if (randomBoolean()) {
+                        ByteBufUtil.copy(AsciiString.of("Accept: */*"), buf);
+                        buf.writeByte(HttpConstants.LF);
+                    }
+                    if (randomBoolean()) {
+                        ByteBufUtil.copy(AsciiString.of("Content-Encoding: gzip"), buf);
+                        buf.writeByte(HttpConstants.LF);
+                    }
+                    if (randomBoolean()) {
+                        ByteBufUtil.copy(
+                            AsciiString.of("Content-Type: " + randomFrom("text/plain; charset=utf-8", "application/json; charset=utf-8")),
+                            buf
+                        );
+                        buf.writeByte(HttpConstants.LF);
+                    }
+                    // do not write a "Content-Length" header to make the request "variable length"
+                    if (randomBoolean()) {
+                        ByteBufUtil.copy(AsciiString.of("Transfer-Encoding: " + randomFrom("chunked", "gzip, chunked")), buf);
+                    } else {
+                        ByteBufUtil.copy(AsciiString.of("Transfer-Encoding: chunked"), buf);
+                    }
+                    buf.writeByte(HttpConstants.LF);
+                    buf.writeByte(HttpConstants.LF);
+                    // maybe append some chunks as well
+                    String[] contentParts = randomArray(0, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 64));
+                    for (String content : contentParts) {
+                        ByteBufUtil.copy(AsciiString.of(Integer.toHexString(content.length())), buf);
+                        buf.writeByte(HttpConstants.CR);
+                        buf.writeByte(HttpConstants.LF);
+                        ByteBufUtil.copy(AsciiString.of(content), buf);
+                        buf.writeByte(HttpConstants.CR);
+                        buf.writeByte(HttpConstants.LF);
+                    }
+                    ch.writeInbound(buf);
+                    ch.flushInbound();
+                    ByteBuf buf2 = ch.alloc().buffer();
+                    contentParts = randomArray(1, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 64));
+                    for (String content : contentParts) {
+                        ByteBufUtil.copy(AsciiString.of(Integer.toHexString(content.length())), buf2);
+                        buf2.writeByte(HttpConstants.CR);
+                        buf2.writeByte(HttpConstants.LF);
+                        ByteBufUtil.copy(AsciiString.of(content), buf2);
+                        buf2.writeByte(HttpConstants.CR);
+                        buf2.writeByte(HttpConstants.LF);
+                    }
+                    // finish chunked request
+                    ByteBufUtil.copy(AsciiString.of("0"), buf2);
+                    buf2.writeByte(HttpConstants.CR);
+                    buf2.writeByte(HttpConstants.LF);
+                    buf2.writeByte(HttpConstants.CR);
+                    buf2.writeByte(HttpConstants.LF);
                     ch.writeInbound(buf2);
                     ch.flushInbound();
-                }).get();
-                ch.runPendingTasks();
-                Throwable badRequestCause = badRequestCauseReference.get();
-                assertThat(badRequestCause, instanceOf(HttpHeadersValidationException.class));
-                assertThat(badRequestCause.getCause(), instanceOf(ElasticsearchException.class));
-                assertThat(((ElasticsearchException) badRequestCause.getCause()).status(), is(RestStatus.BAD_REQUEST));
-                assertThat(
-                    ((ElasticsearchException) badRequestCause.getCause()).getDetailedMessage(),
-                    containsString("OPTIONS requests with a payload body are not supported")
-                );
-            }
+                    ch.runPendingTasks();
+                    Throwable badRequestCause = badRequestCauseReference.get();
+                    assertThat(badRequestCause, instanceOf(HttpHeadersValidationException.class));
+                    assertThat(badRequestCause.getCause(), instanceOf(ElasticsearchException.class));
+                    assertThat(((ElasticsearchException) badRequestCause.getCause()).status(), is(RestStatus.BAD_REQUEST));
+                    assertThat(
+                        ((ElasticsearchException) badRequestCause.getCause()).getDetailedMessage(),
+                        containsString("OPTIONS requests with a payload body are not supported")
+                    );
+                }
+            }));
         } finally {
             testThreadPool.shutdownNow();
         }

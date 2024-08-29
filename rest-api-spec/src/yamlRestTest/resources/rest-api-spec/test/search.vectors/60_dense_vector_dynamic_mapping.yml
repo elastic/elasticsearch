@@ -1,11 +1,11 @@
 setup:
-  - skip:
-      version: ' - 8.10.99'
+  - requires:
+      cluster_features: "gte_v8.11.0"
       reason: 'Dynamic mapping of floats to dense_vector was added in 8.11'
 ---
 "Fields indexed as strings won't be transformed into dense_vector":
-  - skip:
-      version: ' - 8.11.0'
+  - requires:
+      cluster_features: "gte_v8.11.1"
       reason: 'Bug fix was added in 8.11.1'
   - do:
       index:
@@ -572,8 +572,8 @@ setup:
 
 ---
 "Fields mapped as dense_vector without dims or docs have correct cluster stats values":
-  - skip:
-      version: ' - 8.11.1'
+  - requires:
+      cluster_features: "gte_v8.11.2"
       reason: 'Bug fix was added in 8.11.2'
 
   - do:
@@ -603,8 +603,8 @@ setup:
 
 ---
 "Fields mapped as dense_vector have correct cluster stats min max values":
-  - skip:
-      version: ' - 8.11.1'
+  - requires:
+      cluster_features: "gte_v8.11.2"
       reason: 'Bug fix was added in 8.11.2'
 
   - do:

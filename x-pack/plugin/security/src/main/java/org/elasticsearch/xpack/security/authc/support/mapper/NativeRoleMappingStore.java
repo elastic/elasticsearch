@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -33,30 +32,22 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
-import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
-import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
-import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
-import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
@@ -82,7 +73,7 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
  * is done by this class. Modification operations make a best effort attempt to clear the cache
  * on all nodes for the user that was modified.
  */
-public class NativeRoleMappingStore implements UserRoleMapper {
+public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
 
     /**
      * This setting is never registered by the security plugin - in order to disable the native role APIs
@@ -112,7 +103,6 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     private final Client client;
     private final SecurityIndexManager securityIndex;
     private final ScriptService scriptService;
-    private final List<String> realmsToRefresh = new CopyOnWriteArrayList<>();
     private final boolean lastLoadCacheEnabled;
     private final AtomicReference<List<ExpressionRoleMapping>> lastLoadRef = new AtomicReference<>(null);
     private final boolean enabled;
@@ -219,7 +209,13 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         } else {
             try {
                 logger.trace("Modifying role mapping [{}] for [{}]", name, request.getClass().getSimpleName());
-                inner.accept(request, ActionListener.wrap(r -> refreshRealms(listener, r), listener::onFailure));
+                inner.accept(
+                    request,
+                    ActionListener.wrap(
+                        r -> clearRealmCachesOnAllNodes(client, ActionListener.wrap(aVoid -> listener.onResponse(r), listener::onFailure)),
+                        listener::onFailure
+                    )
+                );
             } catch (Exception e) {
                 logger.error(() -> "failed to modify role-mapping [" + name + "]", e);
                 listener.onFailure(e);
@@ -392,58 +388,18 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             || isIndexDeleted(previousState, currentState)
             || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false
             || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
-            refreshRealms(ActionListener.noop(), null);
+            // the notification that the index state changed is received on every node
+            // this means that here we need only to invalidate the local realm caches only
+            clearRealmCachesOnLocalNode();
         }
     }
 
     @Override
     public void resolveRoles(UserData user, ActionListener<Set<String>> listener) {
         getRoleMappings(null, ActionListener.wrap(mappings -> {
-            final ExpressionModel model = user.asModel();
-            final Set<String> roles = mappings.stream()
-                .filter(ExpressionRoleMapping::isEnabled)
-                .filter(m -> m.getExpression().match(model))
-                .flatMap(m -> {
-                    final Set<String> roleNames = m.getRoleNames(scriptService, model);
-                    logger.trace("Applying role-mapping [{}] to user-model [{}] produced role-names [{}]", m.getName(), model, roleNames);
-                    return roleNames.stream();
-                })
-                .collect(Collectors.toSet());
-            logger.debug("Mapping user [{}] to roles [{}]", user, roles);
-            listener.onResponse(roles);
+            logger.trace("Retrieved [{}] role mapping(s) from security index", mappings.size());
+            listener.onResponse(ExpressionRoleMapping.resolveRoles(user, mappings, scriptService, logger));
         }, listener::onFailure));
-    }
-
-    /**
-     * Indicates that the provided realm should have its cache cleared if this store is updated
-     * (that is, {@link #putRoleMapping(PutRoleMappingRequest, ActionListener)} or
-     * {@link #deleteRoleMapping(DeleteRoleMappingRequest, ActionListener)} are called).
-     * @see ClearRealmCacheAction
-     */
-    @Override
-    public void refreshRealmOnChange(CachingRealm realm) {
-        realmsToRefresh.add(realm.name());
-    }
-
-    private <Result> void refreshRealms(ActionListener<Result> listener, Result result) {
-        if (enabled == false || realmsToRefresh.isEmpty()) {
-            listener.onResponse(result);
-            return;
-        }
-        final String[] realmNames = this.realmsToRefresh.toArray(Strings.EMPTY_ARRAY);
-        executeAsyncWithOrigin(
-            client,
-            SECURITY_ORIGIN,
-            ClearRealmCacheAction.INSTANCE,
-            new ClearRealmCacheRequest().realms(realmNames),
-            ActionListener.wrap(response -> {
-                logger.debug(() -> format("Cleared cached in realms [%s] due to role mapping change", Arrays.toString(realmNames)));
-                listener.onResponse(result);
-            }, ex -> {
-                logger.warn(() -> "Failed to clear cache for realms [" + Arrays.toString(realmNames) + "]", ex);
-                listener.onFailure(ex);
-            })
-        );
     }
 
     protected static ExpressionRoleMapping buildMapping(String id, BytesReference source) {

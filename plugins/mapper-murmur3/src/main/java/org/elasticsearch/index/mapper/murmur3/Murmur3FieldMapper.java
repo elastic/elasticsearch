@@ -55,8 +55,8 @@ public class Murmur3FieldMapper extends FieldMapper {
         @Override
         public Murmur3FieldMapper build(MapperBuilderContext context) {
             return new Murmur3FieldMapper(
-                name(),
-                new Murmur3FieldType(context.buildFullName(name()), stored.getValue(), meta.getValue()),
+                leafName(),
+                new Murmur3FieldType(context.buildFullName(leafName()), stored.getValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
                 copyTo
             );
@@ -100,7 +100,7 @@ public class Murmur3FieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     @Override
@@ -116,7 +116,7 @@ public class Murmur3FieldMapper extends FieldMapper {
             final long hash = MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, new MurmurHash3.Hash128()).h1;
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), hash));
             if (fieldType().isStored()) {
-                context.doc().add(new StoredField(name(), hash));
+                context.doc().add(new StoredField(fullPath(), hash));
             }
         }
     }

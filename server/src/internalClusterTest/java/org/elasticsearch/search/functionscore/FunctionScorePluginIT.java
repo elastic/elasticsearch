@@ -146,7 +146,6 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
 
             @Override
             public double evaluate(double value, double scale) {
-
                 return value;
             }
 

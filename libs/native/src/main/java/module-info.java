@@ -13,13 +13,15 @@ import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 module org.elasticsearch.nativeaccess {
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
+    requires java.management; // for access to heap size
 
     exports org.elasticsearch.nativeaccess
         to
             org.elasticsearch.nativeaccess.jna,
             org.elasticsearch.server,
-            org.elasticsearch.systemd,
-            org.elasticsearch.vec;
+            org.elasticsearch.blobcache,
+            org.elasticsearch.simdvec,
+            org.elasticsearch.systemd;
     // allows jna to implement a library provider, and ProviderLocator to load it
     exports org.elasticsearch.nativeaccess.lib to org.elasticsearch.nativeaccess.jna, org.elasticsearch.base;
 

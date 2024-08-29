@@ -37,13 +37,4 @@ public abstract class MasterNodeOperationRequestBuilder<
         return (RequestBuilder) this;
     }
 
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    @SuppressWarnings("unchecked")
-    public final RequestBuilder setMasterNodeTimeout(String timeout) {
-        request.masterNodeTimeout(timeout);
-        return (RequestBuilder) this;
-    }
-
 }

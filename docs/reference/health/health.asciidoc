@@ -204,9 +204,8 @@ for health status set `verbose` to `false` to disable the more expensive analysi
     `help_url` field.
 
 `affected_resources`::
-    (Optional, array of strings) If the root cause pertains to multiple resources in the
-    cluster (like indices, shards, nodes, etc...) this will hold all resources that this
-    diagnosis is applicable for.
+    (Optional, object) An object where the keys represent resource types (for example, indices, shards), 
+    and the values are lists of the specific resources affected by the issue.
 
 `help_url`::
     (string) A link to the troubleshooting guide that'll fix the health problem.
@@ -301,6 +300,9 @@ details have contents and a structure that is unique to each indicator.
 
 `creating_primaries`::
     (int) The number of primary shards that are unassigned because they have been very recently created.
+
+`creating_replicas`::
+    (int) The number of replica shards that are unassigned because they have been very recently created. 
 
 `restarting_primaries`::
     (int) The number of primary shards that are relocating because of a node shutdown operation.

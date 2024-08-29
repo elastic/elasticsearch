@@ -14,6 +14,10 @@ import java.util.stream.Collectors;
 
 public class TestUtils {
 
+    public static String normalizeString(String input) {
+        return normalizeString(input, new File("."));
+    }
+
     public static String normalizeString(String input, File projectRootDir) {
         try {
             String canonicalNormalizedPathPrefix = projectRootDir.getCanonicalPath().replace('\\', '/');

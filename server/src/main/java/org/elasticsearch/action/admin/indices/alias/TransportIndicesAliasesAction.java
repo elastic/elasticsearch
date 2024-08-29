@@ -30,11 +30,11 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -256,7 +256,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(
             unmodifiableList(finalActions),
             unmodifiableList(actionResults)
-        ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+        ).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout());
 
         indexAliasesService.indicesAliases(updateRequest, listener.delegateResponse((l, e) -> {
             logger.debug("failed to perform aliases", e);

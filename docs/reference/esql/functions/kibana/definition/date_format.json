@@ -10,13 +10,13 @@
           "name" : "dateFormat",
           "type" : "keyword",
           "optional" : true,
-          "description" : "A valid date pattern"
+          "description" : "Date format (optional).  If no format is specified, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used. If `null`, the function returns `null`."
         },
         {
           "name" : "date",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
-          "description" : "Date expression"
+          "description" : "Date expression. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -28,17 +28,20 @@
           "name" : "dateFormat",
           "type" : "text",
           "optional" : true,
-          "description" : "A valid date pattern"
+          "description" : "Date format (optional).  If no format is specified, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used. If `null`, the function returns `null`."
         },
         {
           "name" : "date",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
-          "description" : "Date expression"
+          "description" : "Date expression. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
       "returnType" : "keyword"
     }
+  ],
+  "examples" : [
+    "FROM employees\n| KEEP first_name, last_name, hire_date\n| EVAL hired = DATE_FORMAT(\"YYYY-MM-dd\", hire_date)"
   ]
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -43,6 +44,19 @@ abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implem
          * each other. But we will try to avoid that.
          */
         return firstValueIndexes != null;
+    }
+
+    @Override
+    public boolean doesHaveMultivaluedFields() {
+        if (false == mayHaveMultivaluedFields()) {
+            return false;
+        }
+        for (int p = 0; p < getPositionCount(); p++) {
+            if (getValueCount(p) > 1) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -112,8 +126,7 @@ abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implem
         return nullsMask != null;
     }
 
-    @Override
-    public final int nullValuesCount() {
+    final int nullValuesCount() {
         return mayHaveNulls() ? nullsMask.cardinality() : 0;
     }
 
@@ -178,6 +191,11 @@ abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implem
         if (nullsMask != null) {
             out.writeLongArray(nullsMask.toLongArray());
         }
-        out.writeEnum(mvOrdering);
+        if (out.getTransportVersion().before(TransportVersions.ESQL_MV_ORDERING_SORTED_ASCENDING)
+            && mvOrdering == MvOrdering.SORTED_ASCENDING) {
+            out.writeEnum(MvOrdering.UNORDERED);
+        } else {
+            out.writeEnum(mvOrdering);
+        }
     }
 }

@@ -10,19 +10,19 @@
           "name" : "field",
           "type" : "boolean",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "start",
           "type" : "integer",
           "optional" : false,
-          "description" : "start index"
+          "description" : "Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list."
         },
         {
           "name" : "end",
           "type" : "integer",
           "optional" : true,
-          "description" : "end index (included)"
+          "description" : "End position(included). Optional; if omitted, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list."
         }
       ],
       "variadic" : false,
@@ -34,19 +34,19 @@
           "name" : "field",
           "type" : "cartesian_point",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "start",
           "type" : "integer",
           "optional" : false,
-          "description" : "start index"
+          "description" : "Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list."
         },
         {
           "name" : "end",
           "type" : "integer",
           "optional" : true,
-          "description" : "end index (included)"
+          "description" : "End position(included). Optional; if omitted, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list."
         }
       ],
       "variadic" : false,
@@ -58,19 +58,19 @@
           "name" : "field",
           "type" : "cartesian_shape",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "start",
           "type" : "integer",
           "optional" : false,
-          "description" : "start index"
+          "description" : "Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list."
         },
         {
           "name" : "end",
           "type" : "integer",
           "optional" : true,
-          "description" : "end index (included)"
+          "description" : "End position(included). Optional; if omitted, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list."
         }
       ],
       "variadic" : false,
@@ -80,25 +80,25 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "start",
           "type" : "integer",
           "optional" : false,
-          "description" : "start index"
+          "description" : "Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list."
         },
         {
           "name" : "end",
           "type" : "integer",
           "optional" : true,
-          "description" : "end index (included)"
+          "description" : "End position(included). Optional; if omitted, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list."
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -106,19 +106,19 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "start",
           "type" : "integer",
           "optional" : false,
-          "description" : "start index"
+          "description" : "Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list."
         },
         {
           "name" : "end",
           "type" : "integer",
           "optional" : true,
-          "description" : "end index (included)"
+          "description" : "End position(included). Optional; if omitted, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list."
         }
       ],
       "variadic" : false,
@@ -130,19 +130,19 @@
           "name" : "field",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "start",
           "type" : "integer",
           "optional" : false,
-          "description" : "start index"
+          "description" : "Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list."
         },
         {
           "name" : "end",
           "type" : "integer",
           "optional" : true,
-          "description" : "end index (included)"
+          "description" : "End position(included). Optional; if omitted, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list."
         }
       ],
       "variadic" : false,
@@ -154,19 +154,19 @@
           "name" : "field",
           "type" : "geo_shape",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "start",
           "type" : "integer",
           "optional" : false,
-          "description" : "start index"
+          "description" : "Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list."
         },
         {
           "name" : "end",
           "type" : "integer",
           "optional" : true,
-          "description" : "end index (included)"
+          "description" : "End position(included). Optional; if omitted, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list."
         }
       ],
       "variadic" : false,
@@ -178,19 +178,19 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "start",
           "type" : "integer",
           "optional" : false,
-          "description" : "start index"
+          "description" : "Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list."
         },
         {
           "name" : "end",
           "type" : "integer",
           "optional" : true,
-          "description" : "end index (included)"
+          "description" : "End position(included). Optional; if omitted, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list."
         }
       ],
       "variadic" : false,
@@ -202,19 +202,19 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "start",
           "type" : "integer",
           "optional" : false,
-          "description" : "start index"
+          "description" : "Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list."
         },
         {
           "name" : "end",
           "type" : "integer",
           "optional" : true,
-          "description" : "end index (included)"
+          "description" : "End position(included). Optional; if omitted, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list."
         }
       ],
       "variadic" : false,
@@ -226,19 +226,19 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "start",
           "type" : "integer",
           "optional" : false,
-          "description" : "start index"
+          "description" : "Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list."
         },
         {
           "name" : "end",
           "type" : "integer",
           "optional" : true,
-          "description" : "end index (included)"
+          "description" : "End position(included). Optional; if omitted, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list."
         }
       ],
       "variadic" : false,
@@ -250,19 +250,19 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "start",
           "type" : "integer",
           "optional" : false,
-          "description" : "start index"
+          "description" : "Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list."
         },
         {
           "name" : "end",
           "type" : "integer",
           "optional" : true,
-          "description" : "end index (included)"
+          "description" : "End position(included). Optional; if omitted, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list."
         }
       ],
       "variadic" : false,
@@ -274,19 +274,19 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "start",
           "type" : "integer",
           "optional" : false,
-          "description" : "start index"
+          "description" : "Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list."
         },
         {
           "name" : "end",
           "type" : "integer",
           "optional" : true,
-          "description" : "end index (included)"
+          "description" : "End position(included). Optional; if omitted, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list."
         }
       ],
       "variadic" : false,
@@ -298,23 +298,27 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
         {
           "name" : "start",
           "type" : "integer",
           "optional" : false,
-          "description" : "start index"
+          "description" : "Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list."
         },
         {
           "name" : "end",
           "type" : "integer",
           "optional" : true,
-          "description" : "end index (included)"
+          "description" : "End position(included). Optional; if omitted, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list."
         }
       ],
       "variadic" : false,
       "returnType" : "version"
     }
+  ],
+  "examples" : [
+    "row a = [1, 2, 2, 3]\n| eval a1 = mv_slice(a, 1), a2 = mv_slice(a, 2, 3)",
+    "row a = [1, 2, 2, 3]\n| eval a1 = mv_slice(a, -2), a2 = mv_slice(a, -3, -1)"
   ]
 }

@@ -10,19 +10,127 @@
           "name" : "string1",
           "type" : "keyword",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression."
         },
         {
           "name" : "string2",
           "type" : "keyword",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "string1",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "string2",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Multivalue expression."
         },
         {
           "name" : "delim",
           "type" : "keyword",
           "optional" : true,
-          "description" : "delimiter"
+          "description" : "Delimiter. Optional; if omitted, `,` is used as a default delimiter."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "string1",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "string2",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "delim",
+          "type" : "text",
+          "optional" : true,
+          "description" : "Delimiter. Optional; if omitted, `,` is used as a default delimiter."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "string1",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "string2",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "string1",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "string2",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "delim",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "Delimiter. Optional; if omitted, `,` is used as a default delimiter."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "string1",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "string2",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "delim",
+          "type" : "text",
+          "optional" : true,
+          "description" : "Delimiter. Optional; if omitted, `,` is used as a default delimiter."
         }
       ],
       "variadic" : false,
@@ -34,23 +142,134 @@
           "name" : "string1",
           "type" : "text",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression."
         },
         {
           "name" : "string2",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "string1",
           "type" : "text",
           "optional" : false,
-          "description" : "A multivalued field"
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "string2",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "delim",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "Delimiter. Optional; if omitted, `,` is used as a default delimiter."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "string1",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "string2",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Multivalue expression."
         },
         {
           "name" : "delim",
           "type" : "text",
           "optional" : true,
-          "description" : "delimiter"
+          "description" : "Delimiter. Optional; if omitted, `,` is used as a default delimiter."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "string1",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "string2",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "string1",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "string2",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "delim",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "Delimiter. Optional; if omitted, `,` is used as a default delimiter."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "string1",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "string2",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "delim",
+          "type" : "text",
+          "optional" : true,
+          "description" : "Delimiter. Optional; if omitted, `,` is used as a default delimiter."
         }
       ],
       "variadic" : false,
       "returnType" : "keyword"
     }
+  ],
+  "examples" : [
+    "ROW a = [\"x\", \"y\", \"z\"], b = [\"1\", \"2\"]\n| EVAL c = mv_zip(a, b, \"-\")\n| KEEP a, b, c"
   ]
 }

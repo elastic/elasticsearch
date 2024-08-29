@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -26,7 +25,7 @@ public class RestGrantApiKeyActionTests extends ESTestCase {
         final String clientAuthenticationScheme = randomAlphaOfLength(8);
         final String clientAuthenticationValue = randomAlphaOfLength(8);
         final String apiKeyName = randomAlphaOfLength(8);
-        final String apiKeyExpiration = randomTimeValue();
+        final var apiKeyExpiration = randomTimeValue();
         final String runAs = randomAlphaOfLength(8);
         try (
             XContentParser content = createParser(
@@ -42,7 +41,7 @@ public class RestGrantApiKeyActionTests extends ESTestCase {
                     .endObject()
                     .startObject("api_key")
                     .field("name", apiKeyName)
-                    .field("expiration", apiKeyExpiration)
+                    .field("expiration", apiKeyExpiration.getStringRep())
                     .endObject()
                     .field("run_as", runAs)
                     .endObject()
@@ -60,10 +59,7 @@ public class RestGrantApiKeyActionTests extends ESTestCase {
             );
             assertThat(grantApiKeyRequest.getGrant().getRunAsUsername(), is(runAs));
             assertThat(grantApiKeyRequest.getApiKeyRequest().getName(), is(apiKeyName));
-            assertThat(
-                grantApiKeyRequest.getApiKeyRequest().getExpiration(),
-                is(TimeValue.parseTimeValue(apiKeyExpiration, "api_key.expiration"))
-            );
+            assertThat(grantApiKeyRequest.getApiKeyRequest().getExpiration(), is(apiKeyExpiration));
         }
     }
 

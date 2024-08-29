@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -26,13 +27,12 @@ public class DeleteStoredScriptRequest extends AcknowledgedRequest<DeleteStoredS
         id = in.readString();
     }
 
-    DeleteStoredScriptRequest() {
-        super();
+    DeleteStoredScriptRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        super(masterNodeTimeout, ackTimeout);
     }
 
-    public DeleteStoredScriptRequest(String id) {
-        super();
-
+    public DeleteStoredScriptRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout, String id) {
+        super(masterNodeTimeout, ackTimeout);
         this.id = id;
     }
 

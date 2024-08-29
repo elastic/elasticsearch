@@ -48,7 +48,9 @@ public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> 
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
-    public DeleteIndexRequest() {}
+    public DeleteIndexRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     /**
      * Constructs a new delete index request for the specified index.
@@ -56,6 +58,7 @@ public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> 
      * @param index The index to delete. Use "_all" to delete all indices.
      */
     public DeleteIndexRequest(String index) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.indices = new String[] { index };
     }
 
@@ -65,6 +68,7 @@ public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> 
      * @param indices The indices to delete. Use "_all" to delete all indices.
      */
     public DeleteIndexRequest(String... indices) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.indices = indices;
     }
 

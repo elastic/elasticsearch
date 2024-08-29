@@ -469,8 +469,13 @@ public class OsProbe {
      * nr_bursts \d+
      * burst_time
      * </pre></blockquote>
-     * These additional fields are currently ignored.
      *
+     * When schedstat_enabled is enabled, an additional statistics information {@code wait_sum} will also be available
+     * <blockquote><pre>
+     * wait_sum \d+
+     * </pre></blockquote>
+     * {@code wait_sum} represent the conflict between task groups, which is simply sum the wait time of group's cfs_rq
+     *  These three additional fields are currently ignored.
      * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code cpu} subsystem
      * @return the lines from {@code cpu.stat}
      * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
@@ -478,7 +483,7 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     List<String> readSysFsCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
         final List<String> lines = Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "cpu.stat"));
-        assert lines != null && (lines.size() == 3 || lines.size() == 5);
+        assert lines != null && (lines.size() >= 3);
         return lines;
     }
 

@@ -32,8 +32,8 @@ import org.elasticsearch.xpack.core.ssl.SslSettingsLoader;
 import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
+import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
-import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
 import java.security.MessageDigest;
 import java.security.cert.CertificateEncodingException;
@@ -81,8 +81,8 @@ public class PkiRealm extends Realm implements CachingRealm {
     private DelegatedAuthorizationSupport delegatedRealms;
     private final boolean delegationEnabled;
 
-    public PkiRealm(RealmConfig config, ResourceWatcherService watcherService, NativeRoleMappingStore nativeRoleMappingStore) {
-        this(config, new CompositeRoleMapper(config, watcherService, nativeRoleMappingStore));
+    public PkiRealm(RealmConfig config, ResourceWatcherService watcherService, UserRoleMapper userRoleMapper) {
+        this(config, new CompositeRoleMapper(new DnRoleMapper(config, watcherService), userRoleMapper));
     }
 
     // pkg private for testing
@@ -92,7 +92,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         this.trustManager = trustManagers(config);
         this.principalPattern = config.getSetting(PkiRealmSettings.USERNAME_PATTERN_SETTING);
         this.roleMapper = roleMapper;
-        this.roleMapper.refreshRealmOnChange(this);
+        this.roleMapper.clearRealmCacheOnChange(this);
         this.cache = CacheBuilder.<BytesKey, User>builder()
             .setExpireAfterWrite(config.getSetting(PkiRealmSettings.CACHE_TTL_SETTING))
             .setMaximumWeight(config.getSetting(PkiRealmSettings.CACHE_MAX_USERS_SETTING))

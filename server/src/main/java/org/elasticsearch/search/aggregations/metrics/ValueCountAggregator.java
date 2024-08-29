@@ -59,8 +59,8 @@ public final class ValueCountAggregator extends NumericMetricsAggregator.SingleV
 
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    counts = bigArrays().grow(counts, bucket + 1);
                     if (values.advanceExact(doc)) {
+                        counts = bigArrays().grow(counts, bucket + 1);
                         counts.increment(bucket, values.docValueCount());
                     }
                 }
@@ -72,8 +72,8 @@ public final class ValueCountAggregator extends NumericMetricsAggregator.SingleV
 
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    counts = bigArrays().grow(counts, bucket + 1);
                     if (values.advanceExact(doc)) {
+                        counts = bigArrays().grow(counts, bucket + 1);
                         counts.increment(bucket, values.docValueCount());
                     }
                 }
@@ -85,8 +85,8 @@ public final class ValueCountAggregator extends NumericMetricsAggregator.SingleV
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                counts = bigArrays().grow(counts, bucket + 1);
                 if (values.advanceExact(doc)) {
+                    counts = bigArrays().grow(counts, bucket + 1);
                     counts.increment(bucket, values.docValueCount());
                 }
             }

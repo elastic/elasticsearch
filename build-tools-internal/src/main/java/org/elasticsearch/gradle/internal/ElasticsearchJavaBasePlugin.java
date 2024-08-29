@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.test.MutedTestPlugin;
 import org.elasticsearch.gradle.internal.test.TestUtil;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.util.GradleUtils;
@@ -62,6 +63,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         project.getPluginManager().apply(RepositoriesSetupPlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getPluginManager().apply(PrecommitTaskPlugin.class);
+        project.getPluginManager().apply(MutedTestPlugin.class);
 
         configureConfigurations(project);
         configureCompile(project);
@@ -187,9 +189,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             var libraryPath = (Supplier<String>) () -> TestUtil.getTestLibraryPath(nativeConfigFiles.getAsPath());
 
             test.dependsOn(nativeConfigFiles);
-            // we may use JNA or the JDK's foreign function api to load libraries, so we set both sysprops
-            systemProperties.systemProperty("java.library.path", libraryPath);
-            systemProperties.systemProperty("jna.library.path", libraryPath);
+            systemProperties.systemProperty("es.nativelibs.path", libraryPath);
         });
     }
 

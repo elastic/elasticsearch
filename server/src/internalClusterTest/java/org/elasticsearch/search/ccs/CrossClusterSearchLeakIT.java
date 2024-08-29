@@ -130,7 +130,7 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
                     .size(between(scroll ? 1 : 0, 1000))
             );
             if (scroll) {
-                searchRequest.scroll("30s");
+                searchRequest.scroll(TimeValue.timeValueSeconds(30));
             }
             searchRequest.setCcsMinimizeRoundtrips(rarely());
             futures.add(client(LOCAL_CLUSTER).search(searchRequest));

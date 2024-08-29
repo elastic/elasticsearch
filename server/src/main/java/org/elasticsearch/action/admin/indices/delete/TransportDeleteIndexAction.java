@@ -21,9 +21,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -94,7 +94,7 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
         DeleteIndexClusterStateUpdateRequest deleteRequest = new DeleteIndexClusterStateUpdateRequest(listener.delegateResponse((l, e) -> {
             logger.debug(() -> "failed to delete indices [" + concreteIndices + "]", e);
             listener.onFailure(e);
-        })).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices.toArray(new Index[0]));
+        })).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices.toArray(new Index[0]));
 
         deleteIndexService.deleteIndices(deleteRequest);
     }

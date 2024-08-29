@@ -44,9 +44,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestIndicesAction extends AbstractCatAction {
@@ -79,7 +79,7 @@ public class RestIndicesAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
-        final TimeValue masterNodeTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
+        final TimeValue masterNodeTimeout = getMasterNodeTimeout(request);
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
 
         return channel -> {
@@ -514,6 +514,12 @@ public class RestIndicesAction extends AbstractCatAction {
         );
         table.addCell("pri.dense_vector.value_count", "default:false;text-align:right;desc:total count of indexed dense vector");
 
+        table.addCell(
+            "sparse_vector.value_count",
+            "sibling:pri;alias:svc,sparseVectorCount;default:false;text-align:right;desc:total count of indexed sparse vectors"
+        );
+        table.addCell("pri.sparse_vector.value_count", "default:false;text-align:right;desc:total count of indexed sparse vectors");
+
         table.endHeaders();
         return table;
     }
@@ -790,6 +796,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getDenseVectorStats() == null ? null : totalStats.getDenseVectorStats().getValueCount());
             table.addCell(primaryStats.getDenseVectorStats() == null ? null : primaryStats.getDenseVectorStats().getValueCount());
+
+            table.addCell(totalStats.getSparseVectorStats() == null ? null : totalStats.getSparseVectorStats().getValueCount());
+            table.addCell(primaryStats.getSparseVectorStats() == null ? null : primaryStats.getSparseVectorStats().getValueCount());
 
             table.endRow();
         });

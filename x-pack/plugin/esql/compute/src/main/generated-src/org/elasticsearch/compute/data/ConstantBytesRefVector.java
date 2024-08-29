@@ -9,6 +9,9 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Vector implementation that stores a constant BytesRef value.
@@ -36,8 +39,64 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     }
 
     @Override
+    public OrdinalBytesRefVector asOrdinals() {
+        return null;
+    }
+
+    @Override
     public BytesRefVector filter(int... positions) {
         return blockFactory().newConstantBytesRefVector(value, positions.length);
+    }
+
+    @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new BytesRefVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new BytesRefVectorBlock(this);
+            }
+            return (BytesRefBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        IntBlock ordinals = null;
+        BytesRefVector bytes = null;
+        try {
+            try (IntVector unmaskedOrdinals = blockFactory().newConstantIntVector(0, getPositionCount())) {
+                ordinals = unmaskedOrdinals.keepMask(mask);
+            }
+            bytes = blockFactory().newConstantBytesRefVector(value, getPositionCount());
+            OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(ordinals, bytes);
+            ordinals = null;
+            bytes = null;
+            return result;
+        } finally {
+            Releasables.close(ordinals, bytes);
+        }
+    }
+
+    @Override
+    public ReleasableIterator<BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        if (positions.getPositionCount() == 0) {
+            return ReleasableIterator.empty();
+        }
+        IntVector positionsVector = positions.asVector();
+        if (positionsVector == null) {
+            return new BytesRefLookup(asBlock(), positions, targetBlockSize);
+        }
+        int min = positionsVector.min();
+        if (min < 0) {
+            throw new IllegalArgumentException("invalid position [" + min + "]");
+        }
+        if (min > getPositionCount()) {
+            return ReleasableIterator.single((BytesRefBlock) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
+        }
+        if (positionsVector.max() < getPositionCount()) {
+            return ReleasableIterator.single(positions.blockFactory().newConstantBytesRefBlockWith(value, positions.getPositionCount()));
+        }
+        return new BytesRefLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override

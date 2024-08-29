@@ -86,7 +86,7 @@ setup:
                   }
                 }
               ]
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           size: 10
 
@@ -136,7 +136,7 @@ setup:
                   }
                 }
               ]
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           size: 10
 
@@ -191,7 +191,7 @@ setup:
                   }
                 }
               ]
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           size: 10
 
@@ -260,7 +260,7 @@ setup:
                   }
                 }
               ]
-              window_size: 2
+              rank_window_size: 2
               rank_constant: 1
 
   - match: { hits.total.value : 3 }

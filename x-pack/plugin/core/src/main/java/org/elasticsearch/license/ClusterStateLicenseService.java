@@ -289,11 +289,11 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         final LicensesMetadata licensesMetadata = getLicensesMetadata();
         if (licensesMetadata != null) {
             final License license = licensesMetadata.getLicense();
-            if (event.getJobName().equals(LICENSE_JOB)) {
+            if (event.jobName().equals(LICENSE_JOB)) {
                 updateXPackLicenseState(license);
-            } else if (event.getJobName().startsWith(ExpirationCallback.EXPIRATION_JOB_PREFIX)) {
+            } else if (event.jobName().startsWith(ExpirationCallback.EXPIRATION_JOB_PREFIX)) {
                 expirationCallbacks.stream()
-                    .filter(expirationCallback -> expirationCallback.getId().equals(event.getJobName()))
+                    .filter(expirationCallback -> expirationCallback.getId().equals(event.jobName()))
                     .forEach(expirationCallback -> expirationCallback.on(license));
             }
         }
@@ -303,8 +303,8 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
      * Remove license from the cluster state metadata
      */
     @Override
-    public void removeLicense(ActionListener<? extends AcknowledgedResponse> listener) {
-        final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest().acknowledge(true);
+    public void removeLicense(TimeValue masterNodeTimeout, TimeValue ackTimeout, ActionListener<? extends AcknowledgedResponse> listener) {
+        final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest(masterNodeTimeout, ackTimeout).acknowledge(true);
         @SuppressWarnings("unchecked")
         final StartBasicClusterTask task = new StartBasicClusterTask(
             logger,

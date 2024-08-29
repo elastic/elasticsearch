@@ -358,6 +358,8 @@ POST _aliases
 ----
 // TEST[s/^/PUT my-index-2099.05.06-000001\n/]
 
+NOTE: Filters are only applied when using the <<query-dsl,Query DSL>>, and are not applied when <<docs-get,retrieving a document by ID>>.
+
 [discrete]
 [[alias-routing]]
 === Routing

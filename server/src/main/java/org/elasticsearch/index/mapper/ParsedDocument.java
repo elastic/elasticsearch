@@ -23,7 +23,6 @@ import java.util.List;
  * The result of parsing a document.
  */
 public class ParsedDocument {
-
     private final Field version;
 
     private final String id;
@@ -32,6 +31,8 @@ public class ParsedDocument {
     private final String routing;
 
     private final List<LuceneDocument> documents;
+
+    private final DocumentSize normalizedSize;
 
     private BytesReference source;
     private XContentType xContentType;
@@ -58,7 +59,8 @@ public class ParsedDocument {
             Collections.singletonList(document),
             new BytesArray("{}"),
             XContentType.JSON,
-            null
+            null,
+            DocumentSize.UNKNOWN
         );
     }
 
@@ -82,7 +84,8 @@ public class ParsedDocument {
             Collections.singletonList(document),
             new BytesArray("{}"),
             XContentType.JSON,
-            null
+            null,
+            DocumentSize.UNKNOWN
         );
     }
 
@@ -94,7 +97,8 @@ public class ParsedDocument {
         List<LuceneDocument> documents,
         BytesReference source,
         XContentType xContentType,
-        Mapping dynamicMappingsUpdate
+        Mapping dynamicMappingsUpdate,
+        DocumentSize normalizedSize
     ) {
         this.version = version;
         this.seqID = seqID;
@@ -104,6 +108,7 @@ public class ParsedDocument {
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
         this.xContentType = xContentType;
+        this.normalizedSize = normalizedSize;
     }
 
     public String id() {
@@ -170,5 +175,18 @@ public class ParsedDocument {
 
     public String documentDescription() {
         return "id";
+    }
+
+    public DocumentSize getNormalizedSize() {
+        return normalizedSize;
+    }
+
+    /**
+     * Normalized ingested and stored size of a document.
+     * @param ingestedBytes ingest size of the document
+     * @param storedBytes stored retained size of the document
+     */
+    public record DocumentSize(long ingestedBytes, long storedBytes) {
+        public static final DocumentSize UNKNOWN = new DocumentSize(-1, -1);
     }
 }

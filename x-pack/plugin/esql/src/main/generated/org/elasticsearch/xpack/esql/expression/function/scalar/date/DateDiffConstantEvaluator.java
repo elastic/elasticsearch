@@ -15,9 +15,9 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateDiff}.
@@ -37,11 +37,11 @@ public final class DateDiffConstantEvaluator implements EvalOperator.ExpressionE
   public DateDiffConstantEvaluator(Source source, DateDiff.Part datePartFieldUnit,
       EvalOperator.ExpressionEvaluator startTimestamp,
       EvalOperator.ExpressionEvaluator endTimestamp, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.datePartFieldUnit = datePartFieldUnit;
     this.startTimestamp = startTimestamp;
     this.endTimestamp = endTimestamp;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -88,7 +88,7 @@ public final class DateDiffConstantEvaluator implements EvalOperator.ExpressionE
           continue position;
         }
         try {
-          result.appendInt(DateDiff.process(datePartFieldUnit, startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p)), endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p))));
+          result.appendInt(DateDiff.process(this.datePartFieldUnit, startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p)), endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p))));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -103,7 +103,7 @@ public final class DateDiffConstantEvaluator implements EvalOperator.ExpressionE
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendInt(DateDiff.process(datePartFieldUnit, startTimestampVector.getLong(p), endTimestampVector.getLong(p)));
+          result.appendInt(DateDiff.process(this.datePartFieldUnit, startTimestampVector.getLong(p), endTimestampVector.getLong(p)));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings.registerException(e);
           result.appendNull();

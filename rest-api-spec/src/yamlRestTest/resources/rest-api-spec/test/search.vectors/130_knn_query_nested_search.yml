@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: ' - 8.11.99'
+  - requires:
+      cluster_features: "gte_v8.12.0"
       reason: 'knn as query added in 8.12'
   - do:
       indices.create:
@@ -212,8 +212,8 @@ setup:
   - match: {hits.total.value: 0}
 ---
 "nested kNN search inner_hits size > 1":
-  - skip:
-      version: ' - 8.12.99'
+  - requires:
+      cluster_features: "gte_v8.13.0"
       reason: 'inner_hits on nested kNN search added in 8.13'
 
   - do:
@@ -321,8 +321,8 @@ setup:
   - length: { hits.hits.4.inner_hits.nested.hits.hits: 1 }
 ---
 "nested kNN query search with filter that might match nested docs":
-  - skip:
-      version: ' - 8.13.99'
+  - requires:
+      cluster_features: "gte_v8.14.0"
       reason: 'bugfix for matching non-nested docs in 8.14'
 
   - do:

@@ -45,7 +45,7 @@ public class IndicesAliasesRequestTests extends ESTestCase {
         int numItems = randomIntBetween(0, 32);
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         if (randomBoolean()) {
-            request.timeout(randomTimeValue());
+            request.ackTimeout(randomTimeValue());
         }
 
         if (randomBoolean()) {

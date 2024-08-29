@@ -10,13 +10,15 @@ package org.elasticsearch.xpack.core.inference.results;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractChunkedBWCSerializationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class RankedDocsResultsTests extends AbstractBWCSerializationTestCase<RankedDocsResults> {
+import static org.elasticsearch.TransportVersions.ML_RERANK_DOC_OPTIONAL;
+
+public class RankedDocsResultsTests extends AbstractChunkedBWCSerializationTestCase<RankedDocsResults> {
 
     @Override
     protected Writeable.Reader<RankedDocsResults> instanceReader() {
@@ -33,7 +35,7 @@ public class RankedDocsResultsTests extends AbstractBWCSerializationTestCase<Ran
     }
 
     public static RankedDocsResults.RankedDoc createRandomDoc() {
-        return new RankedDocsResults.RankedDoc(randomIntBetween(0, 100), randomFloat(), randomAlphaOfLength(10));
+        return new RankedDocsResults.RankedDoc(randomIntBetween(0, 100), randomFloat(), randomBoolean() ? null : randomAlphaOfLength(10));
     }
 
     @Override
@@ -45,7 +47,24 @@ public class RankedDocsResultsTests extends AbstractBWCSerializationTestCase<Ran
 
     @Override
     protected RankedDocsResults mutateInstanceForVersion(RankedDocsResults instance, TransportVersion fromVersion) {
-        return instance;
+        if (fromVersion.onOrAfter(ML_RERANK_DOC_OPTIONAL)) {
+            return instance;
+        } else {
+            var compatibleDocs = rankedDocsNullStringToEmpty(instance.getRankedDocs());
+            return new RankedDocsResults(compatibleDocs);
+        }
+    }
+
+    private List<RankedDocsResults.RankedDoc> rankedDocsNullStringToEmpty(List<RankedDocsResults.RankedDoc> rankedDocs) {
+        var result = new ArrayList<RankedDocsResults.RankedDoc>(rankedDocs.size());
+        for (var doc : rankedDocs) {
+            if (doc.text() == null) {
+                result.add(new RankedDocsResults.RankedDoc(doc.index(), doc.relevanceScore(), ""));
+            } else {
+                result.add(doc);
+            }
+        }
+        return result;
     }
 
     @Override

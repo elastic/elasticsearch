@@ -28,8 +28,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.MockLogAppender.LoggingExpectation;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.MockLog.LoggingExpectation;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
@@ -103,7 +103,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         DefaultCheckpointProvider provider = newCheckpointProvider(transformConfig);
 
         assertExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "warn when source is empty",
                 checkpointProviderLogger.getName(),
                 Level.WARN,
@@ -121,7 +121,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         );
 
         assertExpectation(
-            new MockLogAppender.UnseenEventExpectation(
+            new MockLog.UnseenEventExpectation(
                 "do not warn if empty again",
                 checkpointProviderLogger.getName(),
                 Level.WARN,
@@ -145,7 +145,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         DefaultCheckpointProvider provider = newCheckpointProvider(transformConfig);
 
         assertExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "info about adds/removal",
                 checkpointProviderLogger.getName(),
                 Level.DEBUG,
@@ -163,7 +163,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         );
 
         assertExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "info about adds/removal",
                 checkpointProviderLogger.getName(),
                 Level.DEBUG,
@@ -180,7 +180,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
             }
         );
         assertExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "info about adds/removal",
                 checkpointProviderLogger.getName(),
                 Level.DEBUG,
@@ -213,7 +213,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         }
 
         assertExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "info about adds/removal",
                 checkpointProviderLogger.getName(),
                 Level.DEBUG,
@@ -462,23 +462,17 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
     }
 
     private void assertExpectation(LoggingExpectation loggingExpectation, AuditExpectation auditExpectation, Runnable codeBlock) {
-        MockLogAppender mockLogAppender = new MockLogAppender();
-        mockLogAppender.start();
-
         Loggers.setLevel(checkpointProviderLogger, Level.DEBUG);
-        mockLogAppender.addExpectation(loggingExpectation);
 
         // always start fresh
         transformAuditor.reset();
         transformAuditor.addExpectation(auditExpectation);
-        try {
-            Loggers.addAppender(checkpointProviderLogger, mockLogAppender);
+
+        try (var mockLog = MockLog.capture(checkpointProviderLogger.getName())) {
+            mockLog.addExpectation(loggingExpectation);
             codeBlock.run();
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
             transformAuditor.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(checkpointProviderLogger, mockLogAppender);
-            mockLogAppender.stop();
         }
     }
 

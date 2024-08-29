@@ -43,7 +43,9 @@ public class GetDataStreamLifecycleStatsAction extends ActionType<GetDataStreamL
             super(in);
         }
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
+        }
 
         @Override
         public ActionRequestValidationException validate() {
@@ -74,7 +76,7 @@ public class GetDataStreamLifecycleStatsAction extends ActionType<GetDataStreamL
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalVLong(runDuration);
             out.writeOptionalVLong(timeBetweenStarts);
-            out.writeCollection(dataStreamStats, (o, v) -> v.writeTo(o));
+            out.writeCollection(dataStreamStats, StreamOutput::writeWriteable);
         }
 
         public Long getRunDuration() {

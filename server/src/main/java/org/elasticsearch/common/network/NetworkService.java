@@ -85,6 +85,7 @@ public final class NetworkService {
 
     private final List<CustomNameResolver> customNameResolvers;
     private final HandlingTimeTracker handlingTimeTracker = new HandlingTimeTracker();
+    private final ThreadWatchdog threadWatchdog = new ThreadWatchdog();
 
     public NetworkService(List<CustomNameResolver> customNameResolvers) {
         this.customNameResolvers = Objects.requireNonNull(customNameResolvers, "customNameResolvers must be non null");
@@ -92,6 +93,10 @@ public final class NetworkService {
 
     public HandlingTimeTracker getHandlingTimeTracker() {
         return handlingTimeTracker;
+    }
+
+    public ThreadWatchdog getThreadWatchdog() {
+        return threadWatchdog;
     }
 
     /**

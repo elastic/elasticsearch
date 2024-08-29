@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
@@ -23,7 +22,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
  * Information about a field in an es index with the {@code text} type.
  */
 public class TextEsField extends EsField {
-    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(EsField.class, "TextEsField", TextEsField::new);
 
     public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
         this(name, properties, hasDocValues, false);
@@ -33,21 +31,20 @@ public class TextEsField extends EsField {
         super(name, TEXT, properties, hasDocValues, isAlias);
     }
 
-    private TextEsField(StreamInput in) throws IOException {
-        this(in.readString(), in.readMap(i -> i.readNamedWriteable(EsField.class)), in.readBoolean(), in.readBoolean());
+    protected TextEsField(StreamInput in) throws IOException {
+        this(in.readString(), in.readImmutableMap(EsField::readFrom), in.readBoolean(), in.readBoolean());
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void writeContent(StreamOutput out) throws IOException {
         out.writeString(getName());
-        out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
+        out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());
         out.writeBoolean(isAlias());
     }
 
-    @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return "TextEsField";
     }
 
     @Override

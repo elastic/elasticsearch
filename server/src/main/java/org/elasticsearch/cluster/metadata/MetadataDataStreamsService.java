@@ -214,17 +214,15 @@ public class MetadataDataStreamsService {
     ClusterState updateDataLifecycle(ClusterState currentState, List<String> dataStreamNames, @Nullable DataStreamLifecycle lifecycle) {
         Metadata metadata = currentState.metadata();
         Metadata.Builder builder = Metadata.builder(metadata);
-        boolean atLeastOneDataStreamIsNotSystem = false;
+        boolean onlyInternalDataStreams = true;
         for (var dataStreamName : dataStreamNames) {
             var dataStream = validateDataStream(metadata, dataStreamName);
             builder.put(dataStream.copy().setLifecycle(lifecycle).build());
-            atLeastOneDataStreamIsNotSystem = atLeastOneDataStreamIsNotSystem || dataStream.isSystem() == false;
+            onlyInternalDataStreams = onlyInternalDataStreams && dataStream.isInternal();
         }
         if (lifecycle != null) {
-            if (atLeastOneDataStreamIsNotSystem) {
-                // We don't issue any warnings if all data streams are system data streams
-                lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get());
-            }
+            // We don't issue any warnings if all data streams are internal data streams
+            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), onlyInternalDataStreams);
         }
         return ClusterState.builder(currentState).metadata(builder.build()).build();
     }

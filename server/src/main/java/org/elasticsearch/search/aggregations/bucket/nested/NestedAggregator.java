@@ -196,7 +196,6 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
             }
 
             for (; childDocId < currentParentDoc; childDocId = childDocs.nextDoc()) {
-                cachedScorer.doc = childDocId;
                 for (var bucket : bucketBuffer) {
                     collectBucket(sub, childDocId, bucket);
                 }

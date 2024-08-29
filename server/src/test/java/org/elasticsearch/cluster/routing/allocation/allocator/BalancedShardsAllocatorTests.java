@@ -540,12 +540,15 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         if (randomBoolean()) {
+            // allocate all shards from scratch
             for (var index : indices) {
                 var build = index.build();
                 metadataBuilder.put(build, false);
                 routingTableBuilder.addAsNew(build);
             }
         } else {
+            // ensure unbalanced cluster cloud be properly balanced
+            // simulates a case when we add a second node and ensure shards could be evenly spread across all available nodes
             for (var index : indices) {
                 var inSyncId = UUIDs.randomBase64UUID();
                 var build = index.putInSyncAllocationIds(0, Set.of(inSyncId)).build();

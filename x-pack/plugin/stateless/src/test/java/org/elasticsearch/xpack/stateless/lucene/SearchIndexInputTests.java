@@ -375,21 +375,19 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
         when(cacheFile.copy()).thenReturn(cacheFile);
         final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
         when(cacheFile.getCacheKey()).thenReturn(new FileCacheKey(shardId, randomNonNegativeLong(), randomIdentifier()));
-        final SearchIndexInput indexInput = new SearchIndexInput(
-            randomIdentifier(),
-            cacheFile,
-            randomIOContext(),
-            cacheBlobReader,
-            null,
-            randomNonNegativeLong(),
-            0
-        );
 
         final long rangeToWriteStart = randomLongBetween(0, 1000);
         final long rangeLength = PAGE_SIZE * between(20, 40);
         final long rangeToWriteEnd = rangeToWriteStart + rangeLength;
         final ByteRange rangeToWrite = ByteRange.of(rangeToWriteStart, rangeToWriteEnd);
-        final var sequentialRangeMissingHandler = indexInput.new SequentialRangeMissingHandler(rangeToWrite);
+        final var sequentialRangeMissingHandler = new SearchIndexInput.SequentialRangeMissingHandler(
+            rangeToWrite,
+            cacheBlobReader,
+            () -> null, // ignored
+            copiedBytes -> {},
+            Stateless.SHARD_READ_THREAD_POOL,
+            Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+        );
 
         // Fallback behaviour for a single gap
         {
@@ -476,21 +474,19 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
         when(cacheFile.copy()).thenReturn(cacheFile);
         final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
         when(cacheFile.getCacheKey()).thenReturn(new FileCacheKey(shardId, randomNonNegativeLong(), randomIdentifier()));
-        final SearchIndexInput indexInput = new SearchIndexInput(
-            randomIdentifier(),
-            cacheFile,
-            randomIOContext(),
-            cacheBlobReader,
-            null,
-            randomNonNegativeLong(),
-            0
-        );
 
         final long rangeToWriteStart = randomLongBetween(0, 1000);
         final long rangeLength = PAGE_SIZE * between(20, 40);
         final long rangeToWriteEnd = rangeToWriteStart + rangeLength;
         final ByteRange rangeToWrite = ByteRange.of(rangeToWriteStart, rangeToWriteEnd);
-        final var sequentialRangeMissingHandler = indexInput.new SequentialRangeMissingHandler(rangeToWrite);
+        final var sequentialRangeMissingHandler = new SearchIndexInput.SequentialRangeMissingHandler(
+            rangeToWrite,
+            cacheBlobReader,
+            () -> null, // ignored
+            copiedBytes -> {},
+            Stateless.SHARD_READ_THREAD_POOL,
+            Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+        );
 
         // Create a list of disjoint gaps
         final ArrayList<SparseFileTracker.Gap> gaps = new ArrayList<>();

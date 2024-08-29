@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -64,6 +65,19 @@ public class SpaceTests extends AbstractScalarFunctionTestCase {
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line -1:-1: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [" + number + "]")
                 .withFoldingException(IllegalArgumentException.class, "Number parameter cannot be negative, found [" + number + "]");
+        }));
+
+        cases.add(new TestCaseSupplier("Space with number too large", List.of(DataType.INTEGER), () -> {
+            int max = (int) MB.toBytes(1);
+            int number = randomIntBetween(max, max+10);
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(number, DataType.INTEGER, "number")),
+                "SpaceEvaluator[number=Attribute[channel=0]]",
+                DataType.KEYWORD,
+                nullValue()
+            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: Creating strings longer than [" + max + "] bytes is not supported")
+                .withFoldingException(IllegalArgumentException.class, "Creating strings longer than [" + max + "] bytes is not supported");
         }));
 
         cases = anyNullIsNull(true, cases);

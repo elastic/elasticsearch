@@ -67,6 +67,7 @@ public class SpaceTests extends AbstractScalarFunctionTestCase {
         }));
 
         cases = anyNullIsNull(true, cases);
+        cases = errorsForCasesWithoutExamples(cases, (v, p) -> "integer");
         return parameterSuppliersFromTypedData(cases);
     }
 

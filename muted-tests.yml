@@ -122,12 +122,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: "test {p0=esql/26_aggs_bucket/friendlier BUCKET interval hourly: #110916}"
-  issue: https://github.com/elastic/elasticsearch/issues/111901
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: "test {p0=esql/26_aggs_bucket/friendlier BUCKET interval: monthly #110916}"
-  issue: https://github.com/elastic/elasticsearch/issues/111902
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   method: testScaledFloat
   issue: https://github.com/elastic/elasticsearch/issues/112003
@@ -137,9 +131,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDeleteJobAfterMissingIndex
   issue: https://github.com/elastic/elasticsearch/issues/112088
-- class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
-  method: testLimitedPrivilege
-  issue: https://github.com/elastic/elasticsearch/issues/112110
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {stats.ByTwoCalculatedSecondOverwrites SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/112117
@@ -160,6 +151,17 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDeleteJobAsync
   issue: https://github.com/elastic/elasticsearch/issues/112212
+- class: org.elasticsearch.search.retriever.rankdoc.RankDocsSortBuilderTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/112312
+- class: org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTests
+  method: testGetMultiThreaded
+  issue: https://github.com/elastic/elasticsearch/issues/112314
+- class: org.elasticsearch.search.retriever.RankDocRetrieverBuilderIT
+  method: testRankDocsRetrieverWithCollapse
+  issue: https://github.com/elastic/elasticsearch/issues/112254
+- class: org.elasticsearch.search.ccs.CCSUsageTelemetryIT
+  issue: https://github.com/elastic/elasticsearch/issues/112324
 
 # Examples:
 #

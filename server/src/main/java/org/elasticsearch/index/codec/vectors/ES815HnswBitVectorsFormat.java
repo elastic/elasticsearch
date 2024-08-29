@@ -16,6 +16,7 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 
@@ -59,6 +60,11 @@ public class ES815HnswBitVectorsFormat extends KnnVectorsFormat {
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(state));
+    }
+
+    @Override
+    public int getMaxDimensions(String s) {
+        return DenseVectorFieldMapper.MAX_DIMS_COUNT;
     }
 
     @Override

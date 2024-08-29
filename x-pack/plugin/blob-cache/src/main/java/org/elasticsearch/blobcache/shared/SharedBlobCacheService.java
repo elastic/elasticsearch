@@ -329,6 +329,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private final LongSupplier relativeTimeInNanosSupplier;
 
+    private volatile boolean closed = false;
+
     public SharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
@@ -715,6 +717,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     @Override
     public void close() {
         sharedBytes.decRef();
+        closed = true;
     }
 
     private record RegionKey<KeyType>(KeyType file, int region) {
@@ -1108,6 +1111,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer
         ) throws Exception {
+            if (closed) {
+                throwAlreadyClosed("Blob cache has been closed");
+            }
             // some cache files can grow after being created, so rangeToWrite can be larger than the initial {@code length}
             assert rangeToWrite.start() >= 0 : rangeToWrite;
             assert assertOffsetsWithinFileLength(rangeToRead.start(), rangeToRead.length(), length);

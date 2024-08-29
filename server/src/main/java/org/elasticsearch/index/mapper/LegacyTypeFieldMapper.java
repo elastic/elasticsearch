@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -69,7 +68,7 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            BytesRef[] bytesRefs = values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new);
+            var bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
             return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
         }
 

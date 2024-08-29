@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.type;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
@@ -21,7 +22,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
@@ -30,7 +30,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
@@ -39,12 +38,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrTemporal;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
@@ -63,7 +62,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
     }
 
     public void testCommonTypeStrings() {
-        List<DataType> STRINGS = List.of(TEXT, KEYWORD);
+        List<DataType> STRINGS = Arrays.stream(DataType.values()).filter(DataType::isString).toList();
         for (DataType dataType1 : STRINGS) {
             for (DataType dataType2 : DataType.values()) {
                 if (dataType2 == NULL) {
@@ -82,12 +81,12 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
     }
 
     public void testCommonTypeDateTimeIntervals() {
-        List<DataType> DATE_TIME_INTERVALS = List.of(DATETIME, DATE_PERIOD, TIME_DURATION);
+        List<DataType> DATE_TIME_INTERVALS = Arrays.stream(DataType.values()).filter(DataType::isDateTimeOrTemporal).toList();
         for (DataType dataType1 : DATE_TIME_INTERVALS) {
             for (DataType dataType2 : DataType.values()) {
                 if (dataType2 == NULL) {
                     assertEqualsCommonType(dataType1, NULL, dataType1);
-                } else if (DATE_TIME_INTERVALS.containsAll(List.of(dataType1, dataType2))) {
+                } else if (isDateTimeOrTemporal(dataType2)) {
                     if (isDateTime(dataType1) || isDateTime(dataType2)) {
                         assertEqualsCommonType(dataType1, dataType2, DATETIME);
                     } else if (dataType1 == dataType2) {
@@ -120,8 +119,8 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
      * The first argument and the second argument(s) have the first argument as a common type.
      */
     private static void commonNumericType(DataType numericType, List<DataType> lowerTypes) {
-        List<DataType> NUMERICS = List.of(INTEGER, LONG, DOUBLE, UNSIGNED_LONG, BYTE, SHORT, FLOAT, HALF_FLOAT, SCALED_FLOAT);
-        List<DataType> DOUBLES = List.of(DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT);
+        List<DataType> NUMERICS = Arrays.stream(DataType.values()).filter(DataType::isNumeric).toList();
+        List<DataType> DOUBLES = Arrays.stream(DataType.values()).filter(DataType::isRationalNumber).toList();
         for (DataType dataType : DataType.values()) {
             if (DOUBLES.containsAll(List.of(numericType, dataType)) && (dataType.estimatedSize().equals(numericType.estimatedSize()))) {
                 assertEquals(numericType, commonType(dataType, numericType));

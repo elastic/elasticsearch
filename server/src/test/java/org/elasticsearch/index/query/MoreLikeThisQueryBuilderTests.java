@@ -245,7 +245,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         for (String fieldName : fieldNames) {
             index.addField(fieldName, text, new WhitespaceAnalyzer());
         }
-        return index.createSearcher().getIndexReader().getTermVectors(0);
+        return index.createSearcher().getIndexReader().termVectors().get(0);
     }
 
     @Override

@@ -78,6 +78,10 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
         public void add(int positionOffset, IntVector groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
+
+        @Override
+        public void close() {
+        }
       };
     }
     return new GroupingAggregatorFunction.AddInput() {
@@ -89,6 +93,10 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
+      }
+
+      @Override
+      public void close() {
       }
     };
   }
@@ -147,6 +155,11 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
         PercentileLongAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
       }
     }
+  }
+
+  @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override

@@ -39,6 +39,7 @@ public class AddBlockTests extends ESTestCase {
         }
         expected.add(added(3, 4));
         assertThat(result.added, equalTo(expected));
+        assertThat(result.closed, equalTo(true));
     }
 
     public void testMvBlockEndsOnBatchBoundary() {
@@ -62,6 +63,7 @@ public class AddBlockTests extends ESTestCase {
         // We uselessly flush an empty position if emitBatchSize lines up with the total count
         expected.add(new Added(1, List.of(List.of())));
         assertThat(result.added, equalTo(expected));
+        assertThat(result.closed, equalTo(true));
     }
 
     public void testMvPositionEndOnBatchBoundary() {
@@ -83,6 +85,7 @@ public class AddBlockTests extends ESTestCase {
         // Because the first position ended on a block boundary we uselessly emit an empty position there
         expected.add(new Added(0, List.of(List.of(), List.of(0, 2))));
         assertThat(result.added, equalTo(expected));
+        assertThat(result.closed, equalTo(true));
     }
 
     public void testMv() {
@@ -103,6 +106,7 @@ public class AddBlockTests extends ESTestCase {
         }
         expected.add(new Added(1, List.of(List.of(2))));
         assertThat(result.added, equalTo(expected));
+        assertThat(result.closed, equalTo(true));
     }
 
     @After
@@ -117,6 +121,8 @@ public class AddBlockTests extends ESTestCase {
     }
 
     private class TestAddInput implements GroupingAggregatorFunction.AddInput {
+        private boolean closed = false;
+
         private final List<Added> added = new ArrayList<>();
 
         @Override
@@ -138,6 +144,11 @@ public class AddBlockTests extends ESTestCase {
         @Override
         public void add(int positionOffset, IntVector groupIds) {
             add(positionOffset, groupIds.asBlock());
+        }
+
+        @Override
+        public void close() {
+            closed = true;
         }
     }
 }

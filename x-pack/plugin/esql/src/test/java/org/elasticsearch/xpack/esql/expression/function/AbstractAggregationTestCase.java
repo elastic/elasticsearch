@@ -11,6 +11,7 @@ import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
@@ -453,22 +454,26 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         for (int currentGroupOffset = 0; currentGroupOffset < groupCount;) {
             int groupSliceRemainingSize = Math.min(groupSliceSize, groupCount - currentGroupOffset);
             var seenGroupIds = new SeenGroupIds.Range(0, allValuesNull ? 0 : currentGroupOffset + groupSliceRemainingSize);
-            var addInput = aggregator.prepareProcessPage(seenGroupIds, inputPage);
+            try (GroupingAggregatorFunction.AddInput addInput = aggregator.prepareProcessPage(seenGroupIds, inputPage)) {
+                var positionCount = inputPage.getPositionCount();
+                var dataSliceSize = 1;
+                // Divide data in chunks
+                for (int currentDataOffset = 0; currentDataOffset < positionCount;) {
+                    int dataSliceRemainingSize = Math.min(dataSliceSize, positionCount - currentDataOffset);
+                    try (
+                        var groups = makeGroupsVector(
+                            currentGroupOffset,
+                            currentGroupOffset + groupSliceRemainingSize,
+                            dataSliceRemainingSize
+                        )
+                    ) {
+                        addInput.add(currentDataOffset, groups);
+                    }
 
-            var positionCount = inputPage.getPositionCount();
-            var dataSliceSize = 1;
-            // Divide data in chunks
-            for (int currentDataOffset = 0; currentDataOffset < positionCount;) {
-                int dataSliceRemainingSize = Math.min(dataSliceSize, positionCount - currentDataOffset);
-                try (
-                    var groups = makeGroupsVector(currentGroupOffset, currentGroupOffset + groupSliceRemainingSize, dataSliceRemainingSize)
-                ) {
-                    addInput.add(currentDataOffset, groups);
-                }
-
-                currentDataOffset += dataSliceSize;
-                if (positionCount > currentDataOffset) {
-                    dataSliceSize = randomIntBetween(1, Math.min(100, positionCount - currentDataOffset));
+                    currentDataOffset += dataSliceSize;
+                    if (positionCount > currentDataOffset) {
+                        dataSliceSize = randomIntBetween(1, Math.min(100, positionCount - currentDataOffset));
+                    }
                 }
             }
 

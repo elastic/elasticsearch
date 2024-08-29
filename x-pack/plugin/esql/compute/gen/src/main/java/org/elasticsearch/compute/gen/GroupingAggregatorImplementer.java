@@ -182,6 +182,7 @@ public class GroupingAggregatorImplementer {
         builder.addMethod(addRawInputLoop(INT_VECTOR, valueVectorType(init, combine)));
         builder.addMethod(addRawInputLoop(INT_BLOCK, valueBlockType(init, combine)));
         builder.addMethod(addRawInputLoop(INT_BLOCK, valueVectorType(init, combine)));
+        builder.addMethod(selectedMayContainUnseenGroups());
         builder.addMethod(addIntermediateInput());
         builder.addMethod(addIntermediateRowInput());
         builder.addMethod(evaluateIntermediate());
@@ -338,6 +339,9 @@ public class GroupingAggregatorImplementer {
         addBlock.accept(vector);
         builder.addMethod(vector.build());
 
+        MethodSpec.Builder close = MethodSpec.methodBuilder("close").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.addMethod(close.build());
+
         return builder.build();
     }
 
@@ -483,6 +487,14 @@ public class GroupingAggregatorImplementer {
     private void combineRawInputForBytesRef(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
         // scratch is a BytesRef var that must have been defined before the iteration starts
         builder.addStatement("$T.combine(state, groupId, $L.getBytesRef($L, scratch))", declarationType, blockVariable, offsetVariable);
+    }
+
+    private MethodSpec selectedMayContainUnseenGroups() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("selectedMayContainUnseenGroups");
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.addParameter(SEEN_GROUP_IDS, "seenGroupIds");
+        builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
+        return builder.build();
     }
 
     private MethodSpec addIntermediateInput() {

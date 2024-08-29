@@ -65,6 +65,9 @@ final class BlockHashRowInTableLookup extends RowInTableLookup {
                         lastOrd = ord;
                     }
                 }
+
+                @Override
+                public void close() {}
             });
             success = true;
         } finally {

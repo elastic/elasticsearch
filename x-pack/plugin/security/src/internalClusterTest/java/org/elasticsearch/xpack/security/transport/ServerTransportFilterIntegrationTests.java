@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -53,11 +54,14 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase {
+
+    private static final int NUMBER_OF_CLIENT_PORTS = Constants.WINDOWS ? 300 : 100;
+
     private static int randomClientPort;
 
     @BeforeClass
     public static void getRandomPort() {
-        randomClientPort = randomIntBetween(49000, 65500); // ephemeral port
+        randomClientPort = randomIntBetween(49152, 65535 - NUMBER_OF_CLIENT_PORTS); // ephemeral port
     }
 
     @Override
@@ -68,7 +72,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settingsBuilder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        String randomClientPortRange = randomClientPort + "-" + (randomClientPort + 100);
+        String randomClientPortRange = randomClientPort + "-" + (randomClientPort + NUMBER_OF_CLIENT_PORTS);
         addSSLSettingsForNodePEMFiles(settingsBuilder, "transport.profiles.client.xpack.security.", true);
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         settingsBuilder.putList(

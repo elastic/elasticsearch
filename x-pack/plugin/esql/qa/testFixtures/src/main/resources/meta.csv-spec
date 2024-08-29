@@ -53,6 +53,7 @@ double e()
 "boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version mv_last(field:boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
 "boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version mv_max(field:boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version)"
 "double|integer|long|unsigned_long mv_median(number:double|integer|long|unsigned_long)"
+"double|integer|long|unsigned_long mv_median_absolute_deviation(number:double|integer|long|unsigned_long)"
 "boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version mv_min(field:boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version)"
 "double|integer|long mv_percentile(number:double|integer|long, percentile:double|integer|long)"
 "double mv_pseries_weighted_sum(number:double, p:double)"
@@ -177,6 +178,7 @@ mv_first      |field                               |"boolean|cartesian_point|car
 mv_last       |field                               |"boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Multivalue expression.
 mv_max        |field                               |"boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version"                                               |Multivalue expression.
 mv_median     |number                              |"double|integer|long|unsigned_long"                                                                                               |Multivalue expression.
+mv_median_abso|number                              |"double|integer|long|unsigned_long"                                                                                               |Multivalue expression.
 mv_min        |field                               |"boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version"                                               |Multivalue expression.
 mv_percentile |[number, percentile]                |["double|integer|long", "double|integer|long"]                                                                                    |[Multivalue expression., The percentile to calculate. Must be a number between 0 and 100. Numbers out of range will return a null instead.]
 mv_pseries_wei|[number, p]                         |[double, double]                                                                                                                  |[Multivalue expression., It is a constant number that represents the 'p' parameter in the P-Series. It impacts every element's contribution to the weighted sum.]
@@ -301,6 +303,7 @@ mv_first      |Converts a multivalued expression into a single valued column con
 mv_last       |Converts a multivalue expression into a single valued column containing the last value. This is most useful when reading from a function that emits multivalued columns in a known order like <<esql-split>>.  The order that <<esql-multivalued-fields, multivalued fields>> are read from underlying storage is not guaranteed. It is *frequently* ascending, but don't rely on that. If you need the maximum value use <<esql-mv_max>> instead of `MV_LAST`. `MV_MAX` has optimizations for sorted values so there isn't a performance benefit to `MV_LAST`.
 mv_max        |Converts a multivalued expression into a single valued column containing the maximum value.
 mv_median     |Converts a multivalued field into a single valued field containing the median value.
+mv_median_abso|Converts a multivalued field into a single valued field containing the median absolute deviation.
 mv_min        |Converts a multivalued expression into a single valued column containing the minimum value.
 mv_percentile |Converts a multivalued field into a single valued field containing the value at which a certain percentage of observed values occur.
 mv_pseries_wei|Converts a multivalued expression into a single-valued column by multiplying every element on the input list by its corresponding term in P-Series and computing the sum.
@@ -427,6 +430,7 @@ mv_first      |"boolean|cartesian_point|cartesian_shape|date|date_nanos|double|g
 mv_last       |"boolean|cartesian_point|cartesian_shape|date|date_nanos|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"|false                       |false           |false
 mv_max        |"boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version"                                         |false                       |false           |false
 mv_median     |"double|integer|long|unsigned_long"                                                                                         |false                       |false           |false
+mv_median_abso|"double|integer|long|unsigned_long"                                                                                         |false                       |false           |false
 mv_min        |"boolean|date|date_nanos|double|integer|ip|keyword|long|text|unsigned_long|version"                                         |false                       |false           |false
 mv_percentile |"double|integer|long"                                                                                                       |[false, false]              |false           |false
 mv_pseries_wei|"double"                                                                                                                    |[false, false]              |false           |false 
@@ -508,5 +512,5 @@ countFunctions#[skip:-8.15.99]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-115    | 115    | 115
+116    | 116    | 116
 ;

@@ -38,7 +38,7 @@ public final class MvMedianAbsoluteDeviationIntEvaluator extends AbstractMultiva
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
     try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      MvMedianAbsoluteDeviation.Ints work = new MvMedianAbsoluteDeviation.Ints();
+      MvMedianAbsoluteDeviation.Longs work = new MvMedianAbsoluteDeviation.Longs();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         if (valueCount == 0) {
@@ -57,7 +57,7 @@ public final class MvMedianAbsoluteDeviationIntEvaluator extends AbstractMultiva
           int value = v.getInt(i);
           MvMedianAbsoluteDeviation.process(work, value);
         }
-        int result = MvMedianAbsoluteDeviation.finish(work);
+        int result = MvMedianAbsoluteDeviation.finishInts(work);
         builder.appendInt(result);
       }
       return builder.build();
@@ -75,7 +75,7 @@ public final class MvMedianAbsoluteDeviationIntEvaluator extends AbstractMultiva
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
     try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
-      MvMedianAbsoluteDeviation.Ints work = new MvMedianAbsoluteDeviation.Ints();
+      MvMedianAbsoluteDeviation.Longs work = new MvMedianAbsoluteDeviation.Longs();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
@@ -90,7 +90,7 @@ public final class MvMedianAbsoluteDeviationIntEvaluator extends AbstractMultiva
           int value = v.getInt(i);
           MvMedianAbsoluteDeviation.process(work, value);
         }
-        int result = MvMedianAbsoluteDeviation.finish(work);
+        int result = MvMedianAbsoluteDeviation.finishInts(work);
         builder.appendInt(result);
       }
       return builder.build().asBlock();
@@ -105,7 +105,7 @@ public final class MvMedianAbsoluteDeviationIntEvaluator extends AbstractMultiva
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
     try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      MvMedianAbsoluteDeviation.Ints work = new MvMedianAbsoluteDeviation.Ints();
+      MvMedianAbsoluteDeviation.Longs work = new MvMedianAbsoluteDeviation.Longs();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         if (valueCount == 0) {
@@ -130,7 +130,7 @@ public final class MvMedianAbsoluteDeviationIntEvaluator extends AbstractMultiva
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
     try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
-      MvMedianAbsoluteDeviation.Ints work = new MvMedianAbsoluteDeviation.Ints();
+      MvMedianAbsoluteDeviation.Longs work = new MvMedianAbsoluteDeviation.Longs();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         assert valueCount == 1;
@@ -150,7 +150,7 @@ public final class MvMedianAbsoluteDeviationIntEvaluator extends AbstractMultiva
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
     try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      MvMedianAbsoluteDeviation.Ints work = new MvMedianAbsoluteDeviation.Ints();
+      MvMedianAbsoluteDeviation.Longs work = new MvMedianAbsoluteDeviation.Longs();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         if (valueCount == 0) {
@@ -172,7 +172,7 @@ public final class MvMedianAbsoluteDeviationIntEvaluator extends AbstractMultiva
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
     try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
-      MvMedianAbsoluteDeviation.Ints work = new MvMedianAbsoluteDeviation.Ints();
+      MvMedianAbsoluteDeviation.Longs work = new MvMedianAbsoluteDeviation.Longs();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);

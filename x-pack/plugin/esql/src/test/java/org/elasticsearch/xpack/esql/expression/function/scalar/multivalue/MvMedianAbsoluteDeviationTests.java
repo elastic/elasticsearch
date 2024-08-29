@@ -21,6 +21,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -171,7 +172,7 @@ public class MvMedianAbsoluteDeviationTests extends AbstractMultivalueFunctionTe
             ? NumericUtils.asLongUnsigned(BigInteger.valueOf(1000))
             : DataTypeConverter.convert(1000, type);
 
-        var typeName = type.name().toLowerCase();
+        var typeName = type.name().toLowerCase(Locale.ROOT);
 
         return List.of(
             new TestCaseSupplier(

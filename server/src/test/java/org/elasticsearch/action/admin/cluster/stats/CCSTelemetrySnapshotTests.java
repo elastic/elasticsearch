@@ -10,9 +10,12 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.action.admin.cluster.stats.CCSTelemetrySnapshot.PerClusterCCSTelemetry;
 import org.elasticsearch.action.admin.cluster.stats.LongMetric.LongMetricValue;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,6 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -309,8 +313,12 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
             clientCounts,
             perClusterCCSTelemetries
         );
-        String expected = readJSONFromResource("telemetry_test.json");
-        assertEquals(expected, snapshot.toString());
+        String expectedJson = readJSONFromResource("telemetry_test.json");
+        assertToXContentEquivalent(
+            new BytesArray(expectedJson),
+            XContentHelper.toXContent(snapshot, XContentType.JSON, randomBoolean()),
+            XContentType.JSON
+        );
     }
 
     private String readJSONFromResource(String fileName) throws IOException {

@@ -22,7 +22,7 @@ Use {es} to search, index, store, and analyze data of all shapes and sizes in ne
 * *Machine learning*. Use {ml} to automatically model the behavior of your data in real-time.
 
 This is just a sample of search, observability, and security use cases enabled by {es}. 
-Refer to our https://www.elastic.co/customers/success-stories[customer success stories] for concrete examples across a range of industry verticals.
+Refer to our https://www.elastic.co/customers/success-stories[customer success stories] for concrete examples across a range of industries.
 // Link to demos, search labs chatbots
 
 [discrete]
@@ -43,11 +43,11 @@ You can deploy {es} in various ways:
 
 * <<run-elasticsearch-locally,*Local dev*>>. Get started quickly with a minimal local Docker setup. 
 * {cloud}/ec-getting-started-trial.html[*Elastic Cloud*]. {es} is available as part of our hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14 day free trial].
-* {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless* (technical preview)]. Create serverless projects for autoscaled and fully-managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14 day free trial].
+* {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless* (technical preview)]. Create serverless projects for autoscaled and fully managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14 day free trial].
 
 **Advanced deployment options**
 
-* <<elasticsearch-deployment-options,*Self managed*>>. Install, configure, and run {es} on your own premises.
+* <<elasticsearch-deployment-options,*Self-managed*>>. Install, configure, and run {es} on your own premises.
 * {ece-ref}/Elastic-Cloud-Enterprise-overview.html[*Elastic Cloud Enterprise*]. Deploy Elastic Cloud on public or private clouds, virtual machines, or your own premises.
 * {eck-ref}/k8s-overview.html[*Elastic Cloud on Kubernetes*]. Deploy Elastic Cloud on Kubernetes.
 

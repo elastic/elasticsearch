@@ -107,7 +107,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
 
     @Override
     protected RestoreSnapshotRequest createTestInstance() {
-        return randomState(new RestoreSnapshotRequest(randomAlphaOfLength(5), randomAlphaOfLength(10)));
+        return randomState(new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, randomAlphaOfLength(5), randomAlphaOfLength(10)));
     }
 
     @Override
@@ -139,7 +139,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         // we will only restore properties from the map that are contained in the request body. All other
         // properties are restored from the original (in the actual REST action this is restored from the
         // REST path and request parameters).
-        RestoreSnapshotRequest processed = new RestoreSnapshotRequest(original.repository(), original.snapshot());
+        RestoreSnapshotRequest processed = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, original.repository(), original.snapshot());
         processed.masterNodeTimeout(original.masterNodeTimeout());
         processed.waitForCompletion(original.waitForCompletion());
 

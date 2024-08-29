@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.index.Term;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -28,10 +27,10 @@ import org.elasticsearch.index.IndexingSlowLog.IndexingSlowLogMessage;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.ParsedDocument.DocumentSize;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
@@ -79,7 +78,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         IndexingSlowLog log = new IndexingSlowLog(settings, mock(SlowLogFieldProvider.class));
 
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
-        Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId("doc_id")), randomNonNegativeLong(), doc);
+        Engine.Index index = new Engine.Index(Uid.encodeId("doc_id"), randomNonNegativeLong(), doc);
         Engine.IndexResult result = Mockito.mock(Engine.IndexResult.class);// (0, 0, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
         Mockito.when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
@@ -153,7 +152,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         IndexingSlowLog log2 = new IndexingSlowLog(index2Settings, mock(SlowLogFieldProvider.class));
 
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
-        Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId("doc_id")), randomNonNegativeLong(), doc);
+        Engine.Index index = new Engine.Index(Uid.encodeId("doc_id"), randomNonNegativeLong(), doc);
         Engine.IndexResult result = Mockito.mock(Engine.IndexResult.class);
         Mockito.when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
@@ -212,7 +211,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            DocumentSize.UNKNOWN
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -241,7 +240,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            DocumentSize.UNKNOWN
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -271,7 +270,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            DocumentSize.UNKNOWN
         );
         Index index = new Index("foo", "123");
 
@@ -290,7 +289,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            DocumentSize.UNKNOWN
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -322,7 +321,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            DocumentSize.UNKNOWN
         );
 
         final XContentParseException e = expectThrows(

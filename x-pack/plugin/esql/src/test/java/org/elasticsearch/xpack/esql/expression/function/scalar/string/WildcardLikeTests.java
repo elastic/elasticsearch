@@ -11,16 +11,14 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 @FunctionName("like")
-public class WildcardLikeTests extends AbstractFunctionTestCase {
+public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
     public WildcardLikeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -55,7 +53,7 @@ public class WildcardLikeTests extends AbstractFunctionTestCase {
     }
 
     private static void addCases(List<TestCaseSupplier> suppliers) {
-        for (DataType type : new DataType[] { DataTypes.KEYWORD, DataTypes.TEXT }) {
+        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
             suppliers.add(new TestCaseSupplier(" with " + type.esType(), List.of(type, type), () -> {
                 BytesRef str = new BytesRef(randomAlphaOfLength(5));
                 String patternString = randomAlphaOfLength(2);
@@ -67,16 +65,11 @@ public class WildcardLikeTests extends AbstractFunctionTestCase {
                         new TestCaseSupplier.TypedData(pattern, type, "pattern").forceLiteral()
                     ),
                     startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
-                    DataTypes.BOOLEAN,
+                    DataType.BOOLEAN,
                     equalTo(match)
                 );
             }));
         }
-    }
-
-    @Override
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        assumeFalse("generated test cases containing nulls by hand", true);
     }
 
     @Override

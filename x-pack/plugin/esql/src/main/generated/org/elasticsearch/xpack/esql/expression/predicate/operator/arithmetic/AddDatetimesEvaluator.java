@@ -17,8 +17,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Add}.
@@ -35,10 +35,10 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
 
   public AddDatetimesEvaluator(Source source, EvalOperator.ExpressionEvaluator datetime,
       TemporalAmount temporalAmount, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.datetime = datetime;
     this.temporalAmount = temporalAmount;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -67,7 +67,7 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
           continue position;
         }
         try {
-          result.appendLong(Add.processDatetimes(datetimeBlock.getLong(datetimeBlock.getFirstValueIndex(p)), temporalAmount));
+          result.appendLong(Add.processDatetimes(datetimeBlock.getLong(datetimeBlock.getFirstValueIndex(p)), this.temporalAmount));
         } catch (ArithmeticException | DateTimeException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -81,7 +81,7 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendLong(Add.processDatetimes(datetimeVector.getLong(p), temporalAmount));
+          result.appendLong(Add.processDatetimes(datetimeVector.getLong(p), this.temporalAmount));
         } catch (ArithmeticException | DateTimeException e) {
           warnings.registerException(e);
           result.appendNull();

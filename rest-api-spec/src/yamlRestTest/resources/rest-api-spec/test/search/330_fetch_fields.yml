@@ -262,41 +262,6 @@
   - match: { hits.hits.0.fields.date.0: "1990/12/29" }
 
 ---
-"Test token count":
-  - requires:
-      cluster_features: ["gte_v7.10.0"]
-      reason: "support for token_count was instroduced in 7.10"
-  - do:
-      indices.create:
-        index:  test
-        body:
-          mappings:
-            properties:
-              count:
-                type: token_count
-                analyzer: standard
-              count_without_dv:
-                type: token_count
-                analyzer: standard
-                doc_values: false
-
-  - do:
-      index:
-        index:  test
-        id:     "1"
-        refresh: true
-        body:
-          count: "some text"
-  - do:
-      search:
-        index: test
-        body:
-          fields: [count, count_without_dv]
-
-  - is_true: hits.hits.0._id
-  - match: { hits.hits.0.fields.count: [2] }
-  - is_false: hits.hits.0.fields.count_without_dv
----
 Test unmapped field:
   -  requires:
         cluster_features: "gte_v7.11.0"
@@ -1160,3 +1125,55 @@ fetch geo_point:
   - match: { hits.hits.0.fields.root\.keyword.0: 'parent' }
   - match: { hits.hits.0.fields.root\.subfield.0: 'child' }
   - match: { hits.hits.0.fields.root\.subfield\.keyword.0: 'child' }
+
+---
+"Test with subobjects: auto":
+  - requires:
+      cluster_features: "mapper.subobjects_auto"
+      reason: requires support for subobjects auto setting
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            subobjects: auto
+            properties:
+              message:
+                type: object
+                subobjects: auto
+                enabled: false
+
+  - do:
+      index:
+        index: test
+        refresh: true
+        body: >
+          {
+            "root": "parent",
+            "root.subfield": "child",
+            "message": {
+              "foo": 10,
+              "foo.bar": 20
+            }
+          }
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              root.subfield:
+                value: 'child'
+          fields:
+            - field: 'root*'
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.root.0: 'parent' }
+  - match: { hits.hits.0.fields.root\.keyword.0: 'parent' }
+  - match: { hits.hits.0.fields.root\.subfield.0: 'child' }
+  - match: { hits.hits.0.fields.root\.subfield\.keyword.0: 'child' }
+  - is_false: hits.hits.0.fields.message
+  - match: { hits.hits.0._source.message.foo: 10 }
+  - match: { hits.hits.0._source.message.foo\.bar: 20 }

@@ -28,10 +28,10 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -129,9 +129,9 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         private SparseEmbeddingResults makeResults(List<String> input) {
             var embeddings = new ArrayList<SparseEmbeddingResults.Embedding>();
             for (int i = 0; i < input.size(); i++) {
-                var tokens = new ArrayList<SparseEmbeddingResults.WeightedToken>();
+                var tokens = new ArrayList<WeightedToken>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new SparseEmbeddingResults.WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
+                    tokens.add(new WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
                 }
                 embeddings.add(new SparseEmbeddingResults.Embedding(tokens, false));
             }
@@ -141,12 +141,14 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         private List<ChunkedInferenceServiceResults> makeChunkedResults(List<String> input) {
             List<ChunkedInferenceServiceResults> results = new ArrayList<>();
             for (int i = 0; i < input.size(); i++) {
-                var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
+                var tokens = new ArrayList<WeightedToken>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new TextExpansionResults.WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
+                    tokens.add(new WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
                 }
                 results.add(
-                    new ChunkedSparseEmbeddingResults(List.of(new ChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens)))
+                    new InferenceChunkedSparseEmbeddingResults(
+                        List.of(new MlChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens))
+                    )
                 );
             }
             return results;
@@ -220,6 +222,11 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             out.writeString(model);
             out.writeOptionalString(hiddenField);
             out.writeBoolean(shouldReturnHiddenField);
+        }
+
+        @Override
+        public String modelId() {
+            return model;
         }
 
         @Override

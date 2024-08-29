@@ -7,37 +7,70 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 import java.util.Map;
 
 public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
-    private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
-        Map.entry(DataTypes.INTEGER, GreaterThanOrEqualIntsEvaluator.Factory::new),
-        Map.entry(DataTypes.DOUBLE, GreaterThanOrEqualDoublesEvaluator.Factory::new),
-        Map.entry(DataTypes.LONG, GreaterThanOrEqualLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.UNSIGNED_LONG, GreaterThanOrEqualLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.DATETIME, GreaterThanOrEqualLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.KEYWORD, GreaterThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.TEXT, GreaterThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.VERSION, GreaterThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.IP, GreaterThanOrEqualKeywordsEvaluator.Factory::new)
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "GreaterThanOrEqual",
+        EsqlBinaryComparison::readFrom
     );
 
-    public GreaterThanOrEqual(Source source, Expression left, Expression right) {
+    private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
+        Map.entry(DataType.INTEGER, GreaterThanOrEqualIntsEvaluator.Factory::new),
+        Map.entry(DataType.DOUBLE, GreaterThanOrEqualDoublesEvaluator.Factory::new),
+        Map.entry(DataType.LONG, GreaterThanOrEqualLongsEvaluator.Factory::new),
+        Map.entry(DataType.UNSIGNED_LONG, GreaterThanOrEqualLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATETIME, GreaterThanOrEqualLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATE_NANOS, GreaterThanOrEqualLongsEvaluator.Factory::new),
+        Map.entry(DataType.KEYWORD, GreaterThanOrEqualKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.TEXT, GreaterThanOrEqualKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.VERSION, GreaterThanOrEqualKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.IP, GreaterThanOrEqualKeywordsEvaluator.Factory::new)
+    );
+
+    @FunctionInfo(
+        returnType = { "boolean" },
+        description = "Check if one field is greater than or equal to another. "
+            + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",
+        note = "This is pushed to the underlying search index if one side of the comparison is constant "
+            + "and the other side is a field in the index that has both an <<mapping-index>> and <<doc-values>>."
+    )
+    public GreaterThanOrEqual(
+        Source source,
+        @Param(
+            name = "lhs",
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            description = "An expression."
+        ) Expression left,
+        @Param(
+            name = "rhs",
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            description = "An expression."
+        ) Expression right
+    ) {
         super(source, left, right, BinaryComparisonOperation.GTE, evaluatorMap);
     }
 
     public GreaterThanOrEqual(Source source, Expression left, Expression right, ZoneId zoneId) {
         super(source, left, right, BinaryComparisonOperation.GTE, zoneId, evaluatorMap);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

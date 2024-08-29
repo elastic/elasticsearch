@@ -156,8 +156,6 @@ public final class ConnectorTestUtils {
 
     public static ConnectorFeatures getRandomConnectorFeatures() {
         return new ConnectorFeatures.Builder().setDocumentLevelSecurityEnabled(randomBoolean() ? randomConnectorFeatureEnabled() : null)
-            .setFilteringRules(randomFrom(new Boolean[] { null, randomBoolean() }))
-            .setFilteringAdvancedConfig(randomFrom(new Boolean[] { null, randomBoolean() }))
             .setIncrementalSyncEnabled(randomBoolean() ? randomConnectorFeatureEnabled() : null)
             .setNativeConnectorAPIKeysEnabled(randomBoolean() ? randomConnectorFeatureEnabled() : null)
             .setSyncRulesFeatures(randomBoolean() ? randomSyncRulesFeatures() : null)
@@ -373,7 +371,7 @@ public final class ConnectorTestUtils {
             .build();
     }
 
-    private static ConnectorFeatures.FeatureEnabled randomConnectorFeatureEnabled() {
+    public static ConnectorFeatures.FeatureEnabled randomConnectorFeatureEnabled() {
         return new ConnectorFeatures.FeatureEnabled(randomBoolean());
     }
 

@@ -13,7 +13,6 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -59,20 +58,13 @@ public class IndexingIT extends ESRestTestCase {
      */
     private int indexDocWithConcurrentUpdates(String index, final int docId, int nUpdates) throws IOException, InterruptedException {
         indexDocs(index, docId, 1);
-        Thread[] indexThreads = new Thread[nUpdates];
-        for (int i = 0; i < nUpdates; i++) {
-            indexThreads[i] = new Thread(() -> {
-                try {
-                    indexDocs(index, docId, 1);
-                } catch (IOException e) {
-                    throw new AssertionError("failed while indexing [" + e.getMessage() + "]");
-                }
-            });
-            indexThreads[i].start();
-        }
-        for (Thread indexThread : indexThreads) {
-            indexThread.join();
-        }
+        runInParallel(nUpdates, i -> {
+            try {
+                indexDocs(index, docId, 1);
+            } catch (IOException e) {
+                throw new AssertionError("failed while indexing [" + e.getMessage() + "]");
+            }
+        });
         return nUpdates + 1;
     }
 
@@ -82,10 +74,7 @@ public class IndexingIT extends ESRestTestCase {
         logger.info("cluster discovered: {}", nodes.toString());
         final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(MixedClusterTestNode::nodeName).collect(Collectors.toList());
         final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
-        Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
-            .put("index.routing.allocation.include._name", bwcNames);
+        Settings.Builder settings = indexSettings(1, 2).put("index.routing.allocation.include._name", bwcNames);
         final String index = "indexversionprop";
         final int minUpdates = 5;
         final int maxUpdates = 10;
@@ -172,10 +161,7 @@ public class IndexingIT extends ESRestTestCase {
         logger.info("cluster discovered: {}", nodes.toString());
         final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(MixedClusterTestNode::nodeName).collect(Collectors.toList());
         final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
-        Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
-            .put("index.routing.allocation.include._name", bwcNames);
+        Settings.Builder settings = indexSettings(1, 2).put("index.routing.allocation.include._name", bwcNames);
 
         final String index = "test";
         createIndex(index, settings.build());
@@ -258,10 +244,7 @@ public class IndexingIT extends ESRestTestCase {
         String bwcNames = nodes.getBWCNodes().stream().map(MixedClusterTestNode::nodeName).collect(Collectors.joining(","));
 
         // Allocating shards on the BWC nodes to makes sure that taking snapshot happens on those nodes.
-        Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(5, 10))
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-            .put("index.routing.allocation.include._name", bwcNames);
+        Settings.Builder settings = indexSettings(between(5, 10), 1).put("index.routing.allocation.include._name", bwcNames);
 
         final String index = "test-snapshot-index";
         createIndex(index, settings.build());
@@ -322,14 +305,7 @@ public class IndexingIT extends ESRestTestCase {
         int numOfReplicas = randomIntBetween(0, nodes.getNewNodes().size() - 1);
         int totalShards = numShards * (numOfReplicas + 1);
         final String index = "test_synced_flush";
-        createIndex(
-            index,
-            Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-                .put("index.routing.allocation.include._name", newNodes)
-                .build()
-        );
+        createIndex(index, indexSettings(numShards, numOfReplicas).put("index.routing.allocation.include._name", newNodes).build());
         ensureGreen(index);
         indexDocs(index, randomIntBetween(0, 100), between(1, 100));
         try (
@@ -401,14 +377,7 @@ public class IndexingIT extends ESRestTestCase {
         int numOfReplicas = randomIntBetween(0, nodes.getNewNodes().size() - 1);
         int totalShards = numShards * (numOfReplicas + 1);
         final String index = "test_flush";
-        createIndex(
-            index,
-            Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-                .put("index.routing.allocation.include._name", newNodes)
-                .build()
-        );
+        createIndex(index, indexSettings(numShards, numOfReplicas).put("index.routing.allocation.include._name", newNodes).build());
         ensureGreen(index);
         indexDocs(index, randomIntBetween(0, 100), between(1, 100));
         try (

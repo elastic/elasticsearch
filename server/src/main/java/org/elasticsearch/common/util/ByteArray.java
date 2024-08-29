@@ -32,9 +32,9 @@ public interface ByteArray extends BigArray, Writeable {
     byte get(long index);
 
     /**
-     * Set a value at the given index and return the previous value.
+     * Set a value at the given index.
      */
-    byte set(long index, byte value);
+    void set(long index, byte value);
 
     /**
      * Get a reference to a slice.

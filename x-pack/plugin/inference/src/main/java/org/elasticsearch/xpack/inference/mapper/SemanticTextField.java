@@ -8,35 +8,30 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -70,20 +65,37 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
     static final String TASK_TYPE_FIELD = "task_type";
     static final String DIMENSIONS_FIELD = "dimensions";
     static final String SIMILARITY_FIELD = "similarity";
+    static final String ELEMENT_TYPE_FIELD = "element_type";
 
     public record InferenceResult(String inferenceId, ModelSettings modelSettings, List<Chunk> chunks) {}
 
     public record Chunk(String text, BytesReference rawEmbeddings) {}
 
-    public record ModelSettings(TaskType taskType, Integer dimensions, SimilarityMeasure similarity) implements ToXContentObject {
+    public record ModelSettings(
+        TaskType taskType,
+        Integer dimensions,
+        SimilarityMeasure similarity,
+        DenseVectorFieldMapper.ElementType elementType
+    ) implements ToXContentObject {
         public ModelSettings(Model model) {
-            this(model.getTaskType(), model.getServiceSettings().dimensions(), model.getServiceSettings().similarity());
+            this(
+                model.getTaskType(),
+                model.getServiceSettings().dimensions(),
+                model.getServiceSettings().similarity(),
+                model.getServiceSettings().elementType()
+            );
         }
 
-        public ModelSettings(TaskType taskType, Integer dimensions, SimilarityMeasure similarity) {
+        public ModelSettings(
+            TaskType taskType,
+            Integer dimensions,
+            SimilarityMeasure similarity,
+            DenseVectorFieldMapper.ElementType elementType
+        ) {
             this.taskType = Objects.requireNonNull(taskType, "task type must not be null");
             this.dimensions = dimensions;
             this.similarity = similarity;
+            this.elementType = elementType;
             validate();
         }
 
@@ -96,6 +108,9 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
             }
             if (similarity != null) {
                 builder.field(SIMILARITY_FIELD, similarity);
+            }
+            if (elementType != null) {
+                builder.field(ELEMENT_TYPE_FIELD, elementType);
             }
             return builder.endObject();
         }
@@ -110,6 +125,9 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
             if (similarity != null) {
                 sb.append(", similarity=").append(similarity);
             }
+            if (elementType != null) {
+                sb.append(", element_type=").append(elementType);
+            }
             return sb.toString();
         }
 
@@ -118,10 +136,12 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
                 case TEXT_EMBEDDING:
                     validateFieldPresent(DIMENSIONS_FIELD, dimensions);
                     validateFieldPresent(SIMILARITY_FIELD, similarity);
+                    validateFieldPresent(ELEMENT_TYPE_FIELD, elementType);
                     break;
                 case SPARSE_EMBEDDING:
                     validateFieldNotPresent(DIMENSIONS_FIELD, dimensions);
                     validateFieldNotPresent(SIMILARITY_FIELD, similarity);
+                    validateFieldNotPresent(ELEMENT_TYPE_FIELD, elementType);
                     break;
 
                 default:
@@ -253,7 +273,10 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
             TaskType taskType = TaskType.fromString((String) args[0]);
             Integer dimensions = (Integer) args[1];
             SimilarityMeasure similarity = args[2] == null ? null : SimilarityMeasure.fromString((String) args[2]);
-            return new ModelSettings(taskType, dimensions, similarity);
+            DenseVectorFieldMapper.ElementType elementType = args[3] == null
+                ? null
+                : DenseVectorFieldMapper.ElementType.fromString((String) args[3]);
+            return new ModelSettings(taskType, dimensions, similarity, elementType);
         }
     );
 
@@ -279,73 +302,22 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
         MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(TASK_TYPE_FIELD));
         MODEL_SETTINGS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(DIMENSIONS_FIELD));
         MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(SIMILARITY_FIELD));
+        MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ELEMENT_TYPE_FIELD));
     }
 
     /**
      * Converts the provided {@link ChunkedInferenceServiceResults} into a list of {@link Chunk}.
      */
-    public static List<Chunk> toSemanticTextFieldChunks(
-        String field,
-        String inferenceId,
-        List<ChunkedInferenceServiceResults> results,
-        XContentType contentType
-    ) {
+    public static List<Chunk> toSemanticTextFieldChunks(List<ChunkedInferenceServiceResults> results, XContentType contentType) {
         List<Chunk> chunks = new ArrayList<>();
         for (var result : results) {
-            if (result instanceof ChunkedSparseEmbeddingResults textExpansionResults) {
-                for (var chunk : textExpansionResults.getChunkedResults()) {
-                    chunks.add(new Chunk(chunk.matchedText(), toBytesReference(contentType.xContent(), chunk.weightedTokens())));
-                }
-            } else if (result instanceof ChunkedTextEmbeddingResults textEmbeddingResults) {
-                for (var chunk : textEmbeddingResults.getChunks()) {
-                    chunks.add(new Chunk(chunk.matchedText(), toBytesReference(contentType.xContent(), chunk.embedding())));
-                }
-            } else {
-                throw new ElasticsearchStatusException(
-                    "Invalid inference results format for field [{}] with inference id [{}], got {}",
-                    RestStatus.BAD_REQUEST,
-                    field,
-                    inferenceId,
-                    result.getWriteableName()
-                );
+            for (Iterator<ChunkedInferenceServiceResults.Chunk> it = result.chunksAsMatchedTextAndByteReference(contentType.xContent()); it
+                .hasNext();) {
+                var chunkAsByteReference = it.next();
+                chunks.add(new Chunk(chunkAsByteReference.matchedText(), chunkAsByteReference.bytesReference()));
             }
         }
         return chunks;
-    }
-
-    /**
-     * Serialises the {@code value} array, according to the provided {@link XContent}, into a {@link BytesReference}.
-     */
-    private static BytesReference toBytesReference(XContent xContent, double[] value) {
-        try {
-            XContentBuilder b = XContentBuilder.builder(xContent);
-            b.startArray();
-            for (double v : value) {
-                b.value(v);
-            }
-            b.endArray();
-            return BytesReference.bytes(b);
-        } catch (IOException exc) {
-            throw new RuntimeException(exc);
-        }
-    }
-
-    /**
-     * Serialises the {@link TextExpansionResults.WeightedToken} list, according to the provided {@link XContent},
-     * into a {@link BytesReference}.
-     */
-    private static BytesReference toBytesReference(XContent xContent, List<TextExpansionResults.WeightedToken> tokens) {
-        try {
-            XContentBuilder b = XContentBuilder.builder(xContent);
-            b.startObject();
-            for (var weightedToken : tokens) {
-                weightedToken.toXContent(b, ToXContent.EMPTY_PARAMS);
-            }
-            b.endObject();
-            return BytesReference.bytes(b);
-        } catch (IOException exc) {
-            throw new RuntimeException(exc);
-        }
     }
 
 }

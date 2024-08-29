@@ -27,4 +27,11 @@ public class MapperBuilderContextTests extends ESTestCase {
         assertEquals(mergeReason, root.getMergeReason());
     }
 
+    public void tesIsInNestedContext() {
+        MapperBuilderContext root = MapperBuilderContext.root(true, false);
+        assertFalse(root.isInNestedContext());
+
+        MapperBuilderContext childContext = root.createChildContext("child", ObjectMapper.Dynamic.FALSE);
+        assertFalse(childContext.isInNestedContext());
+    }
 }

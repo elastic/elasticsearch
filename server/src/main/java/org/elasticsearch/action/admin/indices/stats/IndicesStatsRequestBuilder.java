@@ -159,4 +159,9 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         request.denseVector(denseVector);
         return this;
     }
+
+    public IndicesStatsRequestBuilder setSparseVector(boolean sparseVector) {
+        request.sparseVector(sparseVector);
+        return this;
+    }
 }

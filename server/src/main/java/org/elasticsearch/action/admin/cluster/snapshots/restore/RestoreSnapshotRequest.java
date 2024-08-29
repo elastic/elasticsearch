@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -63,8 +64,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
 
-    public RestoreSnapshotRequest() {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    public RestoreSnapshotRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
     }
 
     /**
@@ -73,8 +74,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * @param repository repository name
      * @param snapshot   snapshot name
      */
-    public RestoreSnapshotRequest(String repository, String snapshot) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    public RestoreSnapshotRequest(TimeValue masterNodeTimeout, String repository, String snapshot) {
+        this(masterNodeTimeout);
         this.snapshot = snapshot;
         this.repository = repository;
     }

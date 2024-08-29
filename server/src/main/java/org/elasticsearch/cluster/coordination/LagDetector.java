@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
@@ -274,7 +275,17 @@ public class LagDetector {
                             threadContext.markAsSystemContext();
                             client.execute(
                                 TransportNodesHotThreadsAction.TYPE,
-                                new NodesHotThreadsRequest(discoveryNode).threads(500),
+                                new NodesHotThreadsRequest(
+                                    discoveryNode,
+                                    new HotThreads.RequestOptions(
+                                        500,
+                                        HotThreads.RequestOptions.DEFAULT.reportType(),
+                                        HotThreads.RequestOptions.DEFAULT.sortOrder(),
+                                        HotThreads.RequestOptions.DEFAULT.interval(),
+                                        HotThreads.RequestOptions.DEFAULT.snapshots(),
+                                        HotThreads.RequestOptions.DEFAULT.ignoreIdleThreads()
+                                    )
+                                ),
                                 ActionListener.runBefore(debugListener, () -> Releasables.close(releasable))
                             );
                             success = true;

@@ -87,6 +87,9 @@ public class BulkRequest extends ActionRequest
         requests.addAll(in.readCollectionAsList(i -> DocWriteRequest.readDocumentRequest(null, i)));
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
+        for (DocWriteRequest<?> request : requests) {
+            indices.add(Objects.requireNonNull(request.index(), "request index must not be null"));
+        }
     }
 
     public BulkRequest(@Nullable String globalIndex) {
@@ -462,5 +465,13 @@ public class BulkRequest extends ActionRequest
 
     public Set<String> getIndices() {
         return Collections.unmodifiableSet(indices);
+    }
+
+    /**
+     * Returns true if this is a request for a simulation rather than a real bulk request.
+     * @return true if this is a simulated bulk request
+     */
+    public boolean isSimulated() {
+        return false; // Always false, but may be overridden by a subclass
     }
 }

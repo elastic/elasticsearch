@@ -484,7 +484,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
             randomAlphaOfLengthBetween(3, 8),
             new FieldExpression(
                 randomAlphaOfLengthBetween(4, 12),
-                Collections.singletonList(new FieldExpression.FieldValue(randomInt(99)))
+                Collections.singletonList(new FieldExpression.FieldValue((long) randomInt(99)))
             ),
             roles,
             templates,

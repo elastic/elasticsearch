@@ -8,15 +8,16 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -77,31 +78,35 @@ public class TransportNodesUsageAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodeUsage nodeOperation(NodeUsageRequest nodeUsageRequest, Task task) {
-        NodesUsageRequest request = nodeUsageRequest.request;
-        Map<String, Long> restUsage = request.restActions() ? restUsageService.getRestUsageStats() : null;
-        Map<String, Object> aggsUsage = request.aggregations() ? aggregationUsageService.getUsageStats() : null;
+    protected NodeUsage nodeOperation(NodeUsageRequest request, Task task) {
+        Map<String, Long> restUsage = request.restActions ? restUsageService.getRestUsageStats() : null;
+        Map<String, Object> aggsUsage = request.aggregations ? aggregationUsageService.getUsageStats() : null;
         return new NodeUsage(clusterService.localNode(), System.currentTimeMillis(), sinceTime, restUsage, aggsUsage);
     }
 
     public static class NodeUsageRequest extends TransportRequest {
 
-        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
-        NodesUsageRequest request;
+        final boolean restActions;
+        final boolean aggregations;
 
         public NodeUsageRequest(StreamInput in) throws IOException {
             super(in);
-            request = new NodesUsageRequest(in);
+            skipLegacyNodesRequestHeader(TransportVersions.MORE_LIGHTER_NODES_REQUESTS, in);
+            restActions = in.readBoolean();
+            aggregations = in.readBoolean();
         }
 
         NodeUsageRequest(NodesUsageRequest request) {
-            this.request = request;
+            restActions = request.restActions();
+            aggregations = request.aggregations();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            request.writeTo(out);
+            sendLegacyNodesRequestHeader(TransportVersions.MORE_LIGHTER_NODES_REQUESTS, out);
+            out.writeBoolean(restActions);
+            out.writeBoolean(aggregations);
         }
     }
 }

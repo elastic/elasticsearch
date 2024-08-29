@@ -1423,7 +1423,7 @@ public class SettingTests extends ESTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.common.settings.IndexScopedSettings:INFO",
+        value = "org.elasticsearch.common.settings.IndexScopedSettings:DEBUG",
         reason = "to ensure we log INFO-level messages from IndexScopedSettings"
     )
     public void testLogSettingUpdate() throws Exception {
@@ -1438,7 +1438,7 @@ public class SettingTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "message",
                     "org.elasticsearch.common.settings.IndexScopedSettings",
-                    Level.INFO,
+                    Level.DEBUG,
                     "updating [index.refresh_interval] from [20s] to [10s]"
                 ) {
                     @Override

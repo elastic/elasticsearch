@@ -16,8 +16,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateExtract}.
@@ -36,11 +36,11 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
 
   public DateExtractConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
       ChronoField chronoField, ZoneId zone, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.value = value;
     this.chronoField = chronoField;
     this.zone = zone;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -68,16 +68,16 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
           result.appendNull();
           continue position;
         }
-        result.appendLong(DateExtract.process(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), chronoField, zone));
+        result.appendLong(DateExtract.process(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), this.chronoField, this.zone));
       }
       return result.build();
     }
   }
 
   public LongVector eval(int positionCount, LongVector valueVector) {
-    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(DateExtract.process(valueVector.getLong(p), chronoField, zone));
+        result.appendLong(p, DateExtract.process(valueVector.getLong(p), this.chronoField, this.zone));
       }
       return result.build();
     }

@@ -190,6 +190,19 @@ s:double
 25976.0
 ;
 
+exp#[skip:-8.15.99,reason:new scalar function added in 8.16]
+// tag::exp[]
+ROW d = 5.0
+| EVAL s = EXP(d)
+// end::exp[]
+;
+
+// tag::exp-result[]
+d: double | s:double
+5.0   | 148.413159102576603
+// end::exp-result[]
+;
+
 powHeightSquared
 from employees | sort height asc | limit 20 | eval s = round(pow(height, 2) - 2, 2) | keep height, s | sort s desc | limit 4;
 
@@ -443,8 +456,8 @@ from employees
 | keep emp_no, languages, salary, avg_worked_seconds, l1, l2, l3
 | limit 5;
 
-warning:Line 2:13: evaluation of [LOG(languages, salary)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:13: java.lang.ArithmeticException: Log of base 1
+warningRegex:evaluation of \[LOG\(languages, salary\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: Log of base 1
 
 emp_no:integer | languages:integer | salary:integer | avg_worked_seconds:long | l1:double          | l2:double          | l3:double
 10001          | 2                 | 57305          | 268728049               | 15.806373402659007 | 19.409210455930772 | 35.21558385858978
@@ -481,8 +494,8 @@ from employees
 | keep l1, l2, emp_no, languages, salary, avg_worked_seconds, l3
 | limit 5;
 
-warning:Line 2:13: evaluation of [LOG(languages, salary)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:13: java.lang.ArithmeticException: Log of base 1
+warningRegex:evaluation of \[LOG\(languages, salary\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: Log of base 1
 
 l1:double         | l2:double          | emp_no:integer | languages:integer | salary:integer | avg_worked_seconds:long | l3:double
 6.300030441266983 | 19.782340222815456 | 10015          | 5                 | 25324          | 390266432               | 26.08237066408244
@@ -502,8 +515,8 @@ from employees
 | keep l1, l2, emp_no, base1, salary, avg_worked_seconds, l3
 | limit 5;
 
-warning:Line 3:13: evaluation of [LOG(base1, salary)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 3:13: java.lang.ArithmeticException: Log of base 1
+warningRegex:evaluation of \[LOG\(base1, salary\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: Log of base 1
 
 l1:double | l2:double          | emp_no:integer | base1:integer | salary:integer | avg_worked_seconds:long | l3:double
 null      | 19.774989878141827 | 10044          | 1             | 39728          | 387408356               | null

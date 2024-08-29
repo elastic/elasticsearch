@@ -18,6 +18,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
@@ -177,7 +178,7 @@ public final class SearchResponseMerger implements Releasable {
             final TotalHits totalHits;
             if (searchHits.getTotalHits() == null) {
                 // in case we didn't track total hits, we get null from each cluster, but we need to set 0 eq to the TopDocs
-                totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
+                totalHits = Lucene.TOTAL_HITS_EQUAL_TO_ZERO;
                 assert trackTotalHits == null || trackTotalHits == false;
                 trackTotalHits = false;
             } else {

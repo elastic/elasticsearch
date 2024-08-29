@@ -11,6 +11,7 @@ package org.elasticsearch.indices.recovery;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -63,9 +64,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
                 relocationTarget = randomFrom(dataNodes);
             }
             logger.info("--> [iteration {}] relocating from {} to {} ", i, relocationSource.getName(), relocationTarget.getName());
-            clusterAdmin().prepareReroute()
-                .add(new MoveAllocationCommand("test", 0, relocationSource.getId(), relocationTarget.getId()))
-                .get();
+            ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, relocationSource.getId(), relocationTarget.getId()));
             ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
                 .setTimeout(TimeValue.timeValueSeconds(60))
                 .setWaitForEvents(Priority.LANGUID)

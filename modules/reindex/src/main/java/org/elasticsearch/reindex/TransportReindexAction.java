@@ -15,15 +15,16 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,7 +54,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         AutoCreateIndex autoCreateIndex,
         Client client,
         TransportService transportService,
-        ReindexSslConfig sslConfig
+        ReindexSslConfig sslConfig,
+        @Nullable ReindexMetrics reindexMetrics
     ) {
         this(
             ReindexAction.NAME,
@@ -66,7 +68,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             autoCreateIndex,
             client,
             transportService,
-            sslConfig
+            sslConfig,
+            reindexMetrics
         );
     }
 
@@ -81,12 +84,13 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         AutoCreateIndex autoCreateIndex,
         Client client,
         TransportService transportService,
-        ReindexSslConfig sslConfig
+        ReindexSslConfig sslConfig,
+        @Nullable ReindexMetrics reindexMetrics
     ) {
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
-        this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig);
+        this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig, reindexMetrics);
     }
 
     @Override

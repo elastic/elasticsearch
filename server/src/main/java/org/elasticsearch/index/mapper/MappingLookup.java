@@ -163,27 +163,27 @@ public final class MappingLookup {
         final Set<String> completionFields = new HashSet<>();
         final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
         for (FieldMapper mapper : mappers) {
-            if (objects.containsKey(mapper.name())) {
-                throw new MapperParsingException("Field [" + mapper.name() + "] is defined both as an object and a field");
+            if (objects.containsKey(mapper.fullPath())) {
+                throw new MapperParsingException("Field [" + mapper.fullPath() + "] is defined both as an object and a field");
             }
-            if (fieldMappers.put(mapper.name(), mapper) != null) {
-                throw new MapperParsingException("Field [" + mapper.name() + "] is defined more than once");
+            if (fieldMappers.put(mapper.fullPath(), mapper) != null) {
+                throw new MapperParsingException("Field [" + mapper.fullPath() + "] is defined more than once");
             }
             indexAnalyzersMap.putAll(mapper.indexAnalyzers());
             if (mapper.hasScript()) {
                 indexTimeScriptMappers.add(mapper);
             }
             if (mapper instanceof CompletionFieldMapper) {
-                completionFields.add(mapper.name());
+                completionFields.add(mapper.fullPath());
             }
         }
 
         for (FieldAliasMapper aliasMapper : aliasMappers) {
-            if (objects.containsKey(aliasMapper.name())) {
-                throw new MapperParsingException("Alias [" + aliasMapper.name() + "] is defined both as an object and an alias");
+            if (objects.containsKey(aliasMapper.fullPath())) {
+                throw new MapperParsingException("Alias [" + aliasMapper.fullPath() + "] is defined both as an object and an alias");
             }
-            if (fieldMappers.put(aliasMapper.name(), aliasMapper) != null) {
-                throw new MapperParsingException("Alias [" + aliasMapper.name() + "] is defined both as an alias and a concrete field");
+            if (fieldMappers.put(aliasMapper.fullPath(), aliasMapper) != null) {
+                throw new MapperParsingException("Alias [" + aliasMapper.fullPath() + "] is defined both as an alias and a concrete field");
             }
         }
 
@@ -194,7 +194,7 @@ public final class MappingLookup {
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
         for (FieldMapper mapper : mappers) {
             if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
-                inferenceFields.put(mapper.name(), inferenceFieldMapper.getMetadata(fieldTypeLookup.sourcePaths(mapper.name())));
+                inferenceFields.put(mapper.fullPath(), inferenceFieldMapper.getMetadata(fieldTypeLookup.sourcePaths(mapper.fullPath())));
             }
         }
         this.inferenceFields = Map.copyOf(inferenceFields);
@@ -225,8 +225,8 @@ public final class MappingLookup {
 
     private static void assertNamesInterned(String name, Mapper mapper) {
         assert name == name.intern();
-        assert mapper.name() == mapper.name().intern();
-        assert mapper.simpleName() == mapper.simpleName().intern();
+        assert mapper.fullPath() == mapper.fullPath().intern();
+        assert mapper.leafName() == mapper.leafName().intern();
         if (mapper instanceof ObjectMapper) {
             ((ObjectMapper) mapper).mappers.forEach(MappingLookup::assertNamesInterned);
         }
@@ -362,7 +362,7 @@ public final class MappingLookup {
 
     private static void validateMapperNameIn(Collection<? extends Mapper> mappers, long limit) {
         for (Mapper mapper : mappers) {
-            String name = mapper.simpleName();
+            String name = mapper.leafName();
             if (name.length() > limit) {
                 throw new IllegalArgumentException("Field name [" + name + "] is longer than the limit of [" + limit + "] characters");
             }

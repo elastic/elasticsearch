@@ -16,8 +16,7 @@ The <<esql-query-api,{esql} query API>> accepts an {esql} query string in the
 ----
 POST /_query?format=txt
 {
-  "query": "FROM library | KEEP author, name, page_count, release_date | SORT page_count DESC | LIMIT 5",
-  "version": "2024.04.01"
+  "query": "FROM library | KEEP author, name, page_count, release_date | SORT page_count DESC | LIMIT 5"
 }
 ----
 // TEST[setup:library]
@@ -56,8 +55,7 @@ POST /_query?format=txt
     | KEEP author, name, page_count, release_date
     | SORT page_count DESC
     | LIMIT 5
-  """,
-  "version": "2024.04.01"
+  """
 }
 ----
 // TEST[setup:library]
@@ -113,6 +111,9 @@ s|Description
 |{wikipedia}/Smile_(data_interchange_format)[Smile] binary data format similar
 to CBOR
 
+|arrow
+|application/vnd.apache.arrow.stream
+|**Experimental.** https://arrow.apache.org/[Apache Arrow] dataframes, https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format[IPC streaming format]
 |===
 
 The `csv` format accepts a formatting URL query attribute, `delimiter`, which
@@ -145,8 +146,7 @@ POST /_query?format=txt
         "lte": 200
       }
     }
-  },
-  "version": "2024.04.01"
+  }
 }
 ----
 // TEST[setup:library]
@@ -182,8 +182,7 @@ POST /_query?format=json
     | SORT page_count DESC
     | LIMIT 5
   """,
-  "columnar": true,
-  "version": "2024.04.01"
+  "columnar": true
 }
 ----
 // TEST[setup:library]
@@ -230,8 +229,7 @@ POST /_query
           | EVAL birth_date = date_parse(birth_date_string)
           | EVAL month_of_birth = DATE_FORMAT("MMMM",birth_date)
           | LIMIT 5
-   """,
-  "version": "2024.04.01"
+   """
 }
 ----
 // TEST[setup:library]
@@ -254,8 +252,7 @@ POST /_query
     | STATS count = COUNT(*) by year
     | WHERE count > 0
     | LIMIT 5
-  """,
-  "version": "2024.04.01"
+  """
 }
 ----
 // TEST[setup:library]
@@ -276,8 +273,48 @@ POST /_query
     | WHERE count > ?
     | LIMIT 5
   """,
-  "params": [300, "Frank Herbert", 0],
-  "version": "2024.04.01"
+  "params": [300, "Frank Herbert", 0]
+}
+----
+// TEST[setup:library]
+
+The parameters can be named parameters or positional parameters.
+
+Named parameters use question mark placeholders (`?`) followed by a string.
+
+[source,console]
+----
+POST /_query
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_EXTRACT("year", release_date)
+    | WHERE page_count > ?page_count AND author == ?author
+    | STATS count = COUNT(*) by year
+    | WHERE count > ?count
+    | LIMIT 5
+  """,
+  "params": [{"page_count" : 300}, {"author" : "Frank Herbert"}, {"count" : 0}]
+}
+----
+// TEST[setup:library]
+
+Positional parameters use question mark placeholders (`?`) followed by an
+integer.
+
+[source,console]
+----
+POST /_query
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_EXTRACT("year", release_date)
+    | WHERE page_count > ?1 AND author == ?2
+    | STATS count = COUNT(*) by year
+    | WHERE count > ?3
+    | LIMIT 5
+  """,
+  "params": [300, "Frank Herbert", 0]
 }
 ----
 // TEST[setup:library]
@@ -311,8 +348,7 @@ POST /_query/async
     | SORT year
     | LIMIT 5
   """,
-  "wait_for_completion_timeout": "2s",
-  "version": "2024.04.01"
+  "wait_for_completion_timeout": "2s"
 }
 ----
 // TEST[setup:library]

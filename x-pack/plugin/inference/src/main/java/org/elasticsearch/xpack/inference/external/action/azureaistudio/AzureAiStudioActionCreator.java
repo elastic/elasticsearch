@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.action.azureaistudio;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.AzureAiStudioChatCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.AzureAiStudioEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -34,7 +35,7 @@ public class AzureAiStudioActionCreator implements AzureAiStudioActionVisitor {
         var overriddenModel = AzureAiStudioChatCompletionModel.of(completionModel, taskSettings);
         var requestManager = new AzureAiStudioChatCompletionRequestManager(overriddenModel, serviceComponents.threadPool());
         var errorMessage = constructFailedToSendRequestMessage(completionModel.uri(), "Azure AI Studio completion");
-        return new AzureAiStudioAction(sender, requestManager, errorMessage);
+        return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 
     @Override
@@ -46,6 +47,6 @@ public class AzureAiStudioActionCreator implements AzureAiStudioActionVisitor {
             serviceComponents.threadPool()
         );
         var errorMessage = constructFailedToSendRequestMessage(embeddingsModel.uri(), "Azure AI Studio embeddings");
-        return new AzureAiStudioAction(sender, requestManager, errorMessage);
+        return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 }

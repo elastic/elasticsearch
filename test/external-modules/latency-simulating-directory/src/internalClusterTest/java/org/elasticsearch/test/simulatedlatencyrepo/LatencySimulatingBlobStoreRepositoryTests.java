@@ -123,6 +123,7 @@ public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotI
 
         logger.info("--> mount snapshot");
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             "test-idx",
             repositoryName,
             si.snapshotId().getName(),

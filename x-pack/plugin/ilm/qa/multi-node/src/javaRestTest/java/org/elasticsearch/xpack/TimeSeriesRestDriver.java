@@ -161,7 +161,7 @@ public final class TimeSeriesRestDriver {
         final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
         Request request = new Request("PUT", "_ilm/policy/" + policyName);
         request.setEntity(entity);
-        client.performRequest(request);
+        assertOK(client.performRequest(request));
     }
 
     public static void createComposableTemplate(RestClient client, String templateName, String indexPattern, Template template)

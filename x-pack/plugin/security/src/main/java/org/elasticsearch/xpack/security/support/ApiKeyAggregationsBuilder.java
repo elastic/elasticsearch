@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.translateQueryBuilderFields;
+import static org.elasticsearch.xpack.security.support.FieldNameTranslators.API_KEY_FIELD_NAME_TRANSLATORS;
 
 public class ApiKeyAggregationsBuilder {
 
@@ -73,7 +73,7 @@ public class ApiKeyAggregationsBuilder {
                     throw new IllegalArgumentException("Unsupported script value source for [" + copiedAggsBuilder.getName() + "] agg");
                 }
                 // the user-facing field names are different from the index mapping field names of API Key docs
-                String translatedFieldName = ApiKeyFieldNameTranslators.translate(valuesSourceAggregationBuilder.field());
+                String translatedFieldName = API_KEY_FIELD_NAME_TRANSLATORS.translate(valuesSourceAggregationBuilder.field());
                 valuesSourceAggregationBuilder.field(translatedFieldName);
                 fieldNameVisitor.accept(translatedFieldName);
                 return valuesSourceAggregationBuilder;
@@ -88,7 +88,7 @@ public class ApiKeyAggregationsBuilder {
                                 + "]"
                         );
                     }
-                    String translatedFieldName = ApiKeyFieldNameTranslators.translate(valueSource.field());
+                    String translatedFieldName = API_KEY_FIELD_NAME_TRANSLATORS.translate(valueSource.field());
                     valueSource.field(translatedFieldName);
                     fieldNameVisitor.accept(translatedFieldName);
                 }
@@ -97,7 +97,7 @@ public class ApiKeyAggregationsBuilder {
                 // filters the aggregation query to user's allowed API Keys only
                 FilterAggregationBuilder newFilterAggregationBuilder = new FilterAggregationBuilder(
                     filterAggregationBuilder.getName(),
-                    translateQueryBuilderFields(filterAggregationBuilder.getFilter(), fieldNameVisitor)
+                    API_KEY_FIELD_NAME_TRANSLATORS.translateQueryBuilderFields(filterAggregationBuilder.getFilter(), fieldNameVisitor)
                 );
                 if (filterAggregationBuilder.getMetadata() != null) {
                     newFilterAggregationBuilder.setMetadata(filterAggregationBuilder.getMetadata());
@@ -110,7 +110,7 @@ public class ApiKeyAggregationsBuilder {
                 // filters the aggregation's bucket queries to user's allowed API Keys only
                 QueryBuilder[] filterQueryBuilders = new QueryBuilder[filtersAggregationBuilder.filters().size()];
                 for (int i = 0; i < filtersAggregationBuilder.filters().size(); i++) {
-                    filterQueryBuilders[i] = translateQueryBuilderFields(
+                    filterQueryBuilders[i] = API_KEY_FIELD_NAME_TRANSLATORS.translateQueryBuilderFields(
                         filtersAggregationBuilder.filters().get(i).filter(),
                         fieldNameVisitor
                     );

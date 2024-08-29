@@ -47,6 +47,94 @@ keyword:
         kwd: bar
 
 ---
+keyword with normalizer:
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+  - do:
+      indices.create:
+        index: test-keyword-with-normalizer
+        body:
+          settings:
+            analysis:
+              normalizer:
+                lowercase:
+                  type: custom
+                  filter:
+                    - lowercase
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              keyword:
+                type: keyword
+                normalizer: lowercase
+              keyword_with_ignore_above:
+                type: keyword
+                normalizer: lowercase
+                ignore_above: 10
+              keyword_without_doc_values:
+                type: keyword
+                normalizer: lowercase
+                doc_values: false
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 1
+        body:
+          keyword: "the Quick Brown Fox jumps over the lazy Dog"
+          keyword_with_ignore_above: "the Quick Brown Fox jumps over the lazy Dog"
+          keyword_without_doc_values: "the Quick Brown Fox jumps over the lazy Dog"
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 2
+        body:
+          keyword: "The five BOXING wizards jump Quickly"
+          keyword_with_ignore_above: "The five BOXING wizards jump Quickly"
+          keyword_without_doc_values: "The five BOXING wizards jump Quickly"
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 3
+        body:
+          keyword: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+          keyword_with_ignore_above: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+          keyword_without_doc_values: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+
+  - do:
+      mget:
+        index: test-keyword-with-normalizer
+        body:
+          ids:    [ 1, 2, 3 ]
+  - match: { docs.0._index: "test-keyword-with-normalizer" }
+  - match: { docs.0._id: "1" }
+  - match:
+      docs.0._source:
+        keyword: "the Quick Brown Fox jumps over the lazy Dog"
+        keyword_with_ignore_above: "the Quick Brown Fox jumps over the lazy Dog"
+        keyword_without_doc_values: "the Quick Brown Fox jumps over the lazy Dog"
+
+  - match: { docs.1._index: "test-keyword-with-normalizer" }
+  - match: { docs.1._id: "2" }
+  - match:
+      docs.1._source:
+        keyword: "The five BOXING wizards jump Quickly"
+        keyword_with_ignore_above: "The five BOXING wizards jump Quickly"
+        keyword_without_doc_values: "The five BOXING wizards jump Quickly"
+
+  - match: { docs.2._index: "test-keyword-with-normalizer" }
+  - match: { docs.2._id: "3" }
+  - match:
+      docs.2._source:
+        keyword: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+        keyword_with_ignore_above: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+        keyword_without_doc_values: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+
+---
 stored text:
   - requires:
       cluster_features: ["gte_v8.5.0"]

@@ -77,7 +77,8 @@ public class HighlighterTestCase extends MapperServiceTestCase {
                 ir.leaves().get(0),
                 0,
                 storedFields,
-                source
+                source,
+                null
             );
             processor.process(hitContext);
             highlights.putAll(hitContext.hit().getHighlightFields());

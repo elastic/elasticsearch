@@ -118,7 +118,7 @@ public class SnapshotsServiceDoubleFinalizationIT extends AbstractSnapshotIntegT
                             .equals(Set.of(SnapshotsInProgress.ShardState.QUEUED, SnapshotsInProgress.ShardState.MISSING))
                 );
         });
-        clusterAdmin().prepareCreateSnapshot(repoName, "snap-2")
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap-2")
             .setIndices("index-2", "index-3")
             .setPartial(true)
             .setWaitForCompletion(false)

@@ -17,8 +17,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link FromBase64}.
@@ -35,10 +35,10 @@ public final class FromBase64Evaluator implements EvalOperator.ExpressionEvaluat
 
   public FromBase64Evaluator(Source source, EvalOperator.ExpressionEvaluator field,
       BytesRefBuilder oScratch, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.field = field;
     this.oScratch = oScratch;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -67,7 +67,7 @@ public final class FromBase64Evaluator implements EvalOperator.ExpressionEvaluat
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(FromBase64.process(fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch), oScratch));
+        result.appendBytesRef(FromBase64.process(fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch), this.oScratch));
       }
       return result.build();
     }
@@ -77,7 +77,7 @@ public final class FromBase64Evaluator implements EvalOperator.ExpressionEvaluat
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef fieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(FromBase64.process(fieldVector.getBytesRef(p, fieldScratch), oScratch));
+        result.appendBytesRef(FromBase64.process(fieldVector.getBytesRef(p, fieldScratch), this.oScratch));
       }
       return result.build();
     }

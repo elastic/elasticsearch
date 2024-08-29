@@ -9,37 +9,44 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
  * Combines the values from two multivalued fields with a delimiter that joins them together.
  */
 public class MvZip extends EsqlScalarFunction implements OptionalArgument, EvaluatorMapper {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvZip", MvZip::new);
+
     private final Expression mvLeft, mvRight, delim;
-    private static final Literal COMMA = new Literal(Source.EMPTY, ",", DataTypes.TEXT);
+    private static final Literal COMMA = new Literal(Source.EMPTY, ",", DataType.TEXT);
 
     @FunctionInfo(
         returnType = { "keyword" },
@@ -60,7 +67,29 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
         super(source, delim == null ? Arrays.asList(mvLeft, mvRight, COMMA) : Arrays.asList(mvLeft, mvRight, delim));
         this.mvLeft = mvLeft;
         this.mvRight = mvRight;
-        this.delim = delim == null ? COMMA : delim;
+        this.delim = delim;
+    }
+
+    private MvZip(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(mvLeft);
+        out.writeNamedWriteable(mvRight);
+        out.writeOptionalNamedWriteable(delim);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -95,10 +124,21 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     }
 
     @Override
+    public Nullability nullable() {
+        // Nullability.TRUE means if *any* parameter is null we return null. We're only null if the first two are null.
+        return Nullability.FALSE;
+    }
+
+    @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
-        return new MvZipEvaluator.Factory(source(), toEvaluator.apply(mvLeft), toEvaluator.apply(mvRight), toEvaluator.apply(delim));
+        return new MvZipEvaluator.Factory(
+            source(),
+            toEvaluator.apply(mvLeft),
+            toEvaluator.apply(mvRight),
+            toEvaluator.apply(delim == null ? COMMA : delim)
+        );
     }
 
     @Override
@@ -113,7 +153,7 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
 
     @Override
     public DataType dataType() {
-        return DataTypes.KEYWORD;
+        return DataType.KEYWORD;
     }
 
     private static void buildOneSide(BytesRefBlock.Builder builder, int start, int end, BytesRefBlock field, BytesRef fieldScratch) {
@@ -188,5 +228,17 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
             rightIndex++;
         }
         builder.endPositionEntry();
+    }
+
+    Expression mvLeft() {
+        return mvLeft;
+    }
+
+    Expression mvRight() {
+        return mvRight;
+    }
+
+    Expression delim() {
+        return delim;
     }
 }

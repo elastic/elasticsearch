@@ -68,15 +68,35 @@ public class JDKVectorLibraryTests extends VectorSimilarityFunctionsTests {
         for (int i = 0; i < loopTimes; i++) {
             int first = randomInt(numVecs - 1);
             int second = randomInt(numVecs - 1);
-            // dot product
-            int implDot = dotProduct7u(segment.asSlice((long) first * dims, dims), segment.asSlice((long) second * dims, dims), dims);
-            int otherDot = dotProductScalar(values[first], values[second]);
-            assertEquals(otherDot, implDot);
+            var nativeSeg1 = segment.asSlice((long) first * dims, dims);
+            var nativeSeg2 = segment.asSlice((long) second * dims, dims);
 
-            int implSqr = squareDistance7u(segment.asSlice((long) first * dims, dims), segment.asSlice((long) second * dims, dims), dims);
-            int otherSqr = squareDistanceScalar(values[first], values[second]);
-            assertEquals(otherSqr, implSqr);
+            // dot product
+            int expected = dotProductScalar(values[first], values[second]);
+            assertEquals(expected, dotProduct7u(nativeSeg1, nativeSeg2, dims));
+            if (testWithHeapSegments()) {
+                var heapSeg1 = MemorySegment.ofArray(values[first]);
+                var heapSeg2 = MemorySegment.ofArray(values[second]);
+                assertEquals(expected, dotProduct7u(heapSeg1, heapSeg2, dims));
+                assertEquals(expected, dotProduct7u(nativeSeg1, heapSeg2, dims));
+                assertEquals(expected, dotProduct7u(heapSeg1, nativeSeg2, dims));
+            }
+
+            // square distance
+            expected = squareDistanceScalar(values[first], values[second]);
+            assertEquals(expected, squareDistance7u(nativeSeg1, nativeSeg2, dims));
+            if (testWithHeapSegments()) {
+                var heapSeg1 = MemorySegment.ofArray(values[first]);
+                var heapSeg2 = MemorySegment.ofArray(values[second]);
+                assertEquals(expected, squareDistance7u(heapSeg1, heapSeg2, dims));
+                assertEquals(expected, squareDistance7u(nativeSeg1, heapSeg2, dims));
+                assertEquals(expected, squareDistance7u(heapSeg1, nativeSeg2, dims));
+            }
         }
+    }
+
+    static boolean testWithHeapSegments() {
+        return Runtime.version().feature() >= 22;
     }
 
     public void testIllegalDims() {

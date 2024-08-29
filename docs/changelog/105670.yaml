@@ -1,5 +1,0 @@
-pr: 105670
-summary: "Painless: Apply true regex limit factor with FIND and MATCH operation"
-area: Infra/Scripting
-type: bug
-issues: []

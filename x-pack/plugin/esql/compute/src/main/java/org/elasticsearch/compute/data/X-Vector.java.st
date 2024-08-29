@@ -51,10 +51,13 @@ $if(BytesRef)$
      * returns null. Callers must not release the returned vector as no extra reference is retained by this method.
      */
     OrdinalBytesRefVector asOrdinals();
-$endif$
 
+$endif$
     @Override
     $Type$Vector filter(int... positions);
+
+    @Override
+    $Type$Block keepMask(BooleanVector mask);
 
     @Override
     ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
@@ -121,6 +124,8 @@ $elseif(boolean)$
             result = 31 * result + Boolean.hashCode(vector.getBoolean(pos));
 $elseif(int)$
             result = 31 * result + vector.getInt(pos);
+$elseif(float)$
+            result = 31 * result + Float.floatToIntBits(vector.getFloat(pos));
 $elseif(long)$
             long element = vector.getLong(pos);
             result = 31 * result + (int) (element ^ (element >>> 32));
@@ -164,15 +169,15 @@ $if(BytesRef)$
 $else$
             out.write$Type$(get$Type$(0));
 $endif$
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof $Type$ArrayVector v) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$ArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
 $if(BytesRef)$
-        } else if (version.onOrAfter(TransportVersions.ESQL_ORDINAL_BLOCK) && this instanceof OrdinalBytesRefVector v && v.isDense()) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefVector v && v.isDense()) {
             out.writeByte(SERIALIZE_VECTOR_ORDINAL);
             v.writeOrdinalVector(out);
 $else$
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_VECTOR) && this instanceof $Type$BigArrayVector v) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$BigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
 $endif$
@@ -185,7 +190,7 @@ $endif$
     private static $Type$Vector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.append$Type$(in.read$Type$());
+                builder.append$Type$($if(BytesRef)$$else$i, $endif$in.read$Type$());
             }
             return builder.build();
         }
@@ -243,6 +248,9 @@ $else$
          */
         @Override
         FixedBuilder append$Type$($type$ value);
+
+        FixedBuilder append$Type$(int index, $type$ value);
+
     }
 $endif$
 }

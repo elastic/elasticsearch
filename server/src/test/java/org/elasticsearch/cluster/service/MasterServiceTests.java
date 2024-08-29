@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.Lifecycle;
@@ -77,6 +78,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
@@ -93,6 +95,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class MasterServiceTests extends ESTestCase {
 
@@ -498,7 +501,7 @@ public class MasterServiceTests extends ESTestCase {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     relativeTimeInMillis += TimeValue.timeValueSeconds(3).millis();
-                    return ClusterState.builder(currentState).incrementVersion().build();
+                    return ClusterState.builder(currentState).build();
                 }
 
                 @Override
@@ -1243,7 +1246,7 @@ public class MasterServiceTests extends ESTestCase {
                 public ClusterState execute(ClusterState currentState) {
                     relativeTimeInMillis += MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis()
                         + randomLongBetween(1, 1000000);
-                    return ClusterState.builder(currentState).incrementVersion().build();
+                    return ClusterState.builder(currentState).build();
                 }
 
                 @Override
@@ -1277,7 +1280,7 @@ public class MasterServiceTests extends ESTestCase {
             masterService.submitUnbatchedStateUpdateTask("test5", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return ClusterState.builder(currentState).incrementVersion().build();
+                    return ClusterState.builder(currentState).build();
                 }
 
                 @Override
@@ -1293,7 +1296,7 @@ public class MasterServiceTests extends ESTestCase {
             masterService.submitUnbatchedStateUpdateTask("test6", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return ClusterState.builder(currentState).incrementVersion().build();
+                    return ClusterState.builder(currentState).build();
                 }
 
                 @Override
@@ -1927,9 +1930,9 @@ public class MasterServiceTests extends ESTestCase {
             );
 
             barrier.await(10, TimeUnit.SECONDS);
-            assertTrue(smallBatchExecutor.semaphore.tryAcquire(4, 10, TimeUnit.SECONDS));
-            assertTrue(manySourceExecutor.semaphore.tryAcquire(2048, 10, TimeUnit.SECONDS));
-            assertTrue(manyTasksPerSourceExecutor.semaphore.tryAcquire(2048, 10, TimeUnit.SECONDS));
+            safeAcquire(4, smallBatchExecutor.semaphore);
+            safeAcquire(2048, manySourceExecutor.semaphore);
+            safeAcquire(2048, manyTasksPerSourceExecutor.semaphore);
             mockLog.assertAllExpectationsMatched();
         }
     }
@@ -2589,6 +2592,69 @@ public class MasterServiceTests extends ESTestCase {
             threadPool.getThreadContext().markAsSystemContext();
             deterministicTaskQueue.runAllTasks();
             assertThat(prioritiesQueue, empty());
+        }
+    }
+
+    public void testVersionNumberProtection() {
+        runVersionNumberProtectionTest(
+            currentState -> ClusterState.builder(currentState)
+                .version(randomFrom(currentState.version() - 1, currentState.version() + 1))
+                .build()
+        );
+
+        runVersionNumberProtectionTest(
+            currentState -> currentState.copyAndUpdateMetadata(
+                b -> b.version(randomFrom(currentState.metadata().version() - 1, currentState.metadata().version() + 1))
+            )
+        );
+
+        runVersionNumberProtectionTest(
+            currentState -> ClusterState.builder(currentState)
+                .routingTable(
+                    RoutingTable.builder(currentState.routingTable())
+                        .version(randomFrom(currentState.routingTable().version() - 1, currentState.routingTable().version() + 1))
+                        .build()
+                )
+                .build()
+        );
+    }
+
+    private void runVersionNumberProtectionTest(UnaryOperator<ClusterState> updateOperator) {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        final var threadContext = threadPool.getThreadContext();
+        final var failureCaught = new AtomicBoolean();
+
+        try (
+            var masterService = createMasterService(true, null, threadPool, deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor());
+            var ignored = threadContext.stashContext()
+        ) {
+            final var taskId = randomIdentifier();
+
+            masterService.submitUnbatchedStateUpdateTask(taskId, new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return updateOperator.apply(currentState);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(
+                        asInstanceOf(IllegalStateException.class, e).getMessage(),
+                        allOf(startsWith("cluster state update executor did not preserve version numbers"), containsString(taskId))
+                    );
+                    assertTrue(failureCaught.compareAndSet(false, true));
+                }
+            });
+
+            // suppress assertion errors to check production behaviour
+            threadContext.putTransient(MasterService.TEST_ONLY_EXECUTOR_MAY_CHANGE_VERSION_NUMBER_TRANSIENT_NAME, new Object());
+            threadContext.markAsSystemContext();
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertFalse(deterministicTaskQueue.hasRunnableTasks());
+            assertFalse(deterministicTaskQueue.hasDeferredTasks());
+
+            assertTrue(failureCaught.get());
         }
     }
 

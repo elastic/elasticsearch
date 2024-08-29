@@ -13,6 +13,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -25,8 +26,8 @@ import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -88,6 +89,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.array;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -185,6 +187,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(TestMapperPlugin.class, ExceptionOnRewriteQueryPlugin.class, BlockingOnRewriteQueryPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            .build();
     }
 
     @Override
@@ -529,23 +539,27 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     closeShardNoCheck(indexShard, randomBoolean());
                 } else if (randomBoolean()) {
                     final ShardId shardId = indexShard.shardId();
-                    final String[] nodeNames = internalCluster().getNodeNames();
-                    final String newNodeName = randomValueOtherThanMany(n -> nodeName.equals(n) == false, () -> randomFrom(nodeNames));
-                    DiscoveryNode fromNode = null;
-                    DiscoveryNode toNode = null;
-                    for (DiscoveryNode node : clusterService().state().nodes()) {
-                        if (node.getName().equals(nodeName)) {
-                            fromNode = node;
-                        }
-                        if (node.getName().equals(newNodeName)) {
-                            toNode = node;
+
+                    final var targetNodes = new ArrayList<String>();
+                    for (final var targetIndicesService : internalCluster().getInstances(IndicesService.class)) {
+                        final var targetNode = targetIndicesService.clusterService().localNode();
+                        if (targetNode.canContainData() && targetIndicesService.getShardOrNull(shardId) == null) {
+                            targetNodes.add(targetNode.getId());
                         }
                     }
-                    assertNotNull(fromNode);
-                    assertNotNull(toNode);
-                    clusterAdmin().prepareReroute()
-                        .add(new MoveAllocationCommand(shardId.getIndexName(), shardId.id(), fromNode.getId(), toNode.getId()))
-                        .get();
+
+                    if (targetNodes.isEmpty()) {
+                        continue;
+                    }
+                    ClusterRerouteUtils.reroute(
+                        client(),
+                        new MoveAllocationCommand(
+                            shardId.getIndexName(),
+                            shardId.id(),
+                            indicesService.clusterService().localNode().getId(),
+                            randomFrom(targetNodes)
+                        )
+                    );
                 }
             }
         }
@@ -570,7 +584,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
             }
-            final FieldCapabilitiesResponse response = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
+            final FieldCapabilitiesResponse response = safeGet(client().execute(TransportFieldCapabilitiesAction.TYPE, request));
             assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2"));
             assertThat(response.getField("field1"), aMapWithSize(2));
             assertThat(response.getField("field1"), hasKey("long"));
@@ -696,6 +710,63 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             BlockingOnRewriteQueryBuilder.unblockOnRewrite();
             expectThrows(CancellationException.class, future::actionGet);
         }
+    }
+
+    public void testIndexMode() throws Exception {
+        Map<String, IndexMode> indexModes = new HashMap<>();
+        // metrics
+        {
+            final String metricsMapping = """
+                 {
+                     "properties": {
+                       "@timestamp": { "type": "date" },
+                       "hostname": { "type": "keyword", "time_series_dimension": true },
+                       "request_count" : { "type" : "long", "time_series_metric" : "counter" },
+                       "cluster": {"type": "keyword"}
+                     }
+                 }
+                """;
+            Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("hostname")).build();
+            int numIndices = between(1, 5);
+            for (int i = 0; i < numIndices; i++) {
+                assertAcked(indicesAdmin().prepareCreate("test_metrics_" + i).setSettings(settings).setMapping(metricsMapping).get());
+                indexModes.put("test_metrics_" + i, IndexMode.TIME_SERIES);
+                assertAcked(indicesAdmin().prepareCreate("test_old_metrics_" + i).setMapping(metricsMapping).get());
+                indexModes.put("test_old_metrics_" + i, IndexMode.STANDARD);
+            }
+        }
+        // logsdb
+        {
+            final String logsMapping = """
+                 {
+                     "properties": {
+                       "@timestamp": { "type": "date" },
+                       "hostname": { "type": "keyword"},
+                       "request_count" : { "type" : "long"},
+                       "cluster": {"type": "keyword"}
+                     }
+                 }
+                """;
+            Settings settings = Settings.builder().put("mode", "logsdb").build();
+            int numIndices = between(1, 5);
+            for (int i = 0; i < numIndices; i++) {
+                assertAcked(indicesAdmin().prepareCreate("test_logs_" + i).setSettings(settings).setMapping(logsMapping).get());
+                indexModes.put("test_logs_" + i, IndexMode.LOGSDB);
+                assertAcked(indicesAdmin().prepareCreate("test_old_logs_" + i).setMapping(logsMapping).get());
+                indexModes.put("test_old_logs_" + i, IndexMode.STANDARD);
+            }
+        }
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.setMergeResults(false);
+        request.indices("test_*");
+        request.fields(randomFrom("*", "@timestamp", "host*"));
+        var resp = client().fieldCaps(request).get();
+        assertThat(resp.getFailures(), empty());
+        Map<String, IndexMode> actualIndexModes = new HashMap<>();
+        for (var indexResp : resp.getIndexResponses()) {
+            actualIndexModes.put(indexResp.getIndexName(), indexResp.getIndexMode());
+        }
+        assertThat(actualIndexModes, equalTo(indexModes));
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {
@@ -846,7 +917,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         @Override
         public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-            return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
+            return new StringStoredFieldFieldLoader(fullPath(), leafName()) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
                     BytesRef ref = (BytesRef) value;

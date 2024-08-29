@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.HttpEntity;
 import org.apache.lucene.tests.util.TimeUnits;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -27,25 +26,31 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
-import org.elasticsearch.xpack.esql.version.EsqlVersion;
-import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.ql.SpecReader;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
@@ -56,13 +61,13 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertData;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
+import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
-import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
-import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
@@ -77,21 +82,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private final String testName;
     private final Integer lineNumber;
     protected final CsvTestCase testCase;
+    protected final String instructions;
     protected final Mode mode;
-
-    public static Set<EsqlVersion> availableVersions() {
-        if ("true".equals(System.getProperty("tests.version_parameter_unsupported"))) {
-            return Set.of();
-        }
-        return Build.current().isSnapshot() ? Set.of(EsqlVersion.values()) : Set.of(EsqlVersion.releasedAscending());
-    }
 
     public enum Mode {
         SYNC,
         ASYNC
     }
 
-    @ParametersFactory(argumentFormatting = "%2$s.%3$s %6$s")
+    @ParametersFactory(argumentFormatting = "%2$s.%3$s %7$s")
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
@@ -110,12 +109,21 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return testcases;
     }
 
-    protected EsqlSpecTestCase(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
+    protected EsqlSpecTestCase(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvTestCase testCase,
+        String instructions,
+        Mode mode
+    ) {
         this.fileName = fileName;
         this.groupName = groupName;
         this.testName = testName;
         this.lineNumber = lineNumber;
         this.testCase = testCase;
+        this.instructions = instructions;
         this.mode = mode;
     }
 
@@ -157,7 +165,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected void shouldSkipTest(String testName) throws IOException {
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
-        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
+        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
     }
 
     protected static void checkCapabilities(RestClient client, TestFeatureService testFeatureService, String testName, CsvTestCase testCase)
@@ -202,18 +210,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
-        String versionString = null;
-        // TODO: Read version range from csv-spec and skip if none of the versions are available.
-        if (availableVersions().isEmpty() == false) {
-            EsqlVersion version = randomFrom(availableVersions());
-            versionString = randomBoolean() ? version.toString() : version.versionStringWithoutEmoji();
+        if (testCase.query.toUpperCase(Locale.ROOT).contains("LOOKUP")) {
+            builder.tables(tables());
         }
 
-        Map<String, Object> answer = runEsql(
-            builder.query(testCase.query).version(versionString),
-            testCase.expectedWarnings(false),
-            testCase.expectedWarningsRegex()
-        );
+        Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.expectedWarnings(), testCase.expectedWarningsRegex());
+
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
         var metadata = answer.get("columns");
@@ -251,10 +253,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         Logger logger
     ) {
         assertMetadata(expected, actualColumns, logger);
-        assertData(expected, actualValues, testCase.ignoreOrder, logger, EsqlSpecTestCase::valueMapper);
+        assertData(expected, actualValues, testCase.ignoreOrder, logger, this::valueMapper);
     }
 
-    private static Object valueMapper(CsvTestUtils.Type type, Object value) {
+    private Object valueMapper(CsvTestUtils.Type type, Object value) {
         if (value == null) {
             return "null";
         }
@@ -269,7 +271,28 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 } catch (Throwable ignored) {}
             }
         }
+        if (type == CsvTestUtils.Type.DOUBLE && enableRoundingDoubleValuesOnAsserting()) {
+            if (value instanceof List<?> vs) {
+                List<Object> values = new ArrayList<>();
+                for (Object v : vs) {
+                    values.add(valueMapper(type, v));
+                }
+                return values;
+            } else if (value instanceof Double d) {
+                return new BigDecimal(d).round(new MathContext(10, RoundingMode.DOWN)).doubleValue();
+            } else if (value instanceof String s) {
+                return new BigDecimal(s).round(new MathContext(10, RoundingMode.DOWN)).doubleValue();
+            }
+        }
         return value.toString();
+    }
+
+    /**
+     * Rounds double values when asserting double values returned in queries.
+     * By default, no rounding is performed.
+     */
+    protected boolean enableRoundingDoubleValuesOnAsserting() {
+        return false;
     }
 
     private static String normalizedPoint(CsvTestUtils.Type type, double x, double y) {
@@ -322,5 +345,60 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 );
             }
         });
+    }
+
+    /**
+     * "tables" parameter sent if there is a LOOKUP in the request. If you
+     * add to this, you must also add to {@link EsqlTestUtils#tables};
+     */
+    private Map<String, Map<String, RestEsqlTestCase.TypeAndValues>> tables() {
+        Map<String, Map<String, RestEsqlTestCase.TypeAndValues>> tables = new TreeMap<>();
+        tables.put(
+            "int_number_names",
+            EsqlTestUtils.table(
+                Map.entry("int", new RestEsqlTestCase.TypeAndValues("integer", IntStream.range(0, 10).boxed().toList())),
+                Map.entry(
+                    "name",
+                    new RestEsqlTestCase.TypeAndValues("keyword", IntStream.range(0, 10).mapToObj(EsqlTestUtils::numberName).toList())
+                )
+            )
+        );
+        tables.put(
+            "long_number_names",
+            EsqlTestUtils.table(
+                Map.entry("long", new RestEsqlTestCase.TypeAndValues("long", LongStream.range(0, 10).boxed().toList())),
+                Map.entry(
+                    "name",
+                    new RestEsqlTestCase.TypeAndValues("keyword", IntStream.range(0, 10).mapToObj(EsqlTestUtils::numberName).toList())
+                )
+            )
+        );
+        tables.put(
+            "double_number_names",
+            EsqlTestUtils.table(
+                Map.entry("double", new RestEsqlTestCase.TypeAndValues("double", List.of(2.03, 2.08))),
+                Map.entry("name", new RestEsqlTestCase.TypeAndValues("keyword", List.of("two point zero three", "two point zero eight")))
+            )
+        );
+        tables.put(
+            "double_number_names_with_null",
+            EsqlTestUtils.table(
+                Map.entry("double", new RestEsqlTestCase.TypeAndValues("double", List.of(2.03, 2.08, 0.0))),
+                Map.entry(
+                    "name",
+                    new RestEsqlTestCase.TypeAndValues("keyword", Arrays.asList("two point zero three", "two point zero eight", null))
+                )
+            )
+        );
+        tables.put(
+            "big",
+            EsqlTestUtils.table(
+                Map.entry("aa", new RestEsqlTestCase.TypeAndValues("keyword", List.of("foo", "bar", "baz", "foo"))),
+                Map.entry("ab", new RestEsqlTestCase.TypeAndValues("keyword", List.of("zoo", "zop", "zoi", "foo"))),
+                Map.entry("na", new RestEsqlTestCase.TypeAndValues("integer", List.of(1, 10, 100, 2))),
+                Map.entry("nb", new RestEsqlTestCase.TypeAndValues("integer", List.of(-1, -10, -100, -2)))
+            )
+        );
+        return tables;
     }
 }

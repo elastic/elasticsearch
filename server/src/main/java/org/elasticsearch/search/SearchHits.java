@@ -34,7 +34,7 @@ import java.util.Objects;
 public final class SearchHits implements Writeable, ChunkedToXContent, RefCounted, Iterable<SearchHit> {
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
-    public static final SearchHits EMPTY_WITH_TOTAL_HITS = SearchHits.empty(new TotalHits(0, Relation.EQUAL_TO), 0);
+    public static final SearchHits EMPTY_WITH_TOTAL_HITS = SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, 0);
     public static final SearchHits EMPTY_WITHOUT_TOTAL_HITS = SearchHits.empty(null, 0);
 
     private final SearchHit[] hits;

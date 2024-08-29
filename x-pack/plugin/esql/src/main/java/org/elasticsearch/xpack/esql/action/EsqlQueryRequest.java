@@ -21,13 +21,11 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.version.EsqlVersion;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
@@ -41,18 +39,18 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     private boolean async;
 
-    private String esqlVersion;
     private String query;
     private boolean columnar;
     private boolean profile;
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
-    private List<TypedParamValue> params = List.of();
+    private QueryParams params = new QueryParams();
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;
     private boolean onSnapshotBuild = Build.current().isSnapshot();
+    private boolean acceptedPragmaRisks = false;
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
@@ -78,24 +76,12 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (Strings.hasText(esqlVersion) == false) {
-            validationException = addValidationError(invalidVersion("is required"), validationException);
-        } else {
-            EsqlVersion version = EsqlVersion.parse(esqlVersion);
-            if (version == null) {
-                validationException = addValidationError(invalidVersion("has invalid value [" + esqlVersion + "]"), validationException);
-            } else if (version == EsqlVersion.SNAPSHOT && onSnapshotBuild == false) {
-                validationException = addValidationError(
-                    invalidVersion("with value [" + esqlVersion + "] only allowed in snapshot builds"),
-                    validationException
-                );
-            }
-        }
         if (Strings.hasText(query) == false) {
             validationException = addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", validationException);
         }
+
         if (onSnapshotBuild == false) {
-            if (pragmas.isEmpty() == false) {
+            if (pragmas.isEmpty() == false && acceptedPragmaRisks == false) {
                 validationException = addValidationError(
                     "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
                     validationException
@@ -111,26 +97,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return validationException;
     }
 
-    private static String invalidVersion(String reason) {
-        return "["
-            + RequestXContent.ESQL_VERSION_FIELD
-            + "] "
-            + reason
-            + ", latest available version is ["
-            + EsqlVersion.latestReleased().versionStringWithoutEmoji()
-            + "]";
-    }
-
     public EsqlQueryRequest() {}
-
-    public void esqlVersion(String esqlVersion) {
-        this.esqlVersion = esqlVersion;
-    }
-
-    @Override
-    public String esqlVersion() {
-        return esqlVersion;
-    }
 
     public void query(String query) {
         this.query = query;
@@ -193,11 +160,11 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return pragmas;
     }
 
-    public List<TypedParamValue> params() {
+    public QueryParams params() {
         return params;
     }
 
-    public void params(List<TypedParamValue> params) {
+    public void params(QueryParams params) {
         this.params = params;
     }
 
@@ -264,5 +231,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     // Setter for tests
     void onSnapshotBuild(boolean onSnapshotBuild) {
         this.onSnapshotBuild = onSnapshotBuild;
+    }
+
+    void acceptedPragmaRisks(boolean accepted) {
+        this.acceptedPragmaRisks = accepted;
     }
 }

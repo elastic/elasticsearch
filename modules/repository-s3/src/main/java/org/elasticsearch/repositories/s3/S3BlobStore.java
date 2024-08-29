@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.rest.RestStatus.REQUESTED_RANGE_NOT_SATISFIED;
 
 class S3BlobStore implements BlobStore {
 
@@ -177,6 +178,23 @@ class S3BlobStore implements BlobStore {
                 .map(List::size)
                 .orElse(0);
 
+            if (exceptionCount > 0) {
+                final List<Object> statusCodes = Objects.requireNonNullElse(
+                    awsRequestMetrics.getProperty(AWSRequestMetrics.Field.StatusCode),
+                    List.of()
+                );
+                // REQUESTED_RANGE_NOT_SATISFIED errors are expected errors due to RCO
+                // TODO Add more expected client error codes?
+                final long amountOfRequestRangeNotSatisfiedErrors = statusCodes.stream()
+                    .filter(e -> (Integer) e == REQUESTED_RANGE_NOT_SATISFIED.getStatus())
+                    .count();
+                if (amountOfRequestRangeNotSatisfiedErrors > 0) {
+                    s3RepositoriesMetrics.common()
+                        .requestRangeNotSatisfiedExceptionCounter()
+                        .incrementBy(amountOfRequestRangeNotSatisfiedErrors, attributes);
+                }
+            }
+
             s3RepositoriesMetrics.common().operationCounter().incrementBy(1, attributes);
             if (numberOfAwsErrors == requestCount) {
                 s3RepositoriesMetrics.common().unsuccessfulOperationCounter().incrementBy(1, attributes);
@@ -206,11 +224,13 @@ class S3BlobStore implements BlobStore {
                 return;
             }
 
-            final long totalTimeInMicros = getTotalTimeInMicros(requestTimesIncludingRetries);
-            if (totalTimeInMicros == 0) {
+            final long totalTimeInNanos = getTotalTimeInNanos(requestTimesIncludingRetries);
+            if (totalTimeInNanos == 0) {
                 logger.warn("Expected HttpRequestTime to be tracked for request [{}] but found no count.", request);
             } else {
-                s3RepositoriesMetrics.common().httpRequestTimeInMicroHistogram().record(totalTimeInMicros, attributes);
+                s3RepositoriesMetrics.common()
+                    .httpRequestTimeInMillisHistogram()
+                    .record(TimeUnit.NANOSECONDS.toMillis(totalTimeInNanos), attributes);
             }
         }
 
@@ -253,18 +273,20 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    private static long getTotalTimeInMicros(List<TimingInfo> requestTimesIncludingRetries) {
-        // Here we calculate the timing in Microseconds for the sum of the individual subMeasurements with the goal of deriving the TTFB
-        // (time to first byte). We calculate the time in micros for later use with an APM style counter (exposed as a long), rather than
-        // using the default double exposed by getTimeTakenMillisIfKnown().
-        long totalTimeInMicros = 0;
+    private static long getTotalTimeInNanos(List<TimingInfo> requestTimesIncludingRetries) {
+        // Here we calculate the timing in Nanoseconds for the sum of the individual subMeasurements with the goal of deriving the TTFB
+        // (time to first byte). We use high precision time here to tell from the case when request time metric is missing (0).
+        // The time is converted to milliseconds for later use with an APM style counter (exposed as a long), rather than using the
+        // default double exposed by getTimeTakenMillisIfKnown().
+        // We don't need sub-millisecond precision. So no need perform the data type castings.
+        long totalTimeInNanos = 0;
         for (TimingInfo timingInfo : requestTimesIncludingRetries) {
             var endTimeInNanos = timingInfo.getEndTimeNanoIfKnown();
             if (endTimeInNanos != null) {
-                totalTimeInMicros += TimeUnit.NANOSECONDS.toMicros(endTimeInNanos - timingInfo.getStartTimeNano());
+                totalTimeInNanos += endTimeInNanos - timingInfo.getStartTimeNano();
             }
         }
-        return totalTimeInMicros;
+        return totalTimeInNanos;
     }
 
     @Override

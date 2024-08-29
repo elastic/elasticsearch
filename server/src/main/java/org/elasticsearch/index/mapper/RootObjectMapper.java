@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -75,7 +76,7 @@ public class RootObjectMapper extends ObjectMapper {
         protected Explicit<Boolean> dateDetection = Defaults.DATE_DETECTION;
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
 
-        public Builder(String name, Explicit<Boolean> subobjects) {
+        public Builder(String name, Optional<Subobjects> subobjects) {
             super(name, subobjects);
         }
 
@@ -108,7 +109,7 @@ public class RootObjectMapper extends ObjectMapper {
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
             return new RootObjectMapper(
-                name(),
+                leafName(),
                 enabled,
                 subobjects,
                 storeArraySource,
@@ -132,7 +133,7 @@ public class RootObjectMapper extends ObjectMapper {
     RootObjectMapper(
         String name,
         Explicit<Boolean> enabled,
-        Explicit<Boolean> subobjects,
+        Optional<Subobjects> subobjects,
         Explicit<Boolean> trackArraySource,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
@@ -152,7 +153,7 @@ public class RootObjectMapper extends ObjectMapper {
 
     @Override
     public RootObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder(name(), subobjects);
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder(this.fullPath(), subobjects);
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         return builder;
@@ -161,7 +162,7 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     RootObjectMapper withoutMappers() {
         return new RootObjectMapper(
-            simpleName(),
+            leafName(),
             enabled,
             subobjects,
             storeArraySource,
@@ -220,7 +221,7 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     public RootObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
         if (mergeWith instanceof RootObjectMapper == false) {
-            MapperErrors.throwObjectMappingConflictError(mergeWith.name());
+            MapperErrors.throwObjectMappingConflictError(mergeWith.fullPath());
         }
 
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
@@ -277,7 +278,7 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         return new RootObjectMapper(
-            simpleName(),
+            leafName(),
             mergeResult.enabled(),
             mergeResult.subObjects(),
             mergeResult.trackArraySource(),
@@ -442,7 +443,7 @@ public class RootObjectMapper extends ObjectMapper {
 
     public static RootObjectMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
         throws MapperParsingException {
-        Explicit<Boolean> subobjects = parseSubobjects(node);
+        Optional<Subobjects> subobjects = parseSubobjects(node);
         RootObjectMapper.Builder builder = new Builder(name, subobjects);
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
         while (iterator.hasNext()) {

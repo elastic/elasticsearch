@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
@@ -16,6 +18,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 
 import java.io.IOException;
@@ -61,7 +64,8 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
         List<LifecyclePolicy> policies = (List<LifecyclePolicy>) input;
 
         for (var policy : policies) {
-            PutLifecycleRequest request = new PutLifecycleRequest(policy);
+            // timeouts don't matter here
+            PutLifecycleRequest request = new PutLifecycleRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, policy);
             validate(request);
             result.add(request);
         }
@@ -93,7 +97,9 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
 
         for (var policyToDelete : toDelete) {
             TransportDeleteLifecycleAction.DeleteLifecyclePolicyTask task = new TransportDeleteLifecycleAction.DeleteLifecyclePolicyTask(
-                policyToDelete
+                // timeouts don't matter here
+                new DeleteLifecycleAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, policyToDelete),
+                ActionListener.noop()
             );
             state = task.execute(state);
         }

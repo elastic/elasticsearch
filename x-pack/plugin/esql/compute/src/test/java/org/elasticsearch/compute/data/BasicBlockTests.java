@@ -41,8 +41,8 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -78,6 +78,10 @@ public class BasicBlockTests extends ESTestCase {
         assertZeroPositionsAndRelease(bf.newLongBlockBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newLongArrayVector(new long[] {}, 0));
         assertZeroPositionsAndRelease(bf.newLongVectorBuilder(0).build());
+        assertZeroPositionsAndRelease(bf.newFloatArrayBlock(new float[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
+        assertZeroPositionsAndRelease(bf.newFloatBlockBuilder(0).build());
+        assertZeroPositionsAndRelease(bf.newFloatArrayVector(new float[] {}, 0));
+        assertZeroPositionsAndRelease(bf.newFloatVectorBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newDoubleArrayBlock(new double[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
         assertZeroPositionsAndRelease(bf.newDoubleBlockBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newDoubleArrayVector(new double[] {}, 0));
@@ -110,6 +114,17 @@ public class BasicBlockTests extends ESTestCase {
             try (var blockBuilder = blockFactory.newLongBlockBuilder(initialSize)) {
                 IntStream.range(0, 10).forEach(blockBuilder::appendLong);
                 LongBlock block = blockBuilder.build();
+                assertSingleValueDenseBlock(block);
+                block.close();
+            }
+        }
+    }
+
+    public void testSmallSingleValueDenseGrowthFloat() {
+        for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
+            try (var blockBuilder = blockFactory.newFloatBlockBuilder(initialSize)) {
+                IntStream.range(0, 10).forEach(blockBuilder::appendFloat);
+                FloatBlock block = blockBuilder.build();
                 assertSingleValueDenseBlock(block);
                 block.close();
             }
@@ -166,13 +181,15 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(block.asVector().getPositionCount(), is(positionCount));
             assertThat(block.asVector().asBlock().getTotalValueCount(), is(positionCount));
             assertThat(block.asVector().asBlock().getPositionCount(), is(positionCount));
-            assertThat(block.nullValuesCount(), is(0));
             assertThat(block.mayHaveNulls(), is(false));
             assertThat(block.areAllValuesNull(), is(false));
             assertThat(block.mayHaveMultivaluedFields(), is(false));
+            assertThat(block.doesHaveMultivaluedFields(), is(false));
 
             initialBlock = block.asVector().asBlock();
         }
+        assertKeepMask(initialBlock);
+        assertKeepMask(initialBlock.asVector());
     }
 
     public void testIntBlock() {
@@ -488,6 +505,100 @@ public class BasicBlockTests extends ESTestCase {
         }
     }
 
+    public void testFloatBlock() {
+        for (int i = 0; i < 1000; i++) {
+            assertThat(breaker.getUsed(), is(0L));
+            int positionCount = randomIntBetween(1, 16 * 1024);
+            FloatBlock block;
+            if (randomBoolean()) {
+                final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
+                var blockBuilder = blockFactory.newFloatBlockBuilder(builderEstimateSize);
+                IntStream.range(0, positionCount).forEach(blockBuilder::appendFloat);
+                block = blockBuilder.build();
+            } else {
+                float[] fa = new float[positionCount];
+                IntStream.range(0, positionCount).forEach(v -> fa[v] = (float) v);
+                block = blockFactory.newFloatArrayVector(fa, positionCount).asBlock();
+            }
+
+            assertThat(positionCount, is(block.getPositionCount()));
+            assertThat(0f, is(block.getFloat(0)));
+            assertThat((float) positionCount - 1, is(block.getFloat(positionCount - 1)));
+            int pos = (int) block.getFloat(randomPosition(positionCount));
+            assertThat((float) pos, is(block.getFloat(pos)));
+            assertSingleValueDenseBlock(block);
+            if (positionCount > 2) {
+                assertLookup(block, positions(blockFactory, 1, 2, new int[] { 1, 2 }), List.of(List.of(1f), List.of(2f), List.of(1f, 2f)));
+            }
+            assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
+            assertEmptyLookup(blockFactory, block);
+
+            try (FloatBlock.Builder blockBuilder = blockFactory.newFloatBlockBuilder(1)) {
+                FloatBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+                assertThat(copy, equalTo(block));
+                releaseAndAssertBreaker(block, copy);
+            }
+
+            if (positionCount > 1) {
+                assertNullValues(
+                    positionCount,
+                    blockFactory::newFloatBlockBuilder,
+                    FloatBlock.Builder::appendFloat,
+                    position -> (float) position,
+                    FloatBlock.Builder::build,
+                    (randomNonNullPosition, b) -> {
+                        assertThat((float) randomNonNullPosition, is(b.getFloat(randomNonNullPosition.intValue())));
+                    }
+                );
+            }
+
+            try (
+                DoubleVector.Builder vectorBuilder = blockFactory.newDoubleVectorBuilder(
+                    randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
+                )
+            ) {
+                IntStream.range(0, positionCount).mapToDouble(ii -> 1.0 / ii).forEach(vectorBuilder::appendDouble);
+                DoubleVector vector = vectorBuilder.build();
+                assertSingleValueDenseBlock(vector.asBlock());
+                releaseAndAssertBreaker(vector.asBlock());
+            }
+        }
+    }
+
+    public void testConstantFloatBlock() {
+        for (int i = 0; i < 1000; i++) {
+            int positionCount = randomIntBetween(1, 16 * 1024);
+            float value = randomFloat();
+            FloatBlock block = blockFactory.newConstantFloatBlockWith(value, positionCount);
+            assertThat(positionCount, is(block.getPositionCount()));
+            assertThat(value, is(block.getFloat(0)));
+            assertThat(value, is(block.getFloat(positionCount - 1)));
+            assertThat(value, is(block.getFloat(randomPosition(positionCount))));
+            assertSingleValueDenseBlock(block);
+            if (positionCount > 2) {
+                assertLookup(
+                    block,
+                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
+                    List.of(List.of(value), List.of(value), List.of(value, value))
+                );
+                assertLookup(
+                    block,
+                    positions(blockFactory, 1, 2),
+                    List.of(List.of(value), List.of(value)),
+                    b -> assertThat(b.asVector(), instanceOf(ConstantFloatVector.class))
+                );
+            }
+            assertLookup(
+                block,
+                positions(blockFactory, positionCount + 1000),
+                singletonList(null),
+                b -> assertThat(b, instanceOf(ConstantNullBlock.class))
+            );
+            assertEmptyLookup(blockFactory, block);
+            releaseAndAssertBreaker(block);
+        }
+    }
+
     private void testBytesRefBlock(Supplier<BytesRef> byteArraySupplier, boolean chomp, org.mockito.ThrowingConsumer<BytesRef> assertions) {
         int positionCount = randomIntBetween(1, 16 * 1024);
         BytesRef[] values = new BytesRef[positionCount];
@@ -614,6 +725,7 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getBytesRef(pos, bytes), equalTo(values[pos]));
                 }
             }
+            assertKeepMask(block);
             releaseAndAssertBreaker(block);
         }
     }
@@ -688,6 +800,12 @@ public class BasicBlockTests extends ESTestCase {
             }
             assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
             assertEmptyLookup(blockFactory, block);
+            try (ToMask mask = block.toMask()) {
+                assertThat(mask.hadMultivaluedFields(), equalTo(false));
+                for (int p = 0; p < positionCount; p++) {
+                    assertThat(mask.mask().getBoolean(p), equalTo(p % 10 == 0));
+                }
+            }
 
             try (BooleanBlock.Builder blockBuilder = blockFactory.newBooleanBlockBuilder(1)) {
                 BooleanBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
@@ -714,6 +832,7 @@ public class BasicBlockTests extends ESTestCase {
             IntStream.range(0, positionCount).mapToObj(ii -> randomBoolean()).forEach(vectorBuilder::appendBoolean);
             BooleanVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
+            assertToMask(vector);
             releaseAndAssertBreaker(vector.asBlock());
         }
     }
@@ -823,7 +942,6 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getInt(i), is(values[i]));
                 }
             }
-            assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
             block.close();
         }
@@ -857,7 +975,6 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getLong(i), is(values[i]));
                 }
             }
-            assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
             block.close();
         }
@@ -891,7 +1008,6 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getDouble(i), is(values[i]));
                 }
             }
-            assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
             block.close();
         }
@@ -925,7 +1041,6 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getBoolean(i), is(values[i]));
                 }
             }
-            assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
             block.close();
         }
@@ -1035,6 +1150,7 @@ public class BasicBlockTests extends ESTestCase {
                 positionValues.add(switch (block.elementType()) {
                     case INT -> ((IntBlock) block).getInt(i++);
                     case LONG -> ((LongBlock) block).getLong(i++);
+                    case FLOAT -> ((FloatBlock) block).getFloat(i++);
                     case DOUBLE -> ((DoubleBlock) block).getDouble(i++);
                     case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(i++, new BytesRef());
                     case BOOLEAN -> ((BooleanBlock) block).getBoolean(i++);
@@ -1154,6 +1270,11 @@ public class BasicBlockTests extends ESTestCase {
                             valuesAtPosition.add(l);
                             ((LongBlock.Builder) builder).appendLong(l);
                         }
+                        case FLOAT -> {
+                            float f = randomFloat();
+                            valuesAtPosition.add(f);
+                            ((FloatBlock.Builder) builder).appendFloat(f);
+                        }
                         case DOUBLE -> {
                             double d = randomDouble();
                             valuesAtPosition.add(d);
@@ -1244,16 +1365,64 @@ public class BasicBlockTests extends ESTestCase {
         assertTrue(block.isNull(randomNullPosition));
         assertFalse(block.isNull(randomNonNullPosition));
         releaseAndAssertBreaker(block);
+        if (block instanceof BooleanBlock bb) {
+            try (ToMask mask = bb.toMask()) {
+                assertThat(mask.hadMultivaluedFields(), equalTo(false));
+                for (int p = 0; p < positionCount; p++) {
+                    assertThat(mask.mask().getBoolean(p), equalTo(nullsMask.get(p) == false && p % 10 == 0));
+                }
+            }
+        }
+    }
+
+    void assertZeroPositionsAndRelease(BooleanBlock block) {
+        assertToMaskZeroPositions(block);
+        assertZeroPositionsAndRelease((Block) block);
     }
 
     void assertZeroPositionsAndRelease(Block block) {
         assertThat(block.getPositionCount(), is(0));
+        assertKeepMaskEmpty(block);
         releaseAndAssertBreaker(block);
+    }
+
+    void assertZeroPositionsAndRelease(BooleanVector vector) {
+        assertToMask(vector);
+        assertZeroPositionsAndRelease((Vector) vector);
     }
 
     void assertZeroPositionsAndRelease(Vector vector) {
         assertThat(vector.getPositionCount(), is(0));
+        assertKeepMaskEmpty(vector);
         releaseAndAssertBreaker(vector);
+    }
+
+    static void assertKeepMaskEmpty(Block block) {
+        try (BooleanVector mask = randomMask(between(0, 1000)); Block masked = block.keepMask(mask)) {
+            if (false == (masked == block || masked.asVector() == block.asVector())) {
+                fail("should return original block or vector");
+            }
+        }
+    }
+
+    static void assertKeepMaskEmpty(Vector vector) {
+        try (BooleanVector mask = randomMask(between(0, 1000)); Block masked = vector.keepMask(mask)) {
+            assertThat(masked.asVector(), sameInstance(vector));
+        }
+    }
+
+    static void assertToMaskZeroPositions(BooleanBlock block) {
+        try (ToMask mask = block.toMask()) {
+            assertThat(mask.mask().getPositionCount(), equalTo(0));
+            assertThat(mask.hadMultivaluedFields(), equalTo(false));
+        }
+    }
+
+    static void assertToMask(BooleanVector vector) {
+        try (ToMask mask = vector.asBlock().toMask()) {
+            assertThat(mask.mask(), sameInstance(vector));
+            assertThat(mask.hadMultivaluedFields(), equalTo(false));
+        }
     }
 
     void releaseAndAssertBreaker(Block... blocks) {
@@ -1630,6 +1799,88 @@ public class BasicBlockTests extends ESTestCase {
                 extra.accept(b);
             }
             assertThat(lookup.hasNext(), equalTo(false));
+        }
+    }
+
+    static void assertKeepMask(Vector vector) {
+        int maskPositions = vector.getPositionCount();
+        if (randomBoolean()) {
+            maskPositions += between(1, 1000);
+        }
+        try (
+            BooleanVector mask = TestBlockFactory.getNonBreakingInstance().newConstantBooleanVector(true, maskPositions);
+            Block masked = vector.keepMask(mask)
+        ) {
+            assertThat(masked.asVector(), sameInstance(vector));
+        }
+        try (
+            BooleanVector mask = TestBlockFactory.getNonBreakingInstance().newConstantBooleanVector(false, maskPositions);
+            Block masked = vector.keepMask(mask)
+        ) {
+            assertThat(masked.getPositionCount(), equalTo(vector.getPositionCount()));
+            for (int p = 0; p < vector.getPositionCount(); p++) {
+                assertTrue(masked.isNull(p));
+            }
+        }
+        try (BooleanVector mask = randomMask(maskPositions); Block masked = vector.keepMask(mask)) {
+            assertThat(masked.getPositionCount(), equalTo(vector.getPositionCount()));
+            for (int p = 0; p < vector.getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    assertFalse(masked.isNull(p));
+                    assertEquals(1, masked.getValueCount(p));
+                    assertEquals(BlockUtils.toJavaObject(vector.asBlock(), p), BlockUtils.toJavaObject(masked, p));
+                } else {
+                    assertTrue(masked.isNull(p));
+                }
+            }
+        }
+    }
+
+    static void assertKeepMask(Block block) {
+        int maskPositions = block.getPositionCount();
+        if (randomBoolean()) {
+            maskPositions += between(1, 1000);
+        }
+        try (
+            BooleanVector mask = TestBlockFactory.getNonBreakingInstance().newConstantBooleanVector(true, maskPositions);
+            Block masked = block.keepMask(mask)
+        ) {
+            if (false == (masked == block || masked.asVector() == block.asVector())) {
+                fail("should return original block or vector");
+            }
+        }
+        try (
+            BooleanVector mask = TestBlockFactory.getNonBreakingInstance().newConstantBooleanVector(false, maskPositions);
+            Block masked = block.keepMask(mask)
+        ) {
+            assertThat(masked.getPositionCount(), equalTo(block.getPositionCount()));
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                assertTrue(masked.isNull(p));
+            }
+        }
+        try (BooleanVector mask = randomMask(maskPositions); Block masked = block.keepMask(mask)) {
+            assertThat(masked.getPositionCount(), equalTo(block.getPositionCount()));
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                if (mask.getBoolean(p) && false == block.isNull(p)) {
+                    assertFalse(masked.isNull(p));
+                    assertEquals(block.getValueCount(p), masked.getValueCount(p));
+                    assertEquals(BlockUtils.toJavaObject(block, p), BlockUtils.toJavaObject(masked, p));
+                } else {
+                    assertTrue(masked.isNull(p));
+                }
+            }
+        }
+    }
+
+    /**
+     * Build a random valid "mask" of single valued boolean fields that.
+     */
+    static BooleanVector randomMask(int positions) {
+        try (BooleanVector.Builder builder = TestBlockFactory.getNonBreakingInstance().newBooleanVectorFixedBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                builder.appendBoolean(randomBoolean());
+            }
+            return builder.build();
         }
     }
 }

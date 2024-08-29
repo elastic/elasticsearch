@@ -34,9 +34,11 @@ public class RestDeleteLifecycleAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String lifecycleName = restRequest.param("name");
-        DeleteLifecycleAction.Request deleteLifecycleRequest = new DeleteLifecycleAction.Request(lifecycleName);
-        deleteLifecycleRequest.ackTimeout(getAckTimeout(restRequest));
-        deleteLifecycleRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
+        DeleteLifecycleAction.Request deleteLifecycleRequest = new DeleteLifecycleAction.Request(
+            getMasterNodeTimeout(restRequest),
+            getAckTimeout(restRequest),
+            lifecycleName
+        );
 
         return channel -> client.execute(DeleteLifecycleAction.INSTANCE, deleteLifecycleRequest, new RestToXContentListener<>(channel));
     }

@@ -297,18 +297,18 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }, (Consumer<InternalHistogram>) histo -> {
             assertThat(histo.getBuckets().size(), equalTo(3));
 
-            assertNotNull(histo.getBuckets().get(0).getAggregations().asMap().get("min"));
-            Min min = (Min) histo.getBuckets().get(0).getAggregations().asMap().get("min");
+            assertNotNull(histo.getBuckets().get(0).getAggregations().get("min"));
+            Min min = (Min) histo.getBuckets().get(0).getAggregations().get("min");
             assertEquals(1.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
 
-            assertNotNull(histo.getBuckets().get(1).getAggregations().asMap().get("min"));
-            min = (Min) histo.getBuckets().get(1).getAggregations().asMap().get("min");
+            assertNotNull(histo.getBuckets().get(1).getAggregations().get("min"));
+            min = (Min) histo.getBuckets().get(1).getAggregations().get("min");
             assertEquals(Double.POSITIVE_INFINITY, min.value(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(min));
 
-            assertNotNull(histo.getBuckets().get(2).getAggregations().asMap().get("min"));
-            min = (Min) histo.getBuckets().get(2).getAggregations().asMap().get("min");
+            assertNotNull(histo.getBuckets().get(2).getAggregations().get("min"));
+            min = (Min) histo.getBuckets().get(2).getAggregations().get("min");
             assertEquals(3.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
 
@@ -343,9 +343,9 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }, (Consumer<InternalGlobal>) global -> {
             assertEquals(2, global.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(global));
-            assertNotNull(global.getAggregations().asMap().get("min"));
+            assertNotNull(global.getAggregations().get("min"));
 
-            Min min = (Min) global.getAggregations().asMap().get("min");
+            Min min = (Min) global.getAggregations().get("min");
             assertEquals(1.0, min.value(), 0);
             assertThat(global.getProperty("min"), equalTo(min));
             assertThat(global.getProperty("min.value"), equalTo(1.0));

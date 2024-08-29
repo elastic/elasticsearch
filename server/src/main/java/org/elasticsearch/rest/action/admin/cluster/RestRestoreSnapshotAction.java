@@ -40,10 +40,11 @@ public class RestRestoreSnapshotAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        String repository = request.param("repository");
-        String snapshot = request.param("snapshot");
-        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(repository, snapshot);
-        restoreSnapshotRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        final var restoreSnapshotRequest = new RestoreSnapshotRequest(
+            getMasterNodeTimeout(request),
+            request.param("repository"),
+            request.param("snapshot")
+        );
         restoreSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
         request.applyContentParser(p -> restoreSnapshotRequest.source(p.mapOrdered()));
         return channel -> client.admin().cluster().restoreSnapshot(restoreSnapshotRequest, new RestToXContentListener<>(channel));

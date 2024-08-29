@@ -8,11 +8,13 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -30,6 +32,7 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
     private String repository;
 
     private String[] snapshots;
+    private boolean waitForCompletion = true;
 
     /**
      * Constructs a new delete snapshots request with repository and snapshot names
@@ -37,8 +40,8 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
      * @param repository repository name
      * @param snapshots  snapshot names
      */
-    public DeleteSnapshotRequest(String repository, String... snapshots) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    public DeleteSnapshotRequest(TimeValue masterNodeTimeout, String repository, String... snapshots) {
+        super(masterNodeTimeout);
         this.repository = repository;
         this.snapshots = snapshots;
     }
@@ -47,6 +50,9 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
         super(in);
         repository = in.readString();
         snapshots = in.readStringArray();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.DELETE_SNAPSHOTS_ASYNC_ADDED)) {
+            waitForCompletion = in.readBoolean();
+        }
     }
 
     @Override
@@ -54,6 +60,11 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
         super.writeTo(out);
         out.writeString(repository);
         out.writeStringArray(snapshots);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.DELETE_SNAPSHOTS_ASYNC_ADDED)) {
+            out.writeBoolean(waitForCompletion);
+        } else {
+            assert waitForCompletion : "Using wait_for_completion parameter when it should have been disallowed";
+        }
     }
 
     @Override
@@ -105,4 +116,28 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
     public String getDescription() {
         return Strings.format("[%s]%s", repository, Arrays.toString(snapshots));
     }
+
+    /**
+     * If set to false the operation should return without waiting for the deletion to complete.
+     *
+     * By default, the operation will wait until all matching snapshots are deleted. It can be changed by setting this
+     * flag to false.
+     *
+     * @param waitForCompletion true if operation should wait for the snapshot deletion
+     * @return this request
+     */
+    public DeleteSnapshotRequest waitForCompletion(boolean waitForCompletion) {
+        this.waitForCompletion = waitForCompletion;
+        return this;
+    }
+
+    /**
+     * Returns true if the request should wait for the snapshot delete(s) to complete before returning
+     *
+     * @return true if the request should wait for completion
+     */
+    public boolean waitForCompletion() {
+        return waitForCompletion;
+    }
+
 }

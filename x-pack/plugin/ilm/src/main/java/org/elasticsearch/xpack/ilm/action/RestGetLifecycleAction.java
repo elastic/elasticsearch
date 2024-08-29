@@ -36,9 +36,11 @@ public class RestGetLifecycleAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String[] lifecycleNames = Strings.splitStringByCommaToArray(restRequest.param("name"));
-        GetLifecycleAction.Request getLifecycleRequest = new GetLifecycleAction.Request(lifecycleNames);
-        getLifecycleRequest.ackTimeout(getAckTimeout(restRequest));
-        getLifecycleRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
+        GetLifecycleAction.Request getLifecycleRequest = new GetLifecycleAction.Request(
+            getMasterNodeTimeout(restRequest),
+            getAckTimeout(restRequest),
+            lifecycleNames
+        );
 
         return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             GetLifecycleAction.INSTANCE,

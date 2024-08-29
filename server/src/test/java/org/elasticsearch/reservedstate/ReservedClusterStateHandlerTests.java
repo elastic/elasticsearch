@@ -10,12 +10,13 @@ package org.elasticsearch.reservedstate;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.is;
 
 public class ReservedClusterStateHandlerTests extends ESTestCase {
     public void testValidation() {
@@ -37,15 +38,15 @@ public class ReservedClusterStateHandlerTests extends ESTestCase {
         };
 
         handler.validate(new ValidRequest());
-        assertEquals(
-            "Validation error",
-            expectThrows(IllegalStateException.class, () -> handler.validate(new InvalidRequest())).getMessage()
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> handler.validate(new InvalidRequest())).getMessage(),
+            is("Validation error")
         );
     }
 
     static class ValidRequest extends MasterNodeRequest<InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request> {
         ValidRequest() {
-            super(TimeValue.THIRTY_SECONDS);
+            super(TEST_REQUEST_TIMEOUT);
         }
 
         @Override

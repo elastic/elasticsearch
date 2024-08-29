@@ -353,24 +353,17 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testRemoveFailureStoreWriteIndex() {
         DataStream original = createRandomDataStream();
+        int indexToRemove = original.getFailureIndices().getIndices().size() - 1;
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> original.removeFailureStoreIndex(
-                original.getFailureIndices().getIndices().get(original.getFailureIndices().getIndices().size() - 1)
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                String.format(
-                    Locale.ROOT,
-                    "cannot remove backing index [%s] of data stream [%s] because it is the write index",
-                    original.getFailureIndices().getIndices().get(original.getFailureIndices().getIndices().size() - 1).getName(),
-                    original.getName()
-                )
-            )
-        );
+        DataStream updated = original.removeFailureStoreIndex(original.getFailureIndices().getIndices().get(indexToRemove));
+        assertThat(updated.getName(), equalTo(original.getName()));
+        assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
+        assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
+        assertThat(updated.getFailureIndices().getIndices().size(), equalTo(original.getFailureIndices().getIndices().size() - 1));
+        assertThat(updated.getFailureIndices().isRolloverOnWrite(), equalTo(true));
+        for (int k = 0; k < (original.getFailureIndices().getIndices().size() - 1); k++) {
+            assertThat(updated.getFailureIndices().getIndices().get(k), equalTo(original.getFailureIndices().getIndices().get(k)));
+        }
     }
 
     public void testAddBackingIndex() {
@@ -731,6 +724,15 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         expectThrows(IllegalArgumentException.class, () -> original.replaceBackingIndex(standaloneIndex, newBackingIndex));
     }
 
+    public void testReplaceBackingIndexThrowsExceptionIfIndexPartOfFailureStore() {
+        DataStream original = createRandomDataStream();
+        int indexToReplace = randomIntBetween(1, original.getFailureIndices().getIndices().size() - 1) - 1;
+
+        Index failureIndex = original.getFailureIndices().getIndices().get(indexToReplace);
+        Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
+        expectThrows(IllegalArgumentException.class, () -> original.replaceBackingIndex(failureIndex, newBackingIndex));
+    }
+
     public void testReplaceBackingIndexThrowsExceptionIfReplacingWriteIndex() {
         int numBackingIndices = randomIntBetween(2, 32);
         int writeIndexPosition = numBackingIndices - 1;
@@ -755,6 +757,78 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                     Locale.ROOT,
                     "cannot replace backing index [%s] of data stream [%s] because it is the write index",
                     indices.get(writeIndexPosition).getName(),
+                    dataStreamName
+                )
+            )
+        );
+    }
+
+    public void testReplaceFailureIndex() {
+        DataStream original = createRandomDataStream();
+        int indexToReplace = randomIntBetween(1, original.getFailureIndices().getIndices().size() - 1) - 1;
+
+        Index newFailureIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
+        DataStream updated = original.replaceFailureStoreIndex(
+            original.getFailureIndices().getIndices().get(indexToReplace),
+            newFailureIndex
+        );
+        assertThat(updated.getName(), equalTo(original.getName()));
+        assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
+        assertThat(updated.getFailureIndices().getIndices().size(), equalTo(original.getFailureIndices().getIndices().size()));
+        assertThat(updated.getFailureIndices().getIndices().get(indexToReplace), equalTo(newFailureIndex));
+
+        for (int i = 0; i < original.getFailureIndices().getIndices().size(); i++) {
+            if (i != indexToReplace) {
+                assertThat(updated.getFailureIndices().getIndices().get(i), equalTo(original.getFailureIndices().getIndices().get(i)));
+            }
+        }
+    }
+
+    public void testReplaceFailureIndexThrowsExceptionIfIndexNotPartOfDataStream() {
+        DataStream original = createRandomDataStream();
+
+        Index standaloneIndex = new Index("index-foo", UUIDs.randomBase64UUID(random()));
+        Index newFailureIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
+        expectThrows(IllegalArgumentException.class, () -> original.replaceFailureStoreIndex(standaloneIndex, newFailureIndex));
+    }
+
+    public void testReplaceFailureIndexThrowsExceptionIfIndexPartOfBackingIndices() {
+        DataStream original = createRandomDataStream();
+        int indexToReplace = randomIntBetween(1, original.getIndices().size() - 1) - 1;
+
+        Index backingIndex = original.getIndices().get(indexToReplace);
+        Index newFailureIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
+        expectThrows(IllegalArgumentException.class, () -> original.replaceFailureStoreIndex(backingIndex, newFailureIndex));
+    }
+
+    public void testReplaceFailureIndexThrowsExceptionIfReplacingWriteIndex() {
+        int numFailureIndices = randomIntBetween(2, 32);
+        int writeIndexPosition = numFailureIndices - 1;
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        long ts = System.currentTimeMillis();
+
+        List<Index> indices = new ArrayList<>(1);
+        indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, ts), UUIDs.randomBase64UUID(random())));
+
+        List<Index> failureIndices = new ArrayList<>(numFailureIndices);
+        for (int i = 1; i <= numFailureIndices; i++) {
+            failureIndices.add(new Index(DataStream.getDefaultFailureStoreName(dataStreamName, i, ts), UUIDs.randomBase64UUID(random())));
+        }
+        int generation = randomBoolean() ? numFailureIndices : numFailureIndices + randomIntBetween(1, 5);
+        DataStream original = newInstance(dataStreamName, indices, generation, null, false, null, failureIndices);
+
+        Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> original.replaceFailureStoreIndex(failureIndices.get(writeIndexPosition), newBackingIndex)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                String.format(
+                    Locale.ROOT,
+                    "cannot replace failure index [%s] of data stream [%s] because it is the failure store write index",
+                    failureIndices.get(writeIndexPosition).getName(),
                     dataStreamName
                 )
             )
@@ -965,11 +1039,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStream.validate(
                     (index) -> IndexMetadata.builder(index)
                         .settings(
-                            Settings.builder()
-                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
-                                .build()
+                            indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current()).build()
                         )
                         .build()
                 );
@@ -984,10 +1054,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                     () -> dataStream.validate(
                         (index) -> IndexMetadata.builder(index)
                             .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+                                indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
                                     .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start3.toEpochMilli())
                                     .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end3.toEpochMilli())
@@ -1826,15 +1893,15 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStream.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention))
-                .getConditions()
-                .keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(
+                lifecycle.getEffectiveDataRetention(globalRetention, dataStream.isInternal())
+            ).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }
             // We check that even if there was no retention provided by the user, the global retention applies
             assertThat(serialized, not(containsString("data_retention")));
-            if (dataStream.isSystem() == false
-                && (globalRetention.getDefaultRetention() != null || globalRetention.getMaxRetention() != null)) {
+            if (dataStream.isInternal() == false
+                && (globalRetention.defaultRetention() != null || globalRetention.maxRetention() != null)) {
                 assertThat(serialized, containsString("effective_retention"));
             } else {
                 assertThat(serialized, not(containsString("effective_retention")));
@@ -2136,6 +2203,17 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             is(false)
         );
         assertThat(failureStoreDataStreamWithEmptyFailureIndices.isFailureStoreIndex(randomAlphaOfLength(10)), is(false));
+    }
+
+    public void testInternalDataStream() {
+        var nonInternalDataStream = createTestInstance().copy().setSystem(false).setName(randomAlphaOfLength(10)).build();
+        assertThat(nonInternalDataStream.isInternal(), is(false));
+
+        var systemDataStream = nonInternalDataStream.copy().setSystem(true).setHidden(true).setName(randomAlphaOfLength(10)).build();
+        assertThat(systemDataStream.isInternal(), is(true));
+
+        var dotPrefixedDataStream = nonInternalDataStream.copy().setSystem(false).setName("." + randomAlphaOfLength(10)).build();
+        assertThat(dotPrefixedDataStream.isInternal(), is(true));
     }
 
     private record DataStreamMetadata(Long creationTimeInMillis, Long rolloverTimeInMillis, Long originationTimeInMillis) {

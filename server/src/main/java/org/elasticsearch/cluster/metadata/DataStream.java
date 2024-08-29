@@ -69,7 +69,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public static final FeatureFlag FAILURE_STORE_FEATURE_FLAG = new FeatureFlag("failure_store");
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
-    public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.DATA_STREAM_AUTO_SHARDING_EVENT;
+    public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.V_8_14_0;
 
     public static boolean isFailureStoreFeatureFlagEnabled() {
         return FAILURE_STORE_FEATURE_FLAG.isEnabled();
@@ -184,6 +184,51 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.failureIndices = failureIndices;
     }
 
+    public static DataStream read(StreamInput in) throws IOException {
+        var name = readName(in);
+        var backingIndicesBuilder = DataStreamIndices.backingIndicesBuilder(readIndices(in));
+        var generation = in.readVLong();
+        var metadata = in.readGenericMap();
+        var hidden = in.readBoolean();
+        var replicated = in.readBoolean();
+        var system = in.readBoolean();
+        var allowCustomRouting = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0) ? in.readBoolean() : false;
+        var indexMode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null;
+        var lifecycle = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
+            ? in.readOptionalWriteable(DataStreamLifecycle::new)
+            : null;
+        var failureStoreEnabled = in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
+            ? in.readBoolean()
+            : false;
+        var failureIndices = in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
+            ? readIndices(in)
+            : List.<Index>of();
+        var failureIndicesBuilder = DataStreamIndices.failureIndicesBuilder(failureIndices);
+        backingIndicesBuilder.setRolloverOnWrite(in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? in.readBoolean() : false);
+        if (in.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
+            backingIndicesBuilder.setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_FIELD_PARITY)) {
+            failureIndicesBuilder.setRolloverOnWrite(in.readBoolean())
+                .setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
+        }
+        return new DataStream(
+            name,
+            generation,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            System::currentTimeMillis,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStoreEnabled,
+            backingIndicesBuilder.build(),
+            failureIndicesBuilder.build()
+        );
+    }
+
     @Override
     public Type getType() {
         return Type.DATA_STREAM;
@@ -218,7 +263,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     @Nullable
     public Index getFailureStoreWriteIndex() {
-        return isFailureStoreEnabled() == false || failureIndices.indices.isEmpty() ? null : failureIndices.getWriteIndex();
+        return failureIndices.indices.isEmpty() ? null : failureIndices.getWriteIndex();
     }
 
     /**
@@ -230,6 +275,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public boolean rolloverOnWrite() {
         return backingIndices.rolloverOnWrite;
+    }
+
+    /**
+     * We define that a data stream is considered internal either if it is a system index or if
+     * its name starts with a dot.
+     *
+     * Note: Dot-prefixed internal data streams is a naming convention for internal data streams,
+     * but it's not yet enforced.
+     * @return true if it's a system index or has a dot-prefixed name.
+     */
+    public boolean isInternal() {
+        return isSystem() || name.charAt(0) == '.';
     }
 
     /**
@@ -536,23 +593,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
 
-        // TODO: When failure stores are lazily created, this wont necessarily be required anymore. We can remove the failure store write
-        // index as long as we mark the data stream to lazily rollover the failure store with no conditions on its next write
-        if (failureIndices.indices.size() == (failureIndexPosition + 1)) {
-            throw new IllegalArgumentException(
-                String.format(
-                    Locale.ROOT,
-                    "cannot remove backing index [%s] of data stream [%s] because it is the write index",
-                    index.getName(),
-                    name
-                )
-            );
-        }
-
+        // If this is the write index, we're marking the failure store for lazy rollover, to make sure a new write index gets created on the
+        // next write. We do this regardless of whether it's the last index in the failure store or not.
+        boolean rolloverOnWrite = failureIndices.indices.size() == (failureIndexPosition + 1);
         List<Index> updatedFailureIndices = new ArrayList<>(failureIndices.indices);
         updatedFailureIndices.remove(index);
         assert updatedFailureIndices.size() == failureIndices.indices.size() - 1;
-        return copy().setFailureIndices(failureIndices.copy().setIndices(updatedFailureIndices).build())
+        return copy().setFailureIndices(failureIndices.copy().setIndices(updatedFailureIndices).setRolloverOnWrite(rolloverOnWrite).build())
             .setGeneration(generation + 1)
             .build();
     }
@@ -587,6 +634,40 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
         return copy().setBackingIndices(this.backingIndices.copy().setIndices(backingIndices).build())
+            .setGeneration(generation + 1)
+            .build();
+    }
+
+    /**
+     * Replaces the specified failure store index with a new index and returns a new {@code DataStream} instance with
+     * the modified backing indices. An {@code IllegalArgumentException} is thrown if the index to be replaced
+     * is not a failure store index for this data stream or if it is the {@code DataStream}'s failure store write index.
+     *
+     * @param existingFailureIndex the failure store index to be replaced
+     * @param newFailureIndex      the new index that will be part of the {@code DataStream}
+     * @return new {@code DataStream} instance with failure store indices that contain replacement index instead of the specified
+     * existing index.
+     */
+    public DataStream replaceFailureStoreIndex(Index existingFailureIndex, Index newFailureIndex) {
+        List<Index> currentFailureIndices = new ArrayList<>(failureIndices.indices);
+        int failureIndexPosition = currentFailureIndices.indexOf(existingFailureIndex);
+        if (failureIndexPosition == -1) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "index [%s] is not part of data stream [%s] failure store", existingFailureIndex.getName(), name)
+            );
+        }
+        if (failureIndices.indices.size() == (failureIndexPosition + 1)) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "cannot replace failure index [%s] of data stream [%s] because it is the failure store write index",
+                    existingFailureIndex.getName(),
+                    name
+                )
+            );
+        }
+        currentFailureIndices.set(failureIndexPosition, newFailureIndex);
+        return copy().setFailureIndices(this.failureIndices.copy().setIndices(currentFailureIndices).build())
             .setGeneration(generation + 1)
             .build();
     }
@@ -727,12 +808,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     ) {
         if (lifecycle == null
             || lifecycle.isEnabled() == false
-            || lifecycle.getEffectiveDataRetention(isSystem() ? null : globalRetention) == null) {
+            || lifecycle.getEffectiveDataRetention(globalRetention, isInternal()) == null) {
             return List.of();
         }
 
         List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            lifecycle.getEffectiveDataRetention(isSystem() ? null : globalRetention),
+            lifecycle.getEffectiveDataRetention(globalRetention, isInternal()),
             indexMetadataSupplier,
             this::isIndexManagedByDataStreamLifecycle,
             nowSupplier
@@ -778,10 +859,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Returns the non-write backing indices that are older than the provided age, *excluding the write index*.
-     * The index age is calculated from the rollover or index creation date (or the origination date if present).
-     * If an indices predicate is provided the returned list of indices will be filtered
-     * according to the predicate definition. This is useful for things like "return only
+     * Returns the non-write backing indices and failure store indices that are older than the provided age,
+     * excluding the write indices. The index age is calculated from the rollover or index creation date (or
+     * the origination date if present). If an indices predicate is provided the returned list of indices will
+     * be filtered according to the predicate definition. This is useful for things like "return only
      * the backing indices that are managed by the data stream lifecycle".
      */
     public List<Index> getNonWriteIndicesOlderThan(
@@ -791,15 +872,28 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         LongSupplier nowSupplier
     ) {
         List<Index> olderIndices = new ArrayList<>();
-        for (Index index : backingIndices.indices) {
-            if (isIndexOderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
+        for (Index index : backingIndices.getIndices()) {
+            if (isIndexOlderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
                 olderIndices.add(index);
+            }
+        }
+        if (DataStream.isFailureStoreFeatureFlagEnabled() && failureIndices.getIndices().isEmpty() == false) {
+            for (Index index : failureIndices.getIndices()) {
+                if (isIndexOlderThan(
+                    index,
+                    retentionPeriod.getMillis(),
+                    nowSupplier.getAsLong(),
+                    indicesPredicate,
+                    indexMetadataSupplier
+                )) {
+                    olderIndices.add(index);
+                }
             }
         }
         return olderIndices;
     }
 
-    private boolean isIndexOderThan(
+    private boolean isIndexOlderThan(
         Index index,
         long retentionPeriod,
         long now,
@@ -820,11 +914,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     /**
      * Checks if the provided backing index is managed by the data stream lifecycle as part of this data stream.
-     * If the index is not a backing index of this data stream, or we cannot supply its metadata
+     * If the index is not a backing index or a failure store index of this data stream, or we cannot supply its metadata
      * we return false.
      */
     public boolean isIndexManagedByDataStreamLifecycle(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
-        if (backingIndices.indices.contains(index) == false) {
+        if (backingIndices.containsIndex(index.getName()) == false && failureIndices.containsIndex(index.getName()) == false) {
             return false;
         }
         IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
@@ -924,51 +1018,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     private static String getDefaultIndexName(String prefix, String dataStreamName, long generation, long epochMillis) {
         return String.format(Locale.ROOT, prefix + "%s-%s-%06d", dataStreamName, DATE_FORMATTER.formatMillis(epochMillis), generation);
-    }
-
-    public static DataStream read(StreamInput in) throws IOException {
-        var name = readName(in);
-        var backingIndicesBuilder = DataStreamIndices.backingIndicesBuilder(readIndices(in));
-        var generation = in.readVLong();
-        var metadata = in.readGenericMap();
-        var hidden = in.readBoolean();
-        var replicated = in.readBoolean();
-        var system = in.readBoolean();
-        var allowCustomRouting = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0) ? in.readBoolean() : false;
-        var indexMode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null;
-        var lifecycle = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
-            ? in.readOptionalWriteable(DataStreamLifecycle::new)
-            : null;
-        var failureStoreEnabled = in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
-            ? in.readBoolean()
-            : false;
-        var failureIndices = in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
-            ? readIndices(in)
-            : List.<Index>of();
-        var failureIndicesBuilder = DataStreamIndices.failureIndicesBuilder(failureIndices);
-        backingIndicesBuilder.setRolloverOnWrite(in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? in.readBoolean() : false);
-        if (in.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
-            backingIndicesBuilder.setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_FIELD_PARITY)) {
-            failureIndicesBuilder.setRolloverOnWrite(in.readBoolean())
-                .setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
-        }
-        return new DataStream(
-            name,
-            generation,
-            metadata,
-            hidden,
-            replicated,
-            system,
-            System::currentTimeMillis,
-            allowCustomRouting,
-            indexMode,
-            lifecycle,
-            failureStoreEnabled,
-            backingIndicesBuilder.build(),
-            failureIndicesBuilder.build()
-        );
     }
 
     static String readName(StreamInput in) throws IOException {
@@ -1165,7 +1214,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         if (lifecycle != null) {
             builder.field(LIFECYCLE.getPreferredName());
-            lifecycle.toXContent(builder, params, rolloverConfiguration, isSystem() ? null : globalRetention);
+            lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention, isInternal());
         }
         builder.field(ROLLOVER_ON_WRITE_FIELD.getPreferredName(), backingIndices.rolloverOnWrite);
         if (backingIndices.autoShardingEvent != null) {
@@ -1337,6 +1386,25 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         } catch (Exception e) {
             throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Resolve the index abstraction to a data stream. This handles alias resolution as well as data stream resolution. This does <b>NOT</b>
+     * resolve a data stream by providing a concrete backing index.
+     */
+    public static DataStream resolveDataStream(IndexAbstraction indexAbstraction, Metadata metadata) {
+        // We do not consider concrete indices - only data streams and data stream aliases.
+        if (indexAbstraction == null || indexAbstraction.isDataStreamRelated() == false) {
+            return null;
+        }
+
+        // Locate the write index for the abstraction, and check if it has a data stream associated with it.
+        Index writeIndex = indexAbstraction.getWriteIndex();
+        if (writeIndex == null) {
+            return null;
+        }
+        IndexAbstraction writeAbstraction = metadata.getIndicesLookup().get(writeIndex.getName());
+        return writeAbstraction.getParentDataStream();
     }
 
     /**

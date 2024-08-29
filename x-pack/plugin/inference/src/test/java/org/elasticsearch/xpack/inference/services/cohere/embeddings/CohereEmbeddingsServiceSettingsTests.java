@@ -331,21 +331,6 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             "rate_limit":{"requests_per_minute":3},"embedding_type":"byte"}"""));
     }
 
-    public void testToXContent_WritesAllValues_Except_RateLimit() throws IOException {
-        var serviceSettings = new CohereEmbeddingsServiceSettings(
-            new CohereServiceSettings("url", SimilarityMeasure.COSINE, 5, 10, "model_id", new RateLimitSettings(3)),
-            CohereEmbeddingType.INT8
-        );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        var filteredXContent = serviceSettings.getFilteredXContentObject();
-        filteredXContent.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-        assertThat(xContentResult, is("""
-            {"url":"url","similarity":"cosine","dimensions":5,"max_input_tokens":10,"model_id":"model_id",""" + """
-            "embedding_type":"byte"}"""));
-    }
-
     @Override
     protected Writeable.Reader<CohereEmbeddingsServiceSettings> instanceReader() {
         return CohereEmbeddingsServiceSettings::new;

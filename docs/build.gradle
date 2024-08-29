@@ -36,6 +36,15 @@ ext.docsFileTree = fileTree(projectDir) {
   }
 }
 
+tasks.named("yamlRestTest") {
+  if (BuildParams.isSnapshotBuild() == false) {
+    // LOOKUP is not available in snapshots
+    systemProperty 'tests.rest.blacklist', [
+      "reference/esql/processing-commands/lookup/esql-lookup-example"
+    ].join(',')
+  }
+}
+
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 tasks.named("buildRestTests").configure {
   getExpectedUnconvertedCandidates().addAll(
@@ -845,6 +854,18 @@ buildRestTests.setups['library'] = '''
 buildRestTests.setups['sensor_rollup_job'] = '''
   - do:
       indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id: {}
+
+  - do:
+      indices.create:
         index: sensor-1
         body:
           settings:
@@ -893,6 +914,18 @@ buildRestTests.setups['sensor_rollup_job'] = '''
             }
 '''
 buildRestTests.setups['sensor_started_rollup_job'] = '''
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id: {}
+
   - do:
       indices.create:
         index: sensor-1
@@ -967,6 +1000,28 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
 '''
 
 buildRestTests.setups['sensor_index'] = '''
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id:
+                  id: my-id
+                  index_pattern: "dummy-index-*"
+                  rollup_index: "dummy-rollup-index"
+                  cron: "*/30 * * * * ?"
+                  page_size: 1000
+                  groups:
+                    date_histogram:
+                      field: timestamp
+                      fixed_interval: 1h
+                      delay: 7d
+
   - do:
       indices.create:
         index: sensor-1
@@ -1760,6 +1815,20 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
             "run_as": [ "other_user" ],
             "metadata" : {"version": 1}
           }
+'''
+  setups['user_role'] = '''
+  - do:
+      security.put_role:
+        name: "my_user_role"
+        body: >
+          {
+            "description": "Grants user access to some indicies.",
+            "indices": [
+              {"names": ["index1", "index2" ], "privileges": ["all"], "field_security" : {"grant" : [ "title", "body" ]}}
+              ],
+            "metadata" : {"version": 1}
+          }
+
 '''
   setups['jacknich_user'] = '''
   - do:

@@ -58,7 +58,6 @@ import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResul
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
-import org.elasticsearch.search.rank.TestRankDoc;
 import org.elasticsearch.search.rank.TestRankShardResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.suggest.SortBy;
@@ -122,7 +121,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             @Override
             public AggregationReduceContext forPartialReduction() {
                 reductions.add(false);
-                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg);
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {});
             }
 
             public AggregationReduceContext forFinalReduction() {
@@ -463,10 +462,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 topDocs = Lucene.EMPTY_TOP_DOCS;
             } else if (rank) {
                 int nDocs = randomIntBetween(0, searchHitsSize);
-                TestRankDoc[] rankDocs = new TestRankDoc[nDocs];
+                RankDoc[] rankDocs = new RankDoc[nDocs];
                 for (int i = 0; i < nDocs; i++) {
                     float score = useConstantScore ? 1.0F : Math.abs(randomFloat());
-                    rankDocs[i] = new TestRankDoc(i, score, shardIndex);
+                    rankDocs[i] = new RankDoc(i, score, shardIndex);
                     maxScore = Math.max(score, maxScore);
                 }
                 querySearchResult.setRankShardResult(new TestRankShardResult(rankDocs));
@@ -748,43 +747,34 @@ public class SearchPhaseControllerTests extends ESTestCase {
             )
         ) {
             AtomicInteger max = new AtomicInteger();
-            Thread[] threads = new Thread[expectedNumResults];
             CountDownLatch latch = new CountDownLatch(expectedNumResults);
-            for (int i = 0; i < expectedNumResults; i++) {
-                int id = i;
-                threads[i] = new Thread(() -> {
-                    int number = randomIntBetween(1, 1000);
-                    max.updateAndGet(prev -> Math.max(prev, number));
-                    QuerySearchResult result = new QuerySearchResult(
-                        new ShardSearchContextId("", id),
-                        new SearchShardTarget("node", new ShardId("a", "b", id), null),
-                        null
+            runInParallel(expectedNumResults, id -> {
+                int number = randomIntBetween(1, 1000);
+                max.updateAndGet(prev -> Math.max(prev, number));
+                QuerySearchResult result = new QuerySearchResult(
+                    new ShardSearchContextId("", id),
+                    new SearchShardTarget("node", new ShardId("a", "b", id), null),
+                    null
+                );
+                try {
+                    result.topDocs(
+                        new TopDocsAndMaxScore(
+                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, number) }),
+                            number
+                        ),
+                        new DocValueFormat[0]
                     );
-                    try {
-                        result.topDocs(
-                            new TopDocsAndMaxScore(
-                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, number) }),
-                                number
-                            ),
-                            new DocValueFormat[0]
-                        );
-                        InternalAggregations aggs = InternalAggregations.from(
-                            Collections.singletonList(new Max("test", (double) number, DocValueFormat.RAW, Collections.emptyMap()))
-                        );
-                        result.aggregations(aggs);
-                        result.setShardIndex(id);
-                        result.size(1);
-                        consumer.consumeResult(result, latch::countDown);
-                    } finally {
-                        result.decRef();
-                    }
-
-                });
-                threads[i].start();
-            }
-            for (int i = 0; i < expectedNumResults; i++) {
-                threads[i].join();
-            }
+                    InternalAggregations aggs = InternalAggregations.from(
+                        Collections.singletonList(new Max("test", (double) number, DocValueFormat.RAW, Collections.emptyMap()))
+                    );
+                    result.aggregations(aggs);
+                    result.setShardIndex(id);
+                    result.size(1);
+                    consumer.consumeResult(result, latch::countDown);
+                } finally {
+                    result.decRef();
+                }
+            });
             latch.await();
 
             SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
@@ -1264,42 +1254,34 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 )
             ) {
                 AtomicInteger max = new AtomicInteger();
-                Thread[] threads = new Thread[expectedNumResults];
                 CountDownLatch latch = new CountDownLatch(expectedNumResults);
-                for (int i = 0; i < expectedNumResults; i++) {
-                    int id = i;
-                    threads[i] = new Thread(() -> {
-                        int number = randomIntBetween(1, 1000);
-                        max.updateAndGet(prev -> Math.max(prev, number));
-                        QuerySearchResult result = new QuerySearchResult(
-                            new ShardSearchContextId("", id),
-                            new SearchShardTarget("node", new ShardId("a", "b", id), null),
-                            null
+                runInParallel(expectedNumResults, id -> {
+                    int number = randomIntBetween(1, 1000);
+                    max.updateAndGet(prev -> Math.max(prev, number));
+                    QuerySearchResult result = new QuerySearchResult(
+                        new ShardSearchContextId("", id),
+                        new SearchShardTarget("node", new ShardId("a", "b", id), null),
+                        null
+                    );
+                    try {
+                        result.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, number) }),
+                                number
+                            ),
+                            new DocValueFormat[0]
                         );
-                        try {
-                            result.topDocs(
-                                new TopDocsAndMaxScore(
-                                    new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, number) }),
-                                    number
-                                ),
-                                new DocValueFormat[0]
-                            );
-                            InternalAggregations aggs = InternalAggregations.from(
-                                Collections.singletonList(new Max("test", (double) number, DocValueFormat.RAW, Collections.emptyMap()))
-                            );
-                            result.aggregations(aggs);
-                            result.setShardIndex(id);
-                            result.size(1);
-                            consumer.consumeResult(result, latch::countDown);
-                        } finally {
-                            result.decRef();
-                        }
-                    });
-                    threads[i].start();
-                }
-                for (int i = 0; i < expectedNumResults; i++) {
-                    threads[i].join();
-                }
+                        InternalAggregations aggs = InternalAggregations.from(
+                            Collections.singletonList(new Max("test", (double) number, DocValueFormat.RAW, Collections.emptyMap()))
+                        );
+                        result.aggregations(aggs);
+                        result.setShardIndex(id);
+                        result.size(1);
+                        consumer.consumeResult(result, latch::countDown);
+                    } finally {
+                        result.decRef();
+                    }
+                });
                 latch.await();
                 SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
                 assertAggReduction(request);
@@ -1354,39 +1336,31 @@ public class SearchPhaseControllerTests extends ESTestCase {
             )
         ) {
             CountDownLatch latch = new CountDownLatch(numShards);
-            Thread[] threads = new Thread[numShards];
-            for (int i = 0; i < numShards; i++) {
-                final int index = i;
-                threads[index] = new Thread(() -> {
-                    QuerySearchResult result = new QuerySearchResult(
-                        new ShardSearchContextId(UUIDs.randomBase64UUID(), index),
-                        new SearchShardTarget("node", new ShardId("a", "b", index), null),
-                        null
+            runInParallel(numShards, index -> {
+                QuerySearchResult result = new QuerySearchResult(
+                    new ShardSearchContextId(UUIDs.randomBase64UUID(), index),
+                    new SearchShardTarget("node", new ShardId("a", "b", index), null),
+                    null
+                );
+                try {
+                    result.topDocs(
+                        new TopDocsAndMaxScore(
+                            new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS),
+                            Float.NaN
+                        ),
+                        new DocValueFormat[0]
                     );
-                    try {
-                        result.topDocs(
-                            new TopDocsAndMaxScore(
-                                new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS),
-                                Float.NaN
-                            ),
-                            new DocValueFormat[0]
-                        );
-                        InternalAggregations aggs = InternalAggregations.from(
-                            Collections.singletonList(new Max("test", 0d, DocValueFormat.RAW, Collections.emptyMap()))
-                        );
-                        result.aggregations(aggs);
-                        result.setShardIndex(index);
-                        result.size(1);
-                        consumer.consumeResult(result, latch::countDown);
-                    } finally {
-                        result.decRef();
-                    }
-                });
-                threads[index].start();
-            }
-            for (int i = 0; i < numShards; i++) {
-                threads[i].join();
-            }
+                    InternalAggregations aggs = InternalAggregations.from(
+                        Collections.singletonList(new Max("test", 0d, DocValueFormat.RAW, Collections.emptyMap()))
+                    );
+                    result.aggregations(aggs);
+                    result.setShardIndex(index);
+                    result.size(1);
+                    consumer.consumeResult(result, latch::countDown);
+                } finally {
+                    result.decRef();
+                }
+            });
             latch.await();
             if (shouldFail) {
                 if (shouldFailPartial == false) {

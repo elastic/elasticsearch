@@ -172,7 +172,6 @@ public class MrjarPlugin implements Plugin<Project> {
                 testTask.getJavaLauncher()
                     .set(javaToolchains.launcherFor(spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion))));
             }
-
         });
 
         project.getTasks().named("check").configure(checkTask -> checkTask.dependsOn(testTaskProvider));

@@ -9,6 +9,7 @@
 package org.elasticsearch.nativeaccess.jdk;
 
 import java.lang.foreign.Arena;
+import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.VarHandle;
 
@@ -21,14 +22,25 @@ class MemorySegmentUtil {
         return segment.getUtf8String(offset);
     }
 
+    static void setString(MemorySegment segment, long offset, String value) {
+        segment.setUtf8String(offset, value);
+    }
+
     static MemorySegment allocateString(Arena arena, String s) {
         return arena.allocateUtf8String(s);
     }
 
-    // MemorySegment.varHandle changed between 21 and 22. The resulting varHandle now requires an additional
-    // long offset parameter. We omit the offset at runtime, instead binding to the VarHandle in JDK 22.
-    static VarHandle varHandleDropOffset(VarHandle varHandle) {
-        return varHandle;
+    /**
+     * Return a {@link VarHandle} to access an element within the given memory segment.
+     *
+     * Note: This is no-op in Java 21, see the Java 22 implementation.
+     *
+     * @param layout The layout of a struct to access
+     * @param element The element within the struct to access
+     * @return A {@link VarHandle} that accesses the element with a fixed offset of 0
+     */
+    static VarHandle varHandleWithoutOffset(MemoryLayout layout, MemoryLayout.PathElement element) {
+        return layout.varHandle(element);
     }
 
     private MemorySegmentUtil() {}

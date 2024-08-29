@@ -50,8 +50,19 @@ public class RestUpdateTrainedModelDeploymentAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String modelId = restRequest.param(StartTrainedModelDeploymentAction.Request.MODEL_ID.getPreferredName());
-        XContentParser parser = restRequest.contentParser();
-        UpdateTrainedModelDeploymentAction.Request request = UpdateTrainedModelDeploymentAction.Request.parseRequest(modelId, parser);
+
+        UpdateTrainedModelDeploymentAction.Request request;
+        if (restRequest.hasParam(StartTrainedModelDeploymentAction.Request.NUMBER_OF_ALLOCATIONS.getPreferredName())) {
+            int numberOfAllocations = restRequest.paramAsInt(
+                StartTrainedModelDeploymentAction.Request.NUMBER_OF_ALLOCATIONS.getPreferredName(),
+                0
+            );
+            request = new UpdateTrainedModelDeploymentAction.Request(modelId);
+            request.setNumberOfAllocations(numberOfAllocations);
+        } else {
+            XContentParser parser = restRequest.contentParser();
+            request = UpdateTrainedModelDeploymentAction.Request.parseRequest(modelId, parser);
+        }
         request.ackTimeout(getAckTimeout(restRequest));
         request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
 

@@ -21,8 +21,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterRerouteAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.support.master.AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 
@@ -80,7 +81,7 @@ public class ClusterRerouteRequestTests extends ESTestCase {
     }
 
     private ClusterRerouteRequest randomRequest() {
-        ClusterRerouteRequest request = new ClusterRerouteRequest();
+        ClusterRerouteRequest request = new ClusterRerouteRequest(randomTimeValue(), randomTimeValue());
         int commands = between(0, 10);
         for (int i = 0; i < commands; i++) {
             request.add(randomFrom(RANDOM_COMMAND_GENERATORS).get());
@@ -97,7 +98,7 @@ public class ClusterRerouteRequestTests extends ESTestCase {
             assertEquals(request, request);
             assertEquals(request.hashCode(), request.hashCode());
 
-            ClusterRerouteRequest copy = new ClusterRerouteRequest().add(
+            ClusterRerouteRequest copy = new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).add(
                 request.getCommands().commands().toArray(new AllocationCommand[0])
             );
             AcknowledgedRequest<ClusterRerouteRequest> clusterRerouteRequestAcknowledgedRequest = copy.dryRun(request.dryRun())
@@ -196,14 +197,14 @@ public class ClusterRerouteRequestTests extends ESTestCase {
             builder.field("dry_run", original.dryRun());
         }
         params.put("explain", Boolean.toString(original.explain()));
-        if (false == original.ackTimeout().equals(AcknowledgedRequest.DEFAULT_ACK_TIMEOUT) || randomBoolean()) {
-            params.put("timeout", original.ackTimeout().toString());
+        if (false == original.ackTimeout().equals(DEFAULT_ACK_TIMEOUT) || randomBoolean()) {
+            params.put("timeout", original.ackTimeout().getStringRep());
         }
         if (original.isRetryFailed() || randomBoolean()) {
             params.put("retry_failed", Boolean.toString(original.isRetryFailed()));
         }
-        if (false == original.masterNodeTimeout().equals(TimeValue.THIRTY_SECONDS) || randomBoolean()) {
-            params.put(REST_MASTER_TIMEOUT_PARAM, original.masterNodeTimeout().toString());
+        if (false == original.masterNodeTimeout().equals(RestUtils.REST_MASTER_TIMEOUT_DEFAULT) || randomBoolean()) {
+            params.put(REST_MASTER_TIMEOUT_PARAM, original.masterNodeTimeout().getStringRep());
         }
         if (original.getCommands() != null) {
             hasBody = true;

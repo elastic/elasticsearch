@@ -6,38 +6,114 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.ql.capabilities.Resolvables;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class Aggregate extends UnaryPlan {
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
+public class Aggregate extends UnaryPlan implements Stats {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        "Aggregate",
+        Aggregate::new
+    );
+
+    public enum AggregateType {
+        STANDARD,
+        // include metrics aggregates such as rates
+        METRICS;
+
+        static void writeType(StreamOutput out, AggregateType type) throws IOException {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_AGGREGATE_TYPE)) {
+                out.writeString(type.name());
+            } else if (type != STANDARD) {
+                throw new IllegalStateException("cluster is not ready to support aggregate type [" + type + "]");
+            }
+        }
+
+        static AggregateType readType(StreamInput in) throws IOException {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_AGGREGATE_TYPE)) {
+                return AggregateType.valueOf(in.readString());
+            } else {
+                return STANDARD;
+            }
+        }
+    }
+
+    private final AggregateType aggregateType;
     private final List<Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
+    private List<Attribute> lazyOutput;
 
-    public Aggregate(Source source, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
+    public Aggregate(
+        Source source,
+        LogicalPlan child,
+        AggregateType aggregateType,
+        List<Expression> groupings,
+        List<? extends NamedExpression> aggregates
+    ) {
         super(source, child);
+        this.aggregateType = aggregateType;
         this.groupings = groupings;
         this.aggregates = aggregates;
     }
 
+    public Aggregate(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(LogicalPlan.class),
+            AggregateType.readType(in),
+            in.readNamedWriteableCollectionAsList(Expression.class),
+            in.readNamedWriteableCollectionAsList(NamedExpression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(child());
+        AggregateType.writeType(out, aggregateType());
+        out.writeNamedWriteableCollection(groupings);
+        out.writeNamedWriteableCollection(aggregates());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, Aggregate::new, child(), groupings, aggregates);
+        return NodeInfo.create(this, Aggregate::new, child(), aggregateType, groupings, aggregates);
     }
 
     @Override
     public Aggregate replaceChild(LogicalPlan newChild) {
-        return new Aggregate(source(), newChild, groupings, aggregates);
+        return new Aggregate(source(), newChild, aggregateType, groupings, aggregates);
+    }
+
+    @Override
+    public Aggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
+        return new Aggregate(source(), child, aggregateType(), newGroupings, newAggregates);
+    }
+
+    public AggregateType aggregateType() {
+        return aggregateType;
     }
 
     public List<Expression> groupings() {
@@ -55,12 +131,15 @@ public class Aggregate extends UnaryPlan {
 
     @Override
     public List<Attribute> output() {
-        return Expressions.asAttributes(aggregates);
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(Expressions.asAttributes(aggregates()), emptyList());
+        }
+        return lazyOutput;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child());
+        return Objects.hash(aggregateType, groupings, aggregates, child());
     }
 
     @Override
@@ -74,7 +153,8 @@ public class Aggregate extends UnaryPlan {
         }
 
         Aggregate other = (Aggregate) obj;
-        return Objects.equals(groupings, other.groupings)
+        return aggregateType == other.aggregateType
+            && Objects.equals(groupings, other.groupings)
             && Objects.equals(aggregates, other.aggregates)
             && Objects.equals(child(), other.child());
     }

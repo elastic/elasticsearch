@@ -246,18 +246,20 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
     }
 
     public void testCheckForInvalidLegacyRoleDescriptors() {
-        final String[] pre8_14ClusterPrivileges_searchAndReplication = { "cross_cluster_search", "cross_cluster_replication" };
-        final String[] pre8_14ClusterPrivileges_searchOnly = { "cross_cluster_search" };
-        final String[] pre8_14IndexPrivileges = { "read", "read_cross_cluster", "view_index_metadata" };
+        // legacy here is in reference to RCS API privileges pre GA, we know which privileges are used in those versions and is used for
+        // minor optimizations. the "legacy" privileges might also be the same as in newer versions, and that is OK too.
+        final String[] legacyClusterPrivileges_searchAndReplication = { "cross_cluster_search", "cross_cluster_replication" };
+        final String[] legacyClusterPrivileges_searchOnly = { "cross_cluster_search" };
+        final String[] legacyIndexPrivileges = { "read", "read_cross_cluster", "view_index_metadata" };
         final String[] otherPrivileges = randomArray(1, 5, String[]::new, () -> randomAlphaOfLength(5));
         String apiKeyId = randomAlphaOfLength(5);
-        RoleDescriptor.IndicesPrivileges pre8_14SearchIndexPrivileges_noDLS = RoleDescriptor.IndicesPrivileges.builder()
+        RoleDescriptor.IndicesPrivileges legacySearchIndexPrivileges_noDLS = RoleDescriptor.IndicesPrivileges.builder()
             .indices(randomAlphaOfLength(5))
-            .privileges(pre8_14IndexPrivileges)
+            .privileges(legacyIndexPrivileges)
             .build();
-        RoleDescriptor.IndicesPrivileges pre8_14SearchIndexPrivileges_withDLS = RoleDescriptor.IndicesPrivileges.builder()
+        RoleDescriptor.IndicesPrivileges legacySearchIndexPrivileges_withDLS = RoleDescriptor.IndicesPrivileges.builder()
             .indices(randomAlphaOfLength(5))
-            .privileges(pre8_14IndexPrivileges)
+            .privileges(legacyIndexPrivileges)
             .query("{\"term\":{\"tag\":42}}")
             .build();
         RoleDescriptor.IndicesPrivileges otherIndexPrivilege = RoleDescriptor.IndicesPrivileges.builder()
@@ -265,18 +267,18 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
             .privileges(otherPrivileges) // replication has fixed index privileges, but for this test we don't care about the actual values
             .build();
 
-        // role descriptor emulates pre 8.14 with search and replication with DLS: this is the primary case we are trying to catch
-        RoleDescriptor pre8_14ApiKeyRoleDescriptor_withSearchAndReplication_withDLS = new RoleDescriptor(
+        // role descriptor emulates pre GA with search and replication with DLS: this is the primary case we are trying to catch
+        RoleDescriptor legacyApiKeyRoleDescriptor_withSearchAndReplication_withDLS = new RoleDescriptor(
             ROLE_DESCRIPTOR_NAME,
-            pre8_14ClusterPrivileges_searchAndReplication,
-            new RoleDescriptor.IndicesPrivileges[] { pre8_14SearchIndexPrivileges_withDLS, otherIndexPrivilege },
+            legacyClusterPrivileges_searchAndReplication,
+            new RoleDescriptor.IndicesPrivileges[] { legacySearchIndexPrivileges_withDLS, otherIndexPrivilege },
             null
         );
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> CrossClusterApiKeyRoleDescriptorBuilder.checkForInvalidLegacyRoleDescriptors(
                 apiKeyId,
-                List.of(pre8_14ApiKeyRoleDescriptor_withSearchAndReplication_withDLS)
+                List.of(legacyApiKeyRoleDescriptor_withSearchAndReplication_withDLS)
             )
         );
         assertThat(
@@ -287,32 +289,32 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
                     + "] is invalid: search does not support document or field level security if replication is assigned"
             )
         );
-        // role descriptor emulates search only with DLS, this could be a valid role descriptor for pre/post 8.14
+        // role descriptor emulates search only with DLS, this could be a valid role descriptor for pre/post GA
         RoleDescriptor apiKeyRoleDescriptor_withSearch_withDLS = new RoleDescriptor(
             ROLE_DESCRIPTOR_NAME,
-            pre8_14ClusterPrivileges_searchOnly,
-            new RoleDescriptor.IndicesPrivileges[] { pre8_14SearchIndexPrivileges_withDLS },
+            legacyClusterPrivileges_searchOnly,
+            new RoleDescriptor.IndicesPrivileges[] { legacySearchIndexPrivileges_withDLS },
             null
         );
         noErrorCheckRoleDescriptor(apiKeyRoleDescriptor_withSearch_withDLS);
 
-        // role descriptor emulates search and replication without DLS, this could be a valid role descriptor for pre/post 8.14
+        // role descriptor emulates search and replication without DLS, this could be a valid role descriptor for pre/post GA
         RoleDescriptor apiKeyRoleDescriptor_withSearchAndReplication_noDLS = new RoleDescriptor(
             ROLE_DESCRIPTOR_NAME,
-            pre8_14ClusterPrivileges_searchAndReplication,
-            new RoleDescriptor.IndicesPrivileges[] { pre8_14SearchIndexPrivileges_noDLS, otherIndexPrivilege },
+            legacyClusterPrivileges_searchAndReplication,
+            new RoleDescriptor.IndicesPrivileges[] { legacySearchIndexPrivileges_noDLS, otherIndexPrivilege },
             null
         );
         noErrorCheckRoleDescriptor(apiKeyRoleDescriptor_withSearchAndReplication_noDLS);
 
         // role descriptor that will never have search and replication with DLS but may have other privileges
-        RoleDescriptor notpre8_14_apiKeyRoleDescriptor_withSearchAndReplication_DLS = new RoleDescriptor(
+        RoleDescriptor notLegacyApiKeyRoleDescriptor_withSearchAndReplication_DLS = new RoleDescriptor(
             ROLE_DESCRIPTOR_NAME,
             otherPrivileges,
             new RoleDescriptor.IndicesPrivileges[] { otherIndexPrivilege, otherIndexPrivilege },
             null
         );
-        noErrorCheckRoleDescriptor(notpre8_14_apiKeyRoleDescriptor_withSearchAndReplication_DLS);
+        noErrorCheckRoleDescriptor(notLegacyApiKeyRoleDescriptor_withSearchAndReplication_DLS);
     }
 
     private void noErrorCheckRoleDescriptor(RoleDescriptor roleDescriptor) {

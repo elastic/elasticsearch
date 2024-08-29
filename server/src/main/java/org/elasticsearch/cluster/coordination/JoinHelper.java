@@ -27,6 +27,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
@@ -47,6 +48,7 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -154,7 +156,7 @@ public class JoinHelper {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             false,
-            TransportRequest.Empty::new,
+            JoinPingRequest::new,
             (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)
         );
     }
@@ -606,4 +608,12 @@ public class JoinHelper {
     static final String PENDING_JOIN_WAITING_STATE = "waiting to receive cluster state";
     static final String PENDING_JOIN_CONNECT_FAILED = "failed to connect";
     static final String PENDING_JOIN_FAILED = "failed";
+
+    static class JoinPingRequest extends TransportRequest {
+        JoinPingRequest() {}
+
+        JoinPingRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
 }

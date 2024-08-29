@@ -26,11 +26,13 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * Helper class for processing field data of any type, as provided by the {@link XContentParser}.
  */
-final class XContentDataHelper {
+public final class XContentDataHelper {
     /**
      * Build a {@link StoredField} for the value on which the parser is
      * currently positioned.
@@ -46,6 +48,13 @@ final class XContentDataHelper {
     }
 
     /**
+     * Build a {@link StoredField} for the value provided in a {@link XContentBuilder}.
+     */
+    static StoredField storedField(String name, XContentBuilder builder) throws IOException {
+        return new StoredField(name, TypeUtils.encode(builder));
+    }
+
+    /**
      * Build a {@link BytesRef} wrapping a byte array containing an encoded form
      * the value on which the parser is currently positioned.
      */
@@ -57,7 +66,7 @@ final class XContentDataHelper {
      * Build a {@link BytesRef} wrapping a byte array containing an encoded form
      * of the passed XContentBuilder contents.
      */
-    static BytesRef encodeXContentBuilder(XContentBuilder builder) throws IOException {
+    public static BytesRef encodeXContentBuilder(XContentBuilder builder) throws IOException {
         return new BytesRef(TypeUtils.encode(builder));
     }
 
@@ -80,8 +89,85 @@ final class XContentDataHelper {
             case LONG_ENCODING -> TypeUtils.LONG.decodeAndWrite(b, r);
             case DOUBLE_ENCODING -> TypeUtils.DOUBLE.decodeAndWrite(b, r);
             case FLOAT_ENCODING -> TypeUtils.FLOAT.decodeAndWrite(b, r);
+            case NULL_ENCODING -> TypeUtils.NULL.decodeAndWrite(b, r);
             default -> throw new IllegalArgumentException("Can't decode " + r);
         }
+    }
+
+    /**
+     * Writes encoded values to provided builder. If there are multiple values they are merged into
+     * a single resulting array.
+     * @param b destination
+     * @param fieldName name of the field that is written
+     * @param encodedParts subset of field data encoded using methods of this class. Can contain arrays which will be flattened.
+     * @throws IOException
+     */
+    static void writeMerged(XContentBuilder b, String fieldName, List<BytesRef> encodedParts) throws IOException {
+        if (encodedParts.isEmpty()) {
+            return;
+        }
+
+        if (encodedParts.size() == 1) {
+            b.field(fieldName);
+            XContentDataHelper.decodeAndWrite(b, encodedParts.get(0));
+            return;
+        }
+
+        b.startArray(fieldName);
+
+        for (var encodedValue : encodedParts) {
+            Optional<XContentType> encodedXContentType = switch ((char) encodedValue.bytes[encodedValue.offset]) {
+                case CBOR_OBJECT_ENCODING, JSON_OBJECT_ENCODING, YAML_OBJECT_ENCODING, SMILE_OBJECT_ENCODING -> Optional.of(
+                    getXContentType(encodedValue)
+                );
+                default -> Optional.empty();
+            };
+            if (encodedXContentType.isEmpty()) {
+                // This is a plain value, we can just write it
+                XContentDataHelper.decodeAndWrite(b, encodedValue);
+            } else {
+                // Encoded value could be an array which needs to be flattened
+                // since we are already inside an array.
+                try (
+                    XContentParser parser = encodedXContentType.get()
+                        .xContent()
+                        .createParser(
+                            XContentParserConfiguration.EMPTY,
+                            encodedValue.bytes,
+                            encodedValue.offset + 1,
+                            encodedValue.length - 1
+                        )
+                ) {
+                    if (parser.currentToken() == null) {
+                        parser.nextToken();
+                    }
+
+                    // It's an array, we will flatten it.
+                    if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            b.copyCurrentStructure(parser);
+                        }
+                    } else {
+                        // It is a single complex structure (an object), write it as is.
+                        b.copyCurrentStructure(parser);
+                    }
+                }
+            }
+        }
+
+        b.endArray();
+    }
+
+    /**
+     * Returns the {@link XContentType} to use for creating an XContentBuilder to decode the passed value.
+     */
+    public static XContentType getXContentType(BytesRef r) {
+        return switch ((char) r.bytes[r.offset]) {
+            case JSON_OBJECT_ENCODING -> XContentType.JSON;
+            case YAML_OBJECT_ENCODING -> XContentType.YAML;
+            case SMILE_OBJECT_ENCODING -> XContentType.SMILE;
+            default -> XContentType.CBOR;  // CBOR can parse all other encoded types.
+        };
     }
 
     /**
@@ -148,6 +234,7 @@ final class XContentDataHelper {
                 case BIG_DECIMAL -> visitor.apply(TypeUtils.BIG_DECIMAL);
             };
             case VALUE_BOOLEAN -> visitor.apply(TypeUtils.BOOLEAN);
+            case VALUE_NULL -> visitor.apply(TypeUtils.NULL);
             case VALUE_EMBEDDED_OBJECT -> visitor.apply(TypeUtils.EMBEDDED_OBJECT);
             case START_OBJECT, START_ARRAY -> visitor.apply(TypeUtils.START);
             default -> throw new IllegalArgumentException("synthetic _source doesn't support malformed objects");
@@ -164,6 +251,7 @@ final class XContentDataHelper {
     private static final char FALSE_ENCODING = 'f';
     private static final char TRUE_ENCODING = 't';
     private static final char BINARY_ENCODING = 'b';
+    private static final char NULL_ENCODING = 'n';
     private static final char CBOR_OBJECT_ENCODING = 'c';
     private static final char JSON_OBJECT_ENCODING = 'j';
     private static final char YAML_OBJECT_ENCODING = 'y';
@@ -331,6 +419,24 @@ final class XContentDataHelper {
                 }
                 assert r.bytes[r.offset] == 't' || r.bytes[r.offset] == 'f' : r.bytes[r.offset];
                 b.value(r.bytes[r.offset] == 't');
+            }
+        },
+        NULL(NULL_ENCODING) {
+            @Override
+            StoredField buildStoredField(String name, XContentParser parser) throws IOException {
+                return new StoredField(name, encode(parser));
+            }
+
+            @Override
+            byte[] encode(XContentParser parser) throws IOException {
+                byte[] bytes = new byte[] { getEncoding() };
+                assertValidEncoding(bytes);
+                return bytes;
+            }
+
+            @Override
+            void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+                b.nullValue();
             }
         },
         EMBEDDED_OBJECT(BINARY_ENCODING) {

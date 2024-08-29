@@ -24,10 +24,8 @@ public class DeleteShutdownRequestTests extends AbstractWireSerializingTestCase<
     record RequestWrapper(String nodeId, TaskId parentTask, TimeValue masterNodeTimeout, TimeValue ackTimeout) implements Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            final var request = new DeleteShutdownNodeAction.Request(nodeId);
+            final var request = new DeleteShutdownNodeAction.Request(masterNodeTimeout, ackTimeout, nodeId);
             request.setParentTask(parentTask);
-            request.ackTimeout(ackTimeout);
-            request.masterNodeTimeout(masterNodeTimeout);
             request.writeTo(out);
         }
     }
@@ -35,7 +33,7 @@ public class DeleteShutdownRequestTests extends AbstractWireSerializingTestCase<
     @Override
     protected Writeable.Reader<RequestWrapper> instanceReader() {
         return in -> {
-            final var request = new DeleteShutdownNodeAction.Request(in);
+            final var request = DeleteShutdownNodeAction.Request.readFrom(in);
             return new RequestWrapper(request.getNodeId(), request.getParentTask(), request.masterNodeTimeout(), request.ackTimeout());
         };
     }

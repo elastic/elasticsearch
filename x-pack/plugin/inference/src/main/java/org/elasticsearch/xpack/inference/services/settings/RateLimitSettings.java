@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -21,18 +22,28 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveLong;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 public class RateLimitSettings implements Writeable, ToXContentFragment {
-
     public static final String FIELD_NAME = "rate_limit";
     public static final String REQUESTS_PER_MINUTE_FIELD = "requests_per_minute";
 
     private final long requestsPerTimeUnit;
     private final TimeUnit timeUnit;
 
-    public static RateLimitSettings of(Map<String, Object> map, RateLimitSettings defaultValue, ValidationException validationException) {
+    public static RateLimitSettings of(
+        Map<String, Object> map,
+        RateLimitSettings defaultValue,
+        ValidationException validationException,
+        String serviceName,
+        ConfigurationParseContext context
+    ) {
         Map<String, Object> settings = removeFromMapOrDefaultEmpty(map, FIELD_NAME);
         var requestsPerMinute = extractOptionalPositiveLong(settings, REQUESTS_PER_MINUTE_FIELD, FIELD_NAME, validationException);
+
+        if (ConfigurationParseContext.isRequestContext(context)) {
+            throwIfNotEmptyMap(settings, serviceName);
+        }
 
         return requestsPerMinute == null ? defaultValue : new RateLimitSettings(requestsPerMinute);
     }

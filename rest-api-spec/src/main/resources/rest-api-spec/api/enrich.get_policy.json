@@ -26,6 +26,12 @@
           "methods": [ "GET" ]
         }
       ]
+    },
+    "params": {
+      "master_timeout":{
+        "type":"time",
+        "description":"Timeout for processing on master node"
+      }
     }
   }
 }

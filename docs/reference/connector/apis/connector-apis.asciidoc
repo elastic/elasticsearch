@@ -3,7 +3,7 @@
 
 beta::[]
 
-The connector and sync jobs APIs provide a convenient way to create and manage Elastic {enterprise-search-ref}/connectors.html[connectors^] and sync jobs in an internal index.
+The connector and sync jobs APIs provide a convenient way to create and manage Elastic {enterprise-search-ref}/connectors.html[connectors^] and sync jobs in an internal index. To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
 
 Connectors are {es} integrations that bring content from third-party data sources, which can be deployed on {ecloud} or hosted on your own infrastructure:
 
@@ -39,6 +39,8 @@ beta:[]
 * <<update-connector-api-key-id-api>>
 beta:[]
 * <<update-connector-configuration-api>>
+beta:[]
+* <<update-connector-features-api>>
 beta:[]
 * <<update-connector-filtering-api>>
 beta:[]
@@ -106,6 +108,8 @@ preview:[]
 
 * <<check-in-connector-sync-job-api>>
 preview:[]
+* <<claim-connector-sync-job-api>>
+preview:[]
 * <<set-connector-sync-job-error-api>>
 preview:[]
 * <<set-connector-sync-job-stats-api>>
@@ -120,6 +124,7 @@ include::list-connectors-api.asciidoc[]
 include::update-connector-api-key-id-api.asciidoc[]
 include::update-connector-configuration-api.asciidoc[]
 include::update-connector-index-name-api.asciidoc[]
+include::update-connector-features-api.asciidoc[]
 include::update-connector-filtering-api.asciidoc[]
 include::update-connector-name-description-api.asciidoc[]
 include::update-connector-pipeline-api.asciidoc[]
@@ -138,5 +143,6 @@ include::update-connector-last-sync-api.asciidoc[]
 include::update-connector-status-api.asciidoc[]
 
 include::check-in-connector-sync-job-api.asciidoc[]
+include::claim-connector-sync-job-api.asciidoc[]
 include::set-connector-sync-job-error-api.asciidoc[]
 include::set-connector-sync-job-stats-api.asciidoc[]

@@ -7,8 +7,8 @@ experimental[]
 Performs an inference task on an input text by using an {infer} endpoint.
 
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
-{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure or
-Hugging Face. For built-in models and models uploaded though Eland, the {infer}
+{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure, Google AI Studio, Google Vertex AI or
+Hugging Face. For built-in models and models uploaded through Eland, the {infer}
 APIs offer an alternative way to use and manage trained models. However, if you
 do not plan to use the {infer} APIs to use these models or if you want to use
 non-NLP models, use the <<ml-df-trained-models-apis>>.
@@ -85,6 +85,10 @@ single string as input.
 (Required, string)
 Only for `rerank` {infer} endpoints. The search query text.
 
+`task_settings`::
+(Optional, object)
+Task settings for the individual {infer} request.
+These settings are specific to the `<task_type>` you specified and override the task settings specified when initializing the service.
 
 [discrete]
 [[post-inference-api-example]]
@@ -228,6 +232,60 @@ The API returns the following response:
       (...)
     },
     (...)
+  ]
+}
+------------------------------------------------------------
+// NOTCONSOLE
+
+[discrete]
+[[inference-example-text-embedding]]
+===== Text embedding example
+
+The following example performs text embedding on the example sentence using the Cohere integration.
+
+
+[source,console]
+------------------------------------------------------------
+POST _inference/text_embedding/my-cohere-endpoint
+{
+  "input": "The sky above the port was the color of television tuned to a dead channel.",
+  "task_settings": {
+    "input_type": "ingest"
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+
+The API returns the following response:
+
+
+[source,console-result]
+------------------------------------------------------------
+{
+  "text_embedding": [
+    {
+      "embedding": [
+        {
+          0.018569946,
+          -0.036895752,
+          0.01486969,
+          -0.0045204163,
+          -0.04385376,
+          0.0075950623,
+          0.04260254,
+          -0.004005432,
+          0.007865906,
+          0.030792236,
+          -0.050476074,
+          0.011795044,
+          -0.011642456,
+          -0.010070801,
+          (...)
+        },
+        (...)
+      ]
+    }
   ]
 }
 ------------------------------------------------------------

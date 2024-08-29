@@ -64,7 +64,7 @@ public class NonDynamicFieldMapperTests extends NonDynamicFieldMapperTestCase {
 
             @Override
             public NonDynamicFieldMapper build(MapperBuilderContext context) {
-                return new NonDynamicFieldMapper(name(), new TextFieldMapper.TextFieldType(name(), false, true, meta.getValue()));
+                return new NonDynamicFieldMapper(leafName(), new TextFieldMapper.TextFieldType(leafName(), false, true, meta.getValue()));
             }
         }
 
@@ -82,7 +82,7 @@ public class NonDynamicFieldMapperTests extends NonDynamicFieldMapperTestCase {
 
         @Override
         public FieldMapper.Builder getMergeBuilder() {
-            return new Builder(simpleName()).init(this);
+            return new Builder(leafName()).init(this);
         }
     }
 }

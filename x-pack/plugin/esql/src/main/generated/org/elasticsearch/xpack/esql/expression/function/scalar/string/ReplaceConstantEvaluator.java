@@ -17,8 +17,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Replace}.
@@ -37,11 +37,11 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
 
   public ReplaceConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       Pattern regex, EvalOperator.ExpressionEvaluator newStr, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.str = str;
     this.regex = regex;
     this.newStr = newStr;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -89,7 +89,7 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
           continue position;
         }
         try {
-          result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), regex, newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
+          result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), this.regex, newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
         } catch (PatternSyntaxException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -106,7 +106,7 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
       BytesRef newStrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), regex, newStrVector.getBytesRef(p, newStrScratch)));
+          result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), this.regex, newStrVector.getBytesRef(p, newStrScratch)));
         } catch (PatternSyntaxException e) {
           warnings.registerException(e);
           result.appendNull();

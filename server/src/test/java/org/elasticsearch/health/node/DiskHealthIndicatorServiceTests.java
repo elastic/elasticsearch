@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthFeatures;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
@@ -962,7 +963,20 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 assertThat(nonDataNonMasterAffectedResources.get(0).getNodes().size(), is(10));
             }
         }
+    }
 
+    public void testSkippingFieldsWhenVerboseIsFalse() {
+        Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
+        ClusterService clusterService = createClusterService(discoveryNodes, false);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService, featureService);
+        HealthStatus expectedStatus = HealthStatus.RED;
+        HealthInfo healthInfo = createHealthInfoWithOneUnhealthyNode(expectedStatus, discoveryNodes);
+        HealthIndicatorResult result = diskHealthIndicatorService.calculate(false, healthInfo);
+        assertThat(result.status(), equalTo(expectedStatus));
+        assertThat(result.details(), equalTo(HealthIndicatorDetails.EMPTY));
+        assertThat(result.diagnosisList(), equalTo(List.of()));
+        assertThat(result.impacts().isEmpty(), equalTo(false));
+        assertThat(result.symptom().isEmpty(), equalTo(false));
     }
 
     // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index

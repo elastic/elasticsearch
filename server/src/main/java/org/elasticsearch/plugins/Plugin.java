@@ -10,7 +10,7 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -44,7 +44,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 /**
@@ -127,11 +126,9 @@ public abstract class Plugin implements Closeable {
         IndexNameExpressionResolver indexNameExpressionResolver();
 
         /**
-         * A supplier for the service that manages snapshot repositories.
-         * This will return null when {@link #createComponents(PluginServices)} is called,
-         * but will return the repositories service once the node is initialized.
+         * A service that manages snapshot repositories.
          */
-        Supplier<RepositoriesService> repositoriesServiceSupplier();
+        RepositoriesService repositoriesService();
 
         /**
          * An interface for distributed tracing
@@ -159,10 +156,10 @@ public abstract class Plugin implements Closeable {
         SystemIndices systemIndices();
 
         /**
-         * A service that resolves the data stream global retention that applies to
+         * A service that holds the data stream global retention settings that applies to
          * data streams managed by the data stream lifecycle.
          */
-        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver();
+        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings();
 
         /**
          * A provider of utilities to observe and report parsing of documents

@@ -31,7 +31,11 @@ import static org.hamcrest.Matchers.lessThan;
 public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
     static final PeerRecoveryTargetService.RecoveryListener listener = new PeerRecoveryTargetService.RecoveryListener() {
         @Override
-        public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+        public void onRecoveryDone(
+            RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        ) {
 
         }
 
@@ -69,7 +73,11 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
                 shards.addReplica(),
                 new PeerRecoveryTargetService.RecoveryListener() {
                     @Override
-                    public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+                    public void onRecoveryDone(
+                        RecoveryState state,
+                        ShardLongFieldRange timestampMillisFieldRange,
+                        ShardLongFieldRange eventIngestedMillisFieldRange
+                    ) {
                         latch.countDown();
                     }
 

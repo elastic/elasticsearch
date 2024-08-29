@@ -14,13 +14,11 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import static org.elasticsearch.xpack.esql.evaluator.EvalMapper.toEvaluator;
 
@@ -36,8 +34,8 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
 
         var leftEval = toEvaluator(bc.left(), layout);
         var rightEval = toEvaluator(bc.right(), layout);
-        if (leftType == DataTypes.KEYWORD || leftType == DataTypes.TEXT) {
-            if (bc.right().foldable() && EsqlDataTypes.isString(rightType)) {
+        if (leftType == DataType.KEYWORD || leftType == DataType.TEXT) {
+            if (bc.right().foldable() && DataType.isString(rightType)) {
                 BytesRef rightVal = BytesRefs.toBytesRef(bc.right().fold());
                 Automaton automaton = InsensitiveEquals.automaton(rightVal);
                 return dvrCtx -> new InsensitiveEqualsConstantEvaluator(

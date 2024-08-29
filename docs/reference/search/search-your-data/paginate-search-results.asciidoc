@@ -106,9 +106,9 @@ The search response includes an array of `sort` values for each hit:
         "_id" : "654322",
         "_score" : null,
         "_source" : ...,
-        "sort" : [               
+        "sort" : [
           1463538855,
-          "654322"                           
+          "654322"
         ]
       },
       {
@@ -118,7 +118,7 @@ The search response includes an array of `sort` values for each hit:
         "_source" : ...,
         "sort" : [                                <1>
           1463538857,
-          "654323"                        
+          "654323"
         ]
       }
     ]
@@ -150,7 +150,7 @@ GET twitter/_search
 --------------------------------------------------
 //TEST[continued]
 
-Repeat this process by updating the `search_after` array every time you retrieve a 
+Repeat this process by updating the `search_after` array every time you retrieve a
 new page of results. If a <<near-real-time,refresh>> occurs between these requests,
 the order of your results may change, causing inconsistent results across pages. To
 prevent this, you can create a <<point-in-time-api,point in time (PIT)>> to
@@ -167,10 +167,12 @@ The API returns a PIT ID.
 [source,console-result]
 ----
 {
-  "id": "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="
+  "id": "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==",
+  "_shards": ...
 }
 ----
 // TESTRESPONSE[s/"id": "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="/"id": $body.id/]
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards"/]
 
 To get the first page of results, submit a search request with a `sort`
 argument. If using a PIT, specify the PIT ID in the `pit.id` parameter and omit
@@ -362,7 +364,7 @@ Perl::
 
 Python::
 
-    See https://elasticsearch-py.readthedocs.org/en/master/helpers.html[elasticsearch.helpers.*]
+    See https://elasticsearch-py.readthedocs.io/en/stable/helpers.html[elasticsearch.helpers.*]
 
 JavaScript::
 

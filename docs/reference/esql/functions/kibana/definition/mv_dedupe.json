@@ -21,13 +21,37 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "cartesian_point",
           "optional" : false,
           "description" : "Multivalue expression."
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "cartesian_point"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "cartesian_shape",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "cartesian_shape"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -40,6 +64,30 @@
       ],
       "variadic" : false,
       "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geo_point"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geo_shape",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geo_shape"
     },
     {
       "params" : [

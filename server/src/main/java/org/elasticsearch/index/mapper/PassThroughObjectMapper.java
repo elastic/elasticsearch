@@ -18,6 +18,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
@@ -52,7 +53,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
         public Builder(String name) {
             // Subobjects are not currently supported.
-            super(name, Explicit.IMPLICIT_FALSE);
+            super(name, Optional.of(Subobjects.DISABLED));
         }
 
         @Override
@@ -77,11 +78,11 @@ public class PassThroughObjectMapper extends ObjectMapper {
         @Override
         public PassThroughObjectMapper build(MapperBuilderContext context) {
             return new PassThroughObjectMapper(
-                name(),
-                context.buildFullName(name()),
+                leafName(),
+                context.buildFullName(leafName()),
                 enabled,
                 dynamic,
-                buildMappers(context.createChildContext(name(), timeSeriesDimensionSubFields.value(), dynamic)),
+                buildMappers(context.createChildContext(leafName(), timeSeriesDimensionSubFields.value(), dynamic)),
                 timeSeriesDimensionSubFields,
                 priority
             );
@@ -103,7 +104,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
         int priority
     ) {
         // Subobjects are not currently supported.
-        super(name, fullPath, enabled, Explicit.IMPLICIT_FALSE, Explicit.IMPLICIT_FALSE, dynamic, mappers);
+        super(name, fullPath, enabled, Optional.of(Subobjects.DISABLED), Explicit.IMPLICIT_FALSE, dynamic, mappers);
         this.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
         this.priority = priority;
         if (priority < 0) {
@@ -113,7 +114,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
     @Override
     PassThroughObjectMapper withoutMappers() {
-        return new PassThroughObjectMapper(simpleName(), fullPath(), enabled, dynamic, Map.of(), timeSeriesDimensionSubFields, priority);
+        return new PassThroughObjectMapper(leafName(), fullPath(), enabled, dynamic, Map.of(), timeSeriesDimensionSubFields, priority);
     }
 
     @Override
@@ -131,7 +132,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
     @Override
     public PassThroughObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
-        PassThroughObjectMapper.Builder builder = new PassThroughObjectMapper.Builder(simpleName());
+        PassThroughObjectMapper.Builder builder = new PassThroughObjectMapper.Builder(leafName());
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         builder.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
@@ -142,7 +143,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
     @Override
     public PassThroughObjectMapper merge(Mapper mergeWith, MapperMergeContext parentBuilderContext) {
         if (mergeWith instanceof PassThroughObjectMapper == false) {
-            MapperErrors.throwObjectMappingConflictError(mergeWith.name());
+            MapperErrors.throwObjectMappingConflictError(mergeWith.fullPath());
         }
 
         PassThroughObjectMapper mergeWithObject = (PassThroughObjectMapper) mergeWith;
@@ -153,7 +154,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
             : this.timeSeriesDimensionSubFields;
 
         return new PassThroughObjectMapper(
-            simpleName(),
+            leafName(),
             fullPath(),
             mergeResult.enabled(),
             mergeResult.dynamic(),
@@ -165,7 +166,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(simpleName());
+        builder.startObject(leafName());
         builder.field("type", CONTENT_TYPE);
         if (timeSeriesDimensionSubFields.explicit()) {
             builder.field(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM, timeSeriesDimensionSubFields.value());
@@ -216,11 +217,11 @@ public class PassThroughObjectMapper extends ObjectMapper {
     public static void checkForDuplicatePriorities(Collection<PassThroughObjectMapper> passThroughMappers) {
         Map<Integer, String> seen = new HashMap<>();
         for (PassThroughObjectMapper mapper : passThroughMappers) {
-            String conflict = seen.put(mapper.priority, mapper.name());
+            String conflict = seen.put(mapper.priority, mapper.fullPath());
             if (conflict != null) {
                 throw new MapperException(
                     "Pass-through object ["
-                        + mapper.name()
+                        + mapper.fullPath()
                         + "] has a conflicting param [priority="
                         + mapper.priority
                         + "] with object ["

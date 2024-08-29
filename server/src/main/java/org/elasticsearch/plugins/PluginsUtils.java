@@ -313,21 +313,12 @@ public class PluginsUtils {
                 Set<URL> pluginUrls = transitiveUrls.get(extendedPlugin);
                 assert pluginUrls != null : "transitive urls should have already been set for " + extendedPlugin;
 
-                // consistency check: extended plugins should not have duplicate codebases with each other
-                Set<URL> intersection = new HashSet<>(extendedPluginUrls);
-                intersection.retainAll(pluginUrls);
-                if (intersection.isEmpty() == false) {
-                    throw new IllegalStateException(
-                        "jar hell! extended plugins " + exts + " have duplicate codebases with each other: " + intersection
-                    );
-                }
-
                 // jar hell check: extended plugins (so far) do not have jar hell with each other
                 extendedPluginUrls.addAll(pluginUrls);
                 JarHell.checkJarHell(extendedPluginUrls, logger::debug);
 
                 // consistency check: each extended plugin should not have duplicate codebases with implementation+spi of this plugin
-                intersection = new HashSet<>(bundle.allUrls);
+                Set<URL> intersection = new HashSet<>(bundle.allUrls);
                 intersection.retainAll(pluginUrls);
                 if (intersection.isEmpty() == false) {
                     throw new IllegalStateException(

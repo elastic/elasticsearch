@@ -9,7 +9,6 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -28,13 +27,13 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -48,11 +47,12 @@ class ESRestTestFeatureService implements TestFeatureService {
      */
     private static final Pattern VERSION_FEATURE_PATTERN = Pattern.compile("gte_v(\\d+\\.\\d+\\.\\d+)");
 
-    private final Set<String> allSupportedFeatures;
     private final Set<String> knownHistoricalFeatureNames;
-    private final Version version;
+    private final Collection<Version> nodeVersions;
+    private final Collection<Set<String>> nodeFeatures;
+    private final Collection<Set<String>> nodeHistoricalFeatures;
 
-    ESRestTestFeatureService(List<FeatureSpecification> featureSpecs, Collection<Version> nodeVersions, Set<String> clusterStateFeatures) {
+    ESRestTestFeatureService(List<FeatureSpecification> featureSpecs, Set<Version> nodeVersions, Collection<Set<String>> nodeFeatures) {
         List<FeatureSpecification> specs = new ArrayList<>(featureSpecs);
         specs.add(new RestTestLegacyFeatures());
         if (MetadataHolder.HISTORICAL_FEATURES != null) {
@@ -65,17 +65,26 @@ class ESRestTestFeatureService implements TestFeatureService {
                 featureData.getNodeFeatures().keySet()
             );
         this.knownHistoricalFeatureNames = featureData.getHistoricalFeatures().lastEntry().getValue();
-        this.version = nodeVersions.stream().min(Comparator.naturalOrder()).orElse(Version.CURRENT);
-        this.allSupportedFeatures = Sets.union(clusterStateFeatures, featureData.getHistoricalFeatures().floorEntry(version).getValue());
+        this.nodeVersions = nodeVersions;
+        this.nodeFeatures = nodeFeatures;
+        this.nodeHistoricalFeatures = nodeVersions.stream()
+            .map(featureData.getHistoricalFeatures()::floorEntry)
+            .map(Map.Entry::getValue)
+            .toList();
     }
 
     public static boolean hasFeatureMetadata() {
         return MetadataHolder.HISTORICAL_FEATURES != null;
     }
 
+    private static <T> boolean checkCollection(Collection<T> coll, Predicate<T> pred, boolean any) {
+        return any ? coll.stream().anyMatch(pred) : coll.isEmpty() == false && coll.stream().allMatch(pred);
+    }
+
     @Override
-    public boolean clusterHasFeature(String featureId) {
-        if (allSupportedFeatures.contains(featureId)) {
+    public boolean clusterHasFeature(String featureId, boolean any) {
+        if (checkCollection(nodeFeatures, s -> s.contains(featureId), any)
+            || checkCollection(nodeHistoricalFeatures, s -> s.contains(featureId), any)) {
             return true;
         }
         if (MetadataHolder.FEATURE_NAMES.contains(featureId) || knownHistoricalFeatureNames.contains(featureId)) {
@@ -86,20 +95,7 @@ class ESRestTestFeatureService implements TestFeatureService {
         Matcher matcher = VERSION_FEATURE_PATTERN.matcher(featureId);
         if (matcher.matches()) {
             Version extractedVersion = Version.fromString(matcher.group(1));
-            if (Version.V_8_15_0.before(extractedVersion)) {
-                // As of version 8.14.0 REST tests have been migrated to use features only.
-                // For migration purposes we provide a synthetic version feature gte_vX.Y.Z for any version at or before 8.15.0
-                // allowing for some transition period.
-                throw new IllegalArgumentException(
-                    Strings.format(
-                        "Synthetic version features are only available before [%s] for migration purposes! "
-                            + "Please add a cluster feature to an appropriate FeatureSpecification; test-only historical-features  "
-                            + "can be supplied via ESRestTestCase#additionalTestOnlyHistoricalFeatures()",
-                        Version.V_8_15_0
-                    )
-                );
-            }
-            return version.onOrAfter(extractedVersion);
+            return checkCollection(nodeVersions, v -> v.onOrAfter(extractedVersion), any);
         }
 
         if (hasFeatureMetadata()) {

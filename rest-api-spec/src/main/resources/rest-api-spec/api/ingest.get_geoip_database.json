@@ -1,0 +1,37 @@
+{
+  "ingest.get_geoip_database":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/TODO.html",
+      "description":"Returns geoip database configuration."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ingest/geoip/database",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/_ingest/geoip/database/{id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "id":{
+              "type":"list",
+              "description":"A comma-separated list of geoip database configurations to get; use `*` to get all geoip database configurations"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+    }
+  }
+}

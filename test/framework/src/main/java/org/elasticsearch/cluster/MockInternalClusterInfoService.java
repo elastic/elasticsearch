@@ -108,7 +108,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
             var storeStats = new StoreStats(
                 shardSizeFunctionCopy.apply(shardRouting),
                 shardSizeFunctionCopy.apply(shardRouting),
-                shardStats.getStats().store.reservedSizeInBytes()
+                shardStats.getStats().store == null ? 0L : shardStats.getStats().store.reservedSizeInBytes()
             );
             var commonStats = new CommonStats(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
             commonStats.store = storeStats;

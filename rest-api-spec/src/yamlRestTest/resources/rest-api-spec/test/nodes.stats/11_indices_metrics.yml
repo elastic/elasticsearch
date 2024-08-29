@@ -417,7 +417,7 @@
 
   - requires:
       test_runner_features: [arbitrary_key]
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.query_index_mode"]
       reason:  "_ignored_source added to mappings"
 
   - do:
@@ -478,36 +478,133 @@
   # 6. _ignored
   # 7. _ignored_source
   # 8. _index
-  # 9. _nested_path
-  # 10. _routing
-  # 11. _seq_no
-  # 12. _source
-  # 13. _tier
-  # 14. _version
-  # 15. @timestamp
-  # 16. authors.age
-  # 17. authors.company
-  # 18. authors.company.keyword
-  # 19. authors.name.last_name
-  # 20. authors.name.first_name
-  # 21. authors.name.full_name
-  # 22. link
-  # 23. title
-  # 24. url
+  # 9. _index_mode
+  # 10. _nested_path
+  # 11. _routing
+  # 12. _seq_no
+  # 13. _source
+  # 14. _tier
+  # 15. _version
+  # 16. @timestamp
+  # 17. authors.age
+  # 18. authors.company
+  # 19. authors.company.keyword
+  # 20. authors.name.last_name
+  # 21. authors.name.first_name
+  # 22. authors.name.full_name
+  # 23. link
+  # 24. title
+  # 25. url
   # Object mappers:
-  # 25. authors
-  # 26. authors.name
+  # 26. authors
+  # 27. authors.name
   # Runtime field mappers:
-  # 27. a_source_field
+  # 28. a_source_field
 
-  - gte: { nodes.$node_id.indices.mappings.total_count: 27 }
+  - gte: { nodes.$node_id.indices.mappings.total_count: 28 }
   - is_true: nodes.$node_id.indices.mappings.total_estimated_overhead
   - gte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 26624 }
-  - match: { nodes.$node_id.indices.indices.index1.mappings.total_count: 27 }
+  - match: { nodes.$node_id.indices.indices.index1.mappings.total_count: 28 }
   - is_true: nodes.$node_id.indices.indices.index1.mappings.total_estimated_overhead
-  - match: { nodes.$node_id.indices.indices.index1.mappings.total_estimated_overhead_in_bytes: 27648 }
+  - match: { nodes.$node_id.indices.indices.index1.mappings.total_estimated_overhead_in_bytes: 28672 }
 
 ---
+"Lucene segment level fields stats":
+
+  - requires:
+      cluster_features: ["mapper.segment_level_fields_stats"]
+      reason: "segment level fields stats"
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            routing.rebalance.enable: none
+          mappings:
+            runtime:
+              a_source_field:
+                type: keyword
+            properties:
+              "@timestamp":
+                type: date
+              authors:
+                properties:
+                  age:
+                    type: long
+                  company:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                        ignore_above: 256
+                  name:
+                    properties:
+                      first_name:
+                        type: keyword
+                      full_name:
+                        type: text
+                      last_name:
+                        type: keyword
+              link:
+                type: alias
+                path: url
+              title:
+                type: text
+              url:
+                type: keyword
+  - do:
+      cluster.state: {}
+
+  - set:
+      routing_table.indices.index1.shards.0.0.node: node_id
+
+  - do:
+      nodes.stats: { metric: _all, level: "indices", human: true }
+
+  - do:
+      index:
+        index:  index1
+        body:   { "title": "foo", "@timestamp": "2023-10-15T14:12:12" }
+  - do:
+      indices.flush:
+        index: index1
+  - do:
+      nodes.stats: { metric: _all, level: "indices", human: true }
+
+  - gte: { nodes.$node_id.indices.mappings.total_count: 28 }
+  - lte: { nodes.$node_id.indices.mappings.total_count: 29 }
+  - gte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 28672 }
+  - lte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 29696 }
+  - match: { nodes.$node_id.indices.mappings.total_segments: 1 }
+  - gte: { nodes.$node_id.indices.mappings.total_segment_fields: 28 }
+  - lte: { nodes.$node_id.indices.mappings.total_segment_fields: 29 }
+  - gte: { nodes.$node_id.indices.mappings.average_fields_per_segment: 28 }
+  - lte: { nodes.$node_id.indices.mappings.average_fields_per_segment: 29 }
+
+  - do:
+      index:
+        index:  index1
+        body:   { "title": "bar", "@timestamp": "2023-11-15T14:12:12" }
+  - do:
+      indices.flush:
+        index: index1
+  - do:
+      nodes.stats: { metric: _all, level: "indices", human: true }
+
+  - gte: { nodes.$node_id.indices.mappings.total_count: 28 }
+  - lte: { nodes.$node_id.indices.mappings.total_count: 29 }
+  - gte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 28672 }
+  - lte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 29696 }
+  - match: { nodes.$node_id.indices.mappings.total_segments: 2 }
+  - gte: { nodes.$node_id.indices.mappings.total_segment_fields: 56 }
+  - lte: { nodes.$node_id.indices.mappings.total_segment_fields: 58 }
+  - gte: { nodes.$node_id.indices.mappings.average_fields_per_segment: 28 }
+  - lte: { nodes.$node_id.indices.mappings.average_fields_per_segment: 29 }
+---
+
 "indices mappings does not exist in shards level":
 
   - requires:

@@ -23,8 +23,10 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.sender.CohereCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -42,8 +44,11 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -76,7 +81,7 @@ public class CohereCompletionActionTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse_WithModelSpecified() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = HttpRequestSenderTests.createSenderWithSingleRequestManager(senderFactory, "test_service")) {
+        try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -119,7 +124,7 @@ public class CohereCompletionActionTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectedChatCompletionResultMap(List.of("result"))));
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("result"))));
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
@@ -137,7 +142,7 @@ public class CohereCompletionActionTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse_WithoutModelSpecified() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = HttpRequestSenderTests.createSenderWithSingleRequestManager(senderFactory, "test_service")) {
+        try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -180,7 +185,7 @@ public class CohereCompletionActionTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectedChatCompletionResultMap(List.of("result"))));
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("result"))));
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
@@ -198,7 +203,7 @@ public class CohereCompletionActionTests extends ESTestCase {
     public void testExecute_ThrowsURISyntaxException_ForInvalidUrl() throws IOException {
         try (var sender = mock(Sender.class)) {
             var thrownException = expectThrows(IllegalArgumentException.class, () -> createAction("a^b", "api key", "model", sender));
-            assertThat(thrownException.getMessage(), is("unable to parse url [a^b]"));
+            assertThat(thrownException.getMessage(), containsString("unable to parse url [a^b]"));
         }
     }
 
@@ -289,7 +294,7 @@ public class CohereCompletionActionTests extends ESTestCase {
     public void testExecute_ThrowsException_WhenInputIsGreaterThanOne() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -338,16 +343,10 @@ public class CohereCompletionActionTests extends ESTestCase {
         }
     }
 
-    public static Map<String, Object> buildExpectedChatCompletionResultMap(List<String> results) {
-        return Map.of(
-            ChatCompletionResults.COMPLETION,
-            results.stream().map(result -> Map.of(ChatCompletionResults.Result.RESULT, result)).toList()
-        );
-    }
-
-    private CohereCompletionAction createAction(String url, String apiKey, @Nullable String modelName, Sender sender) {
+    private ExecutableAction createAction(String url, String apiKey, @Nullable String modelName, Sender sender) {
         var model = CohereCompletionModelTests.createModel(url, apiKey, modelName);
-
-        return new CohereCompletionAction(sender, model, threadPool);
+        var requestManager = CohereCompletionRequestManager.of(model, threadPool);
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.getServiceSettings().uri(), "Cohere completion");
+        return new SingleInputSenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage, "Cohere completion");
     }
 }

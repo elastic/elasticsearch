@@ -98,8 +98,8 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
             super(in);
         }
 
-        public Plain() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        public Plain(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+            super(masterNodeTimeout, ackTimeout);
         }
     }
 }

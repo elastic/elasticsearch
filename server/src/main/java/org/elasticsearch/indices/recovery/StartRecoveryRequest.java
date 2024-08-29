@@ -174,4 +174,26 @@ public class StartRecoveryRequest extends TransportRequest {
             out.writeBoolean(canDownloadSnapshotFiles);
         }
     }
+
+    @Override
+    public String toString() {
+        return "StartRecoveryRequest{"
+            + "shardId="
+            + shardId
+            + ", targetNode="
+            + targetNode.descriptionWithoutAttributes()
+            + ", recoveryId="
+            + recoveryId
+            + ", targetAllocationId='"
+            + targetAllocationId
+            + "', clusterStateVersion="
+            + clusterStateVersion
+            + ", primaryRelocation="
+            + primaryRelocation
+            + ", startingSeqNo="
+            + startingSeqNo
+            + ", canDownloadSnapshotFiles="
+            + canDownloadSnapshotFiles
+            + '}';
+    }
 }

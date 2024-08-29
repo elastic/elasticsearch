@@ -20,6 +20,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -35,6 +36,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
@@ -66,7 +68,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         // passed at that time and never throw.
         ValidationException validationException = new ValidationException();
 
-        var commonFields = fromMap(map, validationException);
+        var commonFields = fromMap(map, validationException, ConfigurationParseContext.PERSISTENT);
 
         Boolean dimensionsSetByUser = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class);
         if (dimensionsSetByUser == null) {
@@ -80,7 +82,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
     private static OpenAiEmbeddingsServiceSettings fromRequestMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        var commonFields = fromMap(map, validationException);
+        var commonFields = fromMap(map, validationException, ConfigurationParseContext.REQUEST);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -89,16 +91,31 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         return new OpenAiEmbeddingsServiceSettings(commonFields, commonFields.dimensions != null);
     }
 
-    private static CommonFields fromMap(Map<String, Object> map, ValidationException validationException) {
+    private static CommonFields fromMap(
+        Map<String, Object> map,
+        ValidationException validationException,
+        ConfigurationParseContext context
+    ) {
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String organizationId = extractOptionalString(map, ORGANIZATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
+        Integer maxInputTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+            map,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
+            OpenAiService.NAME,
+            context
+        );
 
         return new CommonFields(modelId, uri, organizationId, similarity, maxInputTokens, dims, rateLimitSettings);
     }
@@ -133,7 +150,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.uri = uri;
-        this.modelId = modelId;
+        this.modelId = Objects.requireNonNull(modelId);
         this.organizationId = organizationId;
         this.similarity = similarity;
         this.dimensions = dimensions;
@@ -258,7 +275,6 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         builder.startObject();
 
         toXContentFragmentOfExposedFields(builder, params);
-        rateLimitSettings.toXContent(builder, params);
 
         if (dimensionsSetByUser != null) {
             builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
@@ -286,6 +302,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
+        rateLimitSettings.toXContent(builder, params);
 
         return builder;
     }

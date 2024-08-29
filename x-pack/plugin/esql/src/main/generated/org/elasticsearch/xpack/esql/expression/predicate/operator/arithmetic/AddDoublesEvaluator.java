@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
@@ -14,8 +15,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Add}.
@@ -32,10 +33,10 @@ public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluat
 
   public AddDoublesEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -50,7 +51,7 @@ public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluat
         if (rhsVector == null) {
           return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
-        return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
+        return eval(page.getPositionCount(), lhsVector, rhsVector);
       }
     }
   }
@@ -80,16 +81,26 @@ public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluat
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Add.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
+        try {
+          result.appendDouble(Add.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public DoubleVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
-    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+  public DoubleBlock eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Add.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+        try {
+          result.appendDouble(Add.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

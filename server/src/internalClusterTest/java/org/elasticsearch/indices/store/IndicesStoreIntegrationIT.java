@@ -11,6 +11,7 @@ package org.elasticsearch.indices.store;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -128,7 +129,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             logger.info("--> stopping disruption");
             disruption.stopDisrupting();
         } else {
-            internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_3)).get();
+            ClusterRerouteUtils.reroute(internalCluster().client(), new MoveAllocationCommand("test", 0, node_1, node_3));
         }
         clusterHealth = clusterAdmin().prepareHealth().setWaitForNoRelocatingShards(true).get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
@@ -172,7 +173,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                 }
             }
         });
-        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(index, shard, nodeFrom, nodeTo)).get();
+        ClusterRerouteUtils.reroute(internalCluster().client(), new MoveAllocationCommand(index, shard, nodeFrom, nodeTo));
         logger.info("--> waiting for relocation to start");
         beginRelocationLatch.await();
         logger.info("--> starting disruption");
@@ -223,7 +224,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             });
 
         logger.info("--> move shard from {} to {}, and wait for relocation to finish", node_1, node_2);
-        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_2)).get();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, node_1, node_2));
         shardActiveRequestSent.await();
         ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForNoRelocatingShards(true).get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));

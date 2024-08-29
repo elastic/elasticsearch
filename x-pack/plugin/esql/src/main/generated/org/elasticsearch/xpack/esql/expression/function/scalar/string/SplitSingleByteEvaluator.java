@@ -16,8 +16,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Split}.
@@ -36,11 +36,11 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
 
   public SplitSingleByteEvaluator(Source source, EvalOperator.ExpressionEvaluator str, byte delim,
       BytesRef scratch, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.str = str;
     this.delim = delim;
     this.scratch = scratch;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -69,7 +69,7 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
           result.appendNull();
           continue position;
         }
-        Split.process(result, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), delim, scratch);
+        Split.process(result, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), this.delim, this.scratch);
       }
       return result.build();
     }
@@ -79,7 +79,7 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        Split.process(result, strVector.getBytesRef(p, strScratch), delim, scratch);
+        Split.process(result, strVector.getBytesRef(p, strScratch), this.delim, this.scratch);
       }
       return result.build();
     }

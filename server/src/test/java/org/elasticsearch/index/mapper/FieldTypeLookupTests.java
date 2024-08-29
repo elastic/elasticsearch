@@ -13,6 +13,7 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -493,9 +494,9 @@ public class FieldTypeLookupTests extends ESTestCase {
         );
 
         FieldTypeLookup lookup = new FieldTypeLookup(
-            List.of(attributeField, resourceAttributeField),
+            randomizedList(attributeField, resourceAttributeField),
             List.of(),
-            List.of(attributes, resourceAttributes),
+            randomizedList(attributes, resourceAttributes),
             List.of()
         );
         assertEquals(attributeField.fieldType(), lookup.get("foo"));
@@ -503,10 +504,26 @@ public class FieldTypeLookupTests extends ESTestCase {
 
     public void testNoRootAliasForPassThroughFieldOnConflictingField() {
         MockFieldMapper attributeFoo = new MockFieldMapper("attributes.foo");
+        MockFieldMapper resourceAttributeFoo = new MockFieldMapper("resource.attributes.foo");
         MockFieldMapper foo = new MockFieldMapper("foo");
         PassThroughObjectMapper attributes = createPassThroughMapper("attributes", Map.of("foo", attributeFoo), 0);
+        PassThroughObjectMapper resourceAttributes = createPassThroughMapper("resource.attributes", Map.of("foo", resourceAttributeFoo), 1);
 
-        FieldTypeLookup lookup = new FieldTypeLookup(List.of(foo, attributeFoo), List.of(), List.of(attributes), List.of());
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            randomizedList(foo, attributeFoo, resourceAttributeFoo),
+            List.of(),
+            randomizedList(attributes, resourceAttributes),
+            List.of()
+        );
+
         assertEquals(foo.fieldType(), lookup.get("foo"));
+    }
+
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    static <T> List<T> randomizedList(T... values) {
+        ArrayList<T> list = new ArrayList<>(Arrays.asList(values));
+        Collections.shuffle(list, random());
+        return list;
     }
 }

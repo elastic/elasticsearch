@@ -43,9 +43,8 @@ public class RestCreateSnapshotAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String repository = request.param("repository");
         String snapshot = request.param("snapshot");
-        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
+        final var createSnapshotRequest = new CreateSnapshotRequest(getMasterNodeTimeout(request), repository, snapshot);
         request.applyContentParser(p -> createSnapshotRequest.source(p.mapOrdered()));
-        createSnapshotRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         createSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
         return channel -> client.admin().cluster().createSnapshot(createSnapshotRequest, new RestToXContentListener<>(channel));
     }

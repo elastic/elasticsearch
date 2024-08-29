@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.recycler;
 
-import org.apache.lucene.util.hppc.BitMixer;
+import com.carrotsearch.hppc.BitMixer;
 
 import java.util.ArrayDeque;
 

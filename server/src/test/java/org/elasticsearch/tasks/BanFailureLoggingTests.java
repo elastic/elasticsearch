@@ -24,6 +24,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
+import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -131,7 +132,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             childTransportService.registerRequestHandler(
                 "internal:testAction[c]",
                 threadPool.executor(ThreadPool.Names.MANAGEMENT), // busy-wait for cancellation but not on a transport thread
-                (StreamInput in) -> new TransportRequest.Empty(in) {
+                (StreamInput in) -> new TransportRequest(in) {
                     @Override
                     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
                         return new CancellableTask(id, type, action, "", parentTaskId, headers);
@@ -163,7 +164,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             parentTransportService.sendChildRequest(
                 childTransportService.getLocalDiscoNode(),
                 "internal:testAction[c]",
-                TransportRequest.Empty.INSTANCE,
+                new EmptyRequest(),
                 parentTask,
                 TransportRequestOptions.EMPTY,
                 new ChildResponseHandler(() -> parentTransportService.getTaskManager().unregister(parentTask))

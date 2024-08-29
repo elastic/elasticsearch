@@ -35,7 +35,6 @@ public class NodePersistentTasksExecutor {
                 } catch (Exception ex) {
                     task.markAsFailed(ex);
                 }
-
             }
         });
     }

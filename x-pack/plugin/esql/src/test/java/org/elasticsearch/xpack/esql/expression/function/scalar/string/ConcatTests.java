@@ -14,14 +14,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlClientException;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,7 +34,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class ConcatTests extends AbstractFunctionTestCase {
+public class ConcatTests extends AbstractScalarFunctionTestCase {
     public ConcatTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -50,23 +48,23 @@ public class ConcatTests extends AbstractFunctionTestCase {
         for (int length = 4; length < 100; length++) {
             suppliers(suppliers, length);
         }
-        Set<DataType> supported = Set.of(DataTypes.NULL, DataTypes.KEYWORD, DataTypes.TEXT);
+        Set<DataType> supported = Set.of(DataType.NULL, DataType.KEYWORD, DataType.TEXT);
         List<Set<DataType>> supportedPerPosition = List.of(supported, supported);
-        for (DataType lhs : EsqlDataTypes.types()) {
-            if (lhs == DataTypes.NULL || EsqlDataTypes.isRepresentable(lhs) == false) {
+        for (DataType lhs : DataType.types()) {
+            if (lhs == DataType.NULL || DataType.isRepresentable(lhs) == false) {
                 continue;
             }
-            for (DataType rhs : EsqlDataTypes.types()) {
-                if (rhs == DataTypes.NULL || EsqlDataTypes.isRepresentable(rhs) == false) {
+            for (DataType rhs : DataType.types()) {
+                if (rhs == DataType.NULL || DataType.isRepresentable(rhs) == false) {
                     continue;
                 }
-                boolean lhsIsString = lhs == DataTypes.KEYWORD || lhs == DataTypes.TEXT;
-                boolean rhsIsString = rhs == DataTypes.KEYWORD || rhs == DataTypes.TEXT;
+                boolean lhsIsString = lhs == DataType.KEYWORD || lhs == DataType.TEXT;
+                boolean rhsIsString = rhs == DataType.KEYWORD || rhs == DataType.TEXT;
                 if (lhsIsString && rhsIsString) {
                     continue;
                 }
 
-                suppliers.add(typeErrorSupplier(false, supportedPerPosition, List.of(lhs, rhs)));
+                suppliers.add(typeErrorSupplier(false, supportedPerPosition, List.of(lhs, rhs), (v, p) -> "string"));
             }
         }
         return parameterSuppliersFromTypedData(suppliers);
@@ -74,8 +72,8 @@ public class ConcatTests extends AbstractFunctionTestCase {
 
     private static void suppliers(List<TestCaseSupplier> suppliers, int length) {
         if (length > 3) {
-            suppliers.add(supplier("ascii", DataTypes.KEYWORD, length, () -> randomAlphaOfLengthBetween(1, 10)));
-            suppliers.add(supplier("unicode", DataTypes.TEXT, length, () -> randomRealisticUnicodeOfLengthBetween(1, 10)));
+            suppliers.add(supplier("ascii", DataType.KEYWORD, length, () -> randomAlphaOfLengthBetween(1, 10)));
+            suppliers.add(supplier("unicode", DataType.TEXT, length, () -> randomRealisticUnicodeOfLengthBetween(1, 10)));
         } else {
             add(suppliers, "ascii", length, () -> randomAlphaOfLengthBetween(1, 10));
             add(suppliers, "unicode", length, () -> randomRealisticUnicodeOfLengthBetween(1, 10));
@@ -97,14 +95,14 @@ public class ConcatTests extends AbstractFunctionTestCase {
                 expectedToString += "Attribute[channel=" + v + "]";
             }
             expectedToString += "]]";
-            return new TestCaseSupplier.TestCase(values, expectedToString, DataTypes.KEYWORD, equalTo(new BytesRef(expectedValue)));
+            return new TestCaseSupplier.TestCase(values, expectedToString, DataType.KEYWORD, equalTo(new BytesRef(expectedValue)));
         });
     }
 
     private static void add(List<TestCaseSupplier> suppliers, String name, int length, Supplier<String> valueSupplier) {
         Map<Integer, List<List<DataType>>> permutations = new HashMap<Integer, List<List<DataType>>>();
-        List<DataType> supportedDataTypes = List.of(DataTypes.KEYWORD, DataTypes.TEXT);
-        permutations.put(0, List.of(List.of(DataTypes.KEYWORD), List.of(DataTypes.TEXT)));
+        List<DataType> supportedDataTypes = List.of(DataType.KEYWORD, DataType.TEXT);
+        permutations.put(0, List.of(List.of(DataType.KEYWORD), List.of(DataType.TEXT)));
         for (int v = 0; v < length - 1; v++) {
             List<List<DataType>> current = permutations.get(v);
             List<List<DataType>> next = new ArrayList<>();
@@ -133,7 +131,7 @@ public class ConcatTests extends AbstractFunctionTestCase {
                     expectedToString += "Attribute[channel=" + v + "]";
                 }
                 expectedToString += "]]";
-                return new TestCaseSupplier.TestCase(values, expectedToString, DataTypes.KEYWORD, equalTo(new BytesRef(expectedValue)));
+                return new TestCaseSupplier.TestCase(values, expectedToString, DataType.KEYWORD, equalTo(new BytesRef(expectedValue)));
             }));
         }
 
@@ -189,7 +187,7 @@ public class ConcatTests extends AbstractFunctionTestCase {
     private void testOversized(int totalLen, List<Expression> mix, List<Object> fieldValues) {
         for (int len; totalLen < Concat.MAX_CONCAT_LENGTH; totalLen += len) {
             len = randomIntBetween(1, (int) Concat.MAX_CONCAT_LENGTH);
-            mix.add(new Literal(Source.EMPTY, new BytesRef(randomAlphaOfLength(len)), DataTypes.KEYWORD));
+            mix.add(new Literal(Source.EMPTY, new BytesRef(randomAlphaOfLength(len)), DataType.KEYWORD));
         }
         Expression expression = build(testCase.getSource(), mix);
         Exception e = expectThrows(EsqlClientException.class, () -> {

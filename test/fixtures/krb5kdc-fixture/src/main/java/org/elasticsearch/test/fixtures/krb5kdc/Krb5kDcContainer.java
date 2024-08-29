@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -74,6 +75,7 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
         this.provisioningId = provisioningId;
         withNetwork(Network.newNetwork());
         addExposedPorts(88, 4444);
+        withStartupTimeout(Duration.ofMinutes(2));
         withCreateContainerCmdModifier(cmd -> {
             // Add previously exposed ports and UDP port
             List<ExposedPort> exposedPorts = new ArrayList<>();

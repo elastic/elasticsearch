@@ -71,7 +71,7 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -692,7 +692,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
                 try {
                     channel.sendResponse(
-                        RestResponse.chunked(OK, ChunkedRestResponseBody.fromXContent(ignored -> Iterators.single((builder, params) -> {
+                        RestResponse.chunked(OK, ChunkedRestResponseBodyPart.fromXContent(ignored -> Iterators.single((builder, params) -> {
                             throw new AssertionError("should not be called for HEAD REQUEST");
                         }), ToXContent.EMPTY_PARAMS, channel), null)
                     );
@@ -1048,7 +1048,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 assertEquals(request.uri(), url);
                 final var response = RestResponse.chunked(
                     OK,
-                    ChunkedRestResponseBody.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator()),
+                    ChunkedRestResponseBodyPart.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator()),
                     responseReleasedLatch::countDown
                 );
                 transportClosedFuture.addListener(ActionListener.running(() -> channel.sendResponse(response)));

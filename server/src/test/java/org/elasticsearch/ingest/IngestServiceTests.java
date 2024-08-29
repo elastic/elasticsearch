@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -50,9 +51,10 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
@@ -87,9 +89,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils.executeAndAssertSuccessful;
@@ -151,7 +153,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            DocumentParsingProvider.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            FailureStoreMetrics.NOOP
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -171,7 +174,8 @@ public class IngestServiceTests extends ESTestCase {
                 List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
                 client,
                 null,
-                DocumentParsingProvider.EMPTY_INSTANCE
+                DocumentParsingProvider.EMPTY_INSTANCE,
+                FailureStoreMetrics.NOOP
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
@@ -188,7 +192,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            DocumentParsingProvider.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            FailureStoreMetrics.NOOP
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -1175,18 +1180,18 @@ public class IngestServiceTests extends ESTestCase {
         AtomicInteger parsedValueWasUsed = new AtomicInteger(0);
         DocumentParsingProvider documentParsingProvider = new DocumentParsingProvider() {
             @Override
-            public DocumentSizeObserver newDocumentSizeObserver() {
-                return new DocumentSizeObserver() {
+            public <T> XContentMeteringParserDecorator newMeteringParserDecorator(DocWriteRequest<T> request) {
+                return new XContentMeteringParserDecorator() {
                     @Override
-                    public XContentParser wrapParser(XContentParser xContentParser) {
-                        wrappedObserverWasUsed.incrementAndGet();
-                        return xContentParser;
+                    public ParsedDocument.DocumentSize meteredDocumentSize() {
+                        parsedValueWasUsed.incrementAndGet();
+                        return new ParsedDocument.DocumentSize(0, 0);
                     }
 
                     @Override
-                    public long normalisedBytesParsed() {
-                        parsedValueWasUsed.incrementAndGet();
-                        return 0;
+                    public XContentParser decorate(XContentParser xContentParser) {
+                        wrappedObserverWasUsed.incrementAndGet();
+                        return xContentParser;
                     }
                 };
             }
@@ -1664,7 +1669,7 @@ public class IngestServiceTests extends ESTestCase {
             .setFinalPipeline("_id2");
         doThrow(new RuntimeException()).when(processor)
             .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
-        final Predicate<String> redirectCheck = (idx) -> indexRequest.index().equals(idx);
+        final Function<String, Boolean> redirectCheck = (idx) -> indexRequest.index().equals(idx);
         @SuppressWarnings("unchecked")
         final TriConsumer<Integer, String, Exception> redirectHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
@@ -1721,7 +1726,7 @@ public class IngestServiceTests extends ESTestCase {
             .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         doThrow(new RuntimeException()).when(processor)
             .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
-        final Predicate<String> redirectPredicate = (idx) -> indexRequest.index().equals(idx);
+        final Function<String, Boolean> redirectCheck = (idx) -> indexRequest.index().equals(idx);
         @SuppressWarnings("unchecked")
         final TriConsumer<Integer, String, Exception> redirectHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
@@ -1732,7 +1737,7 @@ public class IngestServiceTests extends ESTestCase {
             1,
             List.of(indexRequest),
             indexReq -> {},
-            redirectPredicate,
+            redirectCheck,
             redirectHandler,
             failureHandler,
             completionHandler,
@@ -2319,7 +2324,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(testPlugin),
             client,
             null,
-            DocumentParsingProvider.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            FailureStoreMetrics.NOOP
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -2674,7 +2680,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            DocumentParsingProvider.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            FailureStoreMetrics.NOOP
         );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
@@ -2973,7 +2980,8 @@ public class IngestServiceTests extends ESTestCase {
             }),
             client,
             null,
-            documentParsingProvider
+            documentParsingProvider,
+            FailureStoreMetrics.NOOP
         );
         if (randomBoolean()) {
             /*

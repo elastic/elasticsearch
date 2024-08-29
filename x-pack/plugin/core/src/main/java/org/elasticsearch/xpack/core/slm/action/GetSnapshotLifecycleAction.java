@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyItem;
@@ -34,19 +35,14 @@ public class GetSnapshotLifecycleAction extends ActionType<GetSnapshotLifecycleA
 
         private final String[] lifecycleIds;
 
-        public Request(String... lifecycleIds) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String... lifecycleIds) {
+            super(masterNodeTimeout, ackTimeout);
             this.lifecycleIds = Objects.requireNonNull(lifecycleIds, "ids may not be null");
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             lifecycleIds = in.readStringArray();
-        }
-
-        public Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
-            this.lifecycleIds = Strings.EMPTY_ARRAY;
         }
 
         public String[] getLifecycleIds() {

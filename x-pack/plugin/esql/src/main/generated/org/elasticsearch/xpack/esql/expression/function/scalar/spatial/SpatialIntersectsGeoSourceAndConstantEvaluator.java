@@ -18,8 +18,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link SpatialIntersects}.
@@ -37,10 +37,10 @@ public final class SpatialIntersectsGeoSourceAndConstantEvaluator implements Eva
   public SpatialIntersectsGeoSourceAndConstantEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, Component2D rightValue,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.leftValue = leftValue;
     this.rightValue = rightValue;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -70,7 +70,7 @@ public final class SpatialIntersectsGeoSourceAndConstantEvaluator implements Eva
           continue position;
         }
         try {
-          result.appendBoolean(SpatialIntersects.processGeoSourceAndConstant(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValue));
+          result.appendBoolean(SpatialIntersects.processGeoSourceAndConstant(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), this.rightValue));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -85,7 +85,7 @@ public final class SpatialIntersectsGeoSourceAndConstantEvaluator implements Eva
       BytesRef leftValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(SpatialIntersects.processGeoSourceAndConstant(leftValueVector.getBytesRef(p, leftValueScratch), rightValue));
+          result.appendBoolean(SpatialIntersects.processGeoSourceAndConstant(leftValueVector.getBytesRef(p, leftValueScratch), this.rightValue));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();

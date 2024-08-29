@@ -171,7 +171,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                     if (tf.hasChanged()) {
                         hasChanged = true;
                         if (log.isTraceEnabled()) {
-                            log.trace("Rule {} applied\n{}", rule, NodeUtils.diffString(tf.before, tf.after));
+                            log.trace("Rule {} applied with changes\n{}", rule, NodeUtils.diffString(tf.before, tf.after));
                         }
                     } else {
                         if (log.isTraceEnabled()) {

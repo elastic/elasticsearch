@@ -89,6 +89,13 @@ public class TimeValue implements Comparable<TimeValue> {
     }
 
     /**
+     * @return the {@link TimeValue} object that has the least duration.
+     */
+    public static TimeValue min(TimeValue time1, TimeValue time2) {
+        return time1.compareTo(time2) < 0 ? time1 : time2;
+    }
+
+    /**
      * @return the unit used for the this time value, see {@link #duration()}
      */
     public TimeUnit timeUnit() {

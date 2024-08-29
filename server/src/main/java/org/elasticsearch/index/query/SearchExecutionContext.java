@@ -269,6 +269,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             valuesSourceRegistry,
             allowExpensiveQueries,
             scriptService,
+            null,
             null
         );
         this.shardId = shardId;
@@ -338,6 +339,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             fieldType,
             new FieldDataContext(
                 getFullyQualifiedIndex().getName(),
+                getIndexSettings(),
                 () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()),
                 this::sourcePath,
                 fielddataOperation
@@ -436,7 +438,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SourceLoader newSourceLoader(boolean forceSyntheticSource) {
         if (forceSyntheticSource) {
-            return new SourceLoader.Synthetic(mappingLookup.getMapping(), mapperMetrics.sourceFieldMetrics());
+            return new SourceLoader.Synthetic(mappingLookup.getMapping()::syntheticFieldLoader, mapperMetrics.sourceFieldMetrics());
         }
         return mappingLookup.newSourceLoader(mapperMetrics.sourceFieldMetrics());
     }
@@ -514,7 +516,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
             this::getFieldType,
             (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.apply(
                 fieldType,
-                new FieldDataContext(getFullyQualifiedIndex().getName(), searchLookup, this::sourcePath, fielddataOperation)
+                new FieldDataContext(
+                    getFullyQualifiedIndex().getName(),
+                    getIndexSettings(),
+                    searchLookup,
+                    this::sourcePath,
+                    fielddataOperation
+                )
             ),
             sourceProvider,
             fieldLookupProvider

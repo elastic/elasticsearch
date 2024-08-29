@@ -17,8 +17,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateFormat}.
@@ -35,10 +35,10 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
 
   public DateFormatConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DateFormatter formatter, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.formatter = formatter;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -66,7 +66,7 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(DateFormat.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), formatter));
+        result.appendBytesRef(DateFormat.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), this.formatter));
       }
       return result.build();
     }
@@ -75,7 +75,7 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
   public BytesRefVector eval(int positionCount, LongVector valVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatter));
+        result.appendBytesRef(DateFormat.process(valVector.getLong(p), this.formatter));
       }
       return result.build();
     }

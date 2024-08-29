@@ -22,6 +22,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.uhighlight.FieldHighlighter;
 import org.apache.lucene.search.uhighlight.FieldOffsetStrategy;
 import org.apache.lucene.search.uhighlight.NoOpOffsetStrategy;
+import org.apache.lucene.search.uhighlight.Passage;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.PassageScorer;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.search.retriever.rankdoc.RankDocsQuery;
 import org.elasticsearch.search.runtime.AbstractScriptFieldQuery;
 import org.elasticsearch.search.vectors.KnnScoreDocQuery;
 
@@ -38,6 +40,7 @@ import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Locale;
 import java.util.function.Supplier;
 
@@ -161,7 +164,8 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
         PassageScorer passageScorer,
         int maxPassages,
         int maxNoHighlightPassages,
-        PassageFormatter passageFormatter
+        PassageFormatter passageFormatter,
+        Comparator<Passage> passageSortComparator
     ) {
         return new CustomFieldHighlighter(
             field,
@@ -172,6 +176,7 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
             maxPassages,
             (noMatchSize > 0 ? 1 : 0),
             getFormatter(field),
+            passageSortComparator,
             noMatchSize,
             queryMaxAnalyzedOffset
         );
@@ -251,10 +256,10 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
                     hasUnknownLeaf[0] = true;
                 }
                 /**
-                 * KnnScoreDocQuery requires the same reader that built the docs
+                 * KnnScoreDocQuery and RankDocsQuery requires the same reader that built the docs
                  * When using {@link HighlightFlag#WEIGHT_MATCHES} different readers are used and isn't supported by this query
                  */
-                if (leafQuery instanceof KnnScoreDocQuery) {
+                if (leafQuery instanceof KnnScoreDocQuery || leafQuery instanceof RankDocsQuery) {
                     hasUnknownLeaf[0] = true;
                 }
                 super.visitLeaf(query);

@@ -7,21 +7,19 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.FailureCollector;
+import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.transport.TransportException;
 
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * An {@link ExchangeSourceHandler} asynchronously fetches pages and status from multiple {@link RemoteSink}s
@@ -37,7 +35,7 @@ public final class ExchangeSourceHandler {
 
     private final PendingInstances outstandingSinks;
     private final PendingInstances outstandingSources;
-    private final AtomicReference<Exception> failure = new AtomicReference<>();
+    private final FailureCollector failure = new FailureCollector();
 
     public ExchangeSourceHandler(int maxBufferSize, Executor fetchExecutor) {
         this.buffer = new ExchangeBuffer(maxBufferSize);
@@ -54,9 +52,9 @@ public final class ExchangeSourceHandler {
         }
 
         private void checkFailure() {
-            Exception e = failure.get();
+            Exception e = failure.getFailure();
             if (e != null) {
-                throw ExceptionsHelper.convertToElastic(e);
+                throw ExceptionsHelper.convertToRuntime(e);
             }
         }
 
@@ -73,7 +71,7 @@ public final class ExchangeSourceHandler {
         }
 
         @Override
-        public SubscribableListener<Void> waitForReading() {
+        public IsBlockedResult waitForReading() {
             return buffer.waitForReading();
         }
 
@@ -172,7 +170,7 @@ public final class ExchangeSourceHandler {
             while (loopControl.isRunning()) {
                 loopControl.exiting();
                 // finish other sinks if one of them failed or source no longer need pages.
-                boolean toFinishSinks = buffer.noMoreInputs() || failure.get() != null;
+                boolean toFinishSinks = buffer.noMoreInputs() || failure.hasFailure();
                 remoteSink.fetchPageAsync(toFinishSinks, ActionListener.wrap(resp -> {
                     Page page = resp.takePage();
                     if (page != null) {
@@ -181,13 +179,13 @@ public final class ExchangeSourceHandler {
                     if (resp.finished()) {
                         onSinkComplete();
                     } else {
-                        SubscribableListener<Void> future = buffer.waitForWriting();
-                        if (future.isDone()) {
+                        IsBlockedResult future = buffer.waitForWriting();
+                        if (future.listener().isDone()) {
                             if (loopControl.tryResume() == false) {
                                 fetchPage();
                             }
                         } else {
-                            future.addListener(ActionListener.wrap(unused -> {
+                            future.listener().addListener(ActionListener.wrap(unused -> {
                                 if (loopControl.tryResume() == false) {
                                     fetchPage();
                                 }
@@ -199,27 +197,9 @@ public final class ExchangeSourceHandler {
             loopControl.exited();
         }
 
-        void onSinkFailed(Exception originEx) {
-            final Exception e = originEx instanceof TransportException
-                ? (originEx.getCause() instanceof Exception cause ? cause : new ElasticsearchException(originEx.getCause()))
-                : originEx;
-            failure.getAndUpdate(first -> {
-                if (first == null) {
-                    return e;
-                }
-                // ignore subsequent TaskCancelledException exceptions as they don't provide useful info.
-                if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
-                    return first;
-                }
-                if (ExceptionsHelper.unwrap(first, TaskCancelledException.class) != null) {
-                    return e;
-                }
-                if (ExceptionsHelper.unwrapCause(first) != ExceptionsHelper.unwrapCause(e)) {
-                    first.addSuppressed(e);
-                }
-                return first;
-            });
-            buffer.waitForReading().onResponse(null); // resume the Driver if it is being blocked on reading
+        void onSinkFailed(Exception e) {
+            failure.unwrapAndCollect(e);
+            buffer.waitForReading().listener().onResponse(null); // resume the Driver if it is being blocked on reading
             onSinkComplete();
         }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -184,6 +185,13 @@ public interface ActionListener<Response> {
      */
     default <T> ActionListener<T> delegateFailureAndWrap(CheckedBiConsumer<ActionListener<Response>, T, ? extends Exception> bc) {
         return new ActionListenerImplementations.ResponseWrappingActionListener<>(this, bc);
+    }
+
+    /**
+     * Same as {@link #delegateFailureAndWrap(CheckedBiConsumer)} except that the response is ignored and not passed to the delegate.
+     */
+    default <T> ActionListener<T> delegateFailureIgnoreResponseAndWrap(CheckedConsumer<ActionListener<Response>, ? extends Exception> c) {
+        return new ActionListenerImplementations.ResponseDroppingActionListener<>(this, c);
     }
 
     /**
@@ -423,6 +431,16 @@ public interface ActionListener<Response> {
         } else {
             return delegate;
         }
+    }
+
+    /**
+     * @return A listener which (if assertions are enabled) wraps around the given delegate and asserts that it is called at least once.
+     */
+    static <Response> ActionListener<Response> assertAtLeastOnce(ActionListener<Response> delegate) {
+        if (Assertions.ENABLED) {
+            return new ActionListenerImplementations.RunBeforeActionListener<>(delegate, LeakTracker.INSTANCE.track(delegate)::close);
+        }
+        return delegate;
     }
 
     /**

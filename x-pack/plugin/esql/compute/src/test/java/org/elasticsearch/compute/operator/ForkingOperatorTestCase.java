@@ -31,6 +31,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -203,7 +204,11 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     List<Driver> createDriversForInput(List<Page> input, List<Page> results, boolean throwingOp) {
         Collection<List<Page>> splitInput = randomSplits(input, randomIntBetween(2, 4));
         BlockFactory factory = blockFactory();
-        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(factory, randomIntBetween(2, 10), threadPool::relativeTimeInMillis);
+        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(
+            factory,
+            randomIntBetween(2, 10),
+            threadPool.relativeTimeInMillisSupplier()
+        );
         ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(randomIntBetween(1, 4), threadPool.executor(ESQL_TEST_EXECUTOR));
         sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
 
@@ -352,5 +357,27 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     @After
     public void shutdownThreadPool() {
         terminate(threadPool);
+    }
+
+    protected Comparator<Float> floatComparator() {
+        return FloatComparator.INSTANCE;
+    }
+
+    static final class FloatComparator implements Comparator<Float> {
+
+        static final FloatComparator INSTANCE = new FloatComparator();
+
+        @Override
+        public int compare(Float o1, Float o2) {
+            float first = o1;
+            float second = o2;
+            if (first < second) {
+                return -1;
+            } else if (first == second) {
+                return 0;
+            } else {
+                return 1;
+            }
+        }
     }
 }

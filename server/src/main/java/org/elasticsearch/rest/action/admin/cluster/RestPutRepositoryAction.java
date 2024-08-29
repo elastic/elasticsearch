@@ -47,13 +47,11 @@ public class RestPutRepositoryAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String name = request.param("repository");
-        PutRepositoryRequest putRepositoryRequest = new PutRepositoryRequest(name);
+        final var putRepositoryRequest = new PutRepositoryRequest(getMasterNodeTimeout(request), getAckTimeout(request), name);
         try (XContentParser parser = request.contentParser()) {
             putRepositoryRequest.source(parser.mapOrdered());
         }
         putRepositoryRequest.verify(request.paramAsBoolean("verify", true));
-        putRepositoryRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-        putRepositoryRequest.ackTimeout(getAckTimeout(request));
         return channel -> client.admin()
             .cluster()
             .putRepository(

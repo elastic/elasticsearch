@@ -123,12 +123,13 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
 
         var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
         return mergeIndicators(
+            verbose,
             calculateFrom(shardLimitsMetadata.maxShardsPerNode(), state, ShardLimitValidator::checkShardLimitForNormalNodes),
             calculateFrom(shardLimitsMetadata.maxShardsPerNodeFrozen(), state, ShardLimitValidator::checkShardLimitForFrozenNodes)
         );
     }
 
-    private HealthIndicatorResult mergeIndicators(StatusResult dataNodes, StatusResult frozenNodes) {
+    private HealthIndicatorResult mergeIndicators(boolean verbose, StatusResult dataNodes, StatusResult frozenNodes) {
         var finalStatus = HealthStatus.merge(Stream.of(dataNodes.status, frozenNodes.status));
         var diagnoses = List.<Diagnosis>of();
         var symptomBuilder = new StringBuilder();
@@ -166,9 +167,9 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         return createIndicator(
             finalStatus,
             symptomBuilder.toString(),
-            buildDetails(dataNodes.result, frozenNodes.result),
+            verbose ? buildDetails(dataNodes.result, frozenNodes.result) : HealthIndicatorDetails.EMPTY,
             indicatorImpacts,
-            diagnoses
+            verbose ? diagnoses : List.of()
         );
     }
 

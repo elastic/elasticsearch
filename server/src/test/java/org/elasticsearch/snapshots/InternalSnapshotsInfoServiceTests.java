@@ -8,6 +8,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -114,7 +115,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             Settings.builder().put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), maxConcurrentFetches).build(),
             clusterService,
-            () -> repositoriesService,
+            repositoriesService,
             () -> rerouteService
         );
 
@@ -185,7 +186,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             Settings.builder().put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), randomIntBetween(1, 10)).build(),
             clusterService,
-            () -> repositoriesService,
+            repositoriesService,
             () -> rerouteService
         );
 
@@ -274,7 +275,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             Settings.EMPTY,
             clusterService,
-            () -> repositoriesService,
+            repositoriesService,
             () -> rerouteService
         );
 
@@ -329,7 +330,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             Settings.EMPTY,
             clusterService,
-            () -> repositoriesService,
+            repositoriesService,
             () -> rerouteService
         );
 
@@ -381,11 +382,9 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     private void applyClusterState(final String reason, final Function<ClusterState, ClusterState> applier) {
-        PlainActionFuture.<Void, RuntimeException>get(
-            future -> clusterService.getClusterApplierService()
-                .onNewClusterState(reason, () -> applier.apply(clusterService.state()), future),
-            10,
-            TimeUnit.SECONDS
+        safeAwait(
+            (ActionListener<Void> listener) -> clusterService.getClusterApplierService()
+                .onNewClusterState(reason, () -> applier.apply(clusterService.state()), listener)
         );
     }
 

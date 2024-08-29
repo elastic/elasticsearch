@@ -12,12 +12,14 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
@@ -32,6 +34,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
+        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
@@ -114,6 +117,59 @@ public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFo
                     value += vectorValues.vectorValue()[0];
                     assertEquals(3f, value, 0);
                 }
+            }
+        }
+    }
+
+    public void testSingleVectorPerSegmentCosine() throws Exception {
+        testSingleVectorPerSegment(VectorSimilarityFunction.COSINE);
+    }
+
+    public void testSingleVectorPerSegmentDot() throws Exception {
+        testSingleVectorPerSegment(VectorSimilarityFunction.DOT_PRODUCT);
+    }
+
+    public void testSingleVectorPerSegmentEuclidean() throws Exception {
+        testSingleVectorPerSegment(VectorSimilarityFunction.EUCLIDEAN);
+    }
+
+    public void testSingleVectorPerSegmentMIP() throws Exception {
+        testSingleVectorPerSegment(VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT);
+    }
+
+    private void testSingleVectorPerSegment(VectorSimilarityFunction sim) throws Exception {
+        var codec = getCodec();
+        try (Directory dir = new MMapDirectory(createTempDir().resolve("dir1"))) {
+            try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig().setCodec(codec))) {
+                Document doc2 = new Document();
+                doc2.add(new KnnFloatVectorField("field", new float[] { 0.8f, 0.6f }, sim));
+                doc2.add(newTextField("id", "A", Field.Store.YES));
+                writer.addDocument(doc2);
+                writer.commit();
+
+                Document doc1 = new Document();
+                doc1.add(new KnnFloatVectorField("field", new float[] { 0.6f, 0.8f }, sim));
+                doc1.add(newTextField("id", "B", Field.Store.YES));
+                writer.addDocument(doc1);
+                writer.commit();
+
+                Document doc3 = new Document();
+                doc3.add(new KnnFloatVectorField("field", new float[] { -0.6f, -0.8f }, sim));
+                doc3.add(newTextField("id", "C", Field.Store.YES));
+                writer.addDocument(doc3);
+                writer.commit();
+
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                LeafReader leafReader = getOnlyLeafReader(reader);
+                StoredFields storedFields = reader.storedFields();
+                float[] queryVector = new float[] { 0.6f, 0.8f };
+                var hits = leafReader.searchNearestVectors("field", queryVector, 3, null, 100);
+                assertEquals(hits.scoreDocs.length, 3);
+                assertEquals("B", storedFields.document(hits.scoreDocs[0].doc).get("id"));
+                assertEquals("A", storedFields.document(hits.scoreDocs[1].doc).get("id"));
+                assertEquals("C", storedFields.document(hits.scoreDocs[2].doc).get("id"));
             }
         }
     }

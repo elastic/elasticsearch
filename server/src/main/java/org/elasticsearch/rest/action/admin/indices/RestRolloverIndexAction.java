@@ -24,6 +24,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
@@ -44,6 +45,15 @@ public class RestRolloverIndexAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "rollover_index_action";
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            return Set.of("lazy-rollover-failure-store");
+        } else {
+            return Set.of();
+        }
     }
 
     @Override

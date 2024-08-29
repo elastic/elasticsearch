@@ -11,7 +11,6 @@ package org.elasticsearch.ingest.geoip.stats;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -65,11 +64,6 @@ public class GeoIpStatsAction {
                 return false;
             }
             return true;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            TransportAction.localOnly();
         }
     }
 
@@ -172,7 +166,7 @@ public class GeoIpStatsAction {
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
             downloaderStats = in.readBoolean() ? new GeoIpDownloaderStats(in) : null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.GEOIP_CACHE_STATS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 cacheStats = in.readBoolean() ? new CacheStats(in) : null;
             } else {
                 cacheStats = null;
@@ -223,7 +217,7 @@ public class GeoIpStatsAction {
             if (downloaderStats != null) {
                 downloaderStats.writeTo(out);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.GEOIP_CACHE_STATS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeBoolean(cacheStats != null);
                 if (cacheStats != null) {
                     cacheStats.writeTo(out);

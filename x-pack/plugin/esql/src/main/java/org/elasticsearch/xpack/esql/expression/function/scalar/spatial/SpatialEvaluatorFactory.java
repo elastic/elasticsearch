@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.geo.Component2D;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Map;
 import java.util.function.Function;
@@ -79,11 +79,18 @@ abstract class SpatialEvaluatorFactory<V, T> {
 
         Expression right();
 
-        SpatialRelatesFunction.SpatialCrsType crsType();
+        BinarySpatialFunction.SpatialCrsType crsType();
 
         boolean leftDocValues();
 
         boolean rightDocValues();
+    }
+
+    /**
+     * When performing type resolution we need also write access to the SpatialSourceSupplier for setting the CRS
+     */
+    interface SpatialSourceResolution extends SpatialSourceSupplier {
+        void setCrsType(DataType dataType);
     }
 
     protected static class SwappedSpatialSourceSupplier implements SpatialSourceSupplier {
@@ -99,7 +106,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
         }
 
         @Override
-        public SpatialRelatesFunction.SpatialCrsType crsType() {
+        public BinarySpatialFunction.SpatialCrsType crsType() {
             return delegate.crsType();
         }
 
@@ -209,13 +216,13 @@ abstract class SpatialEvaluatorFactory<V, T> {
     protected record SpatialEvaluatorFieldKey(DataType dataType, boolean isConstant) {}
 
     record SpatialEvaluatorKey(
-        SpatialRelatesFunction.SpatialCrsType crsType,
+        BinarySpatialFunction.SpatialCrsType crsType,
         boolean leftDocValues,
         boolean rightDocValues,
         SpatialEvaluatorFieldKey left,
         SpatialEvaluatorFieldKey right
     ) {
-        SpatialEvaluatorKey(SpatialRelatesFunction.SpatialCrsType crsType, SpatialEvaluatorFieldKey left, SpatialEvaluatorFieldKey right) {
+        SpatialEvaluatorKey(BinarySpatialFunction.SpatialCrsType crsType, SpatialEvaluatorFieldKey left, SpatialEvaluatorFieldKey right) {
             this(crsType, false, false, left, right);
         }
 
@@ -229,7 +236,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
 
         static SpatialEvaluatorKey fromSourceAndConstant(DataType left, DataType right) {
             return new SpatialEvaluatorKey(
-                SpatialRelatesFunction.SpatialCrsType.fromDataType(left),
+                BinarySpatialFunction.SpatialCrsType.fromDataType(left),
                 new SpatialEvaluatorFieldKey(left, false),
                 new SpatialEvaluatorFieldKey(right, true)
             );
@@ -237,7 +244,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
 
         static SpatialEvaluatorKey fromSources(DataType left, DataType right) {
             return new SpatialEvaluatorKey(
-                SpatialRelatesFunction.SpatialCrsType.fromDataType(left),
+                BinarySpatialFunction.SpatialCrsType.fromDataType(left),
                 new SpatialEvaluatorFieldKey(left, false),
                 new SpatialEvaluatorFieldKey(right, false)
             );

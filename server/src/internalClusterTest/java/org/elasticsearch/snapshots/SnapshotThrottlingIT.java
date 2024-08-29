@@ -48,12 +48,11 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
                 .put("max_restore_bytes_per_sec", maxRestoreBytesPerSec)
         );
         createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap")
-            .setRenamePattern("test-")
-            .setRenameReplacement("test2-")
-            .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            "test-repo",
+            "test-snap"
+        ).setRenamePattern("test-").setRenameReplacement("test2-").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertDocCount("test-idx", 50L);
         long snapshotPause = 0L;

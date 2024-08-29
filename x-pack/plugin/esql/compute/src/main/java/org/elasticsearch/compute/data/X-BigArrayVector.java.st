@@ -46,6 +46,9 @@ $endif$
     }
 
     static $Type$BigArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+$if(float)$
+        throw new UnsupportedOperationException();
+$else$
 $if(boolean)$
         $Array$ values = new BitArray(blockFactory.bigArrays(), true, in);
 $else$
@@ -65,10 +68,15 @@ $endif$
                 values.close();
             }
         }
+$endif$
     }
 
     void writeArrayVector(int positions, StreamOutput out) throws IOException {
+$if(float)$
+        throw new UnsupportedOperationException();
+$else$
         values.writeTo(out);
+$endif$
     }
 
     @Override
@@ -148,6 +156,32 @@ $endif$
         }
     $endif$
         return new $Type$BigArrayVector(filtered, positions.length, blockFactory);
+    }
+
+    @Override
+    public $Type$Block keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new $Type$VectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new $Type$VectorBlock(this);
+            }
+            return ($Type$Block) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try ($Type$Block.Builder builder = blockFactory().new$Type$BlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.append$Type$(get$Type$(p));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
     }
 
     @Override

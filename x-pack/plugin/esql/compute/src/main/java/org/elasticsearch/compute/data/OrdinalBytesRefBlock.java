@@ -126,6 +126,32 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return this;
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return this;
+            }
+            return (BytesRefBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        OrdinalBytesRefBlock result = null;
+        IntBlock filteredOrdinals = ordinals.keepMask(mask);
+        try {
+            result = new OrdinalBytesRefBlock(filteredOrdinals, bytes);
+            bytes.incRef();
+        } finally {
+            if (result == null) {
+                filteredOrdinals.close();
+            }
+        }
+        return result;
+    }
+
+    @Override
     public ReleasableIterator<BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return new BytesRefLookup(this, positions, targetBlockSize);
     }
@@ -177,11 +203,6 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
-    public int nullValuesCount() {
-        return ordinals.nullValuesCount();
-    }
-
-    @Override
     public boolean mayHaveNulls() {
         return ordinals.mayHaveNulls();
     }
@@ -193,6 +214,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
 
     @Override
     public boolean mayHaveMultivaluedFields() {
+        return ordinals.mayHaveMultivaluedFields();
+    }
+
+    @Override
+    public boolean doesHaveMultivaluedFields() {
         return ordinals.mayHaveMultivaluedFields();
     }
 

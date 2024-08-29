@@ -30,6 +30,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -957,7 +958,7 @@ public record IndicesOptions(
         if (ignoreUnavailable()) {
             backwardsCompatibleOptions.add(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             if (allowFailureIndices()) {
                 backwardsCompatibleOptions.add(Option.ALLOW_FAILURE_INDICES);
             }
@@ -975,7 +976,7 @@ public record IndicesOptions(
             states.add(WildcardStates.HIDDEN);
         }
         out.writeEnumSet(states);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             failureStoreOptions.writeTo(out);
         }
     }
@@ -988,7 +989,7 @@ public record IndicesOptions(
             options.contains(Option.EXCLUDE_ALIASES)
         );
         boolean allowFailureIndices = true;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             allowFailureIndices = options.contains(Option.ALLOW_FAILURE_INDICES);
         }
         GatekeeperOptions gatekeeperOptions = GatekeeperOptions.builder()
@@ -997,7 +998,7 @@ public record IndicesOptions(
             .allowFailureIndices(allowFailureIndices)
             .ignoreThrottled(options.contains(Option.IGNORE_THROTTLED))
             .build();
-        FailureStoreOptions failureStoreOptions = in.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS)
+        FailureStoreOptions failureStoreOptions = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
             ? FailureStoreOptions.read(in)
             : FailureStoreOptions.DEFAULT;
         return new IndicesOptions(
@@ -1059,6 +1060,13 @@ public record IndicesOptions(
 
         public Builder failureStoreOptions(FailureStoreOptions.Builder failureStoreOptions) {
             this.failureStoreOptions = failureStoreOptions.build();
+            return this;
+        }
+
+        public Builder failureStoreOptions(Consumer<FailureStoreOptions.Builder> failureStoreOptionsConfig) {
+            FailureStoreOptions.Builder failureStoreOptionsBuilder = FailureStoreOptions.builder(failureStoreOptions);
+            failureStoreOptionsConfig.accept(failureStoreOptionsBuilder);
+            this.failureStoreOptions = failureStoreOptionsBuilder.build();
             return this;
         }
 

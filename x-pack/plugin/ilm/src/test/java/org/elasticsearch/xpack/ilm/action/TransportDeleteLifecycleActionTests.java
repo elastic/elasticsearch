@@ -32,7 +32,11 @@ public class TransportDeleteLifecycleActionTests extends ESTestCase {
         );
         assertEquals(ReservedLifecycleAction.NAME, putAction.reservedStateHandlerName().get());
 
-        DeleteLifecycleAction.Request request = new DeleteLifecycleAction.Request("my_timeseries_lifecycle2");
+        DeleteLifecycleAction.Request request = new DeleteLifecycleAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "my_timeseries_lifecycle2"
+        );
         assertThat(putAction.modifiedKeys(request), containsInAnyOrder("my_timeseries_lifecycle2"));
     }
 }

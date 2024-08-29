@@ -39,11 +39,11 @@ public interface RestHandler {
     }
 
     /**
-     * Indicates if the RestHandler supports content as a stream. A stream would be multiple objects delineated by
-     * {@link XContent#streamSeparator()}. If a handler returns true this will affect the types of content that can be sent to
-     * this endpoint.
+     * Indicates if the RestHandler supports bulk content. A bulk request contains multiple objects
+     * delineated by {@link XContent#bulkSeparator()}. If a handler returns true this will affect
+     * the types of content that can be sent to this endpoint.
      */
-    default boolean supportsContentStream() {
+    default boolean supportsBulkContent() {
         return false;
     }
 
@@ -87,6 +87,18 @@ public interface RestHandler {
     }
 
     /**
+     * The set of path and query parameters that could be present on this handler.
+     * This method is only required due to <a href="https://github.com/elastic/elasticsearch/issues/36785">#36785</a>,
+     * which conflates query and path parameters inside the rest handler.
+     * This method should be overridden to add path parameters to {@link #supportedQueryParameters}
+     * if the handler has path parameters.
+     * This method will be removed when {@link #supportedQueryParameters()} and {@link BaseRestHandler#responseParams()} are combined.
+     */
+    default @Nullable Set<String> allSupportedParameters() {
+        return supportedQueryParameters();
+    }
+
+    /**
      * The set of query parameters accepted by this rest handler,
      * {@code null} if query parameters should not be checked nor validated.
      * TODO - make this not nullable when all handlers have been updated
@@ -112,6 +124,10 @@ public interface RestHandler {
 
     default boolean mediaTypesValid(RestRequest request) {
         return request.getXContentType() != null;
+    }
+
+    default String getName() {
+        return this.getClass().getSimpleName();
     }
 
     class Route {

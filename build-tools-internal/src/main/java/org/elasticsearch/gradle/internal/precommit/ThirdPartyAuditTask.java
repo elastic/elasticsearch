@@ -119,8 +119,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         return targetCompatibility;
     }
 
+    @Classpath
     @InputFiles
-    @PathSensitive(PathSensitivity.NAME_ONLY)
     public abstract ConfigurableFileCollection getForbiddenAPIsClasspath();
 
     @InputFile
@@ -192,6 +192,11 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
     @Classpath
     @SkipWhenEmpty
     public abstract ConfigurableFileCollection getJarsToScan();
+
+    @Classpath
+    public FileCollection getClasspath() {
+        return classpath;
+    }
 
     @TaskAction
     public void runThirdPartyAudit() throws IOException {

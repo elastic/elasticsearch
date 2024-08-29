@@ -7,22 +7,39 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+
+import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.DIV;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
 public class Div extends EsqlArithmeticOperation implements BinaryComparisonInversible {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Div", Div::new);
 
     private DataType type;
 
-    public Div(Source source, Expression left, Expression right) {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "unsigned_long" },
+        description = "Divide one number by another. "
+            + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",
+        note = "Division of two integer types will yield an integer result, rounding towards 0. "
+            + "If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`."
+    )
+    public Div(
+        Source source,
+        @Param(name = "lhs", description = "A numeric value.", type = { "double", "integer", "long", "unsigned_long" }) Expression left,
+        @Param(name = "rhs", description = "A numeric value.", type = { "double", "integer", "long", "unsigned_long" }) Expression right
+    ) {
         this(source, left, right, null);
     }
 
@@ -35,9 +52,25 @@ public class Div extends EsqlArithmeticOperation implements BinaryComparisonInve
             DivIntsEvaluator.Factory::new,
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
-            (s, lhs, rhs) -> new DivDoublesEvaluator.Factory(source, lhs, rhs)
+            DivDoublesEvaluator.Factory::new
         );
         this.type = type;
+    }
+
+    private Div(StreamInput in) throws IOException {
+        super(
+            in,
+            DIV,
+            DivIntsEvaluator.Factory::new,
+            DivLongsEvaluator.Factory::new,
+            DivUnsignedLongsEvaluator.Factory::new,
+            DivDoublesEvaluator.Factory::new
+        );
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

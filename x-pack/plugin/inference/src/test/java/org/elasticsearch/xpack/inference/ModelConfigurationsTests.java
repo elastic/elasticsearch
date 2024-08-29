@@ -20,8 +20,7 @@ import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<ModelConfigurations> {
 
     public static ModelConfigurations createRandomInstance() {
-        // TODO randomise task types and settings
-        var taskType = TaskType.SPARSE_EMBEDDING;
+        var taskType = randomFrom(TaskType.values());
         return new ModelConfigurations(
             randomAlphaOfLength(6),
             taskType,

@@ -377,8 +377,8 @@ import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
+import org.elasticsearch.xpack.ml.queries.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder;
-import org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.RestMlMemoryAction;
@@ -475,7 +475,7 @@ import java.util.function.UnaryOperator;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX;
-import static org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor.countInferenceProcessors;
+import static org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor.countInferenceProcessors;
 
 public class MachineLearning extends Plugin
     implements
@@ -902,7 +902,7 @@ public class MachineLearning extends Plugin
 
     @Override
     public List<RescorerSpec<?>> getRescorers() {
-        if (enabled && machineLearningExtension.get().isLearningToRankEnabled()) {
+        if (enabled) {
             return List.of(
                 new RescorerSpec<>(
                     LearningToRankRescorerBuilder.NAME,
@@ -1282,6 +1282,8 @@ public class MachineLearning extends Plugin
             threadPool,
             clusterService,
             client,
+            inferenceAuditor,
+            telemetryProvider.getMeterRegistry(),
             mlAssignmentNotifier,
             machineLearningExtension.get().isAnomalyDetectionEnabled(),
             machineLearningExtension.get().isDataFrameAnalyticsEnabled(),
@@ -1772,9 +1774,9 @@ public class MachineLearning extends Plugin
                 TextExpansionQueryBuilder::fromXContent
             ),
             new QuerySpec<QueryBuilder>(
-                WeightedTokensQueryBuilder.NAME,
-                WeightedTokensQueryBuilder::new,
-                WeightedTokensQueryBuilder::fromXContent
+                SparseVectorQueryBuilder.NAME,
+                SparseVectorQueryBuilder::new,
+                SparseVectorQueryBuilder::fromXContent
             )
         );
     }
@@ -1862,10 +1864,8 @@ public class MachineLearning extends Plugin
             )
         );
         namedXContent.addAll(new CorrelationNamedContentProvider().getNamedXContentParsers());
-        // LTR Combine with Inference named content provider when feature flag is removed
-        if (machineLearningExtension.get().isLearningToRankEnabled()) {
-            namedXContent.addAll(new MlLTRNamedXContentProvider().getNamedXContentParsers());
-        }
+        namedXContent.addAll(new MlLTRNamedXContentProvider().getNamedXContentParsers());
+
         return namedXContent;
     }
 
@@ -1956,10 +1956,8 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(MlAutoscalingNamedWritableProvider.getNamedWriteables());
         namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
         namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
-        // LTR Combine with Inference named content provider when feature flag is removed
-        if (machineLearningExtension.get().isLearningToRankEnabled()) {
-            namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
-        }
+        namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
+
         return namedWriteables;
     }
 

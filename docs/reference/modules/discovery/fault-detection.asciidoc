@@ -35,268 +35,30 @@ starting from the beginning of the cluster state update. Refer to
 
 [[cluster-fault-detection-troubleshooting]]
 ==== Troubleshooting an unstable cluster
-//tag::troubleshooting[]
-Normally, a node will only leave a cluster if deliberately shut down. If a node
-leaves the cluster unexpectedly, it's important to address the cause. A cluster
-in which nodes leave unexpectedly is unstable and can create several issues.
-For instance:
 
-* The cluster health may be yellow or red.
-
-* Some shards will be initializing and other shards may be failing.
-
-* Search, indexing, and monitoring operations may fail and report exceptions in
-logs.
-
-* The `.security` index may be unavailable, blocking access to the cluster.
-
-* The master may appear busy due to frequent cluster state updates.
-
-To troubleshoot a cluster in this state, first ensure the cluster has a
-<<discovery-troubleshooting,stable master>>. Next, focus on the nodes
-unexpectedly leaving the cluster ahead of all other issues. It will not be
-possible to solve other issues until the cluster has a stable master node and
-stable node membership.
-
-Diagnostics and statistics are usually not useful in an unstable cluster. These
-tools only offer a view of the state of the cluster at a single point in time.
-Instead, look at the cluster logs to see the pattern of behaviour over time.
-Focus particularly on logs from the elected master. When a node leaves the
-cluster, logs for the elected master include a message like this (with line
-breaks added to make it easier to read):
-
-[source,text]
-----
-[2022-03-21T11:02:35,513][INFO ][o.e.c.c.NodeLeftExecutor] [instance-0000000000]
-    node-left: [{instance-0000000004}{bfcMDTiDRkietFb9v_di7w}{aNlyORLASam1ammv2DzYXA}{172.27.47.21}{172.27.47.21:19054}{m}]
-    with reason [disconnected]
-----
-
-This message says that the `NodeLeftExecutor` on the elected master
-(`instance-0000000000`) processed a `node-left` task, identifying the node that
-was removed and the reason for its removal. When the node joins the cluster
-again, logs for the elected master will include a message like this (with line
-breaks added to make it easier to read):
-
-[source,text]
-----
-[2022-03-21T11:02:59,892][INFO ][o.e.c.c.NodeJoinExecutor] [instance-0000000000]
-    node-join: [{instance-0000000004}{bfcMDTiDRkietFb9v_di7w}{UNw_RuazQCSBskWZV8ID_w}{172.27.47.21}{172.27.47.21:19054}{m}]
-    with reason [joining after restart, removed [24s] ago with reason [disconnected]]
-----
-
-This message says that the `NodeJoinExecutor` on the elected master
-(`instance-0000000000`) processed a `node-join` task, identifying the node that
-was added to the cluster and the reason for the task.
-
-Other nodes may log similar messages, but report fewer details:
-
-[source,text]
-----
-[2020-01-29T11:02:36,985][INFO ][o.e.c.s.ClusterApplierService]
-    [instance-0000000001] removed {
-        {instance-0000000004}{bfcMDTiDRkietFb9v_di7w}{aNlyORLASam1ammv2DzYXA}{172.27.47.21}{172.27.47.21:19054}{m}
-        {tiebreaker-0000000003}{UNw_RuazQCSBskWZV8ID_w}{bltyVOQ-RNu20OQfTHSLtA}{172.27.161.154}{172.27.161.154:19251}{mv}
-    }, term: 14, version: 1653415, reason: Publication{term=14, version=1653415}
-----
-
-These messages are not especially useful for troubleshooting, so focus on the
-ones from the `NodeLeftExecutor` and `NodeJoinExecutor` which are only emitted
-on the elected master and which contain more details. If you don't see the
-messages from the `NodeLeftExecutor` and `NodeJoinExecutor`, check that:
-
-* You're looking at the logs for the elected master node.
-
-* The logs cover the correct time period.
-
-* Logging is enabled at `INFO` level.
-
-Nodes will also log a message containing `master node changed` whenever they
-start or stop following the elected master. You can use these messages to
-determine each node's view of the state of the master over time.
-
-If a node restarts, it will leave the cluster and then join the cluster again.
-When it rejoins, the `NodeJoinExecutor` will log that it processed a
-`node-join` task indicating that the node is `joining after restart`. If a node
-is unexpectedly restarting, look at the node's logs to see why it is shutting
-down.
-
-The <<health-api>> API on the affected node will also provide some useful
-information about the situation.
-
-If the node did not restart then you should look at the reason for its
-departure more closely. Each reason has different troubleshooting steps,
-described below. There are three possible reasons:
-
-* `disconnected`: The connection from the master node to the removed node was
-closed.
-
-* `lagging`: The master published a cluster state update, but the removed node
-did not apply it within the permitted timeout. By default, this timeout is 2
-minutes. Refer to <<modules-discovery-settings>> for information about the
-settings which control this mechanism.
-
-* `followers check retry count exceeded`: The master sent a number of
-consecutive health checks to the removed node. These checks were rejected or
-timed out. By default, each health check times out after 10 seconds and {es}
-removes the node removed after three consecutively failed health checks. Refer
-to <<modules-discovery-settings>> for information about the settings which
-control this mechanism.
+See <<troubleshooting-unstable-cluster>>.
 
 [discrete]
 ===== Diagnosing `disconnected` nodes
 
-Nodes typically leave the cluster with reason `disconnected` when they shut
-down, but if they rejoin the cluster without restarting then there is some
-other problem.
-
-{es} is designed to run on a fairly reliable network. It opens a number of TCP
-connections between nodes and expects these connections to remain open forever.
-If a connection is closed then {es} will try and reconnect, so the occasional
-blip should have limited impact on the cluster even if the affected node
-briefly leaves the cluster. In contrast, repeatedly-dropped connections will
-severely affect its operation.
-
-The connections from the elected master node to every other node in the cluster
-are particularly important. The elected master never spontaneously closes its
-outbound connections to other nodes. Similarly, once a connection is fully
-established, a node never spontaneously close its inbound connections unless
-the node is shutting down.
-
-If you see a node unexpectedly leave the cluster with the `disconnected`
-reason, something other than {es} likely caused the connection to close. A
-common cause is a misconfigured firewall with an improper timeout or another
-policy that's <<long-lived-connections,incompatible with {es}>>. It could also
-be caused by general connectivity issues, such as packet loss due to faulty
-hardware or network congestion. If you're an advanced user, you can get more
-detailed information about network exceptions by configuring the following
-loggers:
-
-[source,yaml]
-----
-logger.org.elasticsearch.transport.TcpTransport: DEBUG
-logger.org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport: DEBUG
-----
-
-In extreme cases, you may need to take packet captures using `tcpdump` to
-determine whether messages between nodes are being dropped or rejected by some
-other device on the network.
+See <<troubleshooting-unstable-cluster-disconnected>>.
 
 [discrete]
 ===== Diagnosing `lagging` nodes
 
-{es} needs every node to process cluster state updates reasonably quickly. If a
-node takes too long to process a cluster state update, it can be harmful to the
-cluster. The master will remove these nodes with the `lagging` reason. Refer to
-<<modules-discovery-settings>> for information about the settings which control
-this mechanism.
-
-Lagging is typically caused by performance issues on the removed node. However,
-a node may also lag due to severe network delays. To rule out network delays,
-ensure that `net.ipv4.tcp_retries2` is <<system-config-tcpretries,configured
-properly>>. Log messages that contain `warn threshold` may provide more
-information about the root cause.
-
-If you're an advanced user, you can get more detailed information about what
-the node was doing when it was removed by configuring the following logger:
-
-[source,yaml]
-----
-logger.org.elasticsearch.cluster.coordination.LagDetector: DEBUG
-----
-
-When this logger is enabled, {es} will attempt to run the
-<<cluster-nodes-hot-threads>> API on the faulty node and report the results in
-the logs on the elected master. The results are compressed, encoded, and split
-into chunks to avoid truncation:
-
-[source,text]
-----
-[DEBUG][o.e.c.c.LagDetector      ] [master] hot threads from node [{node}{g3cCUaMDQJmQ2ZLtjr-3dg}{10.0.0.1:9300}] lagging at version [183619] despite commit of cluster state version [183620] [part 1]: H4sIAAAAAAAA/x...
-[DEBUG][o.e.c.c.LagDetector      ] [master] hot threads from node [{node}{g3cCUaMDQJmQ2ZLtjr-3dg}{10.0.0.1:9300}] lagging at version [183619] despite commit of cluster state version [183620] [part 2]: p7x3w1hmOQVtuV...
-[DEBUG][o.e.c.c.LagDetector      ] [master] hot threads from node [{node}{g3cCUaMDQJmQ2ZLtjr-3dg}{10.0.0.1:9300}] lagging at version [183619] despite commit of cluster state version [183620] [part 3]: v7uTboMGDbyOy+...
-[DEBUG][o.e.c.c.LagDetector      ] [master] hot threads from node [{node}{g3cCUaMDQJmQ2ZLtjr-3dg}{10.0.0.1:9300}] lagging at version [183619] despite commit of cluster state version [183620] [part 4]: 4tse0RnPnLeDNN...
-[DEBUG][o.e.c.c.LagDetector      ] [master] hot threads from node [{node}{g3cCUaMDQJmQ2ZLtjr-3dg}{10.0.0.1:9300}] lagging at version [183619] despite commit of cluster state version [183620] (gzip compressed, base64-encoded, and split into 4 parts on preceding log lines)
-----
-
-To reconstruct the output, base64-decode the data and decompress it using
-`gzip`. For instance, on Unix-like systems:
-
-[source,sh]
-----
-cat lagdetector.log | sed -e 's/.*://' | base64 --decode | gzip --decompress
-----
+See <<troubleshooting-unstable-cluster-lagging>>.
 
 [discrete]
 ===== Diagnosing `follower check retry count exceeded` nodes
 
-Nodes sometimes leave the cluster with reason `follower check retry count
-exceeded` when they shut down, but if they rejoin the cluster without
-restarting then there is some other problem.
-
-{es} needs every node to respond to network messages successfully and
-reasonably quickly. If a node rejects requests or does not respond at all then
-it can be harmful to the cluster. If enough consecutive checks fail then the
-master will remove the node with reason `follower check retry count exceeded`
-and will indicate in the `node-left` message how many of the consecutive
-unsuccessful checks failed and how many of them timed out. Refer to
-<<modules-discovery-settings>> for information about the settings which control
-this mechanism.
-
-Timeouts and failures may be due to network delays or performance problems on
-the affected nodes. Ensure that `net.ipv4.tcp_retries2` is
-<<system-config-tcpretries,configured properly>> to eliminate network delays as
-a possible cause for this kind of instability. Log messages containing
-`warn threshold` may give further clues about the cause of the instability.
-
-If the last check failed with an exception then the exception is reported, and
-typically indicates the problem that needs to be addressed. If any of the
-checks timed out then narrow down the problem as follows.
-
-include::../../troubleshooting/network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-gc-vm]
-
-include::../../troubleshooting/network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-packet-capture-fault-detection]
-
-include::../../troubleshooting/network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-threads]
-
-By default the follower checks will time out after 30s, so if node departures
-are unpredictable then capture stack dumps every 15s to be sure that at least
-one stack dump was taken at the right time.
+See <<troubleshooting-unstable-cluster-follower-check>>.
 
 [discrete]
 ===== Diagnosing `ShardLockObtainFailedException` failures
 
-If a node leaves and rejoins the cluster then {es} will usually shut down and
-re-initialize its shards. If the shards do not shut down quickly enough then
-{es} may fail to re-initialize them due to a `ShardLockObtainFailedException`.
+See <<troubleshooting-unstable-cluster-shardlockobtainfailedexception>>.
 
-To gather more information about the reason for shards shutting down slowly,
-configure the following logger:
+[discrete]
+===== Diagnosing other network disconnections
 
-[source,yaml]
-----
-logger.org.elasticsearch.env.NodeEnvironment: DEBUG
-----
-
-When this logger is enabled, {es} will attempt to run the
-<<cluster-nodes-hot-threads>> API whenever it encounters a
-`ShardLockObtainFailedException`. The results are compressed, encoded, and
-split into chunks to avoid truncation:
-
-[source,text]
-----
-[DEBUG][o.e.e.NodeEnvironment    ] [master] hot threads while failing to obtain shard lock for [index][0] [part 1]: H4sIAAAAAAAA/x...
-[DEBUG][o.e.e.NodeEnvironment    ] [master] hot threads while failing to obtain shard lock for [index][0] [part 2]: p7x3w1hmOQVtuV...
-[DEBUG][o.e.e.NodeEnvironment    ] [master] hot threads while failing to obtain shard lock for [index][0] [part 3]: v7uTboMGDbyOy+...
-[DEBUG][o.e.e.NodeEnvironment    ] [master] hot threads while failing to obtain shard lock for [index][0] [part 4]: 4tse0RnPnLeDNN...
-[DEBUG][o.e.e.NodeEnvironment    ] [master] hot threads while failing to obtain shard lock for [index][0] (gzip compressed, base64-encoded, and split into 4 parts on preceding log lines)
-----
-
-To reconstruct the output, base64-decode the data and decompress it using
-`gzip`. For instance, on Unix-like systems:
-
-[source,sh]
-----
-cat shardlock.log | sed -e 's/.*://' | base64 --decode | gzip --decompress
-----
-//end::troubleshooting[]
+See <<troubleshooting-unstable-cluster-network>>.

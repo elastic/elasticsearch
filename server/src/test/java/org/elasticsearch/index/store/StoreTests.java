@@ -744,7 +744,7 @@ public class StoreTests extends ESTestCase {
             assertEquals(shardId, theLock.getShardId());
             assertEquals(lock, theLock);
             count.incrementAndGet();
-        });
+        }, false);
         assertEquals(count.get(), 0);
 
         final int iters = randomIntBetween(1, 10);

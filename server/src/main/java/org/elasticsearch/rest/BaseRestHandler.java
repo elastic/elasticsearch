@@ -81,9 +81,9 @@ public abstract class BaseRestHandler implements RestHandler {
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // check if the query has any parameters that are not in the supported set (if declared)
-        Set<String> supported = supportedQueryParameters();
+        Set<String> supported = allSupportedParameters();
         if (supported != null) {
-            var allSupported = Sets.union(ALWAYS_SUPPORTED, supported);
+            var allSupported = Sets.union(RestResponse.RESPONSE_PARAMS, ALWAYS_SUPPORTED, supported);
             if (allSupported.containsAll(request.params().keySet()) == false) {
                 Set<String> unsupported = Sets.difference(request.params().keySet(), allSupported);
                 throw new IllegalArgumentException(unrecognized(request, unsupported, allSupported, "parameter"));
@@ -97,6 +97,7 @@ public abstract class BaseRestHandler implements RestHandler {
             // use a sorted set so the unconsumed parameters appear in a reliable sorted order
             final SortedSet<String> unconsumedParams = request.unconsumedParams()
                 .stream()
+                .filter(p -> RestResponse.RESPONSE_PARAMS.contains(p) == false)
                 .filter(p -> responseParams(request.getRestApiVersion()).contains(p) == false)
                 .collect(Collectors.toCollection(TreeSet::new));
 

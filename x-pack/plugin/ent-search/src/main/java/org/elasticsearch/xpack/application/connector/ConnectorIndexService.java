@@ -44,7 +44,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.action.ConnectorCreateActionResponse;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
-import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorIndexNameAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSyncStatsAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNameAction;
@@ -468,19 +467,28 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Updates the error property of a {@link Connector}.
+     * Updates the error property of a {@link Connector}. If error is non-null the resulting {@link ConnectorStatus}
+     * is 'error', otherwise it's 'connected'.
      *
-     * @param request  The request for updating the connector's error.
-     * @param listener The listener for handling responses, including successful updates or errors.
+     * @param connectorId The ID of the {@link Connector} to be updated.
+     * @param error       An instance of error property of {@link Connector}, can be reset to [null].
+     * @param listener    The listener for handling responses, including successful updates or errors.
      */
-    public void updateConnectorError(UpdateConnectorErrorAction.Request request, ActionListener<UpdateResponse> listener) {
+    public void updateConnectorError(String connectorId, String error, ActionListener<UpdateResponse> listener) {
         try {
-            String connectorId = request.getConnectorId();
+
+            ConnectorStatus connectorStatus = Strings.isNullOrEmpty(error) ? ConnectorStatus.CONNECTED : ConnectorStatus.ERROR;
+
             final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
                 new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
                     .id(connectorId)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .source(Map.of(Connector.ERROR_FIELD.getPreferredName(), request.getError()))
+                    .source(new HashMap<>() {
+                        {
+                            put(Connector.ERROR_FIELD.getPreferredName(), error);
+                            put(Connector.STATUS_FIELD.getPreferredName(), connectorStatus.toString());
+                        }
+                    })
             );
             client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                 if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
@@ -536,6 +544,33 @@ public class ConnectorIndexService {
                     .id(connectorId)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .source(Map.of(Connector.FILTERING_FIELD.getPreferredName(), filtering))
+            );
+            client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                    return;
+                }
+                l.onResponse(updateResponse);
+            }));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Updates the features of a given {@link Connector}.
+     *
+     * @param connectorId The ID of the {@link Connector} to be updated.
+     * @param features    An instance of {@link ConnectorFeatures}
+     * @param listener    Listener to respond to a successful response or an error.
+     */
+    public void updateConnectorFeatures(String connectorId, ConnectorFeatures features, ActionListener<UpdateResponse> listener) {
+        try {
+            final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                    .id(connectorId)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .source(Map.of(Connector.FEATURES_FIELD.getPreferredName(), features))
             );
             client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                 if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {

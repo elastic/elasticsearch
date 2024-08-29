@@ -11,8 +11,6 @@ package org.elasticsearch.kibana;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +35,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -108,7 +105,6 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107625")
     public void testBlockedThreadPoolsRejectUserRequests() throws Exception {
         assertAcked(client().admin().indices().prepareCreate(USER_INDEX));
 
@@ -126,15 +122,16 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
         assertThat(e1.getMessage(), startsWith("rejected execution of TimedRunnable"));
         var e2 = expectThrows(EsRejectedExecutionException.class, () -> client().prepareGet(USER_INDEX, "id").get());
         assertThat(e2.getMessage(), startsWith("rejected execution of ActionRunnable"));
-        var e3 = expectThrows(
-            SearchPhaseExecutionException.class,
-            () -> client().prepareSearch(USER_INDEX)
-                .setQuery(QueryBuilders.matchAllQuery())
-                // Request times out if max concurrent shard requests is set to 1
-                .setMaxConcurrentShardRequests(usually() ? SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS : randomIntBetween(2, 10))
-                .get()
-        );
-        assertThat(e3.getMessage(), containsString("all shards failed"));
+        // intentionally commented out this test until https://github.com/elastic/elasticsearch/issues/97916 is fixed
+        // var e3 = expectThrows(
+        // SearchPhaseExecutionException.class,
+        // () -> client().prepareSearch(USER_INDEX)
+        // .setQuery(QueryBuilders.matchAllQuery())
+        // // Request times out if max concurrent shard requests is set to 1
+        // .setMaxConcurrentShardRequests(usually() ? SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS : randomIntBetween(2, 10))
+        // .get()
+        // );
+        // assertThat(e3.getMessage(), containsString("all shards failed"));
     }
 
     protected void runWithBlockedThreadPools(Runnable runnable) throws Exception {

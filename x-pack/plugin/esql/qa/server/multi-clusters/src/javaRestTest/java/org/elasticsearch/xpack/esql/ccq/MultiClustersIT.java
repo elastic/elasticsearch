@@ -18,7 +18,6 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -29,6 +28,7 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -62,6 +62,7 @@ public class MultiClustersIT extends ESRestTestCase {
 
     @Before
     public void setUpIndices() throws Exception {
+        assumeTrue("CCS requires its own resolve_fields API", remoteFeaturesService().clusterHasFeature("esql.resolve_fields_api"));
         final String mapping = """
              "properties": {
                "data": { "type": "long" },
@@ -122,9 +123,7 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     private Map<String, Object> run(String query) throws IOException {
-        Map<String, Object> resp = runEsql(
-            new RestEsqlTestCase.RequestObjectBuilder().query(query).version(EsqlTestUtils.latestEsqlVersionOrSnapshot()).build()
-        );
+        Map<String, Object> resp = runEsql(new RestEsqlTestCase.RequestObjectBuilder().query(query).build());
         logger.info("--> query {} response {}", query, resp);
         return resp;
     }
@@ -203,5 +202,19 @@ public class MultiClustersIT extends ESRestTestCase {
     private RestClient remoteClusterClient() throws IOException {
         var clusterHosts = parseClusterHosts(remoteCluster.getHttpAddresses());
         return buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
+    }
+
+    private TestFeatureService remoteFeaturesService() throws IOException {
+        if (remoteFeaturesService == null) {
+            try (RestClient remoteClient = remoteClusterClient()) {
+                var remoteNodeVersions = readVersionsFromNodesInfo(remoteClient);
+                var semanticNodeVersions = remoteNodeVersions.stream()
+                    .map(ESRestTestCase::parseLegacyVersion)
+                    .flatMap(Optional::stream)
+                    .collect(Collectors.toSet());
+                remoteFeaturesService = createTestFeatureService(getClusterStateFeatures(remoteClient), semanticNodeVersions);
+            }
+        }
+        return remoteFeaturesService;
     }
 }

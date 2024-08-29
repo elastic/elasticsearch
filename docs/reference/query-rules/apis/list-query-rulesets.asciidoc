@@ -2,8 +2,6 @@
 [[list-query-rulesets]]
 === List query rulesets
 
-preview::[]
-
 ++++
 <titleabbrev>List query rulesets</titleabbrev>
 ++++

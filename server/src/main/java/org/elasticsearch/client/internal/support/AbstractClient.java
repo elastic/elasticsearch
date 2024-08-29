@@ -59,6 +59,7 @@ import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequestBuilder;
@@ -92,6 +93,7 @@ public abstract class AbstractClient implements Client {
     private final ThreadPool threadPool;
     private final AdminClient admin;
 
+    @SuppressWarnings("this-escape")
     public AbstractClient(Settings settings, ThreadPool threadPool) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -410,7 +412,13 @@ public abstract class AbstractClient implements Client {
      * on the result before it goes out of scope.
      * @param <R> reference counted result type
      */
-    private static class RefCountedFuture<R extends RefCounted> extends PlainActionFuture<R> {
+    // todo: the use of UnsafePlainActionFuture here is quite broad, we should find a better way to be more specific
+    // (unless making all usages safe is easy).
+    private static class RefCountedFuture<R extends RefCounted> extends UnsafePlainActionFuture<R> {
+
+        private RefCountedFuture() {
+            super(ThreadPool.Names.GENERIC);
+        }
 
         @Override
         public final void onResponse(R result) {

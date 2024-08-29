@@ -76,7 +76,7 @@ public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
 
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-policy", Collections.singletonMap(hotPhase.getName(), hotPhase));
-        client().execute(ILMActions.PUT, new PutLifecycleRequest(lifecyclePolicy)).get();
+        client().execute(ILMActions.PUT, new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy)).get();
 
         Template t = new Template(
             Settings.builder()

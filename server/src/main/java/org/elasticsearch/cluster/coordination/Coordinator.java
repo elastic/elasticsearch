@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -72,7 +73,6 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.NodeDisconnectedException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -224,7 +224,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.onJoinValidators = NodeJoinExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
         this.electionStrategy = electionStrategy;
-        this.joinReasonService = new JoinReasonService(transportService.getThreadPool()::relativeTimeInMillis);
+        this.joinReasonService = new JoinReasonService(transportService.getThreadPool().relativeTimeInMillisSupplier());
         this.joinHelper = new JoinHelper(
             allocationService,
             masterService,
@@ -432,6 +432,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     PublishWithJoinResponse handlePublishRequest(PublishRequest publishRequest) {
+        assert ThreadPool.assertCurrentThreadPool(Names.CLUSTER_COORDINATION);
         assert publishRequest.getAcceptedState().nodes().getLocalNode().equals(getLocalNode())
             : publishRequest.getAcceptedState().nodes().getLocalNode() + " != " + getLocalNode();
 
@@ -758,7 +759,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         transportService.sendRequest(
             discoveryNode,
             JoinHelper.JOIN_PING_ACTION_NAME,
-            TransportRequest.Empty.INSTANCE,
+            new JoinHelper.JoinPingRequest(),
             TransportRequestOptions.of(null, channelType),
             TransportResponseHandler.empty(clusterCoordinationExecutor, listener.delegateResponse((l, e) -> {
                 logger.warn(() -> format("failed to ping joining node [%s] on channel type [%s]", discoveryNode, channelType), e);
@@ -831,10 +832,12 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                     discover other nodes and form a multi-node cluster via the [{}={}] setting. Fully-formed clusters do \
                                     not attempt to discover other nodes, and nodes with different cluster UUIDs cannot belong to the same \
                                     cluster. The cluster UUID persists across restarts and can only be changed by deleting the contents of \
-                                    the node's data path(s). Remove the discovery configuration to suppress this message.""",
+                                    the node's data path(s). Remove the discovery configuration to suppress this message. See [{}] for \
+                                    more information.""",
                                 applierState.metadata().clusterUUID(),
                                 DISCOVERY_SEED_HOSTS_SETTING.getKey(),
-                                DISCOVERY_SEED_HOSTS_SETTING.get(settings)
+                                DISCOVERY_SEED_HOSTS_SETTING.get(settings),
+                                ReferenceDocs.FORMING_SINGLE_NODE_CLUSTERS
                             );
                         }
                     }

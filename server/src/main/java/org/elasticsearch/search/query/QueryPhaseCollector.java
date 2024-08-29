@@ -205,7 +205,11 @@ public final class QueryPhaseCollector implements TwoPhaseCollector {
                 }
             };
         }
-        return new CompositeLeafCollector(postFilterBits, topDocsLeafCollector, aggsLeafCollector);
+        LeafCollector leafCollector = new CompositeLeafCollector(postFilterBits, topDocsLeafCollector, aggsLeafCollector);
+        if (cacheScores && topDocsLeafCollector != null && aggsLeafCollector != null) {
+            leafCollector = ScoreCachingWrappingScorer.wrap(leafCollector);
+        }
+        return leafCollector;
     }
 
     private class TopDocsLeafCollector implements LeafCollector {
@@ -259,9 +263,6 @@ public final class QueryPhaseCollector implements TwoPhaseCollector {
 
         @Override
         public void setScorer(Scorable scorer) throws IOException {
-            if (cacheScores && topDocsLeafCollector != null && aggsLeafCollector != null) {
-                scorer = ScoreCachingWrappingScorer.wrap(scorer);
-            }
             scorer = new FilterScorable(scorer) {
                 @Override
                 public void setMinCompetitiveScore(float minScore) {

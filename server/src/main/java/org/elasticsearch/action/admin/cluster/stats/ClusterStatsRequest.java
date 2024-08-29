@@ -19,16 +19,34 @@ import java.util.Map;
  * A request to get cluster level stats.
  */
 public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
+    private final boolean doRemotes;
+
     /**
      * Get stats from nodes based on the nodes ids specified. If none are passed, stats
      * based on all nodes will be returned.
      */
     public ClusterStatsRequest(String... nodesIds) {
+        this(false, nodesIds);
+    }
+
+    public ClusterStatsRequest(boolean doRemotes, String... nodesIds) {
         super(nodesIds);
+        this.doRemotes = doRemotes;
     }
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new CancellableTask(id, type, action, "", parentTaskId, headers);
+    }
+
+    /**
+     * Should the remote cluster stats be included in the response.
+     */
+    public boolean doRemotes() {
+        return doRemotes;
+    }
+
+    public ClusterStatsRequest subRequest() {
+        return new ClusterStatsRequest(false, nodesIds());
     }
 }

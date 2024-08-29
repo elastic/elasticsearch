@@ -30,6 +30,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     final ModeInfo modeInfo;
     final TimeValue initialConnectionTimeout;
     final String clusterAlias;
+
     final boolean skipUnavailable;
     final boolean hasClusterCredentials;
 

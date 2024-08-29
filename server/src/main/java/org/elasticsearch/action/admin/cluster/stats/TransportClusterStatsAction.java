@@ -19,6 +19,8 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterSnapshotStats;
 import org.elasticsearch.cluster.ClusterState;
@@ -46,6 +48,9 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterConnection;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
@@ -54,8 +59,11 @@ import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 
@@ -85,6 +93,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
     private final MetadataStatsCache<AnalysisStats> analysisStatsCache;
+    private final RemoteClusterService remoteClusterService;
 
     @Inject
     public TransportClusterStatsAction(
@@ -112,6 +121,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.ccsUsageHolder = usageService.getCcsUsageHolder();
         this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
+        this.remoteClusterService = transportService.getRemoteClusterService();
     }
 
     @Override
@@ -136,6 +146,10 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             clusterService.threadPool().absoluteTimeInMillis()
         );
 
+        // TODO: this should not be happening here but leaving it here for now until we figure out proper
+        // threading/async model for this
+        var remoteClusterStats = getRemoteClusterStats(request);
+
         final ListenableFuture<MappingStats> mappingStatsStep = new ListenableFuture<>();
         final ListenableFuture<AnalysisStats> analysisStatsStep = new ListenableFuture<>();
         mappingStatsCache.get(metadata, cancellableTask::isCancelled, mappingStatsStep);
@@ -155,7 +169,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                                 mappingStats,
                                 analysisStats,
                                 VersionStats.of(metadata, responses),
-                                clusterSnapshotStats
+                                clusterSnapshotStats,
+                                remoteClusterStats
                             )
                         )
                     )
@@ -315,4 +330,68 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             return newKey <= currentKey;
         }
     }
+
+    private Map<String, ClusterStatsResponse.RemoteClusterStats> getRemoteClusterStats(ClusterStatsRequest request) {
+        if (request.doRemotes() == false) {
+            return null;
+        }
+        Map<String, ClusterStatsResponse.RemoteClusterStats> remoteClustersStats = new HashMap<>();
+
+        for (String clusterAlias : remoteClusterService.getRegisteredRemoteClusterNames()) {
+            RemoteClusterConnection remoteConnection = remoteClusterService.getRemoteClusterConnection(clusterAlias);
+            RemoteConnectionInfo remoteConnectionInfo = remoteConnection.getConnectionInfo();
+            var remoteClusterStats = new ClusterStatsResponse.RemoteClusterStats(
+                "UUID", // TODO cluster_uuid
+                remoteConnectionInfo.getModeInfo().modeName(),
+                remoteConnection.isSkipUnavailable(),
+                false, // TODO transport.compress
+                List.of(), // TODO version
+                "green" // TODO status
+            );
+            remoteClustersStats.put(clusterAlias, remoteClusterStats);
+        }
+        return remoteClustersStats;
+    }
+
+    private Collection<ClusterStatsResponse> getStatsFromRemotes(ClusterStatsRequest request) {
+        if (request.doRemotes() == false) {
+            return null;
+        }
+        var remotes = remoteClusterService.getRegisteredRemoteClusterNames();
+
+        var remotesListener = new PlainActionFuture< Collection<ClusterStatsResponse>>();
+        GroupedActionListener<ClusterStatsResponse> groupListener = new GroupedActionListener<ClusterStatsResponse>(
+            remotes.size(),
+            remotesListener
+        );
+
+        for (String clusterAlias : remotes) {
+            ClusterStatsRequest remoteRequest = request.subRequest();
+            var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                clusterAlias,
+                remoteClientResponseExecutor,
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+            );
+            remoteClusterService.getConnection(clusterAlias).sendRequest(
+                    1,
+                    ,
+                    remoteRequest,
+                    null
+            );
+            remoteClusterClient.execute(TransportClusterStatsAction.TYPE, remoteRequest, groupListener);
+        }
+
+        Collection<ClusterStatsResponse> remoteStats = null;
+        try {
+            remoteStats = remotesListener.get();
+        } catch (InterruptedException e) {
+            return null;
+        } catch (ExecutionException e) {
+            return null;
+        }
+
+        return remoteStats;
+
+    }
+
 }

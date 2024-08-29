@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.action.search.TransportSearchAction.CCS_TELEMETRY_FEATURE_FLAG;
 
@@ -37,6 +38,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final CCSTelemetrySnapshot ccsMetrics;
     final long timestamp;
     final String clusterUUID;
+    private final Map<String, RemoteClusterStats> remoteClustersStats;
 
     public ClusterStatsResponse(
         long timestamp,
@@ -47,7 +49,8 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         MappingStats mappingStats,
         AnalysisStats analysisStats,
         VersionStats versionStats,
-        ClusterSnapshotStats clusterSnapshotStats
+        ClusterSnapshotStats clusterSnapshotStats,
+        Map<String, RemoteClusterStats> remoteClustersStats
     ) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
@@ -74,6 +77,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             // stats should be the same on every node so just pick one of them
             .findAny()
             .orElse(RepositoryUsageStats.EMPTY);
+        this.remoteClustersStats = remoteClustersStats;
     }
 
     public String getClusterUUID() {
@@ -137,6 +141,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
 
         if (CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
             builder.startObject("ccs");
+            if (remoteClustersStats != null) {
+                builder.field("clusters", remoteClustersStats);
+            }
             ccsMetrics.toXContent(builder, params);
             builder.endObject();
         }
@@ -149,4 +156,41 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         return Strings.toString(this, true, true);
     }
 
+    public static class RemoteClusterStats implements ToXContentFragment {
+        private final String clusterUUID;
+        private final String mode;
+        private final boolean skipUnavailable;
+        private final boolean transportCompress;
+        private final List<String> versions;
+        private final String status;
+
+        public RemoteClusterStats(
+            String clusterUUID,
+            String mode,
+            boolean skipUnavailable,
+            boolean transportCompress,
+            List<String> versions,
+            String status
+        ) {
+            this.clusterUUID = clusterUUID;
+            this.mode = mode;
+            this.skipUnavailable = skipUnavailable;
+            this.transportCompress = transportCompress;
+            this.versions = versions;
+            this.status = status;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("cluster_uuid", clusterUUID);
+            builder.field("mode", mode);
+            builder.field("skip_unavailable", skipUnavailable);
+            builder.field("transport.compress", transportCompress);
+            builder.field("version", versions);
+            builder.field("status", status);
+            builder.endObject();
+            return builder;
+        }
+    }
 }

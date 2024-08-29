@@ -186,6 +186,10 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(Collections.max(TransportVersions.getAllVersions()), is(TransportVersion.current()));
     }
 
+    public void testToReleaseVersion() {
+        assertThat(TransportVersion.current().toReleaseVersion(), equalTo(Version.CURRENT.toString()));
+    }
+
     public void testToString() {
         assertEquals("5000099", TransportVersion.fromId(5_00_00_99).toString());
         assertEquals("2030099", TransportVersion.fromId(2_03_00_99).toString());

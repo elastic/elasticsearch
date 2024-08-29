@@ -222,11 +222,11 @@ If the last check failed with an exception then the exception is reported, and
 typically indicates the problem that needs to be addressed. If any of the
 checks timed out then narrow down the problem as follows.
 
-include::../../troubleshooting/network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-gc-vm]
+include::network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-gc-vm]
 
-include::../../troubleshooting/network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-packet-capture-fault-detection]
+include::network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-packet-capture-fault-detection]
 
-include::../../troubleshooting/network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-threads]
+include::network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-threads]
 
 By default the follower checks will time out after 30s, so if node departures
 are unpredictable then capture stack dumps every 15s to be sure that at least

@@ -165,6 +165,9 @@ tests:
 - class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
   method: testMatchAllQuery
   issue: https://github.com/elastic/elasticsearch/issues/112374
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/rest-api/watcher/put-watch/line_120}
+  issue: https://github.com/elastic/elasticsearch/issues/99517
 
 # Examples:
 #

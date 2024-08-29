@@ -21,6 +21,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 public class HeapMemoryUsagePublisher {
 
@@ -31,7 +32,11 @@ public class HeapMemoryUsagePublisher {
     }
 
     public void publishIndicesMappingSize(final HeapMemoryUsage heapMemoryUsage, final ActionListener<ActionResponse.Empty> listener) {
-        var request = new PublishHeapMemoryMetricsRequest(heapMemoryUsage);
-        client.execute(TransportPublishHeapMemoryMetrics.INSTANCE, request, listener);
+        ThreadContext threadContext = client.threadPool().getThreadContext();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.markAsSystemContext();
+            var request = new PublishHeapMemoryMetricsRequest(heapMemoryUsage);
+            client.execute(TransportPublishHeapMemoryMetrics.INSTANCE, request, listener);
+        }
     }
 }

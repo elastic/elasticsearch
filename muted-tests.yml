@@ -162,6 +162,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/112254
 - class: org.elasticsearch.search.ccs.CCSUsageTelemetryIT
   issue: https://github.com/elastic/elasticsearch/issues/112324
+- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/112374
 
 # Examples:
 #

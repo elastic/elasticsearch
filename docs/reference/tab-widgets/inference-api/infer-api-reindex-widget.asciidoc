@@ -49,6 +49,12 @@
             id="infer-api-reindex-amazon-bedrock">
       Amazon Bedrock
     </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-reindex-alibabacloud-ai-search-tab"
+            id="infer-api-reindex-alibabacloud-ai-search">
+      AlibabaCloud AI Search
+    </button>
   </div>
   <div tabindex="0"
        role="tabpanel"
@@ -134,6 +140,17 @@ include::infer-api-reindex.asciidoc[tag=mistral]
 ++++
 
 include::infer-api-reindex.asciidoc[tag=amazon-bedrock]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-reindex-alibabacloud-ai-search-tab"
+       aria-labelledby="infer-api-reindex-alibabacloud-ai-search"
+       hidden="">
+++++
+
+include::infer-api-reindex.asciidoc[tag=alibabacloud-ai-search]
 
 ++++
   </div>

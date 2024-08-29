@@ -3839,11 +3839,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     for (final var shardSnapshotBlobName : shardSnapshotBlobs.keySet()) {
                         if (shardSnapshotBlobName.startsWith("snap-")
                             && shardSnapshotBlobName.endsWith(".dat")
-                            && shardSnapshotBlobName.length() == "snap-".length() + 22 + ".dat".length()) {
+                            && shardSnapshotBlobName.length() == "snap-".length() + UUIDs.RANDOM_BASED_UUID_STRING_LENGTH + ".dat"
+                                .length()) {
                             final var shardSnapshot = INDEX_SHARD_SNAPSHOT_FORMAT.read(
                                 metadata.name(),
                                 shardContainer,
-                                shardSnapshotBlobName.substring("snap-".length(), "snap-".length() + 22),
+                                shardSnapshotBlobName.substring("snap-".length(), "snap-".length() + UUIDs.RANDOM_BASED_UUID_STRING_LENGTH),
                                 namedXContentRegistry
                             );
                             blobStoreIndexShardSnapshots = blobStoreIndexShardSnapshots.withAddedSnapshot(

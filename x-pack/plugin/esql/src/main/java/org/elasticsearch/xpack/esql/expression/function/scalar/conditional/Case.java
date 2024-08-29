@@ -11,10 +11,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.ToMask;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -288,20 +290,37 @@ public final class Case extends EsqlScalarFunction {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         ElementType resultType = PlannerUtils.toElementType(dataType());
         List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream()
-            .map(c -> new ConditionEvaluatorSupplier(toEvaluator.apply(c.condition), toEvaluator.apply(c.value)))
+            .map(c -> new ConditionEvaluatorSupplier(c.condition.source(), toEvaluator.apply(c.condition), toEvaluator.apply(c.value)))
             .toList();
         ExpressionEvaluator.Factory elseValueFactory = toEvaluator.apply(elseValue);
+
+        if (conditionsFactories.size() == 1 && conditionsFactories.get(0).value.safeToEvalInLazy() && elseValueFactory.safeToEvalInLazy()) {
+            return new ExpressionEvaluator.Factory() {
+                @Override
+                public ExpressionEvaluator get(DriverContext context) {
+                    Warnings warnings = Warnings.createWarnings(context.warningsMode(), source());
+                    return new EagerEvaluator(
+                        warnings,
+                        context.blockFactory(),
+                        conditionsFactories.get(0).apply(context),
+                        elseValueFactory.get(context)
+                    );
+                }
+
+                @Override
+                public String toString() {
+                    return "CaseEagerEvaluator[conditions=" + conditionsFactories + ", elseVal=" + elseValueFactory + ']';
+                }
+            };
+        }
+
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                if (conditionsFactories.size() == 1
-                    && conditionsFactories.get(0).value.safeToEvalInLazy()
-                    && elseValueFactory.safeToEvalInLazy()) {
-
-                    return new EagerEvaluator(context, conditionsFactories.get(0).apply(context), elseValueFactory.get(context));
-                }
+                Warnings warnings = Warnings.createWarnings(context.warningsMode(), source());
                 return new CaseEvaluator(
-                    context,
+                    warnings,
+                    context.blockFactory(),
                     resultType,
                     conditionsFactories.stream().map(x -> x.apply(context)).toList(),
                     elseValueFactory.get(context)
@@ -310,23 +329,19 @@ public final class Case extends EsqlScalarFunction {
 
             @Override
             public String toString() {
-                return "CaseEvaluator[resultType="
-                    + resultType
-                    + ", conditions="
-                    + conditionsFactories
-                    + ", elseVal="
-                    + elseValueFactory
-                    + ']';
+                return "CaseLazyEvaluator[conditions=" + conditionsFactories + ", elseVal=" + elseValueFactory + ']';
             }
         };
     }
 
-    private record ConditionEvaluatorSupplier(ExpressionEvaluator.Factory condition, ExpressionEvaluator.Factory value)
-        implements
-            Function<DriverContext, ConditionEvaluator> {
+    private record ConditionEvaluatorSupplier(
+        Source conditionSource,
+        ExpressionEvaluator.Factory condition,
+        ExpressionEvaluator.Factory value
+    ) implements Function<DriverContext, ConditionEvaluator> {
         @Override
         public ConditionEvaluator apply(DriverContext driverContext) {
-            return new ConditionEvaluator(condition.get(driverContext), value.get(driverContext));
+            return new ConditionEvaluator(conditionSource, condition.get(driverContext), value.get(driverContext));
         }
 
         @Override
@@ -335,9 +350,15 @@ public final class Case extends EsqlScalarFunction {
         }
     }
 
-    private record ConditionEvaluator(EvalOperator.ExpressionEvaluator condition, EvalOperator.ExpressionEvaluator value)
-        implements
-            Releasable {
+    private record ConditionEvaluator(
+        Source conditionSource,
+        EvalOperator.ExpressionEvaluator condition,
+        EvalOperator.ExpressionEvaluator value
+    ) implements Releasable {
+        Exception multivalueInCondition() {
+            return new IllegalArgumentException("single-value function encountered multi-value in " + conditionSource.text());
+        }
+
         @Override
         public void close() {
             Releasables.closeExpectNoException(condition, value);
@@ -345,7 +366,8 @@ public final class Case extends EsqlScalarFunction {
     }
 
     private record CaseEvaluator(
-        DriverContext driverContext,
+        Warnings warnings,
+        BlockFactory blockFactory,
         ElementType resultType,
         List<ConditionEvaluator> conditions,
         EvalOperator.ExpressionEvaluator elseVal
@@ -362,7 +384,7 @@ public final class Case extends EsqlScalarFunction {
              * a time - but it's not at all fast.
              */
             int positionCount = page.getPositionCount();
-            try (Block.Builder result = resultType.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+            try (Block.Builder result = resultType.newBlockBuilder(positionCount, blockFactory)) {
                 position: for (int p = 0; p < positionCount; p++) {
                     int[] positions = new int[] { p };
                     Page limited = new Page(
@@ -372,6 +394,11 @@ public final class Case extends EsqlScalarFunction {
                         for (ConditionEvaluator condition : conditions) {
                             try (BooleanBlock b = (BooleanBlock) condition.condition.eval(limited)) {
                                 if (b.isNull(0)) {
+                                    continue;
+                                }
+                                if (b.getValueCount(0) > 1) {
+                                    warnings.registerException(condition.multivalueInCondition());
+                                    // Multivalued fields become null which becomes false.
                                     continue;
                                 }
                                 if (false == b.getBoolean(b.getFirstValueIndex(0))) {
@@ -403,20 +430,25 @@ public final class Case extends EsqlScalarFunction {
         }
     }
 
-    private record EagerEvaluator(DriverContext driverContext, ConditionEvaluator condition, EvalOperator.ExpressionEvaluator elseVal)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    private record EagerEvaluator(
+        Warnings warnings,
+        BlockFactory blockFactory,
+        ConditionEvaluator condition,
+        EvalOperator.ExpressionEvaluator elseVal
+    ) implements EvalOperator.ExpressionEvaluator {
         @Override
         public Block eval(Page page) {
             try (
-                BooleanVector lhsOrRhs = ((BooleanBlock) condition.condition.eval(page)).asVector();
-                // NOCOMMIT replace above with toMask
+                ToMask lhsOrRhs = ((BooleanBlock) condition.condition.eval(page)).toMask();
                 Block lhs = condition.value.eval(page);
                 Block rhs = elseVal.eval(page)
             ) {
-                try (Block.Builder builder = lhs.elementType().newBlockBuilder(lhs.getTotalValueCount(), driverContext.blockFactory())) {
+                if (lhsOrRhs.hadMultivaluedFields()) {
+                    warnings.registerException(condition.multivalueInCondition());
+                }
+                try (Block.Builder builder = lhs.elementType().newBlockBuilder(lhs.getTotalValueCount(), blockFactory)) {
                     for (int p = 0; p < lhs.getPositionCount(); p++) {
-                        if (lhsOrRhs.getBoolean(p)) {
+                        if (lhsOrRhs.mask().getBoolean(p)) {
                             builder.copyFrom(lhs, p, p + 1);
                         } else {
                             builder.copyFrom(rhs, p, p + 1);

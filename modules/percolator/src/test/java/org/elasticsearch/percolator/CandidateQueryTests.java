@@ -1311,7 +1311,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                             }
                         }
                     };
-                    Scorer scorer = new Scorer(this) {
+                    Scorer scorer = new Scorer() {
 
                         @Override
                         public int docID() {

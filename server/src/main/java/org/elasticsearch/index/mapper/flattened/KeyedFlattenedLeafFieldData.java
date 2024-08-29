@@ -204,12 +204,8 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
             }
 
             long ord = delegate.nextOrd();
-            if (ord != NO_MORE_ORDS && ord <= maxOrd) {
-                assert ord >= minOrd;
-                return mapOrd(ord);
-            } else {
-                return NO_MORE_ORDS;
-            }
+            assert ord <= maxOrd;
+            return mapOrd(ord);
         }
 
         @Override
@@ -224,7 +220,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
                 int count = 0;
                 while (true) {
                     long ord = delegate.nextOrd();
-                    if (ord == NO_MORE_ORDS || ord > maxOrd) {
+                    if (ord > maxOrd) {
                         break;
                     }
                     if (ord >= minOrd) {
@@ -245,7 +241,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
 
                 while (true) {
                     long ord = delegate.nextOrd();
-                    if (ord == NO_MORE_ORDS || ord > maxOrd) {
+                    if (ord > maxOrd) {
                         break;
                     }
 

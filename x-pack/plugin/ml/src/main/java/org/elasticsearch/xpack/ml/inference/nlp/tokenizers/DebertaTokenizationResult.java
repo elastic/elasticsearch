@@ -12,6 +12,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
+import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,6 +24,9 @@ public class DebertaTokenizationResult extends TokenizationResult {
     static final String REQUEST_ID = "request_id";
     static final String TOKENS = "tokens";
     static final String ARG1 = "arg_1";
+    static final String ARG2 = "arg_2";
+    static final String ARG3 = "arg_3";
+
 
     protected DebertaTokenizationResult(List<String> vocab, List<Tokens> tokenizations, int padTokenId) {
         super(vocab, tokenizations, padTokenId);
@@ -34,8 +38,10 @@ public class DebertaTokenizationResult extends TokenizationResult {
         builder.startObject();
         builder.field(REQUEST_ID, requestId);
         writePaddedTokens(TOKENS, builder);
-        writeAttentionMask(ARG1, builder);
-        builder.endObject(); // TODO verfiy builder
+        writeTokenTypeIds(ARG1, builder);
+        writeAttentionMask(ARG2, builder);
+        writePositionIds(ARG3, builder);
+        builder.endObject();
 
         // BytesReference.bytes closes the builder
         BytesReference jsonRequest = BytesReference.bytes(builder);

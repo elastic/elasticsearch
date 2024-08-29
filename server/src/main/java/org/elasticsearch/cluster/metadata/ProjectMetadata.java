@@ -1077,12 +1077,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         return true;
     }
 
-    public static ProjectMetadata.Builder builder() {
-        return new ProjectMetadata.Builder(Map.of(), 0);
-    }
-
     public static ProjectMetadata.Builder builder(ProjectId id) {
-        return new ProjectMetadata.Builder(Map.of(), 0).id(id);
+        return new ProjectMetadata.Builder().id(id);
     }
 
     public static ProjectMetadata.Builder builder(ProjectMetadata projectMetadata) {
@@ -1115,6 +1111,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             this.previousIndicesLookup = projectMetadata.indicesLookup;
             this.mappingsByHash = new HashMap<>(projectMetadata.mappingsByHash);
             this.checkForUnusedMappings = false;
+        }
+
+        Builder() {
+            this(Map.of(), 0);
         }
 
         Builder(Map<String, MappingMetadata> mappingsByHash, int indexCountHint) {
@@ -1964,7 +1964,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             String currentFieldName = null;
 
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-            ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder();
+            ProjectMetadata.Builder projectBuilder = new Builder();
 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {

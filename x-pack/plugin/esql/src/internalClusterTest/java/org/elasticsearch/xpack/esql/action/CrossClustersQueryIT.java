@@ -109,12 +109,12 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             assertThat(values, hasSize(1));
             assertThat(values.get(0), equalTo(List.of(330L)));
         }
-        // try (EsqlQueryResponse resp = runQuery("from logs-*,*:logs-* | stats count(*) by tag | sort tag | keep tag")) {
-        // List<List<Object>> values = getValuesList(resp);
-        // assertThat(values, hasSize(2));
-        // assertThat(values.get(0), equalTo(List.of("local")));
-        // assertThat(values.get(1), equalTo(List.of("remote")));
-        // }
+        try (EsqlQueryResponse resp = runQuery("from logs-*,*:logs-* | stats count(*) by tag | sort tag | keep tag")) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(2));
+            assertThat(values.get(0), equalTo(List.of("local")));
+            assertThat(values.get(1), equalTo(List.of("remote")));
+        }
     }
 
     public void testMetadataIndex() {

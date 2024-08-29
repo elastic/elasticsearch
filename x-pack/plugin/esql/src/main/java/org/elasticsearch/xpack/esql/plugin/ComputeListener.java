@@ -13,11 +13,13 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -123,7 +125,7 @@ final class ComputeListener implements Releasable {
     /**
      * Acquires a new listener that collects compute result. This listener will also collects warnings emitted during compute
      */
-    ActionListener<ComputeResponse> acquireCompute() {
+    ActionListener<ComputeResponse> acquireComputeForDataNodes() {
         return acquireAvoid().map(resp -> {
             responseHeaders.collect();
             var profiles = resp.getProfiles();
@@ -181,11 +183,11 @@ final class ComputeListener implements Releasable {
     }
 
     /**
-     * Acts like {@code acquireCompute} but also updates {@link EsqlExecutionInfo} with metadata about the search
-     * on the remote cluster
-     * @param clusterAlias remote cluster alias the compute is running on
+     * Acts like {@code acquireCompute} for handling the response(s) form the runComputeOnDataNodes
+     * phase. Per-cluster took time is recorded in the {@link EsqlExecutionInfo}.
+     * @param clusterAlias remote cluster alias the data node compute is running on
      */
-    ActionListener<ComputeResponse> acquireCompute(String clusterAlias) {
+    ActionListener<ComputeResponse> acquireComputeForDataNodes(String clusterAlias, Configuration configuration) {
         assert clusterAlias != null : "Must provide non-null cluster alias to acquireCompute";
         return acquireAvoid().map(resp -> {
             System.err.println("VVV acquireCompute: esqlExecutionInfo instance var ID: " + esqlExecutionInfo.id());
@@ -200,13 +202,23 @@ final class ComputeListener implements Releasable {
                 clusterAlias,
                 esqlExecutionInfo.getCluster(clusterAlias)
             );
+            long tookTimeMillis = System.currentTimeMillis() - configuration.getQueryStartTimeMillis();
+            TimeValue tookOnDataNode = new TimeValue(tookTimeMillis);
+            System.err.println("VVV acquireCompute: tookOnDataNode: " + tookOnDataNode + "  <---------------");
             esqlExecutionInfo.swapCluster(
                 clusterAlias,
                 // MP TODO: Not sure this is right - is this called only after the can_match? If yes, then this is not done running
                 // MP TODO: how do we get a callback that it is finished overall after the DataNodeRequestHandler part has run?
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
-                    .setTook(resp.getTook())
-                    .build()
+                (k, v) -> {
+                    if (v.getTook() == null || v.getTook().millis() < tookOnDataNode.millis()) {
+                        return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                            .setTook(tookOnDataNode)
+                            .build();
+                    } else {
+                        // other data node had higher took time, so keep the current value
+                        return v;
+                    }
+                }
             );
             System.err.printf(
                 "VVV acquireCompute:: execid:[%d] Cluster AFTER swapping: [%s]\n",

@@ -191,7 +191,7 @@ public class ComputeService {
                     listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo))
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
+                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireComputeForDataNodes());
                 return;
             }
         } else {
@@ -240,7 +240,7 @@ public class ComputeService {
                 rootTask,
                 new ComputeContext(sessionId, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, List.of(), configuration, exchangeSource, null),
                 coordinatorPlan,
-                computeListener.acquireCompute()
+                computeListener.acquireComputeForDataNodes()
             );
             // starts computes on data nodes on the main cluster
             if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {
@@ -343,7 +343,11 @@ public class ComputeService {
                         refs.acquire().delegateFailureAndWrap((l, unused) -> {
                             var remoteSink = exchangeService.newRemoteSink(parentTask, sessionId, transportService, node.connection);
                             exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
-                            ActionListener<ComputeResponse> computeResponseListener = computeListener.acquireCompute(clusterAlias);
+                            ActionListener<ComputeResponse> computeResponseListener = computeListener.acquireComputeForDataNodes(
+                                clusterAlias,
+                                configuration
+                            );
+                            System.err.println("@@@@@ DataNodeRequest being sent");
                             var dataNodeListener = ActionListener.runBefore(computeResponseListener, () -> l.onResponse(null));
                             transportService.sendChildRequest(
                                 node.connection,
@@ -680,7 +684,7 @@ public class ComputeService {
             final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shardIds().size());
             List<ShardId> shardIds = request.shardIds().subList(startBatchIndex, endBatchIndex);
             ActionListener<ComputeResponse> batchListener = new ActionListener<>() {
-                final ActionListener<ComputeResponse> ref = computeListener.acquireCompute();
+                final ActionListener<ComputeResponse> ref = computeListener.acquireComputeForDataNodes();
 
                 @Override
                 public void onResponse(ComputeResponse result) {
@@ -746,7 +750,7 @@ public class ComputeService {
             var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
             exchangeSource.addCompletionListener(computeListener.acquireAvoid());
             exchangeSource.addRemoteSink(internalSink::fetchPageAsync, 1);
-            ActionListener<ComputeResponse> reductionListener = computeListener.acquireCompute();
+            ActionListener<ComputeResponse> reductionListener = computeListener.acquireComputeForDataNodes();
             runCompute(
                 task,
                 new ComputeContext(
@@ -869,6 +873,9 @@ public class ComputeService {
         EsqlExecutionInfo executionInfo,
         ComputeListener computeListener
     ) {
+        System.err.println(
+            "@@@ @@@ runComputeOnRemoteCluster: configuration.getQueryStartTimeMillis(): " + configuration.getQueryStartTimeMillis()
+        );
         final var exchangeSink = exchangeService.getSinkHandler(globalSessionId);
         parentTask.addListener(
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
@@ -891,7 +898,7 @@ public class ComputeService {
                 parentTask,
                 new ComputeContext(localSessionId, clusterAlias, List.of(), configuration, exchangeSource, exchangeSink),
                 coordinatorPlan,
-                computeListener.acquireCompute()
+                computeListener.acquireComputeForDataNodes()
             );
             startComputeOnDataNodes(
                 localSessionId,

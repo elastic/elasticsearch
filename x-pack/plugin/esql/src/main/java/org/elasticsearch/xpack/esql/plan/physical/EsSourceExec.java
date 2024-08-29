@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.io.stream.PlanNamedTypes;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 
@@ -55,7 +54,7 @@ public class EsSourceExec extends LeafExec {
             new EsIndex(in),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readOptionalNamedWriteable(QueryBuilder.class),
-            PlanNamedTypes.readIndexMode(in)
+            EsRelation.readIndexMode(in)
         );
     }
 
@@ -65,7 +64,7 @@ public class EsSourceExec extends LeafExec {
         index().writeTo(out);
         out.writeNamedWriteableCollection(output());
         out.writeOptionalNamedWriteable(query());
-        PlanNamedTypes.writeIndexMode(out, indexMode());
+        EsRelation.writeIndexMode(out, indexMode());
     }
 
     @Override

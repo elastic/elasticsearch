@@ -196,7 +196,7 @@ which drop connections when they reach a certain age are a common source of
 problems to {es} clusters, and must not be used.
 
 For information about troubleshooting unexpected network disconnections, see
-<<cluster-fault-detection-troubleshooting-network>>.
+<<troubleshooting-unstable-cluster-network>>.
 
 [[request-compression]]
 ===== Request compression

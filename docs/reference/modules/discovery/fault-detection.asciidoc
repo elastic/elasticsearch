@@ -39,31 +39,26 @@ starting from the beginning of the cluster state update. Refer to
 See <<troubleshooting-unstable-cluster>>.
 
 [discrete]
-[[cluster-fault-detection-troubleshooting-disconnected]]
 ===== Diagnosing `disconnected` nodes
 
 See <<troubleshooting-unstable-cluster-disconnected>>.
 
 [discrete]
-[[cluster-fault-detection-troubleshooting-lagging]]
 ===== Diagnosing `lagging` nodes
 
 See <<troubleshooting-unstable-cluster-lagging>>.
 
 [discrete]
-[[cluster-fault-detection-troubleshooting-follower-check]]
 ===== Diagnosing `follower check retry count exceeded` nodes
 
 See <<troubleshooting-unstable-cluster-follower-check>>.
 
 [discrete]
-[[cluster-fault-detection-troubleshooting-shardlockobtainfailedexception]]
 ===== Diagnosing `ShardLockObtainFailedException` failures
 
 See <<troubleshooting-unstable-cluster-shardlockobtainfailedexception>>.
 
 [discrete]
-[[cluster-fault-detection-troubleshooting-network]]
 ===== Diagnosing other network disconnections
 
 See <<troubleshooting-unstable-cluster-network>>.

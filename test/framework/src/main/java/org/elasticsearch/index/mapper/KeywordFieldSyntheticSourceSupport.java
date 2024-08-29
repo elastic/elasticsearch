@@ -21,8 +21,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.SyntheticSourceSupport {
     private final Integer ignoreAbove;
     private final boolean allIgnored;
@@ -128,11 +126,6 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
     @Override
     public List<MapperTestCase.SyntheticSourceInvalidExample> invalidExample() throws IOException {
-        return List.of(
-            new MapperTestCase.SyntheticSourceInvalidExample(
-                equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares copy_to"),
-                b -> b.field("type", "keyword").field("copy_to", "copy_field")
-            )
-        );
+        return List.of();
     }
 }

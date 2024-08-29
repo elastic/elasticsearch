@@ -16,6 +16,7 @@ import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -26,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -51,7 +53,8 @@ public class EsqlExecutionInfo implements ToXContentFragment {
     // updates to the Cluster occur with the updateCluster method that given the key to map transforms an
     // old Cluster Object to a new Cluster Object with the remapping function.
     public final Map<String, Cluster> clusterInfo;
-    private Predicate<String> skipUnavailablePredicate;
+    private final Predicate<String> skipUnavailablePredicate;
+    private final long id;  // MP FIXME - TMP for my debugging
 
     public EsqlExecutionInfo() {
         this(Predicates.always());  // default all clusters to skip_unavailable=true
@@ -64,6 +67,13 @@ public class EsqlExecutionInfo implements ToXContentFragment {
     public EsqlExecutionInfo(Predicate<String> skipUnavailablePredicate) {
         this.clusterInfo = ConcurrentCollections.newConcurrentMap();  // MP TODO: does this need to be a ConcurrentHashMap?
         this.skipUnavailablePredicate = skipUnavailablePredicate;
+        id = ThreadLocalRandom.current().nextLong(0, 888888);
+        System.err.println("ID ID ID for new EsqlExecutionInfo: [" + id + "]     ==============================");
+    }
+
+    // MP FIXME - remove
+    public long id() {
+        return id;
     }
 
     // MP TODO: is there a better way to supply this info? Awkward to have it here
@@ -80,19 +90,11 @@ public class EsqlExecutionInfo implements ToXContentFragment {
     }
 
     public boolean isCrossClusterSearch() {
-        return clusterInfo.size() > 0;
-        // return clusterInfo.size() > 1 || clusterInfo.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false;
+        return clusterInfo.size() > 1 || clusterInfo.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false;
     }
 
     public Cluster getCluster(String clusterAlias) {
         return clusterInfo.get(clusterAlias);
-    }
-
-    // MP FIXME: remove this function once switch over to using the one below
-    @Deprecated
-    public void swapCluster(Cluster cluster) {
-        // MP TODO: this probably needs to follow the thread safe swapCluster model in SearchResponse, but doing fast-n-easy very for now
-        clusterInfo.put(cluster.getClusterAlias(), cluster);
     }
 
     /**
@@ -115,6 +117,7 @@ public class EsqlExecutionInfo implements ToXContentFragment {
      * @return the new Cluster object
      */
     public Cluster swapCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
+        System.err.printf("SWAP SWAP SWAP [%s] cluster with ID: [%d]\n", clusterAlias, id());
         return clusterInfo.compute(clusterAlias, remappingFunction);
     }
 

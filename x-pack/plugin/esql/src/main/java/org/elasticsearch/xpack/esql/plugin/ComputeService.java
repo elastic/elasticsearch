@@ -180,6 +180,7 @@ public class ComputeService {
                 var computeListener = new ComputeListener(
                     transportService,
                     rootTask,
+                    executionInfo,
                     listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo))
                 )
             ) {
@@ -207,7 +208,7 @@ public class ComputeService {
             // this is the top level ComputeListener called once at the end (e.g., once all clusters have finished for a CCS)
             // MP TODO: does this ComputeListener really need the executionInfo passed in? Or do we already have proper reference?
             // MP TODO: I'm going to leave off adding it until proven it is needed
-            var computeListener = new ComputeListener(transportService, rootTask, /*executionInfo,*/ listener.map(r -> {
+            var computeListener = new ComputeListener(transportService, rootTask, executionInfo, listener.map(r -> {
                 System.err.printf(
                     "DEBUG 12: total shards: [%d]; skipped shards: [%d]; took: [%s]\n",
                     r.getTotalShards(),
@@ -292,7 +293,7 @@ public class ComputeService {
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
-        EsqlExecutionInfo ei,
+        EsqlExecutionInfo exin,
         ComputeListener computeListener
     ) {
         // MP TODO -- start TMP
@@ -301,7 +302,7 @@ public class ComputeService {
             sessionId,
             clusterAlias,
             concreteIndices,
-            ei
+            exin
         );
         // MP TODO -- end TMP
         var planWithReducer = configuration.pragmas().nodeLevelReduction() == false
@@ -317,7 +318,8 @@ public class ComputeService {
         // but it would be better to have a proper impl.
         QueryBuilder requestFilter = PlannerUtils.requestFilter(planWithReducer, x -> true);
         var lookupListener = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
-        lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ei, ActionListener.wrap(dataNodes -> {
+        // SearchShards API can_match is done in lookupDataNodes
+        lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, exin, ActionListener.wrap(dataNodes -> {
             try (RefCountingListener refs = new RefCountingListener(lookupListener)) {
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
@@ -332,14 +334,8 @@ public class ComputeService {
                         refs.acquire().delegateFailureAndWrap((l, unused) -> {
                             var remoteSink = exchangeService.newRemoteSink(parentTask, sessionId, transportService, node.connection);
                             exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
-                            ActionListener<ComputeResponse> computeResponseActionListener;
-                            if (clusterAlias.equals(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY)) {
-                                assert ei != null : "EsqlExecutionInfo must be provided when running on local cluster";
-                                computeResponseActionListener = computeListener.acquireCompute(clusterAlias, ei);
-                            } else {
-                                computeResponseActionListener = computeListener.acquireCompute();
-                            }
-                            var dataNodeListener = ActionListener.runBefore(computeResponseActionListener, () -> l.onResponse(null));
+                            ActionListener<ComputeResponse> computeResponseListener = computeListener.acquireCompute(clusterAlias, exin);
+                            var dataNodeListener = ActionListener.runBefore(computeResponseListener, () -> l.onResponse(null));
                             transportService.sendChildRequest(
                                 node.connection,
                                 DATA_ACTION_NAME,
@@ -391,7 +387,7 @@ public class ComputeService {
 
                         var clusterRequest = new ClusterComputeRequest(cluster.clusterAlias, sessionId, configuration, remotePlan);
                         var clusterListener = ActionListener.runBefore(
-                            computeListener.acquireCompute(cluster.clusterAlias(), executionInfo),
+                            computeListener.acquireCCSCompute(cluster.clusterAlias()),
                             () -> l.onResponse(null)
                         );
                         transportService.sendChildRequest(
@@ -598,23 +594,21 @@ public class ComputeService {
                 Map<Index, AliasFilter> aliasFilters = nodeToAliasFilters.getOrDefault(e.getKey(), Map.of());
                 dataNodes.add(new DataNode(transportService.getConnection(node), e.getValue(), aliasFilters));
             }
-            if (executionInfo.isCrossClusterSearch()) {
-                final int countShards = totalShards;
-                final int skipped = skippedShards;
-                executionInfo.swapCluster(
-                    clusterAlias,
-                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(countShards)
-                        .setSuccessfulShards(countShards)
-                        .setSkippedShards(skipped)
-                        .setFailedShards(0)
-                        .build()
-                );
-                System.err.printf(
-                    "### ### DEBUG 100: SearchShardsRequest executionInfo summary for cluster[%s] : [%s]\n",
-                    clusterAlias,
-                    executionInfo
-                );
-            }
+            final int countShards = totalShards;
+            final int skipped = skippedShards;
+            executionInfo.swapCluster(
+                clusterAlias,
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(countShards)
+                    .setSuccessfulShards(countShards)
+                    .setSkippedShards(skipped)
+                    .setFailedShards(0)
+                    .build()
+            );
+            System.err.printf(
+                "### ### DEBUG 100: SearchShardsRequest executionInfo summary for cluster[%s] : [%s]\n",
+                clusterAlias,
+                executionInfo
+            );
             return dataNodes;
         });
         System.err.println("### ### : Sending SearchShardsRequest for cluster: " + clusterAlias);

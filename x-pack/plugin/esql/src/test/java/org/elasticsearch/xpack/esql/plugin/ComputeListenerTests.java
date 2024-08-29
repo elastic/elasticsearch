@@ -27,6 +27,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -99,7 +100,7 @@ public class ComputeListenerTests extends ESTestCase {
 
     public void testEmpty() {
         PlainActionFuture<ComputeResponse> results = new PlainActionFuture<>();
-        try (ComputeListener ignored = new ComputeListener(transportService, newTask(), results)) {
+        try (ComputeListener ignored = new ComputeListener(transportService, newTask(), new EsqlExecutionInfo(), results)) {
             assertFalse(results.isDone());
         }
         assertTrue(results.isDone());
@@ -109,7 +110,8 @@ public class ComputeListenerTests extends ESTestCase {
     public void testCollectComputeResults() {
         PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
         List<DriverProfile> allProfiles = new ArrayList<>();
-        try (ComputeListener computeListener = new ComputeListener(transportService, newTask(), future)) {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+        try (ComputeListener computeListener = new ComputeListener(transportService, newTask(), executionInfo, future)) {
             int tasks = randomIntBetween(1, 100);
             for (int t = 0; t < tasks; t++) {
                 if (randomBoolean()) {
@@ -149,7 +151,7 @@ public class ComputeListenerTests extends ESTestCase {
         int failedTasks = between(1, 100);
         PlainActionFuture<ComputeResponse> rootListener = new PlainActionFuture<>();
         CancellableTask rootTask = newTask();
-        try (ComputeListener computeListener = new ComputeListener(transportService, rootTask, rootListener)) {
+        try (ComputeListener computeListener = new ComputeListener(transportService, rootTask, new EsqlExecutionInfo(), rootListener)) {
             for (int i = 0; i < successTasks; i++) {
                 ActionListener<ComputeResponse> subListener = computeListener.acquireCompute();
                 threadPool.schedule(
@@ -207,6 +209,7 @@ public class ComputeListenerTests extends ESTestCase {
             ComputeListener computeListener = new ComputeListener(
                 transportService,
                 newTask(),
+                new EsqlExecutionInfo(),
                 ActionListener.runAfter(rootListener, latch::countDown)
             )
         ) {

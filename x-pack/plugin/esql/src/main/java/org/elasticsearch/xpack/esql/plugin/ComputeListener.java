@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -48,11 +47,18 @@ final class ComputeListener implements Releasable {
 
     private EsqlExecutionInfo esqlExecutionInfo;
 
-    ComputeListener(TransportService transportService, CancellableTask task, ActionListener<ComputeResponse> delegate) {
+    // for use by top level ComputeListener (spanning all clusters) (???)
+    ComputeListener(
+        TransportService transportService,
+        CancellableTask task,
+        EsqlExecutionInfo executionInfo,
+        ActionListener<ComputeResponse> delegate
+    ) {
         this.transportService = transportService;
         this.task = task;
         this.responseHeaders = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
         this.collectedProfiles = Collections.synchronizedList(new ArrayList<>());
+        this.esqlExecutionInfo = executionInfo;
         this.refs = new RefCountingListener(1, ActionListener.wrap(ignored -> {
             responseHeaders.finish();
             var result = new ComputeResponse(collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList());
@@ -61,6 +67,7 @@ final class ComputeListener implements Releasable {
         // MP TODO: ^^ do we need to instrument the above onFailure handler?
     }
 
+    // this ctor is for use on remote nodes only
     ComputeListener(
         TransportService transportService,
         CancellableTask task,
@@ -72,18 +79,24 @@ final class ComputeListener implements Releasable {
         this.task = task;
         this.responseHeaders = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
         this.collectedProfiles = Collections.synchronizedList(new ArrayList<>());
+        this.esqlExecutionInfo = executionInfo;
         // for remote executions - this ComputeResponse is created on the remote cluster/node and will be serialized back and
         // received by the acquireCompute method callback on the coordinating cluster
         this.refs = new RefCountingListener(1, ActionListener.wrap(ignored -> {
             responseHeaders.finish();
-            System.err.println("* * * * * * * * * * * Creating ComputeResponse in ComputeListener refs REF");
-            final int rand = ThreadLocalRandom.current().nextInt(999999);
-            System.err.println("=========> RAND: " + rand);
-            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+            // System.err.println("* * * * * * * * * ++ ComputeResponse in ComputeListener refs: local");
+            // final int rand = ThreadLocalRandom.current().nextInt(999999);
+            // System.err.println("=========> RAND: " + rand);
+            EsqlExecutionInfo.Cluster cluster = esqlExecutionInfo.getCluster(clusterAlias);
+            System.err.printf(
+                "* * * * * * * Creating ComputeResponse in ComputeListener refs from execInfo [%d] for cluster: [%s]\n",
+                esqlExecutionInfo.id(),
+                cluster
+            );
             var result = new ComputeResponse(
                 collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList(),
                 cluster.getTook(),
-                rand,
+                cluster.getTotalShards(),
                 cluster.getSuccessfulShards(),
                 cluster.getSkippedShards(),
                 cluster.getFailedShards()
@@ -125,37 +138,83 @@ final class ComputeListener implements Releasable {
     }
 
     /**
-     * Acts like {@code acquireCompute} but also updates {@link EsqlExecutionInfo} with metadata about the search
-     * on the remote cluster
-     * @param clusterAlias remote cluster alias the compute is running on
+     * TODO: DOCUMENT ME
+     * @param clusterAlias
+     * @return
      */
-    ActionListener<ComputeResponse> acquireCompute(String clusterAlias, EsqlExecutionInfo executionInfo) {
+    ActionListener<ComputeResponse> acquireCCSCompute(String clusterAlias) {
         assert clusterAlias != null : "Must provide non-null cluster alias to acquireCompute";
-        assert executionInfo != null : "When providing cluster alias to acquireCompute, EsqlExecutionInfo must not be null";
+        assert esqlExecutionInfo != null : "When providing cluster alias to acquireCompute, EsqlExecutionInfo must not be null";
         return acquireAvoid().map(resp -> {
-            System.err.println("VVV acquireCompute: resp took: " + resp.getTook());
+            System.err.println("CCC acquireCCSCompute: esqlExecutionInfo instance var ID: " + esqlExecutionInfo.id());
             responseHeaders.collect();
             var profiles = resp.getProfiles();
             if (profiles != null && profiles.isEmpty() == false) {
                 collectedProfiles.addAll(profiles);
             }
-            System.err.println("=====> TOTAL SHARDS n acquireCompute: " + resp.getTotalShards());
-            if (executionInfo.isCrossClusterSearch()) {
-                executionInfo.swapCluster(
-                    clusterAlias,
-                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
-                        // MP TODO: if we get here does that mean that the remote search is finished and was SUCCESSFUL?
-                        // MP TODO: if yes, where does the failure path go - how do we update the ExecutionInfo with failure info?
-                        .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
-                        .setTook(resp.getTook())
-                        .setTotalShards(resp.getTotalShards())
-                        .setSuccessfulShards(resp.getSuccessfulShards())
-                        .setSkippedShards(resp.getSkippedShards())
-                        .setFailedShards(resp.getFailedShards())
-                        .build()
-                );
-                System.err.printf("UUU: swapping-in (in acquireCompute) for cluster: [%s]; execInfo: [%s]\n", clusterAlias, executionInfo);
+            System.err.println("CCC acquireCCSCompute: TOTAL SHARDS n acquireCompute: " + resp.getTotalShards());
+            System.err.printf(
+                "CCC acquireCCSCompute: Cluster [%s] before swapping: %s\n",
+                clusterAlias,
+                esqlExecutionInfo.getCluster(clusterAlias)
+            );
+            esqlExecutionInfo.swapCluster(
+                clusterAlias,
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
+                    // MP TODO: if we get here does that mean that the remote search is finished and was SUCCESSFUL?
+                    // MP TODO: if yes, where does the failure path go - how do we update the ExecutionInfo with failure info?
+                    .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                    .setTook(resp.getTook())
+                    .setTotalShards(resp.getTotalShards())
+                    .setSuccessfulShards(resp.getSuccessfulShards())
+                    .setSkippedShards(resp.getSkippedShards())
+                    .setFailedShards(resp.getFailedShards())
+                    .build()
+            );
+            System.err.printf(
+                "CCC acquireCCSCompute:: execid:[%d] Cluster AFTER swapping: [%s]\n",
+                esqlExecutionInfo.id(),
+                esqlExecutionInfo.getCluster(clusterAlias)
+            );
+            return null;
+        });
+
+    }
+
+    /**
+     * Acts like {@code acquireCompute} but also updates {@link EsqlExecutionInfo} with metadata about the search
+     * on the remote cluster
+     * @param clusterAlias remote cluster alias the compute is running on
+     */
+    ActionListener<ComputeResponse> acquireCompute(String clusterAlias, EsqlExecutionInfo executionInfo) {  // TODO: remove ExecInfo arg
+        assert clusterAlias != null : "Must provide non-null cluster alias to acquireCompute";
+        assert executionInfo != null : "When providing cluster alias to acquireCompute, EsqlExecutionInfo must not be null";
+        return acquireAvoid().map(resp -> {
+            System.err.println("VVV acquireCompute: esqlExecutionInfo instance var ID: " + esqlExecutionInfo.id());
+            responseHeaders.collect();
+            var profiles = resp.getProfiles();
+            if (profiles != null && profiles.isEmpty() == false) {
+                collectedProfiles.addAll(profiles);
             }
+            System.err.println("VVV acquireCompute: TOTAL SHARDS n acquireCompute: " + resp.getTotalShards());
+            System.err.printf(
+                "VVV acquireCompute: Cluster [%s] before swapping: %s\n",
+                clusterAlias,
+                esqlExecutionInfo.getCluster(clusterAlias)
+            );
+            // MP TODO: if we get here does that mean that the remote search is finished and was SUCCESSFUL?
+            // MP TODO: if yes, where does the failure path go - how do we update the ExecutionInfo with failure info?
+            esqlExecutionInfo.swapCluster(
+                clusterAlias,
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                    .setTook(resp.getTook())
+                    .build()
+            );
+            System.err.printf(
+                "VVV acquireCompute:: execid:[%d] Cluster AFTER swapping: [%s]\n",
+                esqlExecutionInfo.id(),
+                esqlExecutionInfo.getCluster(clusterAlias)
+            );
             return null;
         });
     }

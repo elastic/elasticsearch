@@ -166,37 +166,29 @@ public class IndexResolver {
         }
 
         Set<String> concreteIndices = new HashSet<>(fieldCapsResponse.getIndexResponses().size());
-        boolean isCrossCluster = isCrossClusterQuery(fieldCapsResponse);
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             String indexExpression = ir.getIndexName();
             concreteIndices.add(indexExpression);
 
             String clusterAlias = parseClusterAlias(indexExpression);
-            // only populate EsqlExecutionInfo if this is a cross-cluster query
-            if (isCrossCluster) {
-                EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
-                // populate the EsqlExecutionInfo cluster map with responses from each cluster coming back from field-caps
-                if (cluster == null) {
-                    executionInfo.swapCluster(
-                        clusterAlias,
-                        (k, v) -> new EsqlExecutionInfo.Cluster(
-                            clusterAlias,
-                            indexExpression,
-                            executionInfo.isSkipUnavailable(clusterAlias)
-                        )
-                    );
-                } else {
-                    String newIndexExpr = cluster.getIndexExpression() + "," + indexExpression;
-                    executionInfo.swapCluster(
-                        clusterAlias,
-                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setIndexExpression(newIndexExpr).build()
-                    );
-                }
+            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+            // populate the EsqlExecutionInfo cluster map with responses from each cluster coming back from field-caps
+            if (cluster == null) {
+                executionInfo.swapCluster(
+                    clusterAlias,
+                    (k, v) -> new EsqlExecutionInfo.Cluster(clusterAlias, indexExpression, executionInfo.isSkipUnavailable(clusterAlias))
+                );
+            } else {
+                String newIndexExpr = cluster.getIndexExpression() + "," + indexExpression;
+                executionInfo.swapCluster(
+                    clusterAlias,
+                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setIndexExpression(newIndexExpr).build()
+                );
             }
         }
 
         // check for "remote unavailable" type errors that occurred during field-caps lookup on remote clusters
-        if (isCrossCluster && fieldCapsResponse.getFailures() != null) {
+        if (fieldCapsResponse.getFailures() != null) {
             Set<String> clusterAliasesWithErrors = new HashSet<>();
             for (FieldCapabilitiesFailure failure : fieldCapsResponse.getFailures()) {
                 if (isRemoteUnavailableException(failure.getException())) {
@@ -209,12 +201,10 @@ public class IndexResolver {
             }
 
             for (String clusterAlias : clusterAliasesWithErrors) {
-                EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
-                assert cluster != null : "EsqlExecutionInfo was set up incorrectly; null entry for cluster: " + clusterAlias;
-                if (cluster.isSkipUnavailable()) {
+                if (executionInfo.getCluster(clusterAlias).isSkipUnavailable()) {
                     executionInfo.swapCluster(
                         clusterAlias,
-                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(cluster).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED).build()
+                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED).build()
                     );
                 } else {
                     // MP FIXME this causes a 500 - is that what we want to return? _search returns 400 when skip_unavailable=false.

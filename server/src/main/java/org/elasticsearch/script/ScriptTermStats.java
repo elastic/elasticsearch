@@ -15,6 +15,7 @@ import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermStates;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -214,7 +215,12 @@ public class ScriptTermStats {
                     continue;
                 }
 
-                TermState state = termStates.get(leafReaderContext);
+                IOSupplier<TermState> stateSupplier = termStates.get(leafReaderContext);
+                if (stateSupplier == null) {
+                    postings[i] = null;
+                    continue;
+                }
+                TermState state = stateSupplier.get();
                 if (state == null) {
                     postings[i] = null;
                     continue;

@@ -48,7 +48,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
     private volatile Exception ex;
 
     // used to control the state of this publisher (Apache) and its interaction with its subscriber
-    private final Deque<HttpResult> resultQueue = new ConcurrentLinkedDeque<>();
+    private final Deque<Data> resultQueue = new ConcurrentLinkedDeque<>();
     private final PendingRequestCount requestCount = new PendingRequestCount();
     private final AtomicBoolean isDone = new AtomicBoolean(false);
     private final AtomicBoolean subscriptionCanceled = new AtomicBoolean(false);
@@ -71,7 +71,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
     @Override
     public void responseReceived(HttpResponse httpResponse) throws IOException {
         this.response = httpResponse;
-        this.resultQueue.offer(HttpResult.create(settings.getMaxResponseSize(), response));
+        this.resultQueue.offer(new Data(HttpResult.create(settings.getMaxResponseSize(), response)));
         this.listener.onResponse(this);
     }
 
@@ -101,7 +101,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
 
         // we can have empty bytes, don't bother sending them
         if (allBytes.length > 0) {
-            resultQueue.offer(new HttpResult(response, allBytes));
+            resultQueue.offer(new Data(allBytes));
         }
 
         // always check if totalByteSize > the configured setting in case the settings change
@@ -136,7 +136,8 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
     @Override
     public void failed(Exception e) {
         if (this.isDone.compareAndSet(false, true)) {
-            this.ex = e;
+            ex = e;
+            resultQueue.offer(new Data(new byte[0], e));
             taskRunner.requestNextRun();
         }
     }
@@ -192,7 +193,6 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
         @Override
         public void cancel() {
             if (subscriptionCanceled.compareAndSet(false, true)) {
-                resultQueue.clear();
                 taskRunner.cancel();
             }
         }
@@ -201,18 +201,18 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
     private class OffloadThread implements Runnable {
         @Override
         public void run() {
-            while (resultQueue.isEmpty() == false && ex == null && subscriptionCanceled.get() == false && requestCount.decrement()) {
+            while (resultQueue.isEmpty() == false && subscriptionCanceled.get() == false && requestCount.decrement()) {
                 var nextRequest = resultQueue.poll();
-                subscriber.onNext(nextRequest);
-                bytesInQueue.updateAndGet(current -> Long.min(0, current - nextRequest.body().length));
+                if (nextRequest.hasError()) {
+                    subscriber.onError(nextRequest.error());
+                } else {
+                    subscriber.onNext(new HttpResult(response, nextRequest.payload()));
+                    bytesInQueue.updateAndGet(current -> Long.min(0, current - nextRequest.payload().length));
+                }
             }
 
-            if (isDone() && subscriptionCanceled.get() == false && requestCount.decrement()) {
-                if (ex == null) {
-                    subscriber.onComplete();
-                } else {
-                    subscriber.onError(ex);
-                }
+            if (isDone() && resultQueue.isEmpty() && requestCount.decrement()) {
+                subscriber.onComplete();
             } else if (savedIoControl != null) {
                 resumeProducer();
             }
@@ -245,6 +245,20 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
                 return nextValue >= 0 ? nextValue : 0;
             });
             return previousValue != 0;
+        }
+    }
+
+    private record Data(byte[] payload, Exception error) {
+        Data(HttpResult httpResult) {
+            this(httpResult.body());
+        }
+
+        Data(byte[] payload) {
+            this(payload, null);
+        }
+
+        private boolean hasError() {
+            return error() != null;
         }
     }
 }

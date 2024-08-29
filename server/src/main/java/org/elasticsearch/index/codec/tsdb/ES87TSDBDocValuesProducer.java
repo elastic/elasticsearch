@@ -15,6 +15,7 @@ import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.ImpactsEnum;
@@ -696,6 +697,11 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 return ords.cost();
             }
         };
+    }
+
+    @Override
+    public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
+        return null;
     }
 
     @Override

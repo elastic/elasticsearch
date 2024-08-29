@@ -49,25 +49,28 @@ RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${
 RUN <%= retry.loop(package_manager, "${package_manager} install -y findutils tar gzip") %>
 <% } %>
 
-# `tini` is a tiny but valid init for containers. This is used to cleanly
-# control how ES and any child processes are shut down.
-#
-# The tini GitHub page gives instructions for verifying the binary using
-# gpg, but the keyservers are slow to return the key and this can fail the
-# build. Instead, we check the binary against the published checksum.
-RUN set -eux ; \\
-    tini_bin="" ; \\
-    case "\$(arch)" in \\
-        aarch64) tini_bin='tini-arm64' ;; \\
-        x86_64)  tini_bin='tini-amd64' ;; \\
-        *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \\
-    esac ; \\
-    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
-    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
-    sha256sum -c \${tini_bin}.sha256sum ; \\
-    rm \${tini_bin}.sha256sum ; \\
-    mv \${tini_bin} /bin/tini ; \\
-    chmod 0555 /bin/tini
+<% if (docker_base != 'wolfi') { %>
+    # `tini` is a tiny but valid init for containers. This is used to cleanly
+    # control how ES and any child processes are shut down.
+    # For wolfi we pick it from the blessed wolfi package registry.
+    #
+    # The tini GitHub page gives instructions for verifying the binary using
+    # gpg, but the keyservers are slow to return the key and this can fail the
+    # build. Instead, we check the binary against the published checksum.
+    RUN set -eux ; \\
+        tini_bin="" ; \\
+        case "\$(arch)" in \\
+            aarch64) tini_bin='tini-arm64' ;; \\
+            x86_64)  tini_bin='tini-amd64' ;; \\
+            *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \\
+        esac ; \\
+        curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
+        curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
+        sha256sum -c \${tini_bin}.sha256sum ; \\
+        rm \${tini_bin}.sha256sum ; \\
+        mv \${tini_bin} /bin/tini ; \\
+        chmod 0555 /bin/tini
+<% } %>
 
 <% } %>
 

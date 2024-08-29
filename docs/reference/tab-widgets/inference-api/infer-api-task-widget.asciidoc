@@ -49,6 +49,12 @@
             id="infer-api-task-amazon-bedrock">
       Amazon Bedrock
     </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-task-alibabacloud-ai-search-tab"
+            id="infer-api-task-alibabacloud-ai-search">
+      AlibabaCloud AI Search
+    </button>
   </div>
   <div tabindex="0"
        role="tabpanel"
@@ -134,6 +140,17 @@ include::infer-api-task.asciidoc[tag=mistral]
 ++++
 
 include::infer-api-task.asciidoc[tag=amazon-bedrock]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-task-alibabacloud-ai-search-tab"
+       aria-labelledby="infer-api-task-alibabacloud-ai-search"
+       hidden="">
+++++
+
+include::infer-api-task.asciidoc[tag=alibabacloud-ai-search]
 
 ++++
   </div>

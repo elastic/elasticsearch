@@ -58,10 +58,11 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
     }
 
     @Override
-    public SpanQuery rewrite(IndexReader reader, MultiTermQuery query) throws IOException {
+    public SpanQuery rewrite(IndexSearcher indexSearcher, MultiTermQuery query) throws IOException {
         final MultiTermQuery.RewriteMethod delegate = new MultiTermQuery.RewriteMethod() {
             @Override
-            public Query rewrite(IndexReader reader, MultiTermQuery query) throws IOException {
+            public Query rewrite(IndexSearcher indexSearcher, MultiTermQuery query) throws IOException {
+                IndexReader reader = indexSearcher.getIndexReader();
                 Collection<SpanQuery> queries = collectTerms(reader, query);
                 if (queries.size() == 0) {
                     return new SpanMatchNoDocsQuery(query.getField(), "no expansion found for " + query.toString());
@@ -111,6 +112,6 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
                 return queries;
             }
         };
-        return (SpanQuery) delegate.rewrite(reader, query);
+        return (SpanQuery) delegate.rewrite(indexSearcher, query);
     }
 }

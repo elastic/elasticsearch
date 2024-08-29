@@ -62,7 +62,7 @@ public class FilterableTermsEnum extends TermsEnum {
     protected BytesRef current;
     protected final int docsEnumFlag;
 
-    public FilterableTermsEnum(IndexReader reader, String field, int docsEnumFlag, @Nullable Query f) throws IOException {
+    public FilterableTermsEnum(IndexReader reader, String field, int docsEnumFlag, @Nullable Query filter) throws IOException {
         if ((docsEnumFlag != PostingsEnum.FREQS) && (docsEnumFlag != PostingsEnum.NONE)) {
             throw new IllegalArgumentException("invalid docsEnumFlag of " + docsEnumFlag);
         }

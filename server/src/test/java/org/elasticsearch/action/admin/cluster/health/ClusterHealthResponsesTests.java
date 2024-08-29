@@ -331,7 +331,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
                     instance.getNumberOfInFlightFetch(),
                     instance.getDelayedUnassignedShards(),
                     instance.getTaskMaxWaitingTime(),
-                    instance.isTimedOut() == false,
+                    instance.isTimedOut() ? false : true,
                     instance.getClusterStateHealth()
                 );
             case "clusterStateHealth":

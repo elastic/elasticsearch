@@ -46,7 +46,7 @@ public class TransportRepositoryVerifyIntegrityCoordinationAction extends Transp
      *      |                                     |---[master node request]-------------->| ----------------------\
      *      |                                     |                                       |-| Initialize verifier |
      *      |                                     |                                       | |---------------------|
-     *      |                                     |<--[response chunk request]------------|
+     *      |                                     |<--[SNAPSHOT_INFO chunk request]-------|
      *      |<---[headers & initial JSON body]----|                                       |
      *      |                                     |---[SNAPSHOT_INFO chunk response]----->| ------------------\
      *      |                                     |                                       |-| Verify snapshot |

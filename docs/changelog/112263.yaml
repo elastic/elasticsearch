@@ -2,4 +2,5 @@ pr: 112263
 summary: Fix `TokenService` always appearing used in Feature Usage
 area: License
 type: bug
-issues: []
+issues:
+ - 61956

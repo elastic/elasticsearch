@@ -803,16 +803,7 @@ public class ComputeService {
                 request.indices(),
                 request.indicesOptions()
             );
-            String clusterAlias = request.clusterAlias();
-            EsqlExecutionInfo execInfo = new EsqlExecutionInfo();
-            System.err.println("*** DataNodeRequestHandler: Creating new temp EsqlExecutionInfo");
-            final DataNodeRequest requestRef = request;
-            execInfo.swapCluster(
-                clusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster(clusterAlias, Arrays.toString(requestRef.indices()))
-            );
-
-            try (var computeListener = new ComputeListener(transportService, (CancellableTask) task, clusterAlias, execInfo, listener)) {
+            try (var computeListener = new ComputeListener(transportService, (CancellableTask) task, null, listener)) {
                 runComputeOnDataNode((CancellableTask) task, sessionId, reducePlan, request, computeListener);
             }
         }

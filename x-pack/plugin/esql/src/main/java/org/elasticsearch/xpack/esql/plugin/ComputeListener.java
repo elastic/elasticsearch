@@ -45,7 +45,7 @@ final class ComputeListener implements Releasable {
     private final List<DriverProfile> collectedProfiles;
     private final ResponseHeadersCollector responseHeaders;
 
-    private EsqlExecutionInfo esqlExecutionInfo;
+    private final EsqlExecutionInfo esqlExecutionInfo;
 
     // for use by top level ComputeListener (spanning all clusters) (???)
     ComputeListener(
@@ -84,9 +84,6 @@ final class ComputeListener implements Releasable {
         // received by the acquireCompute method callback on the coordinating cluster
         this.refs = new RefCountingListener(1, ActionListener.wrap(ignored -> {
             responseHeaders.finish();
-            // System.err.println("* * * * * * * * * ++ ComputeResponse in ComputeListener refs: local");
-            // final int rand = ThreadLocalRandom.current().nextInt(999999);
-            // System.err.println("=========> RAND: " + rand);
             EsqlExecutionInfo.Cluster cluster = esqlExecutionInfo.getCluster(clusterAlias);
             System.err.printf(
                 "* * * * * * * Creating ComputeResponse in ComputeListener refs from execInfo [%d] for cluster: [%s]\n",

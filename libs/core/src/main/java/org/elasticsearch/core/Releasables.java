@@ -149,8 +149,8 @@ public enum Releasables {
                 private final AtomicReference<Exception> firstCompletion = new AtomicReference<>();
 
                 private void assertFirstRun() {
-                    var previousRun = firstCompletion.compareAndExchange(null, new Exception(delegate.toString()));
-                    assert previousRun == null : previousRun; // reports the stack traces of both completions
+                    var previousRun = firstCompletion.compareAndExchange(null, new Exception("already executed"));
+                    assert previousRun == null : "[" + delegate + "] " + previousRun; // reports the stack traces of both completions
                 }
 
                 @Override

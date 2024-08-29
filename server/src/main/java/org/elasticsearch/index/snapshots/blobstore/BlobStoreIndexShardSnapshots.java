@@ -266,6 +266,10 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
 
     static volatile boolean INTEGRITY_ASSERTIONS_ENABLED = true;
 
+    public static boolean areIntegrityAssertionsEnabled() {
+        return INTEGRITY_ASSERTIONS_ENABLED;
+    }
+
     public static BlobStoreIndexShardSnapshots fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == null) { // New parser

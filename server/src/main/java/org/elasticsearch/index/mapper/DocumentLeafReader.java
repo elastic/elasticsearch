@@ -479,9 +479,7 @@ class DocumentLeafReader extends LeafReader {
             @Override
             public long nextOrd() {
                 i++;
-                if (i >= values.size()) {
-                    return NO_MORE_ORDS;
-                }
+                assert i < values.size();
                 return i;
             }
 

@@ -279,7 +279,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
             booleanClauses.size()
         );
         for (int i = 0; i < booleanClauses.size(); i++) {
-            Query clauseQuery = booleanClauses.get(i).getQuery();
+            Query clauseQuery = booleanClauses.get(i).query();
             assertTrue(name + " query " + query + " expected to be a BoostQuery", clauseQuery instanceof BoostQuery);
             // FeatureQuery is not visible so we check the String representation
             assertTrue(name + " query " + query + " expected to be a FeatureQuery", clauseQuery.toString().contains("FeatureQuery"));
@@ -353,8 +353,8 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         Class<?> boostQueryClass = FeatureField.newLinearQuery("", "", 1.0f).getClass();
 
         for (var clause : booleanQuery.clauses()) {
-            assertEquals(BooleanClause.Occur.SHOULD, clause.getOccur());
-            assertThat(clause.getQuery(), either(instanceOf(featureQueryClass)).or(instanceOf(boostQueryClass)));
+            assertEquals(BooleanClause.Occur.SHOULD, clause.occur());
+            assertThat(clause.query(), either(instanceOf(featureQueryClass)).or(instanceOf(boostQueryClass)));
         }
     }
 

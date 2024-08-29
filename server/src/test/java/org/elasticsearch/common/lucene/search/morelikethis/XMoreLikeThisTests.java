@@ -116,7 +116,7 @@ public class XMoreLikeThisTests extends ESTestCase {
 
         final double boost10 = ((BooleanQuery) mlt.like("text", new StringReader("lucene|10 release|1"))).clauses()
             .stream()
-            .map(BooleanClause::getQuery)
+            .map(BooleanClause::query)
             .map(BoostQuery.class::cast)
             .filter(x -> ((TermQuery) x.getQuery()).getTerm().text().equals("lucene"))
             .mapToDouble(BoostQuery::getBoost)
@@ -124,7 +124,7 @@ public class XMoreLikeThisTests extends ESTestCase {
 
         final double boost1 = ((BooleanQuery) mlt.like("text", new StringReader("lucene|1 release|1"))).clauses()
             .stream()
-            .map(BooleanClause::getQuery)
+            .map(BooleanClause::query)
             .map(BoostQuery.class::cast)
             .filter(x -> ((TermQuery) x.getQuery()).getTerm().text().equals("lucene"))
             .mapToDouble(BoostQuery::getBoost)

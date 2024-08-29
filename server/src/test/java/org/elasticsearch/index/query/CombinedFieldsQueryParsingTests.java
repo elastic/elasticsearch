@@ -163,8 +163,8 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
         assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(minimumShouldMatch));
 
         assertThat(booleanQuery.clauses().size(), equalTo(2));
-        assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(occur));
-        assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(occur));
+        assertThat(booleanQuery.clauses().get(0).occur(), equalTo(occur));
+        assertThat(booleanQuery.clauses().get(1).occur(), equalTo(occur));
     }
 
     public void testQueryBoost() throws IOException {

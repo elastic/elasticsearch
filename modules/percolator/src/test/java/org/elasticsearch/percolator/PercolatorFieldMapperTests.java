@@ -435,8 +435,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             Tuple<BooleanQuery, Boolean> t = fieldType.createCandidateQuery(indexReader);
             assertTrue(t.v2());
             assertEquals(2, t.v1().clauses().size());
-            assertThat(t.v1().clauses().get(0).getQuery(), instanceOf(CoveringQuery.class));
-            assertThat(t.v1().clauses().get(1).getQuery(), instanceOf(TermQuery.class));
+            assertThat(t.v1().clauses().get(0).query(), instanceOf(CoveringQuery.class));
+            assertThat(t.v1().clauses().get(1).query(), instanceOf(TermQuery.class));
 
             // Now push it over the edge, so that it falls back using TermInSetQuery
             memoryIndex.addField("field2", "value", new WhitespaceAnalyzer());
@@ -444,10 +444,10 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             t = fieldType.createCandidateQuery(indexReader);
             assertFalse(t.v2());
             assertEquals(3, t.v1().clauses().size());
-            TermInSetQuery terms = (TermInSetQuery) t.v1().clauses().get(0).getQuery();
+            TermInSetQuery terms = (TermInSetQuery) t.v1().clauses().get(0).query();
             assertEquals(maxClauseCount - 1, terms.getTermData().size());
-            assertThat(t.v1().clauses().get(1).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:"));
-            assertThat(t.v1().clauses().get(2).getQuery().toString(), containsString(fieldName + ".extraction_result:failed"));
+            assertThat(t.v1().clauses().get(1).query().toString(), containsString(fieldName + ".range_field:<ranges:"));
+            assertThat(t.v1().clauses().get(2).query().toString(), containsString(fieldName + ".extraction_result:failed"));
         } finally {
             IndexSearcher.setMaxClauseCount(origMaxClauseCount);
         }

@@ -139,8 +139,8 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         Class<?> boostQueryClass = FeatureField.newLinearQuery("", "", 1.0f).getClass();
 
         for (var clause : booleanQuery.clauses()) {
-            assertEquals(BooleanClause.Occur.SHOULD, clause.getOccur());
-            assertThat(clause.getQuery(), either(instanceOf(featureQueryClass)).or(instanceOf(boostQueryClass)));
+            assertEquals(BooleanClause.Occur.SHOULD, clause.occur());
+            assertThat(clause.query(), either(instanceOf(featureQueryClass)).or(instanceOf(boostQueryClass)));
         }
     }
 

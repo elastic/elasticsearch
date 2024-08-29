@@ -100,7 +100,7 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
             // all queries except the last should be TermQuery or SynonymQuery
             final Set<Query> allQueriesExceptLast = IntStream.range(0, booleanQuery.clauses().size() - 1)
                 .mapToObj(booleanQuery.clauses()::get)
-                .map(BooleanClause::getQuery)
+                .map(BooleanClause::query)
                 .collect(Collectors.toSet());
             assertThat(
                 allQueriesExceptLast,
@@ -127,7 +127,7 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
             if (queryBuilder.minimumShouldMatch() != null) {
                 final int optionalClauses = (int) booleanQuery.clauses()
                     .stream()
-                    .filter(clause -> clause.getOccur() == BooleanClause.Occur.SHOULD)
+                    .filter(clause -> clause.occur() == BooleanClause.Occur.SHOULD)
                     .count();
                 final int expected = Queries.calculateMinShouldMatch(optionalClauses, queryBuilder.minimumShouldMatch());
                 assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(expected));

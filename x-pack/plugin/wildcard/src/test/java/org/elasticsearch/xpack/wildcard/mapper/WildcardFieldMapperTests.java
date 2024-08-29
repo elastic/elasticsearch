@@ -920,11 +920,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         if (q instanceof BooleanQuery bq) {
             BooleanQuery.Builder result = new BooleanQuery.Builder();
             for (BooleanClause cq : bq.clauses()) {
-                Query rewritten = rewriteFiltersToMustsForComparisonPurposes(cq.getQuery());
-                if (cq.getOccur() == Occur.FILTER) {
+                Query rewritten = rewriteFiltersToMustsForComparisonPurposes(cq.query());
+                if (cq.occur() == Occur.FILTER) {
                     result.add(rewritten, Occur.MUST);
                 } else {
-                    result.add(rewritten, cq.getOccur());
+                    result.add(rewritten, cq.occur());
                 }
             }
             return result.build();

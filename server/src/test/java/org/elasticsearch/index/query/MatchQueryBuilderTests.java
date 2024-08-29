@@ -163,7 +163,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 // calculate expected minimumShouldMatch value
                 int optionalClauses = 0;
                 for (BooleanClause c : bq.clauses()) {
-                    if (c.getOccur() == BooleanClause.Occur.SHOULD) {
+                    if (c.occur() == BooleanClause.Occur.SHOULD) {
                         optionalClauses++;
                     }
                 }

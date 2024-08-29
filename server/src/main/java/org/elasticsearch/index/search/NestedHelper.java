@@ -71,13 +71,13 @@ public final class NestedHelper {
                 return bq.clauses()
                     .stream()
                     .filter(BooleanClause::isRequired)
-                    .map(BooleanClause::getQuery)
+                    .map(BooleanClause::query)
                     .allMatch(this::mightMatchNestedDocs);
             } else {
                 return bq.clauses()
                     .stream()
-                    .filter(c -> c.getOccur() == Occur.SHOULD)
-                    .map(BooleanClause::getQuery)
+                    .filter(c -> c.occur() == Occur.SHOULD)
+                    .map(BooleanClause::query)
                     .anyMatch(this::mightMatchNestedDocs);
             }
         } else if (query instanceof ESToParentBlockJoinQuery) {
@@ -136,13 +136,13 @@ public final class NestedHelper {
                 return bq.clauses()
                     .stream()
                     .filter(BooleanClause::isRequired)
-                    .map(BooleanClause::getQuery)
+                    .map(BooleanClause::query)
                     .allMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
             } else {
                 return bq.clauses()
                     .stream()
-                    .filter(c -> c.getOccur() == Occur.SHOULD)
-                    .map(BooleanClause::getQuery)
+                    .filter(c -> c.occur() == Occur.SHOULD)
+                    .map(BooleanClause::query)
                     .anyMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
             }
         } else {

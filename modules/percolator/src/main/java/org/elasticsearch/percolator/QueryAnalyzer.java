@@ -161,7 +161,7 @@ final class QueryAnalyzer {
             int minimumShouldMatchValue = 0;
             if (parent instanceof BooleanQuery bq) {
                 if (bq.getMinimumNumberShouldMatch() == 0
-                    && bq.clauses().stream().anyMatch(c -> c.getOccur() == Occur.MUST || c.getOccur() == Occur.FILTER)) {
+                    && bq.clauses().stream().anyMatch(c -> c.occur() == Occur.MUST || c.occur() == Occur.FILTER)) {
                     return QueryVisitor.EMPTY_VISITOR;
                 }
                 minimumShouldMatchValue = bq.getMinimumNumberShouldMatch();

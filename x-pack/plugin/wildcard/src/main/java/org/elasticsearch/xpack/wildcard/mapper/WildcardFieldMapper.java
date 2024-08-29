@@ -548,9 +548,9 @@ public class WildcardFieldMapper extends FieldMapper {
                 BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
                 int clauseCount = 0;
                 for (BooleanClause clause : bq) {
-                    Query q = rewriteBoolToNgramQuery(clause.getQuery());
+                    Query q = rewriteBoolToNgramQuery(clause.query());
                     if (q != null) {
-                        if (clause.getOccur().equals(Occur.FILTER)) {
+                        if (clause.occur().equals(Occur.FILTER)) {
                             // Can't drop "should" clauses because it can elevate a sibling optional item
                             // to mandatory (shoulds with 1 clause) causing false negatives
                             // Dropping MUSTs increase false positives which are OK because are verified anyway.
@@ -559,7 +559,7 @@ public class WildcardFieldMapper extends FieldMapper {
                                 break;
                             }
                         }
-                        rewritten.add(q, clause.getOccur());
+                        rewritten.add(q, clause.occur());
                     }
                 }
                 return rewritten.build();

@@ -119,8 +119,8 @@ public class BlendedTermQueryTests extends ESTestCase {
             Query rewrite = searcher.rewrite(query);
             assertThat(rewrite, instanceOf(BooleanQuery.class));
             for (BooleanClause clause : (BooleanQuery) rewrite) {
-                assertThat(clause.getQuery(), instanceOf(TermQuery.class));
-                TermQuery termQuery = (TermQuery) clause.getQuery();
+                assertThat(clause.query(), instanceOf(TermQuery.class));
+                TermQuery termQuery = (TermQuery) clause.query();
                 TermStates termStates = termQuery.getTermStates();
                 if (termQuery.getTerm().field().equals("unknown_field")) {
                     assertThat(termStates.docFreq(), equalTo(0));
@@ -139,8 +139,8 @@ public class BlendedTermQueryTests extends ESTestCase {
             Query rewrite = searcher.rewrite(query);
             assertThat(rewrite, instanceOf(BooleanQuery.class));
             for (BooleanClause clause : (BooleanQuery) rewrite) {
-                assertThat(clause.getQuery(), instanceOf(TermQuery.class));
-                TermQuery termQuery = (TermQuery) clause.getQuery();
+                assertThat(clause.query(), instanceOf(TermQuery.class));
+                TermQuery termQuery = (TermQuery) clause.query();
                 TermStates termStates = termQuery.getTermStates();
                 assertThat(termStates.docFreq(), equalTo(0));
                 assertThat(termStates.totalTermFreq(), equalTo(0L));
@@ -154,8 +154,8 @@ public class BlendedTermQueryTests extends ESTestCase {
             Query rewrite = searcher.rewrite(query);
             assertThat(rewrite, instanceOf(BooleanQuery.class));
             for (BooleanClause clause : (BooleanQuery) rewrite) {
-                assertThat(clause.getQuery(), instanceOf(TermQuery.class));
-                TermQuery termQuery = (TermQuery) clause.getQuery();
+                assertThat(clause.query(), instanceOf(TermQuery.class));
+                TermQuery termQuery = (TermQuery) clause.query();
                 TermStates termStates = termQuery.getTermStates();
                 if (termQuery.getTerm().field().equals("username")) {
                     assertThat(termStates.docFreq(), equalTo(1));

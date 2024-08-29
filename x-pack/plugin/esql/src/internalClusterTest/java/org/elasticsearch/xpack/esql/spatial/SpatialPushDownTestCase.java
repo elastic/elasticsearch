@@ -122,7 +122,7 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
         }
     }
 
-    private void assertFunction(String spatialFunction, String wkt) {
+    protected void assertFunction(String spatialFunction, String wkt) {
         final String query1 = String.format(Locale.ROOT, """
             FROM indexed | WHERE %s(location, %s("%s")) | STATS COUNT(*)
             """, spatialFunction, castingFunction(), wkt);

@@ -31,10 +31,4 @@ public class SpatialPushDownCartesianPointIT extends SpatialPushDownPointsTestCa
     protected String castingFunction() {
         return "TO_CARTESIANSHAPE";
     }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/112102")
-    public void testPushedDownQueriesMultiValue() throws RuntimeException {}
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/112102")
-    public void testSimplePointInPolygon() {}
 }

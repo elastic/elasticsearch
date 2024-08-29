@@ -14,9 +14,12 @@ import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.MvCombiner;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -94,24 +97,30 @@ public class SpatialContains extends SpatialRelatesFunction {
         @Override
         protected boolean geometryRelatesGeometry(BytesRef left, BytesRef right) throws IOException {
             Component2D[] rightComponent2Ds = asLuceneComponent2Ds(crsType, fromBytesRef(right));
-            return geometryRelatesGeometries(left, rightComponent2Ds).result();
+            try (ContainsResultArray result = new ContainsResultArray(rightComponent2Ds.length)) {
+                return geometryRelatesGeometries(left, rightComponent2Ds, result).result();
+            }
         }
 
-        private ContainsResult geometryRelatesGeometries(BytesRef left, Component2D[] rightComponent2Ds) throws IOException {
+        private ContainsResultArray geometryRelatesGeometries(BytesRef left, Component2D[] rightComponent2Ds, ContainsResultArray result)
+            throws IOException {
             Geometry leftGeom = fromBytesRef(left);
             GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, leftGeom);
-            return geometryRelatesGeometries(leftDocValueReader, rightComponent2Ds);
+            return geometryRelatesGeometries(leftDocValueReader, rightComponent2Ds, result);
         }
 
-        private ContainsResult geometryRelatesGeometries(GeometryDocValueReader leftDocValueReader, Component2D[] rightComponent2Ds)
-            throws IOException {
-            ContainsResult result = new ContainsResult(true, false);
-            for (Component2D rightComponent2D : rightComponent2Ds) {
+        private ContainsResultArray geometryRelatesGeometries(
+            GeometryDocValueReader leftDocValueReader,
+            Component2D[] rightComponent2Ds,
+            ContainsResultArray result
+        ) throws IOException {
+            for (int i = 0; i < rightComponent2Ds.length; i++) {
+                Component2D rightComponent2D = rightComponent2Ds[i];
                 boolean contains = geometryRelatesGeometry(leftDocValueReader, rightComponent2D);
                 boolean intersectsButNotContains = contains == false
                     && intersects.geometryRelatesGeometry(leftDocValueReader, rightComponent2D);
                 // Every component of the right geometry must be contained within the left geometry for this to pass
-                result.contains &= contains;
+                result.contains.set(i, contains);
                 // But if any geometry intersects, but is not contained, then the overall result is false
                 result.intersectsButNotContains |= intersectsButNotContains;
                 // Note, we cannot exit early, since we need all the results for combining in multi-valued cases
@@ -195,9 +204,11 @@ public class SpatialContains extends SpatialRelatesFunction {
             GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType(), left());
             Geometry rightGeom = makeGeometryFromLiteral(right());
             Component2D[] components = asLuceneComponent2Ds(crsType(), rightGeom);
-            return (crsType() == SpatialCrsType.GEO
-                ? GEO.geometryRelatesGeometries(docValueReader, components)
-                : CARTESIAN.geometryRelatesGeometries(docValueReader, components)).result();
+            try (ContainsResultArray result = new ContainsResultArray(components.length)) {
+                return (crsType() == SpatialCrsType.GEO
+                    ? GEO.geometryRelatesGeometries(docValueReader, components, result)
+                    : CARTESIAN.geometryRelatesGeometries(docValueReader, components, result)).result();
+            }
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to fold constant fields: " + e.getMessage(), e);
         }
@@ -292,8 +303,9 @@ public class SpatialContains extends SpatialRelatesFunction {
         mvCombiner = SpatialContainsCombiner.class,
         mvCombinerResultType = Boolean.class
     )
-    static ContainsResult processGeoSourceAndConstant(BytesRef leftValue, @Fixed Component2D[] rightValue) throws IOException {
-        return GEO.geometryRelatesGeometries(leftValue, rightValue);
+    static ContainsResultArray processGeoSourceAndConstant(BytesRef leftValue, @Fixed Component2D[] rightValue) throws IOException {
+        ContainsResultArray result = new ContainsResultArray(rightValue.length);
+        return GEO.geometryRelatesGeometries(leftValue, rightValue, result);
     }
 
     @Evaluator(
@@ -330,8 +342,9 @@ public class SpatialContains extends SpatialRelatesFunction {
         mvCombiner = SpatialContainsCombiner.class,
         mvCombinerResultType = Boolean.class
     )
-    static ContainsResult processCartesianSourceAndConstant(BytesRef leftValue, @Fixed Component2D[] rightValue) throws IOException {
-        return CARTESIAN.geometryRelatesGeometries(leftValue, rightValue);
+    static ContainsResultArray processCartesianSourceAndConstant(BytesRef leftValue, @Fixed Component2D[] rightValue) throws IOException {
+        ContainsResultArray result = new ContainsResultArray(rightValue.length);
+        return CARTESIAN.geometryRelatesGeometries(leftValue, rightValue, result);
     }
 
     @Evaluator(
@@ -358,51 +371,75 @@ public class SpatialContains extends SpatialRelatesFunction {
         return CARTESIAN.pointRelatesGeometry(leftValue, geometry);
     }
 
-    public static class SpatialContainsCombiner implements MvCombiner<ContainsResult, Boolean> {
-        ContainsResult result = new ContainsResult();
+    public static class SpatialContainsCombiner implements MvCombiner<ContainsResultArray, Boolean> {
+        ContainsResultArray result;
 
         @Override
         public void initialize() {
-            result.initialize();
+            // TODO pass in driverContext.blockFactory().bigArrays() from evaluator generated code, to avoid non-recycling instance
+            result = new ContainsResultArray(0, BigArrays.NON_RECYCLING_INSTANCE);
         }
 
         @Override
-        public void add(ContainsResult value) {
+        public void add(ContainsResultArray value) {
             result.add(value);
         }
 
         @Override
         public Boolean result() {
-            return result.contains && result.intersectsButNotContains == false;
+            try {
+                return result.result();
+            } finally {
+                result.close();
+            }
         }
     }
 
-    public static class ContainsResult {
-        private boolean contains;
+    public static class ContainsResultArray implements Releasable {
+        private BitArray contains;
         private boolean intersectsButNotContains;
+        private int size;
 
-        public ContainsResult(boolean contains, boolean intersectsButNotContains) {
-            this.contains = contains;
+        private ContainsResultArray(int initialSize, boolean intersectsButNotContains, BigArrays bigArrays) {
+            this.contains = new BitArray(initialSize, bigArrays);
+            this.size = initialSize;
             this.intersectsButNotContains = intersectsButNotContains;
         }
 
-        public ContainsResult() {
-            this(false, false);
+        public ContainsResultArray(int initialSize, BigArrays bigArrays) {
+            this(initialSize, false, bigArrays);
         }
 
-        public void initialize() {
-            contains = false;
-            intersectsButNotContains = false;
+        public ContainsResultArray(int initialSize) {
+            // TODO: Remove this constructor once we pass correct BigArrays down from evaluator
+            this(initialSize, false, BigArrays.NON_RECYCLING_INSTANCE);
         }
 
-        public void add(ContainsResult value) {
+        public void initialize(int size) {
+            this.size = size;
+            this.contains.fill(0, size, false);
+            this.intersectsButNotContains = false;
+        }
+
+        public void add(ContainsResultArray value) {
+            if (value.size > size) {
+                // First time called after initialize(0) will re-initialize to actual component array size
+                initialize(value.size);
+            }
             // When looking at multi-value fields, if any value contains the parameter, then the multi-value contains the parameter
-            contains |= value.contains;
+            contains.or(value.contains);
             intersectsButNotContains |= value.intersectsButNotContains;
+            value.close();
         }
 
         public boolean result() {
-            return contains && intersectsButNotContains == false;
+            // All components need to have been found to be contained within at least one value of the multi-value field
+            return contains.cardinality() == size && intersectsButNotContains == false;
+        }
+
+        @Override
+        public void close() {
+            contains.close();
         }
     }
 }

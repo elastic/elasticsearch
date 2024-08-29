@@ -264,7 +264,7 @@ public class ObjectMapper extends Mapper {
                     // mix of object notation and dot notation.
                     mapper = existing.merge(mapper, MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE));
                 }
-                if (mapper instanceof ObjectMapper objectMapper && isFlattenable(subobjects, objectMapper, mapperBuilderContext)) {
+                if (mapper instanceof ObjectMapper objectMapper && isFlatteningCandidate(subobjects, objectMapper)) {
                     // We're parsing a mapping that has defined sub-objects, may need to flatten them.
                     objectMapper.asFlattenedFieldMappers(mapperBuilderContext, throwOnFlattenableError(subobjects))
                         .forEach(m -> mappers.put(m.leafName(), m));
@@ -664,7 +664,7 @@ public class ObjectMapper extends Mapper {
             Map<String, Mapper> mergedMappers = new HashMap<>();
             var context = objectMergeContext.getMapperBuilderContext();
             for (Mapper childOfExistingMapper : existing.mappers.values()) {
-                if (childOfExistingMapper instanceof ObjectMapper objectMapper && isFlattenable(subobjects, objectMapper, context)) {
+                if (childOfExistingMapper instanceof ObjectMapper objectMapper && isFlatteningCandidate(subobjects, objectMapper)) {
                     // An existing mapping with sub-objects is merged with a mapping that has `subobjects` set to false or auto.
                     objectMapper.asFlattenedFieldMappers(context, throwOnFlattenableError(subobjects))
                         .forEach(m -> mergedMappers.put(m.leafName(), m));
@@ -675,7 +675,7 @@ public class ObjectMapper extends Mapper {
             for (Mapper mergeWithMapper : mergeWithObject) {
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.leafName());
                 if (mergeIntoMapper == null) {
-                    if (mergeWithMapper instanceof ObjectMapper objectMapper && isFlattenable(subobjects, objectMapper, context)) {
+                    if (mergeWithMapper instanceof ObjectMapper objectMapper && isFlatteningCandidate(subobjects, objectMapper)) {
                         // An existing mapping with `subobjects` set to false or auto is merged with a mapping with sub-objects
                         objectMapper.asFlattenedFieldMappers(context, throwOnFlattenableError(subobjects))
                             .stream()
@@ -741,7 +741,7 @@ public class ObjectMapper extends Mapper {
         return flattenedMappers;
     }
 
-    private static boolean isFlattenable(Optional<Subobjects> subobjects, ObjectMapper mapper, MapperBuilderContext context) {
+    private static boolean isFlatteningCandidate(Optional<Subobjects> subobjects, ObjectMapper mapper) {
         return subobjects.isPresent() && subobjects.get() != Subobjects.ENABLED && mapper instanceof NestedObjectMapper == false;
     }
 

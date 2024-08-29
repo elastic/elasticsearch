@@ -31,26 +31,40 @@ public class PublishNodeIngestLoadRequestSerializationTests extends AbstractWire
 
     @Override
     protected PublishNodeIngestLoadRequest createTestInstance() {
-        return new PublishNodeIngestLoadRequest(UUIDs.randomBase64UUID(), randomLong(), randomDoubleBetween(0, 512, true));
+        return new PublishNodeIngestLoadRequest(
+            UUIDs.randomBase64UUID(),
+            randomIdentifier(),
+            randomLong(),
+            randomDoubleBetween(0, 512, true)
+        );
     }
 
     @Override
     protected PublishNodeIngestLoadRequest mutateInstance(PublishNodeIngestLoadRequest instance) {
-        return switch (randomInt(2)) {
+        return switch (randomInt(3)) {
             case 0 -> new PublishNodeIngestLoadRequest(
                 randomValueOtherThan(instance.getNodeId(), UUIDs::randomBase64UUID),
+                instance.getNodeName(),
                 instance.getSeqNo(),
                 instance.getIngestionLoad()
             );
             case 1 -> new PublishNodeIngestLoadRequest(
                 instance.getNodeId(),
+                instance.getNodeName(),
                 randomValueOtherThan(instance.getSeqNo(), ESTestCase::randomLong),
                 instance.getIngestionLoad()
             );
             case 2 -> new PublishNodeIngestLoadRequest(
                 instance.getNodeId(),
+                instance.getNodeName(),
                 instance.getSeqNo(),
                 randomValueOtherThan(instance.getIngestionLoad(), () -> randomDoubleBetween(0, 512, true))
+            );
+            case 3 -> new PublishNodeIngestLoadRequest(
+                instance.getNodeId(),
+                randomValueOtherThan(instance.getNodeName(), ESTestCase::randomIdentifier),
+                instance.getSeqNo(),
+                instance.getIngestionLoad()
             );
             default -> throw new IllegalStateException("Unexpected value: " + randomInt(2));
         };

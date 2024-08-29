@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -62,7 +63,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var publishedMetrics = new ArrayList<>();
         var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
             @Override
-            public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
+            public void publishIngestionLoad(double ingestionLoad, String nodeId, String nodeName, ActionListener<Void> listener) {
                 publishedMetrics.add(Tuple.tuple(deterministicTaskQueue.getCurrentTimeMillis(), ingestionLoad));
                 listener.onResponse(null);
             }
@@ -79,7 +80,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
             clusterSettings,
             MeterRegistry.NOOP
         );
-        sampler.setNodeId(randomIdentifier());
+        sampler.setLocalNode(DiscoveryNodeUtils.create(randomIdentifier(), randomIdentifier()));
         sampler.start();
 
         runFor(deterministicTaskQueue, maxTimeBetweenMetricPublications.millis());
@@ -114,7 +115,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var publishedMetrics = new ArrayList<Double>();
         var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
             @Override
-            public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
+            public void publishIngestionLoad(double ingestionLoad, String nodeId, String nodeName, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
@@ -131,7 +132,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
             clusterSettings,
             MeterRegistry.NOOP
         );
-        sampler.setNodeId(randomIdentifier());
+        sampler.setLocalNode(DiscoveryNodeUtils.create(randomIdentifier(), randomIdentifier()));
         sampler.start();
 
         runFor(deterministicTaskQueue, maxTimeBetweenMetricPublications.millis());
@@ -183,7 +184,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
 
         var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
             @Override
-            public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
+            public void publishIngestionLoad(double ingestionLoad, String nodeId, String nodeName, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
@@ -200,7 +201,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
             clusterSettings,
             MeterRegistry.NOOP
         );
-        sampler.setNodeId(randomIdentifier());
+        sampler.setLocalNode(DiscoveryNodeUtils.create(randomIdentifier(), randomIdentifier()));
         sampler.start();
 
         // Run for less than maxTimeBetweenMetricPublications to ensure that we only account
@@ -233,7 +234,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var publishedMetrics = new ArrayList<Double>();
         var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
             @Override
-            public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
+            public void publishIngestionLoad(double ingestionLoad, String nodeId, String nodeName, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
@@ -250,7 +251,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
             clusterSettings,
             MeterRegistry.NOOP
         );
-        sampler.setNodeId(randomIdentifier());
+        sampler.setLocalNode(DiscoveryNodeUtils.create(randomIdentifier(), randomIdentifier()));
         sampler.start();
 
         runFor(deterministicTaskQueue, maxTimeBetweenMetricPublications.millis());
@@ -311,7 +312,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
 
         var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
             @Override
-            public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
+            public void publishIngestionLoad(double ingestionLoad, String nodeId, String nodeName, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
@@ -328,7 +329,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
             clusterSettings,
             MeterRegistry.NOOP
         );
-        sampler.setNodeId(randomIdentifier());
+        sampler.setLocalNode(DiscoveryNodeUtils.create(randomIdentifier(), randomIdentifier()));
         sampler.start();
 
         runFor(deterministicTaskQueue, maxTimeBetweenMetricPublications.millis());
@@ -345,7 +346,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var publishedMetrics = new ArrayList<Double>();
         var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
             @Override
-            public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
+            public void publishIngestionLoad(double ingestionLoad, String nodeId, String nodeName, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
@@ -363,7 +364,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
             clusterSettings,
             MeterRegistry.NOOP
         );
-        sampler.setNodeId(randomIdentifier());
+        sampler.setLocalNode(DiscoveryNodeUtils.create(randomIdentifier(), randomIdentifier()));
 
         // The sampler does not schedule any task before starting the service or publish any metrics
         assertThat(publishedMetrics, is(empty()));
@@ -411,7 +412,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var publicationFailures = new AtomicInteger();
         var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
             @Override
-            public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
+            public void publishIngestionLoad(double ingestionLoad, String nodeId, String nodeName, ActionListener<Void> listener) {
                 if (publicationFails.get()) {
                     publicationFailures.incrementAndGet();
                     listener.onFailure(new IllegalArgumentException("Boom"));
@@ -433,7 +434,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
             clusterSettings,
             MeterRegistry.NOOP
         );
-        sampler.setNodeId(randomIdentifier());
+        sampler.setLocalNode(DiscoveryNodeUtils.create(randomIdentifier(), randomIdentifier()));
         sampler.start();
 
         runFor(deterministicTaskQueue, samplingFrequency.millis());

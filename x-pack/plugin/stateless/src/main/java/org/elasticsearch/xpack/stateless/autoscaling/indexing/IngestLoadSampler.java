@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.E
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -85,7 +86,7 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
     private volatile SamplingTask samplingTask;
     private final AtomicLong lastPublicationRelativeTimeInMillis = new AtomicLong();
     private final AtomicReference<Object> inFlightPublicationTicket = new AtomicReference<>();
-    private volatile String nodeId;
+    private volatile DiscoveryNode localNode;
     private final Function<String, ExecutorIngestionLoad> executorIngestionLoadProvider;
 
     public IngestLoadSampler(
@@ -175,22 +176,22 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        assert nodeId == null || nodeId.equals(event.state().nodes().getLocalNodeId());
-        if (nodeId == null) {
-            setNodeId(event.state().nodes().getLocalNodeId());
+        assert localNode == null || localNode.getId().equals(event.state().nodes().getLocalNodeId());
+        if (localNode == null) {
+            setLocalNode(event.state().nodes().getLocalNode());
         }
         if (event.nodesDelta().masterNodeChanged()) {
             clearInFlightPublicationTicket();
-            publishCurrentLoad(nodeId);
+            publishCurrentLoad(localNode);
         }
     }
 
     // Visible for testing
-    void setNodeId(String nodeId) {
-        this.nodeId = nodeId;
+    void setLocalNode(DiscoveryNode localNode) {
+        this.localNode = localNode;
     }
 
-    private void sampleIngestionLoad(String nodeId) {
+    private void sampleIngestionLoad(DiscoveryNode node) {
         double previousReading = latestPublishedIngestionLoad;
         double currentReading = currentIndexLoadSupplier.getAsDouble();
         this.ingestionLoad = currentReading;
@@ -200,7 +201,7 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
         if (logger.isTraceEnabled()) {
             logger.trace(
                 "Ingest load ratio on nodeId {}: previous ({}), current ({}), threshold ({}), above sensibility threshold: {}",
-                nodeId,
+                node.getId(),
                 previousRatio,
                 currentRatio,
                 minSensitivityRatio,
@@ -209,7 +210,7 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
         }
         if (currentRatio - previousRatio >= minSensitivityRatio
             || timeSinceLastPublicationInMillis() >= maxTimeBetweenPublications.getMillis()) {
-            publishCurrentLoad(nodeId);
+            publishCurrentLoad(node);
         }
     }
 
@@ -217,27 +218,32 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
         return getRelativeTimeInMillis() - lastPublicationRelativeTimeInMillis.get();
     }
 
-    private void publishCurrentLoad(String nodeId) {
-        if (nodeId == null) {
+    private void publishCurrentLoad(DiscoveryNode node) {
+        if (node == null) {
             return;
         }
         try {
             var ticket = new Object();
             if (inFlightPublicationTicket.compareAndSet(null, ticket)) {
                 final var publishedLoad = ingestionLoad;
-                ingestionLoadPublisher.publishIngestionLoad(publishedLoad, nodeId, ActionListener.runAfter(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        var previousPublicationTime = lastPublicationRelativeTimeInMillis.get();
-                        lastPublicationRelativeTimeInMillis.compareAndSet(previousPublicationTime, getRelativeTimeInMillis());
-                        latestPublishedIngestionLoad = publishedLoad;
-                    }
+                ingestionLoadPublisher.publishIngestionLoad(
+                    publishedLoad,
+                    node.getId(),
+                    node.getName(),
+                    ActionListener.runAfter(new ActionListener<>() {
+                        @Override
+                        public void onResponse(Void unused) {
+                            var previousPublicationTime = lastPublicationRelativeTimeInMillis.get();
+                            lastPublicationRelativeTimeInMillis.compareAndSet(previousPublicationTime, getRelativeTimeInMillis());
+                            latestPublishedIngestionLoad = publishedLoad;
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.log(getExceptionLogLevel(e), () -> "Unable to publish the latest index load", e);
-                    }
-                }, () -> inFlightPublicationTicket.compareAndSet(ticket, null)));
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.log(getExceptionLogLevel(e), () -> "Unable to publish the latest index load", e);
+                        }
+                    }, () -> inFlightPublicationTicket.compareAndSet(ticket, null))
+                );
             }
         } catch (Exception e) {
             logger.error("Unable to publish latest ingestion load", e);
@@ -263,7 +269,7 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
 
             try {
                 writeLoadSampler.sample();
-                sampleIngestionLoad(nodeId);
+                sampleIngestionLoad(localNode);
             } finally {
                 threadPool.scheduleUnlessShuttingDown(samplingFrequency, executor, SamplingTask.this);
             }

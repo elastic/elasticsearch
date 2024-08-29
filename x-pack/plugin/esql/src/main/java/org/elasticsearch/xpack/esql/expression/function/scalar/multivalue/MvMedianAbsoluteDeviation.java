@@ -107,6 +107,99 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         return NodeInfo.create(this, MvMedianAbsoluteDeviation::new, field());
     }
 
+    static class Longs {
+        public long[] values = new long[2];
+        public int count;
+    }
+
+    @MvEvaluator(extraName = "Int", finish = "finishInts", ascending = "ascending", single = "single")
+    static void process(Longs longs, int v) {
+        if (longs.values.length < longs.count + 1) {
+            longs.values = ArrayUtil.grow(longs.values, longs.count + 1);
+        }
+        longs.values[longs.count++] = v;
+    }
+
+    static int finishInts(Longs longs) {
+        long median = longMedianOf(longs.values, longs.count);
+        for (int i = 0; i < longs.count; i++) {
+            long value = longs.values[i];
+            // We know they were ints, so we can calculate differences within a long
+            longs.values[i] = value > median ? Math.subtractExact(value, median) : Math.subtractExact(median, value);
+        }
+        int mad = Math.toIntExact(longMedianOf(longs.values, longs.count));
+        longs.count = 0;
+        return mad;
+    }
+
+    /**
+     * If the values are ascending pick the middle value or average the two middle values together.
+     */
+    static int ascending(Longs longs, IntBlock values, int firstValue, int count) {
+        if (longs.values.length < count) {
+            longs.values = ArrayUtil.grow(longs.values, count);
+        }
+        int middle = firstValue + count / 2;
+        long median = count % 2 == 1 ? values.getInt(middle) : avgWithoutOverflow(values.getInt(middle - 1), values.getInt(middle));
+        for (int i = 0; i < count; i++) {
+            long value = values.getInt(firstValue + i);
+            longs.values[i] = value > median ? Math.subtractExact(value, median) : Math.subtractExact(median, value);
+        }
+        return Math.toIntExact(longMedianOf(longs.values, count));
+    }
+
+    static int single(int value) {
+        return 0;
+    }
+
+    @MvEvaluator(extraName = "Long", finish = "finish", ascending = "ascending", single = "single")
+    static void process(Longs longs, long v) {
+        if (longs.values.length < longs.count + 1) {
+            longs.values = ArrayUtil.grow(longs.values, longs.count + 1);
+        }
+        longs.values[longs.count++] = v;
+    }
+
+    static long finish(Longs longs) {
+        long median = longMedianOf(longs.values, longs.count);
+        for (int i = 0; i < longs.count; i++) {
+            long value = longs.values[i];
+            // From here, this array contains unsigned longs
+            longs.values[i] = unsignedDifference(value, median);
+        }
+        long mad = NumericUtils.asLongUnsigned(unsignedLongMedianOf(longs.values, longs.count));
+        longs.count = 0;
+        return mad;
+    }
+
+    /**
+     * If the values are ascending pick the middle value or average the two middle values together.
+     */
+    static long ascending(Longs longs, LongBlock values, int firstValue, int count) {
+        if (longs.values.length < count) {
+            longs.values = ArrayUtil.grow(longs.values, count);
+        }
+        int middle = firstValue + count / 2;
+        long median = count % 2 == 1 ? values.getLong(middle) : avgWithoutOverflow(values.getLong(middle - 1), values.getLong(middle));
+        for (int i = 0; i < count; i++) {
+            long value = values.getLong(firstValue + i);
+            // From here, this array contains unsigned longs
+            longs.values[i] = unsignedDifference(value, median);
+        }
+        return NumericUtils.asLongUnsigned(unsignedLongMedianOf(longs.values, count));
+    }
+
+    static long single(long value) {
+        return 0L;
+    }
+
+    static long longMedianOf(long[] values, int count) {
+        // TODO quickselect
+        Arrays.sort(values, 0, count);
+        int middle = count / 2;
+        return count % 2 == 1 ? values[middle] : avgWithoutOverflow(values[middle - 1], values[middle]);
+    }
+
     static class Doubles {
         public double[] values = new double[2];
         public int count;
@@ -124,8 +217,9 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         double median = doubleMedianOf(doubles.values, doubles.count);
         for (int i = 0; i < doubles.count; i++) {
             double value = doubles.values[i];
+            // Double differences between median and the values may potentially result in +/-Infinity.
+            // As we use that value just to sort, the MAD should remain finite.
             doubles.values[i] = value > median ? value - median : median - value;
-            assert Double.isFinite(doubles.values[i]) : "Overflow on median differences";
         }
         double mad = doubleMedianOf(doubles.values, doubles.count);
         doubles.count = 0;
@@ -155,64 +249,6 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         Arrays.sort(values, 0, count);
         int middle = count / 2;
         return count % 2 == 1 ? values[middle] : (values[middle - 1] / 2 + values[middle] / 2);
-    }
-
-    static class Longs {
-        public long[] values = new long[2];
-        public int count;
-    }
-
-    @MvEvaluator(extraName = "Long", finish = "finish", ascending = "ascending", single = "single")
-    static void process(Longs longs, long v) {
-        if (longs.values.length < longs.count + 1) {
-            longs.values = ArrayUtil.grow(longs.values, longs.count + 1);
-        }
-        longs.values[longs.count++] = v;
-    }
-
-    static long finish(Longs longs) {
-        long median = longMedianOf(longs.values, longs.count);
-        for (int i = 0; i < longs.count; i++) {
-            long value = longs.values[i];
-            longs.values[i] = value > median ? Math.subtractExact(value, median) : Math.subtractExact(median, value);
-        }
-        long mad = longMedianOf(longs.values, longs.count);
-        longs.count = 0;
-        return mad;
-    }
-
-    /**
-     * If the values are ascending pick the middle value or average the two middle values together.
-     */
-    static long ascending(Longs longs, LongBlock values, int firstValue, int count) {
-        if (longs.values.length < count) {
-            longs.values = ArrayUtil.grow(longs.values, count);
-        }
-        int middle = firstValue + count / 2;
-        long median = count % 2 == 1 ? values.getLong(middle) : avgWithoutOverflow(values.getLong(middle - 1), values.getLong(middle));
-        for (int i = 0; i < count; i++) {
-            long value = values.getLong(firstValue + i);
-            longs.values[i] = value > median ? Math.subtractExact(value, median) : Math.subtractExact(median, value);
-        }
-        return longMedianOf(longs.values, count);
-    }
-
-    static long single(long value) {
-        return 0L;
-    }
-
-    static long longMedianOf(long[] values, int count) {
-        // TODO quickselect
-        Arrays.sort(values, 0, count);
-        int middle = count / 2;
-        return count % 2 == 1 ? values[middle] : avgWithoutOverflow(values[middle - 1], values[middle]);
-    }
-
-    /**
-     * Average two {@code long}s without any overflow.
-     */
-    static long avgWithoutOverflow(long a, long b) {
-        return (a & b) + ((a ^ b) >> 1);
     }
 
     @MvEvaluator(
@@ -275,61 +311,46 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         return bigIntegerToUnsignedLong(a.add(b).shiftRight(1));
     }
 
-    static class Ints {
-        public int[] values = new int[2];
-        public int count;
-    }
-
-    @MvEvaluator(extraName = "Int", finish = "finish", ascending = "ascending", single = "single")
-    static void process(Ints ints, int v) {
-        if (ints.values.length < ints.count + 1) {
-            ints.values = ArrayUtil.grow(ints.values, ints.count + 1);
-        }
-        ints.values[ints.count++] = v;
-    }
-
-    static int finish(Ints ints) {
-        int median = intMedianOf(ints.values, ints.count);
-        for (int i = 0; i < ints.count; i++) {
-            int value = ints.values[i];
-            ints.values[i] = value > median ? Math.subtractExact(value, median) : Math.subtractExact(median, value);
-        }
-        int mad = intMedianOf(ints.values, ints.count);
-        ints.count = 0;
-        return mad;
-    }
-
-    /**
-     * If the values are ascending pick the middle value or average the two middle values together.
-     */
-    static int ascending(Ints ints, IntBlock values, int firstValue, int count) {
-        if (ints.values.length < count) {
-            ints.values = ArrayUtil.grow(ints.values, count);
-        }
-        int middle = firstValue + count / 2;
-        int median = count % 2 == 1 ? values.getInt(middle) : avgWithoutOverflow(values.getInt(middle - 1), values.getInt(middle));
-        for (int i = 0; i < count; i++) {
-            int value = values.getInt(firstValue + i);
-            ints.values[i] = value > median ? Math.subtractExact(value, median) : Math.subtractExact(median, value);
-        }
-        return intMedianOf(ints.values, count);
-    }
-
-    static int single(int value) {
-        return 0;
-    }
-
-    static int intMedianOf(int[] values, int count) {
-        // TODO quickselect
-        Arrays.sort(values, 0, count);
-        int middle = count / 2;
-        return count % 2 == 1 ? values[middle] : avgWithoutOverflow(values[middle - 1], values[middle]);
-    }
+    // Utility methods
 
     /**
      * Average two {@code int}s together without overflow.
      */
     static int avgWithoutOverflow(int a, int b) {
-        return (a & b) + ((a ^ b) >> 1);
+        var value = (a & b) + ((a ^ b) >> 1);
+        // This method rounds negative values down instead of towards zero, like (a + b) / 2 would.
+        // Here we rectify up if the average is negative and the two values have different parities.
+        return value < 0 && ((a & 1) ^ (b & 1)) == 1 ? value + 1 : value;
+    }
+
+    /**
+     * Average two {@code long}s without any overflow.
+     */
+    static long avgWithoutOverflow(long a, long b) {
+        var value = (a & b) + ((a ^ b) >> 1);
+        // This method rounds negative values down instead of towards zero, like (a + b) / 2 would.
+        // Here we rectify up if the average is negative and the two values have different parities.
+        return value < 0 && ((a & 1) ^ (b & 1)) == 1 ? value + 1 : value;
+    }
+
+    /**
+     * Returns the difference between two signed long values as an unsigned long.
+     */
+    static long unsignedDifference(long a, long b) {
+        if (a >= b) {
+            if (a < 0 || b >= 0) {
+                return NumericUtils.asLongUnsigned(a - b);
+            }
+
+            return NumericUtils.unsignedLongSubtractExact(a, b);
+        }
+
+        // Same operations, but inverted
+
+        if (b < 0 || a >= 0) {
+            return NumericUtils.asLongUnsigned(b - a);
+        }
+
+        return NumericUtils.unsignedLongSubtractExact(b, a);
     }
 }

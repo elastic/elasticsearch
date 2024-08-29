@@ -166,10 +166,10 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             // await stream handler is ready and request full content
             var handler = ctx.awaitRestChannelAccepted(opaqueId);
             assertBusy(() -> assertEquals(1, handler.stream.chunkQueue().size()));
+            handler.stream.channel().config().setAutoRead(true);
             ctx.clientChannel.close();
 
-            handler.stream.next();
-            assertBusy(() -> assertEquals(0, handler.stream.chunkQueue().size()));
+            assertBusy(() -> assertTrue(handler.stream.isClosing()));
         }
     }
 

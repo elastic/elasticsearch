@@ -28,7 +28,7 @@ public class HttpUtils {
 
     public static int contentLengthHeader(HttpRequest httpRequest) {
         var cl = httpRequest.getHeaders().get("content-length");
-        if (cl.isEmpty()) {
+        if (cl == null || cl.isEmpty()) {
             return 0;
         } else {
             return Integer.parseInt(cl.get(0));
@@ -37,7 +37,7 @@ public class HttpUtils {
 
     public static boolean isChunkedTransferEncoding(HttpRequest httpRequest) {
         var te = httpRequest.getHeaders().get("transfer-encoding");
-        if (te.isEmpty()) {
+        if (te == null || te.isEmpty()) {
             return false;
         } else {
             return te.get(0).equals("chunked");

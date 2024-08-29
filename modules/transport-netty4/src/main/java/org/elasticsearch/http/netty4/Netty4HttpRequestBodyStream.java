@@ -98,6 +98,11 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     }
 
     // visible for test
+    boolean isClosing() {
+        return closing;
+    }
+
+    // visible for test
     boolean hasLast() {
         return hasLast;
     }

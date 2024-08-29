@@ -52,3 +52,9 @@ You can apply for access to Azure OpenAI by completing the form at https://aka.m
 * A pair of access and secret keys used to access Amazon Bedrock
 
 // end::amazon-bedrock[]
+
+// tag::alibabacloud-ai-search[]
+* An AlibabaCloud Account with https://console.aliyun.com[AlibabaCloud] access
+* An API key generated for your account from the https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[API keys section]
+
+// end::alibabacloud-ai-search[]

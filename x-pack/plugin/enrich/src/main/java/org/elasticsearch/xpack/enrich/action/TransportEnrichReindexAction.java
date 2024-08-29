@@ -61,7 +61,8 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
             autoCreateIndex,
             client,
             transportService,
-            new ReindexSslConfig(settings, environment, watcherService)
+            new ReindexSslConfig(settings, environment, watcherService),
+            null
         );
         this.bulkClient = new OriginSettingClient(client, ENRICH_ORIGIN);
     }

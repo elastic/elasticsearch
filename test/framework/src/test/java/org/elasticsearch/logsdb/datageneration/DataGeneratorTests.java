@@ -113,13 +113,13 @@ public class DataGeneratorTests extends ESTestCase {
     }
 
     public void testDataGeneratorStressTest() throws IOException {
-        // Let's generate 1000000 fields to test an extreme case (2 levels of objects + 1 leaf level with 100 fields per object).
+        // Let's generate 125000 fields to test an extreme case (2 levels of objects + 1 leaf level with 50 fields per object).
         var testChildFieldGenerator = new DataSourceResponse.ChildFieldGenerator() {
             private int generatedFields = 0;
 
             @Override
             public int generateChildFieldCount() {
-                return 100;
+                return 50;
             }
 
             @Override

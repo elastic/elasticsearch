@@ -584,7 +584,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             );
         }
         if (fieldType.stored()) {
-            return new StringStoredFieldFieldLoader(fullPath(), leafName(), null) {
+            return new StringStoredFieldFieldLoader(fullPath(), leafName()) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
                     b.value((String) value);

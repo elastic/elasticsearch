@@ -167,7 +167,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
             // From here, this array contains unsigned longs
             longs.values[i] = unsignedDifference(value, median);
         }
-        long mad = NumericUtils.asLongUnsigned(unsignedLongMedianOf(longs.values, longs.count));
+        long mad = unsignedLongMedianOfAsLong(longs.values, longs.count);
         longs.count = 0;
         return mad;
     }
@@ -186,7 +186,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
             // From here, this array contains unsigned longs
             longs.values[i] = unsignedDifference(value, median);
         }
-        return NumericUtils.asLongUnsigned(unsignedLongMedianOf(longs.values, count));
+        return unsignedLongMedianOfAsLong(longs.values, count);
     }
 
     static long single(long value) {
@@ -198,6 +198,18 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         Arrays.sort(values, 0, count);
         int middle = count / 2;
         return count % 2 == 1 ? values[middle] : avgWithoutOverflow(values[middle - 1], values[middle]);
+    }
+
+    static long unsignedLongMedianOfAsLong(long[] values, int count) {
+        // TODO quickselect
+        Arrays.sort(values, 0, count);
+        int middle = count / 2;
+        if (count % 2 == 1) {
+            return NumericUtils.unsignedLongAsLongExact(values[middle]);
+        }
+        BigInteger a = unsignedLongToBigInteger(values[middle - 1]);
+        BigInteger b = unsignedLongToBigInteger(values[middle]);
+        return a.add(b).shiftRight(1).longValueExact();
     }
 
     static class Doubles {

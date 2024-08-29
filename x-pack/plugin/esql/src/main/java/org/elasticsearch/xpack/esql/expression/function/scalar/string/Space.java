@@ -16,6 +16,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -32,6 +33,7 @@ import java.util.function.Function;
 import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 public class Space extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Space", Space::new);
@@ -70,7 +72,7 @@ public class Space extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return KEYWORD;
     }
 
     @Override
@@ -87,15 +89,15 @@ public class Space extends UnaryScalarFunction {
         return number.foldable();
     }
 
-    @Evaluator(extraName = "Constant")
-    static BytesRef processConstant(@Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch, @Fixed int number) {
-        return processInner(scratch, number);
-    }
-
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static BytesRef process(@Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch, int number) {
         checkNumber(number);
-        return processInner(scratch, number);
+        scratch.grow(number);
+        scratch.clear();
+        for (int i = 0; i < number; ++i) {
+            scratch.append((byte) ' ');
+        }
+        return scratch.bytesRefView();
     }
 
     static void checkNumber(int number) {
@@ -105,15 +107,6 @@ public class Space extends UnaryScalarFunction {
         if (number > MAX_LENGTH) {
             throw new IllegalArgumentException("Creating strings longer than [" + MAX_LENGTH + "] bytes is not supported");
         }
-    }
-
-    static BytesRef processInner(BreakingBytesRefBuilder scratch, int number) {
-        scratch.grow(number);
-        scratch.clear();
-        for (int i = 0; i < number; ++i) {
-            scratch.append((byte) ' ');
-        }
-        return scratch.bytesRefView();
     }
 
     @Override
@@ -131,7 +124,7 @@ public class Space extends UnaryScalarFunction {
         if (number.foldable()) {
             int num = (int) number.fold();
             checkNumber(num);
-            return new SpaceConstantEvaluator.Factory(source(), context -> new BreakingBytesRefBuilder(context.breaker(), "space"), num);
+            return toEvaluator.apply(new Literal(source(), " ".repeat(num), KEYWORD));
         }
 
         ExpressionEvaluator.Factory numberExpr = toEvaluator.apply(number);

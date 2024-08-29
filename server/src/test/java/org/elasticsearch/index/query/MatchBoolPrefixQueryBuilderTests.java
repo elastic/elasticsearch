@@ -121,7 +121,7 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
             });
 
             // the last query should be PrefixQuery
-            final Query shouldBePrefixQuery = booleanQuery.clauses().get(booleanQuery.clauses().size() - 1).getQuery();
+            final Query shouldBePrefixQuery = booleanQuery.clauses().get(booleanQuery.clauses().size() - 1).query();
             assertThat(shouldBePrefixQuery, instanceOf(PrefixQuery.class));
 
             if (queryBuilder.minimumShouldMatch() != null) {
@@ -268,7 +268,7 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
         assertThat(actualBooleanQuery.clauses(), everyItem(hasProperty("occur", equalTo(BooleanClause.Occur.SHOULD))));
 
         for (int i = 0; i < actualBooleanQuery.clauses().size(); i++) {
-            final Query clauseQuery = actualBooleanQuery.clauses().get(i).getQuery();
+            final Query clauseQuery = actualBooleanQuery.clauses().get(i).query();
             assertThat(clauseQuery, equalTo(expectedClauseQueries.get(i)));
         }
     }

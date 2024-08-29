@@ -1282,6 +1282,31 @@ They are included here for expert users, but should otherwise be ignored.
 
 =====
 
+====
+
+`repositories`::
+(object) Contains statistics about the <<snapshot-restore,snapshot>> repositories defined in the cluster, broken down
+by repository type.
++
+.Properties of `repositories`
+[%collapsible%open]
+=====
+
+`count`:::
+(integer) The number of repositories of this type in the cluster.
+
+`read_only`:::
+(integer) The number of repositories of this type in the cluster which are registered read-only.
+
+`read_write`:::
+(integer) The number of repositories of this type in the cluster which are not registered as read-only.
+
+Each repository type may also include other statistics about the repositories of that type here.
+
+=====
+
+====
+
 [[cluster-stats-api-example]]
 ==== {api-examples-title}
 
@@ -1579,6 +1604,9 @@ The API returns the following response:
    },
    "snapshots": {
      ...
+   },
+   "repositories": {
+     ...
    }
 }
 --------------------------------------------------
@@ -1589,6 +1617,7 @@ The API returns the following response:
 // TESTRESPONSE[s/"count": \{[^\}]*\}/"count": $body.$_path/]
 // TESTRESPONSE[s/"packaging_types": \[[^\]]*\]/"packaging_types": $body.$_path/]
 // TESTRESPONSE[s/"snapshots": \{[^\}]*\}/"snapshots": $body.$_path/]
+// TESTRESPONSE[s/"repositories": \{[^\}]*\}/"repositories": $body.$_path/]
 // TESTRESPONSE[s/"field_types": \[[^\]]*\]/"field_types": $body.$_path/]
 // TESTRESPONSE[s/"runtime_field_types": \[[^\]]*\]/"runtime_field_types": $body.$_path/]
 // TESTRESPONSE[s/"search": \{[^\}]*\}/"search": $body.$_path/]
@@ -1600,7 +1629,7 @@ The API returns the following response:
 //    the plugins that will be in it. And because we figure folks don't need to
 //    see an exhaustive list anyway.
 // 2. Similarly, ignore the contents of `network_types`, `discovery_types`,
-//    `packaging_types` and `snapshots`.
+//    `packaging_types`, `snapshots` and `repositories`.
 // 3. Ignore the contents of the (nodes) count object, as what's shown here
 //    depends on the license. Voting-only nodes are e.g. only shown when this
 //    test runs with a basic license.

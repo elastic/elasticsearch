@@ -22,6 +22,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -457,6 +459,16 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 indexName = bulkResponse.getItems()[0].getIndex();
             }
             client().admin().indices().refresh(new RefreshRequest(dataStreamName)).actionGet();
+
+            // In rare cases we can end up with a single segment shard, which means we can't trim away the _id later.
+            // So update an existing doc to create a new segment without adding a new document after force merging:
+            var indexRequest = new IndexRequest(indexName).setIfPrimaryTerm(1L)
+                .setIfSeqNo((numBulkRequests * numDocsPerBulk) - 1)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            indexRequest.source(DOC.replace("$time", formatInstant(time.minusMillis(1))), XContentType.JSON);
+            var res = client().index(indexRequest).actionGet();
+            assertThat(res.status(), equalTo(RestStatus.OK));
+            assertThat(res.getVersion(), equalTo(2L));
         }
 
         // Check whether there are multiple segments:
@@ -494,7 +506,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             assertThat(retentionLeasesStats.retentionLeases().leases(), hasSize(1));
             assertThat(
                 retentionLeasesStats.retentionLeases().leases().iterator().next().retainingSequenceNumber(),
-                equalTo((long) numBulkRequests * numDocsPerBulk)
+                equalTo((long) numBulkRequests * numDocsPerBulk + 1)
             );
         });
 

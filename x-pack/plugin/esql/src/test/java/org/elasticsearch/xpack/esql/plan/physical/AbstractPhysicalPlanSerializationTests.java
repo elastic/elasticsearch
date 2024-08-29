@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests;
 
@@ -46,7 +45,6 @@ public abstract class AbstractPhysicalPlanSerializationTests<T extends PhysicalP
         entries.addAll(AggregateFunction.getNamedWriteables());
         entries.addAll(Expression.getNamedWriteables());
         entries.addAll(Attribute.getNamedWriteables());
-        entries.addAll(EsField.getNamedWriteables());
         entries.addAll(Block.getNamedWriteables());
         entries.addAll(NamedExpression.getNamedWriteables());
         entries.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());

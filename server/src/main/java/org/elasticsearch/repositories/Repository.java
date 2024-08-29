@@ -22,7 +22,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -161,13 +160,19 @@ public interface Repository extends LifecycleComponent {
      * @param repositoryDataGeneration     the generation of the {@link RepositoryData} in the repository at the start of the deletion
      * @param minimumNodeVersion           the minimum {@link IndexVersion} across the nodes in the cluster, with which the repository
      *                                     format must remain compatible
-     * @param listener                     completion listener, see {@link SnapshotDeleteListener}.
+     * @param repositoryDataUpdateListener listener completed when the {@link RepositoryData} is updated, or when the process fails
+     *                                     without changing the repository contents - in either case, it is now safe for the next operation
+     *                                     on this repository to proceed.
+     * @param onCompletion                 action executed on completion of the cleanup actions that follow a successful
+     *                                     {@link RepositoryData} update; not called if {@code repositoryDataUpdateListener} completes
+     *                                     exceptionally.
      */
     void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
-        SnapshotDeleteListener listener
+        ActionListener<RepositoryData> repositoryDataUpdateListener,
+        Runnable onCompletion
     );
 
     /**
@@ -306,6 +311,14 @@ public interface Repository extends LifecycleComponent {
      * cluster. This method is intended to be called on node shutdown instead as a means to ensure no repository operations are leaked.
      */
     void awaitIdle();
+
+    /**
+     * @return a set of the names of the features that this repository instance uses, for reporting in the cluster stats for telemetry
+     *         collection.
+     */
+    default Set<String> getUsageFeatures() {
+        return Set.of();
+    }
 
     static boolean assertSnapshotMetaThread() {
         return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT_META);

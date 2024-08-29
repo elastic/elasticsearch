@@ -41,6 +41,13 @@ You can apply for access to Azure OpenAI by completing the form at https://aka.m
 
 // end::azure-ai-studio[]
 
+// tag::google-vertex-ai[]
+* A https://console.cloud.google.com/[Google Cloud account]
+* A valid service account for the Google Vertex AI API.
+* A project in Google Cloud
+
+// end::google-vertex-ai[]
+
 // tag::mistral[]
 * A Mistral Account on https://console.mistral.ai/[La Plateforme]
 * An API key generated for your account

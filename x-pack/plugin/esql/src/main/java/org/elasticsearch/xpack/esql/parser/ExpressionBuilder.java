@@ -772,7 +772,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         return new MatchQueryPredicate(
             source(ctx),
-            visitQualifiedName(ctx.qualifiedName()),
+            expression(ctx.valueExpression()),
             visitString(ctx.queryString).fold().toString(),
             null
         );

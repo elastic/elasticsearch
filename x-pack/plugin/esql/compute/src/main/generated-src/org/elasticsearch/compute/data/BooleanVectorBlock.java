@@ -32,6 +32,12 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     }
 
     @Override
+    public ToMask toMask() {
+        vector.incRef();
+        return new ToMask(vector, false);
+    }
+
+    @Override
     public boolean getBoolean(int valueIndex) {
         return vector.getBoolean(valueIndex);
     }
@@ -49,6 +55,11 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     @Override
     public BooleanBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public BooleanBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
     }
 
     @Override

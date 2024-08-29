@@ -223,3 +223,32 @@ PUT _inference/text_embedding/amazon_bedrock_embeddings <1>
 <6> The model ID or ARN of the model to use.
 
 // end::amazon-bedrock[]
+
+// tag::alibabacloud-ai-search[]
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/alibabacloud_ai_search_embeddings <1>
+{
+    "service": "alibabacloud-ai-search",
+    "service_settings": {
+        "api_key": "<api_key>", <2>
+        "service_id": "<service_id>", <3>
+        "host": "<host>", <4>
+        "workspace": "<workspace>" <5>
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The task type is `text_embedding` in the path and the `inference_id` which is the unique identifier of the {infer} endpoint is `alibabacloud_ai_search_embeddings`.
+<2> The API key for accessing the AlibabaCloud AI Search API. You can find your API keys in
+your AlibabaCloud account under the
+https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[API keys section]. You need to provide
+your API key only once. The <<get-inference-api>> does not return your API
+key.
+<3> The AlibabaCloud AI Search embeddings model name, for example `ops-text-embedding-zh-001`.
+<4> The name our your AlibabaCloud AI Search host address.
+<5> The name our your AlibabaCloud AI Search workspace.
+
+// end::alibabacloud-ai-search[]
+

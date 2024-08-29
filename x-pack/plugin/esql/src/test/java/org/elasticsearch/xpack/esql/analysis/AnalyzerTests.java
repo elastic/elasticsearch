@@ -2061,6 +2061,31 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    public void testCoalesceWithMixedNumericTypes() {
+        LogicalPlan plan = analyze("""
+            from test
+            | eval x = coalesce(salary_change, null, 0), y = coalesce(languages, null, 0), z = coalesce(languages.long, null, 0)
+            , w = coalesce(salary_change, null, 0::long)
+            | keep x, y, z, w
+            """, "mapping-default.json");
+        var limit = as(plan, Limit.class);
+        var esqlProject = as(limit.child(), EsqlProject.class);
+        List<?> projections = esqlProject.projections();
+        var projection = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals(projection.name(), "x");
+        assertEquals(projection.dataType(), DataType.DOUBLE);
+        projection = as(projections.get(1), ReferenceAttribute.class);
+        assertEquals(projection.name(), "y");
+        assertEquals(projection.dataType(), DataType.INTEGER);
+        projection = as(projections.get(2), ReferenceAttribute.class);
+        assertEquals(projection.name(), "z");
+        assertEquals(projection.dataType(), DataType.LONG);
+        projection = as(projections.get(3), ReferenceAttribute.class);
+        assertEquals(projection.name(), "w");
+        assertEquals(projection.dataType(), DataType.DOUBLE);
+        assertThat(limit.limit().fold(), equalTo(1000));
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }
@@ -2097,7 +2122,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
-        List<FieldCapabilitiesIndexResponse> idxResponses = List.of(new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true));
+        List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
+            new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
+        );
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
         IndexResolution resolution = new IndexResolver(null).mergedMappings("test*", caps);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));

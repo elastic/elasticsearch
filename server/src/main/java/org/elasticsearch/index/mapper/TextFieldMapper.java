@@ -1481,7 +1481,7 @@ public final class TextFieldMapper extends FieldMapper {
             );
         }
         if (store) {
-            return new StringStoredFieldFieldLoader(fullPath(), leafName(), null) {
+            return new StringStoredFieldFieldLoader(fullPath(), leafName()) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
                     b.value((String) value);

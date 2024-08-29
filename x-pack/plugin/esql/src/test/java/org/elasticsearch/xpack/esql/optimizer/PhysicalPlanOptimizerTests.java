@@ -4603,7 +4603,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // handle local reduction alignment
         return l.transformUp(ExchangeExec.class, exg -> {
             PhysicalPlan pl = exg;
-            if (exg.isInBetweenAggs() && exg.child() instanceof LocalSourceExec lse) {
+            if (exg.inBetweenAggs() && exg.child() instanceof LocalSourceExec lse) {
                 var output = exg.output();
                 if (lse.output().equals(output) == false) {
                     pl = exg.replaceChild(new LocalSourceExec(lse.source(), output, lse.supplier()));

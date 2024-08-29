@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -237,7 +238,13 @@ public class ClusterConnectionManager implements ConnectionManager {
                                     if (connectingRefCounter.hasReferences() == false) {
                                         logger.trace("connection manager shut down, closing transport connection to [{}]", node);
                                     } else if (conn.hasReferences()) {
-                                        logger.info("transport connection to [{}] closed by remote", node.descriptionWithoutAttributes());
+                                        logger.info(
+                                            """
+                                                transport connection to [{}] closed by remote; \
+                                                if unexpected, see [{}] for troubleshooting guidance""",
+                                            node.descriptionWithoutAttributes(),
+                                            ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                                        );
                                         // In production code we only close connections via ref-counting, so this message confirms that a
                                         // 'node-left ... reason: disconnected' event was caused by external factors. Put differently, if a
                                         // node leaves the cluster with "reason: disconnected" but without this message being logged then

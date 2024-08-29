@@ -144,6 +144,7 @@ to <<modules-discovery-settings>> for information about the settings which
 control this mechanism.
 
 [discrete]
+[[cluster-fault-detection-troubleshooting-disconnected]]
 ===== Diagnosing `disconnected` nodes
 
 Nodes typically leave the cluster with reason `disconnected` when they shut
@@ -184,6 +185,7 @@ if traffic between the nodes is being disrupted by another device on the
 network.
 
 [discrete]
+[[cluster-fault-detection-troubleshooting-lagging]]
 ===== Diagnosing `lagging` nodes
 
 {es} needs every node to process cluster state updates reasonably quickly. If a
@@ -229,6 +231,7 @@ cat lagdetector.log | sed -e 's/.*://' | base64 --decode | gzip --decompress
 ----
 
 [discrete]
+[[cluster-fault-detection-troubleshooting-follower-check]]
 ===== Diagnosing `follower check retry count exceeded` nodes
 
 Nodes sometimes leave the cluster with reason `follower check retry count
@@ -265,6 +268,7 @@ are unpredictable then capture stack dumps every 15s to be sure that at least
 one stack dump was taken at the right time.
 
 [discrete]
+[[cluster-fault-detection-troubleshooting-shardlockobtainfailedexception]]
 ===== Diagnosing `ShardLockObtainFailedException` failures
 
 If a node leaves and rejoins the cluster then {es} will usually shut down and
@@ -302,6 +306,7 @@ cat shardlock.log | sed -e 's/.*://' | base64 --decode | gzip --decompress
 ----
 
 [discrete]
+[[cluster-fault-detection-troubleshooting-network]]
 ===== Diagnosing other network disconnections
 
 {es} is designed to run on a fairly reliable network. It opens a number of TCP

@@ -188,7 +188,10 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                     "remotely-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
                     Level.INFO,
-                    "transport connection to [" + remoteClose.descriptionWithoutAttributes() + "] closed by remote"
+                    "transport connection to ["
+                        + remoteClose.descriptionWithoutAttributes()
+                        + "] closed by remote; "
+                        + "if unexpected, see [https://www.elastic.co/guide/en/elasticsearch/reference/*] for troubleshooting guidance"
                 )
             );
             mockLog.addExpectation(

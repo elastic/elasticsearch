@@ -30,7 +30,6 @@ public class HttpUtilsTests extends ESTestCase {
         assertEquals(0, HttpUtils.contentLengthHeader(req));
     }
 
-
     public void testChunkedEncodingPresent() {
         var headers = new HashMap<String, List<String>>();
         headers.put("transfer-encoding", List.of("chunked"));
@@ -38,7 +37,7 @@ public class HttpUtilsTests extends ESTestCase {
         assertTrue(HttpUtils.isChunkedTransferEncoding(req));
     }
 
-    public void testChunkedEncodingNotPresent(){
+    public void testChunkedEncodingNotPresent() {
         var req = new FakeHttpRequest(RestRequest.Method.GET, "/", BytesArray.EMPTY, new HashMap<>());
         assertFalse(HttpUtils.isChunkedTransferEncoding(req));
     }

@@ -135,9 +135,11 @@ final class ComputeListener implements Releasable {
     }
 
     /**
-     * TODO: DOCUMENT ME
-     * @param clusterAlias
-     * @return
+     * The ActionListener to be used on the coordinating cluster when sending a cross-cluster
+     * compute request to a remote cluster.
+     * @param clusterAlias clusterAlias of cluster receiving the remote compute request
+     * @return Listener that will fill in all metadata from to remote cluster into the
+     *         {@link EsqlExecutionInfo}  for the clusterAlias cluster.
      */
     ActionListener<ComputeResponse> acquireCCSCompute(String clusterAlias) {
         assert clusterAlias != null : "Must provide non-null cluster alias to acquireCompute";
@@ -183,9 +185,8 @@ final class ComputeListener implements Releasable {
      * on the remote cluster
      * @param clusterAlias remote cluster alias the compute is running on
      */
-    ActionListener<ComputeResponse> acquireCompute(String clusterAlias, EsqlExecutionInfo executionInfo) {  // TODO: remove ExecInfo arg
+    ActionListener<ComputeResponse> acquireCompute(String clusterAlias) {
         assert clusterAlias != null : "Must provide non-null cluster alias to acquireCompute";
-        assert executionInfo != null : "When providing cluster alias to acquireCompute, EsqlExecutionInfo must not be null";
         return acquireAvoid().map(resp -> {
             System.err.println("VVV acquireCompute: esqlExecutionInfo instance var ID: " + esqlExecutionInfo.id());
             responseHeaders.collect();

@@ -109,20 +109,15 @@ public class DataGeneratorTests extends ESTestCase {
                     );
                 }
 
-                return new DataSourceResponse.FieldTypeGenerator(
-                    () -> {
-                        var fieldType = FieldType.values()[generatedFields++ % FieldType.values().length];
-                        // Does not really work with dynamic mapping.
-                        if (fieldType == FieldType.UNSIGNED_LONG) {
-                            fieldType = FieldType.values()[generatedFields++ % FieldType.values().length];
-                        }
-
-                        return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(
-                            fieldType,
-                            true
-                        );
+                return new DataSourceResponse.FieldTypeGenerator(() -> {
+                    var fieldType = FieldType.values()[generatedFields++ % FieldType.values().length];
+                    // Does not really work with dynamic mapping.
+                    if (fieldType == FieldType.UNSIGNED_LONG) {
+                        fieldType = FieldType.values()[generatedFields++ % FieldType.values().length];
                     }
-                );
+
+                    return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(fieldType, true);
+                });
             }
         };
 
@@ -190,7 +185,9 @@ public class DataGeneratorTests extends ESTestCase {
 
             @Override
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-                return new DataSourceResponse.FieldTypeGenerator(() -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG, false));
+                return new DataSourceResponse.FieldTypeGenerator(
+                    () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG, false)
+                );
             }
         };
 

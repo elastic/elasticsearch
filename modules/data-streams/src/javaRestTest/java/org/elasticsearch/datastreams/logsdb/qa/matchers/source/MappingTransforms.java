@@ -15,8 +15,9 @@ import java.util.Map;
 
 class MappingTransforms {
     /**
-     * Container for mapping of a field. Contain field mapping parameters and mapping parameters of parent fields (if present)
+     * Container for mapping of a field. Contains field mapping parameters and mapping parameters of parent fields (if present)
      * in order of increasing distance (direct parent first).
+     * This is needed because some parent mapping parameters influence how source of the field is stored (e.g. `enabled: false`).
      * @param mappingParameters
      * @param parentMappingParameters
      */
@@ -36,17 +37,6 @@ class MappingTransforms {
         descend(null, map, flattened);
 
         return flattened;
-    }
-
-    /**
-     * Given a field name provides the name of the parent field (if present) that can be used to perform mapping lookup
-     * in normalized mapping.
-     * @param normalizedFieldName
-     * @return
-     */
-    public static String parentField(String normalizedFieldName) {
-        var splitPoint = normalizedFieldName.lastIndexOf('.');
-        return splitPoint > -1 ? normalizedFieldName.substring(0, splitPoint) : "_doc";
     }
 
     @SuppressWarnings("unchecked")

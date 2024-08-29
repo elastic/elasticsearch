@@ -34,6 +34,8 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -179,12 +181,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testMatchAllQuery() throws IOException {
-        final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
-        var timestampStart = Instant.now();
-        for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(generateDocument(timestampStart.plus(i, ChronoUnit.SECONDS)));
-        }
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         assertDocumentIndexing(documents);
 
@@ -201,11 +199,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testTermsQuery() throws IOException {
-        final List<XContentBuilder> documents = new ArrayList<>();
-        int numberOfDocuments = randomIntBetween(100, 200);
-        for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
-        }
+        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         assertDocumentIndexing(documents);
 
@@ -222,11 +217,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testHistogramAggregation() throws IOException {
-        final List<XContentBuilder> documents = new ArrayList<>();
-        int numberOfDocuments = randomIntBetween(100, 200);
-        for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
-        }
+        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         assertDocumentIndexing(documents);
 
@@ -243,11 +235,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testTermsAggregation() throws IOException {
-        final List<XContentBuilder> documents = new ArrayList<>();
-        int numberOfDocuments = randomIntBetween(100, 200);
-        for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
-        }
+        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         assertDocumentIndexing(documents);
 
@@ -264,11 +253,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testDateHistogramAggregation() throws IOException {
-        final List<XContentBuilder> documents = new ArrayList<>();
-        int numberOfDocuments = randomIntBetween(100, 200);
-        for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
-        }
+        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         assertDocumentIndexing(documents);
 
@@ -282,6 +268,17 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
             .ignoringSort(true)
             .isEqualTo(getAggregationBuckets(queryContender(searchSourceBuilder), "agg"));
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
+    }
+
+    private List<XContentBuilder> generateDocuments(int numberOfDocuments) throws IOException {
+        final List<XContentBuilder> documents = new ArrayList<>();
+        // This is static in order to be able to identify documents between test runs.
+        var startingPoint = ZonedDateTime.of(2024, 1, 1, 10, 0, 0, 0, ZoneId.of("UTC")).toInstant();
+        for (int i = 0; i < numberOfDocuments; i++) {
+            documents.add(generateDocument(startingPoint.plus(i, ChronoUnit.SECONDS)));
+        }
+
+        return documents;
     }
 
     protected XContentBuilder generateDocument(final Instant timestamp) throws IOException {

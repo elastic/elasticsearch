@@ -17,7 +17,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public class DefaultObjectGenerationHandler implements DataSourceHandler {
@@ -61,26 +60,20 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
     @Override
     public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
         Supplier<DataSourceResponse.FieldTypeGenerator.FieldTypeInfo> generator = switch (request.dynamicMapping()) {
-            case FORBIDDEN -> () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(randomFrom(FieldType.values()), false);
-            case FORCED -> () -> {
-                var fieldType = ESTestCase.randomValueOtherThanMany(
-                    EXCLUDED_FROM_DYNAMIC_MAPPING::contains,
-                    () -> ESTestCase.randomFrom(FieldType.values())
-                );
-
-                return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(fieldType, true);
-            };
-            case SUPPORTED -> () -> {
-                boolean isDynamic = ESTestCase.randomBoolean();
-
-                var excluded = isDynamic ? EXCLUDED_FROM_DYNAMIC_MAPPING : Set.of();
-                var fieldType = ESTestCase.randomValueOtherThanMany(excluded::contains, () -> ESTestCase.randomFrom(FieldType.values()));
-
-                return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(fieldType, isDynamic);
-            };
+            case FORBIDDEN -> () -> generateFieldTypeInfo(false);
+            case FORCED -> () -> generateFieldTypeInfo(true);
+            case SUPPORTED -> () -> generateFieldTypeInfo(ESTestCase.randomBoolean());
         };
 
         return new DataSourceResponse.FieldTypeGenerator(generator);
+    }
+
+    private static DataSourceResponse.FieldTypeGenerator.FieldTypeInfo generateFieldTypeInfo(boolean isDynamic) {
+        var excluded = isDynamic ? EXCLUDED_FROM_DYNAMIC_MAPPING : Set.of();
+
+        var fieldType = ESTestCase.randomValueOtherThanMany(excluded::contains, () -> ESTestCase.randomFrom(FieldType.values()));
+
+        return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(fieldType, isDynamic);
     }
 
     @Override

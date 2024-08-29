@@ -23,6 +23,7 @@ import java.util.List;
  *                              Applies to subobjects.
  * @param maxObjectDepth maximum depth of nested objects
  * @param nestedFieldsLimit how many total nested fields can be present in a produced mapping
+ * @param fullyDynamicMapping if the mapping is fully dynamic, meaning none of the fields are mapped (essentially mapping is empty)
  * @param predefinedFields predefined fields that must be present in mapping and documents. Only top level fields are supported.
  */
 public record DataGeneratorSpecification(

@@ -83,7 +83,7 @@ public class Space extends UnaryScalarFunction {
         return number.foldable();
     }
 
-    @Evaluator(extraName = "Constant", warnExceptions = { IllegalArgumentException.class })
+    @Evaluator(extraName = "Constant")
     static BytesRef processConstant(@Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch, @Fixed int number) {
         return processInner(scratch, number);
     }

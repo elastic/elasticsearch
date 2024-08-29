@@ -1249,11 +1249,10 @@ public class MetadataCreateIndexService {
         ClusterBlocks.Builder blocks = createClusterBlocksBuilder(currentState, indexName, clusterBlocks);
         blocks.updateBlocks(indexMetadata);
 
-        ClusterState updatedState = ClusterState.builder(currentState).blocks(blocks).metadata(newMetadata).build();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, currentState.routingTable())
+            .addAsNew(newMetadata.index(indexName));
 
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, updatedState.routingTable())
-            .addAsNew(updatedState.metadata().index(indexName));
-        return ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
+        return ClusterState.builder(currentState).blocks(blocks).metadata(newMetadata).routingTable(routingTableBuilder).build();
     }
 
     static IndexMetadata buildIndexMetadata(

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests;
 
 import java.util.ArrayList;
@@ -47,7 +48,8 @@ public abstract class AbstractPhysicalPlanSerializationTests<T extends PhysicalP
         entries.addAll(Attribute.getNamedWriteables());
         entries.addAll(Block.getNamedWriteables());
         entries.addAll(NamedExpression.getNamedWriteables());
-        entries.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
+        entries.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables()); // Query builders
+        entries.add(Add.ENTRY); // Used by the eval tests
         return new NamedWriteableRegistry(entries);
     }
 

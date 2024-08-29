@@ -264,7 +264,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertEquals(numDocs, topDocs.totalHits.value);
         BytesRef previousValue = reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
-            final String docValue = searcher.doc(topDocs.scoreDocs[i].doc).get("value");
+            final String docValue = searcher.storedFields().document(topDocs.scoreDocs[i].doc).get("value");
             final BytesRef value = new BytesRef(docValue == null ? missingValue : docValue);
             if (reverse) {
                 assertTrue(previousValue.compareTo(value) >= 0);
@@ -323,7 +323,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(topDocs.totalHits.value, lessThanOrEqualTo((long) numDocs));
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
-            final String docValue = searcher.doc(topDocs.scoreDocs[i].doc).get("value");
+            final String docValue = searcher.storedFields().document(topDocs.scoreDocs[i].doc).get("value");
             if (first && docValue == null) {
                 assertNull(previousValue);
             } else if (first == false && docValue != null) {
@@ -413,7 +413,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             assertTrue("expected " + docID + " to be a parent", parents.get(docID));
             BytesRef cmpValue = null;
             for (int child = parents.prevSetBit(docID - 1) + 1; child < docID; ++child) {
-                String[] sVals = searcher.doc(child).getValues("text");
+                String[] sVals = searcher.storedFields().document(child).getValues("text");
                 final BytesRef[] vals;
                 if (sVals.length == 0) {
                     vals = new BytesRef[0];

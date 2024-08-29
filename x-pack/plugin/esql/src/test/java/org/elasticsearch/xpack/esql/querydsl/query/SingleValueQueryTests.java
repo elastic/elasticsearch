@@ -270,7 +270,10 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
             List<List<Object>> fieldValues = new ArrayList<>(100);
             for (int i = 0; i < 100; i++) {
                 iw.addDocument(
-                    List.of(new LongField("i", i), new TextField("str", "the quick brown fox jumped over the lazy dog", Field.Store.NO))
+                    List.of(
+                        new LongField("i", i, Field.Store.NO),
+                        new TextField("str", "the quick brown fox jumped over the lazy dog", Field.Store.NO)
+                    )
                 );
                 fieldValues.add(List.of());
             }

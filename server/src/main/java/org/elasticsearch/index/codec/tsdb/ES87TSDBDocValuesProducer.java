@@ -658,9 +658,8 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                     i = 0;
                     count = ords.docValueCount();
                 }
-                if (i++ == count) {
-                    return NO_MORE_ORDS;
-                }
+                assert i < count;
+                i++;
                 return ords.nextValue();
             }
 

@@ -82,7 +82,9 @@ class Context {
     }
 
     public boolean shouldAddNestedField() {
-        if (objectDepth >= specification.maxObjectDepth() || nestedFieldsCount.get() >= specification.nestedFieldsLimit() || parentDynamicMapping == DynamicMapping.FORCED) {
+        if (objectDepth >= specification.maxObjectDepth()
+            || nestedFieldsCount.get() >= specification.nestedFieldsLimit()
+            || parentDynamicMapping == DynamicMapping.FORCED) {
             return false;
         }
 

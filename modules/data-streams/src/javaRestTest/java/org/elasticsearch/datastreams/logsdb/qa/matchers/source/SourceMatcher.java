@@ -10,8 +10,6 @@ package org.elasticsearch.datastreams.logsdb.qa.matchers.source;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.GenericEqualsMatcher;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.ListEqualMatcher;
@@ -77,12 +75,8 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             );
         }
 
-        var sortedAndFlattenedActual = actual.stream()
-            .map(SourceTransforms::normalize)
-            .toList();
-        var sortedAndFlattenedExpected = expected.stream()
-            .map(SourceTransforms::normalize)
-            .toList();
+        var sortedAndFlattenedActual = actual.stream().map(SourceTransforms::normalize).toList();
+        var sortedAndFlattenedExpected = expected.stream().map(SourceTransforms::normalize).toList();
 
         for (int i = 0; i < sortedAndFlattenedActual.size(); i++) {
             var actual = sortedAndFlattenedActual.get(i);

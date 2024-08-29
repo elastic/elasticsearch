@@ -562,6 +562,7 @@ public class ComputeService {
         ActionListener<List<DataNode>> listener
     ) {
         ActionListener<SearchShardsResponse> searchShardsListener = listener.map(resp -> {
+            System.err.println("### ### : Received SearchShardsResponse for cluster: " + clusterAlias);
             Map<String, DiscoveryNode> nodes = new HashMap<>();
             for (DiscoveryNode node : resp.getNodes()) {
                 nodes.put(node.getId(), node);
@@ -597,23 +598,26 @@ public class ComputeService {
                 Map<Index, AliasFilter> aliasFilters = nodeToAliasFilters.getOrDefault(e.getKey(), Map.of());
                 dataNodes.add(new DataNode(transportService.getConnection(node), e.getValue(), aliasFilters));
             }
-            final int countShards = totalShards;
-            final int skipped = skippedShards;
-            executionInfo.swapCluster(
-                clusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(countShards)
-                    .setSuccessfulShards(countShards)
-                    .setSkippedShards(skipped)
-                    .setFailedShards(0)
-                    .build()
-            );
-            System.err.printf(
-                "+++ DEBUG 100: SearchShardsRequest executionInfo summary for cluster[%s] : [%s]\n",
-                clusterAlias,
-                executionInfo
-            );
+            if (executionInfo.isCrossClusterSearch()) {
+                final int countShards = totalShards;
+                final int skipped = skippedShards;
+                executionInfo.swapCluster(
+                    clusterAlias,
+                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(countShards)
+                        .setSuccessfulShards(countShards)
+                        .setSkippedShards(skipped)
+                        .setFailedShards(0)
+                        .build()
+                );
+                System.err.printf(
+                    "### ### DEBUG 100: SearchShardsRequest executionInfo summary for cluster[%s] : [%s]\n",
+                    clusterAlias,
+                    executionInfo
+                );
+            }
             return dataNodes;
         });
+        System.err.println("### ### : Sending SearchShardsRequest for cluster: " + clusterAlias);
         SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
             originalIndices.indices(),
             originalIndices.indicesOptions(),
@@ -805,7 +809,16 @@ public class ComputeService {
                 request.indices(),
                 request.indicesOptions()
             );
-            try (var computeListener = new ComputeListener(transportService, (CancellableTask) task, listener)) {
+            String clusterAlias = request.clusterAlias();
+            EsqlExecutionInfo execInfo = new EsqlExecutionInfo();
+            System.err.println("*** DataNodeRequestHandler: Creating new temp EsqlExecutionInfo");
+            final DataNodeRequest requestRef = request;
+            execInfo.swapCluster(
+                clusterAlias,
+                (k, v) -> new EsqlExecutionInfo.Cluster(clusterAlias, Arrays.toString(requestRef.indices()))
+            );
+
+            try (var computeListener = new ComputeListener(transportService, (CancellableTask) task, clusterAlias, execInfo, listener)) {
                 runComputeOnDataNode((CancellableTask) task, sessionId, reducePlan, request, computeListener);
             }
         }

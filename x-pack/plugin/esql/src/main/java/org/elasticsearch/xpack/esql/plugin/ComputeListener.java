@@ -72,7 +72,7 @@ final class ComputeListener implements Releasable {
         this.task = task;
         this.responseHeaders = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
         this.collectedProfiles = Collections.synchronizedList(new ArrayList<>());
-        // for remote executions - this ComputeResponse is created on the remote cluster and will be serialized back and
+        // for remote executions - this ComputeResponse is created on the remote cluster/node and will be serialized back and
         // received by the acquireCompute method callback on the coordinating cluster
         this.refs = new RefCountingListener(1, ActionListener.wrap(ignored -> {
             responseHeaders.finish();
@@ -140,20 +140,22 @@ final class ComputeListener implements Releasable {
                 collectedProfiles.addAll(profiles);
             }
             System.err.println("=====> TOTAL SHARDS n acquireCompute: " + resp.getTotalShards());
-            executionInfo.swapCluster(
-                clusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
-                    // MP TODO: if we get here does that mean that the remote search is finished and was SUCCESSFUL?
-                    // MP TODO: if yes, where does the failure path go - how do we update the ExecutionInfo with failure info?
-                    .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
-                    .setTook(resp.getTook())
-                    .setTotalShards(resp.getTotalShards())
-                    .setSuccessfulShards(resp.getSuccessfulShards())
-                    .setSkippedShards(resp.getSkippedShards())
-                    .setFailedShards(resp.getFailedShards())
-                    .build()
-            );
-            System.err.printf("UUU: swapping-in (in acquireCompute) for cluster: [%s]; execInfo: [%s]\n", clusterAlias, executionInfo);
+            if (executionInfo.isCrossClusterSearch()) {
+                executionInfo.swapCluster(
+                    clusterAlias,
+                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
+                        // MP TODO: if we get here does that mean that the remote search is finished and was SUCCESSFUL?
+                        // MP TODO: if yes, where does the failure path go - how do we update the ExecutionInfo with failure info?
+                        .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                        .setTook(resp.getTook())
+                        .setTotalShards(resp.getTotalShards())
+                        .setSuccessfulShards(resp.getSuccessfulShards())
+                        .setSkippedShards(resp.getSkippedShards())
+                        .setFailedShards(resp.getFailedShards())
+                        .build()
+                );
+                System.err.printf("UUU: swapping-in (in acquireCompute) for cluster: [%s]; execInfo: [%s]\n", clusterAlias, executionInfo);
+            }
             return null;
         });
     }

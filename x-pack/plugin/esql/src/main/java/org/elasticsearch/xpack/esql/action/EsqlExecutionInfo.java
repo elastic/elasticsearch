@@ -79,6 +79,11 @@ public class EsqlExecutionInfo implements ToXContentFragment {
         return skipUnavailablePredicate.test(clusterAlias);
     }
 
+    public boolean isCrossClusterSearch() {
+        return clusterInfo.size() > 0;
+        // return clusterInfo.size() > 1 || clusterInfo.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false;
+    }
+
     public Cluster getCluster(String clusterAlias) {
         return clusterInfo.get(clusterAlias);
     }

@@ -77,6 +77,11 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
 
     @Override
     public void subscribe(Flow.Subscriber<? super HttpResult> subscriber) {
+        if (this.subscriber != null) {
+            subscriber.onError(new IllegalStateException("Only one subscriber is allowed for this Publisher."));
+            return;
+        }
+
         this.subscriber = subscriber;
         subscriber.onSubscribe(new HttpSubscription());
     }

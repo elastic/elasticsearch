@@ -412,6 +412,20 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     }
 
     /**
+     * Given a subscriber is already subscribed
+     * When a second subscriber subscribes
+     * Then that subscriber should receive an IllegalStateException
+     */
+    public void testDoubleSubscribeFails() {
+        publisher.subscribe(mock());
+
+        var subscriber = new TestSubscriber();
+        publisher.subscribe(subscriber);
+        assertThat(subscriber.throwable, notNullValue());
+        assertThat(subscriber.throwable, instanceOf(IllegalStateException.class));
+    }
+
+    /**
      * Given the thread is an ML Utility thread
      * When a new request is processed
      * Then it should reuse that ML Utility thread

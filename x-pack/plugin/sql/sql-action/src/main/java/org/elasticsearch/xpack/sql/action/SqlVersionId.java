@@ -11,9 +11,10 @@ import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.VersionId;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
-public class SqlVersionId implements VersionId<SqlVersionId> {
+public final class SqlVersionId implements VersionId<SqlVersionId> {
 
     private final int id;
 
@@ -23,9 +24,11 @@ public class SqlVersionId implements VersionId<SqlVersionId> {
     private static final String CURRENT_RELEASE;
 
     // Value to initialize the SQL session or requests with, in case the client doesn't send a version.
-    public static final SqlVersionId CURRENT = new SqlVersionId(TransportVersion.current());
+    public static final SqlVersionId CURRENT = from(TransportVersion.current());
     // The first version that supports versioning.
-    public static final SqlVersionId INTRODUCING_VERSION_COMPATIBILITY = new SqlVersionId(TransportVersions.V_7_7_0);
+    public static final SqlVersionId INTRODUCING_VERSION_COMPATIBILITY = from(TransportVersions.V_7_7_0);
+    // last version whose ID is compatible with the SemVer versioning scheme.
+    public static final SqlVersionId LAST_SEM_VER_COMPATIBLE = from(TransportVersions.V_8_8_1);
 
     static {
         String currentVersion;
@@ -42,8 +45,24 @@ public class SqlVersionId implements VersionId<SqlVersionId> {
         this.id = id;
     }
 
-    public SqlVersionId(VersionId<?> id) {
-        this(id.id());
+    public static SqlVersionId from(VersionId<?> id) {
+        return new SqlVersionId(id.id());
+    }
+
+    @Nullable
+    public static SqlVersionId from(SqlVersion sqlVersion) {
+        if (sqlVersion == null) return null;
+
+        // Promote any version below the last SemVer compatible version to CURRENT. Past that point an ID-based comparison isn't possible,
+        // since the IDs are generated differently. For instance an 8.16.0 - with the SqlVersion ID of 8_16_00_99 - will be considered
+        // before TransportVersion.V_8_12_0, with the TransportVersion ID of 8_560_00_0.
+        // This is just a workaround, since there's currently no way to map from a Sql/Version back to a TransportVersion.
+        return sqlVersion.id > LAST_SEM_VER_COMPATIBLE.id() ? CURRENT : new SqlVersionId(sqlVersion.id);
+    }
+
+    // for testing only
+    public static SqlVersionId fromSemVerString(String version) {
+        return from(SqlVersion.fromString(version));
     }
 
     /** A client is version-compatible with the server if it supports version compatibility (on or past 7.7.0).
@@ -61,6 +80,10 @@ public class SqlVersionId implements VersionId<SqlVersionId> {
         return client.onOrAfter(INTRODUCING_VERSION_COMPATIBILITY);
     }
 
+    public static boolean isSemVerCompatible(SqlVersionId version) {
+        return version.onOrBefore(LAST_SEM_VER_COMPATIBLE);
+    }
+
     /**
      * The version id this object represents
      */
@@ -70,7 +93,11 @@ public class SqlVersionId implements VersionId<SqlVersionId> {
     }
 
     public SqlVersion sqlVersion() {
-        throw new UnsupportedOperationException("cannot convert a generic SqlVersionId to a SqlVersion object.");
+        if (isSemVerCompatible(this)) return SqlVersion.fromId(id);
+
+        throw new IllegalArgumentException(
+            "Cannot convert incompatible SqlVersionId[" + toReleaseVersion() + "[" + id + "]] to a SqlVersion object."
+        );
     }
 
     public String toReleaseVersion() {
@@ -82,5 +109,17 @@ public class SqlVersionId implements VersionId<SqlVersionId> {
      */
     public static String currentRelease() {
         return CURRENT_RELEASE;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null) return false;
+        return (o.getClass() == getClass()) && ((SqlVersionId) o).id == id;
+    }
+
+    @Override
+    public int hashCode() {
+        return id;
     }
 }

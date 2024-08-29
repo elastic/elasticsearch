@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.sql.proto;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
+
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.MAJOR_MULTIPLIER;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.MINOR_MULTIPLIER;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.REVISION_MULTIPLIER;
+import static org.hamcrest.Matchers.containsString;
 
 public class SqlVersionTests extends ESTestCase {
     public void test123FromString() {
@@ -82,5 +85,22 @@ public class SqlVersionTests extends ESTestCase {
         SqlVersion ver1 = SqlVersion.fromString("1.2.3");
         String ver2 = "invalid";
         assertNotEquals(ver1, ver2);
+    }
+
+    public void testFromTransportString() {
+        assertEquals(SqlVersion.fromString("1.2.3"), SqlVersion.fromTransportString("1.2.3"));
+        assertEquals(SqlVersion.fromString("4.5.6"), SqlVersion.fromTransportString("1.2.3-4.5.6"));
+        assertEquals(SqlVersion.fromString("1.2.3"), SqlVersion.fromTransportString("1.2.3-[456]"));
+    }
+
+    public void testFromTransportStringFail() {
+        for (String v : List.of("-", "1-1", "1.1.x-1", "1.1.1-2.2.2-3.3.3", "1.1.1-2.2.2-snapshot", "[1]-[1]")) {
+            Throwable t = expectThrows(
+                IllegalArgumentException.class,
+                "failed to throw for: [" + v + "]",
+                () -> SqlVersion.fromTransportString(v)
+            );
+            assertThat(t.getMessage(), containsString("Invalid version format [" + v + "]"));
+        }
     }
 }

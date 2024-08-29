@@ -87,7 +87,7 @@ public class SqlVersion implements Comparable<SqlVersion> {
      * <ul>
      *     <li>Major.Minor.Revision</li>
      *     <li>Major.Minor.Revision-Major.Minor.Revision</li>
-     *     <li>Major.Minor.Revision-snapshot[Id]</li>
+     *     <li>Major.Minor.Revision-[Id]</li>
      * </ul>
      * @param version The TransportVersion string to parse.
      * @return The SqlVersion representation of the TransportVersion string. In case of a release version range, the upper bound is
@@ -99,18 +99,21 @@ public class SqlVersion implements Comparable<SqlVersion> {
             return null;
         }
         try {
+            // Try the 1st format.
             return new SqlVersion(version, from(version));
         } catch (IllegalArgumentException e) {
             String[] parts = version.split("-");
             if (parts.length != 2) {
                 throw e;
             }
-            // The version has been added between the stack releases separated by the hyphen: only consider the upper bound.
-            try {
-                return new SqlVersion(parts[1], from(parts[1]));
-            } catch (IllegalArgumentException ignored) {
-                throw e;
+            // The version has been added between the stack releases separated by the hyphen: try the 2nd format, then the 3rd.
+            // Note, this will allow something like [1]-1.2.3. TODO: should it?
+            for (int i = 1; i >= 0; i--) {
+                try {
+                    return new SqlVersion(parts[i], from(parts[i]));
+                } catch (IllegalArgumentException ignored) {}
             }
+            throw e;
         }
     }
 

@@ -272,9 +272,8 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     public static XContentBuilder value(XContentBuilder builder, Mode mode, SqlVersionId version, Object value) throws IOException {
         if (value instanceof ZonedDateTime zdt) {
             // use the ISO format
-            if (mode == JDBC && SqlVersionId.isClientCompatible(version) && version instanceof SqlSemVersion semVersion) {
-                // If a SemVer version was received from the client, use that; otherwise default to "recent enough".
-                builder.value(StringUtils.toString(zdt, semVersion.sqlVersion()));
+            if (mode == JDBC && SqlVersionId.isClientCompatible(version) && SqlVersionId.isSemVerCompatible(version)) {
+                builder.value(StringUtils.toString(zdt, version.sqlVersion()));
             } else {
                 builder.value(StringUtils.toString(zdt));
             }

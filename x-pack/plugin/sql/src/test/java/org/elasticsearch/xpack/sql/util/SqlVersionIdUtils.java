@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.sql.util;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.sql.action.SqlSemVersion;
 import org.elasticsearch.xpack.sql.action.SqlVersionId;
 
 import java.util.List;
 import java.util.Random;
 
+import static org.elasticsearch.xpack.sql.action.SqlVersionId.from;
 import static org.elasticsearch.xpack.sql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.index.VersionCompatibilityChecks.INTRODUCING_VERSION_FIELD_TYPE;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
@@ -26,7 +26,7 @@ public final class SqlVersionIdUtils {
     public static final SqlVersionId PRE_VERSION_FIELD = getPreviousVersion(INTRODUCING_VERSION_FIELD_TYPE);
     public static final SqlVersionId POST_VERSION_FIELD = getNextVersion(INTRODUCING_VERSION_FIELD_TYPE);
 
-    public static final SqlVersionId INTRODUCING_DATE_NANOS = new SqlSemVersion(DATE_NANOS_SUPPORT_VERSION);
+    public static final SqlVersionId INTRODUCING_DATE_NANOS = from(DATE_NANOS_SUPPORT_VERSION);
 
     public static List<SqlVersionId> UNSIGNED_LONG_TEST_VERSIONS = List.of(
         PRE_UNSIGNED_LONG,
@@ -45,31 +45,31 @@ public final class SqlVersionIdUtils {
     public static SqlVersionId getPreviousVersion(SqlVersionId versionId) {
         TransportVersion transport = TransportVersion.fromId(versionId.id());
         TransportVersion pre = TransportVersionUtils.getPreviousVersion(transport);
-        return new SqlVersionId(pre);
+        return from(pre);
     }
 
     public static SqlVersionId getNextVersion(SqlVersionId versionId) {
         TransportVersion transport = TransportVersion.fromId(versionId.id());
         TransportVersion next = TransportVersionUtils.getNextVersion(transport);
-        return new SqlVersionId(next);
+        return from(next);
     }
 
     public static SqlVersionId randomVersion() {
-        return new SqlVersionId(TransportVersionUtils.randomVersion());
+        return from(TransportVersionUtils.randomVersion());
     }
 
     public static SqlVersionId randomVersionBetween(Random random, SqlVersionId from, SqlVersionId to) {
         TransportVersion fromTransport = TransportVersion.fromId(from.id());
         TransportVersion toTransport = TransportVersion.fromId(to.id());
         TransportVersion randomTransport = TransportVersionUtils.randomVersionBetween(random, fromTransport, toTransport);
-        return new SqlVersionId(randomTransport);
+        return from(randomTransport);
     }
 
     public static SqlVersionId getFirstVersion() {
-        return new SqlVersionId(TransportVersionUtils.getFirstVersion());
+        return from(TransportVersionUtils.getFirstVersion());
     }
 
     public static List<SqlVersionId> allReleasedVersions() {
-        return TransportVersionUtils.allReleasedVersions().stream().map(SqlVersionId::new).toList();
+        return TransportVersionUtils.allReleasedVersions().stream().map(SqlVersionId::from).toList();
     }
 }

@@ -14,11 +14,12 @@ import org.elasticsearch.xpack.sql.action.SqlVersionId;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.sql.action.SqlVersionId.from;
 
 public final class VersionCompatibilityChecks {
 
-    public static final SqlVersionId INTRODUCING_UNSIGNED_LONG = new SqlVersionId(TransportVersions.V_8_2_0);
-    public static final SqlVersionId INTRODUCING_VERSION_FIELD_TYPE = new SqlVersionId(TransportVersions.V_8_4_0);
+    public static final SqlVersionId INTRODUCING_UNSIGNED_LONG = from(TransportVersions.V_8_2_0);
+    public static final SqlVersionId INTRODUCING_VERSION_FIELD_TYPE = from(TransportVersions.V_8_4_0);
 
     private VersionCompatibilityChecks() {}
 

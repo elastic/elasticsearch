@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class SqlQueryResponseTests extends AbstractXContentSerializingTestCase<SqlQueryResponse> {
 
-    public static final SqlVersionId INTRODUCING_DATE_NANOS = new SqlSemVersion(DATE_NANOS_SUPPORT_VERSION);
+    public static final SqlVersionId INTRODUCING_DATE_NANOS = SqlVersionId.from(DATE_NANOS_SUPPORT_VERSION);
 
     static String randomStringCursor() {
         return randomBoolean() ? "" : randomAlphaOfLength(10);

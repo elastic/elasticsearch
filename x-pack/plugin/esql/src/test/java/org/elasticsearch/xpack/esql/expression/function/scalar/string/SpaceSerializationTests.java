@@ -24,7 +24,7 @@ public class SpaceSerializationTests extends AbstractExpressionSerializationTest
     @Override
     protected Space mutateInstance(Space instance) throws IOException {
         Source source = instance.source();
-        Expression number = instance.number();
+        Expression number = instance.field();
         number = randomValueOtherThan(number, AbstractExpressionSerializationTests::randomChild);
         return new Space(source, number);
     }

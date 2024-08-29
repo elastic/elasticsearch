@@ -40,8 +40,6 @@ public class Space extends UnaryScalarFunction {
 
     static final long MAX_LENGTH = MB.toBytes(1);
 
-    private final Expression number;
-
     @FunctionInfo(
         returnType = "keyword",
         description = "Returns a string of `number` spaces.",
@@ -52,7 +50,6 @@ public class Space extends UnaryScalarFunction {
         @Param(name = "number", type = { "integer" }, description = "Number of spaces in result.") Expression number
     ) {
         super(source, number);
-        this.number = number;
     }
 
     private Space(StreamInput in) throws IOException {
@@ -62,7 +59,7 @@ public class Space extends UnaryScalarFunction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeNamedWriteable(number);
+        out.writeNamedWriteable(field);
     }
 
     @Override
@@ -81,12 +78,7 @@ public class Space extends UnaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return isType(number, dt -> dt == DataType.INTEGER, sourceText(), DEFAULT, "integer");
-    }
-
-    @Override
-    public boolean foldable() {
-        return number.foldable();
+        return isType(field, dt -> dt == DataType.INTEGER, sourceText(), DEFAULT, "integer");
     }
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
@@ -116,22 +108,19 @@ public class Space extends UnaryScalarFunction {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Space::new, number);
+        return NodeInfo.create(this, Space::new, field);
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        if (number.foldable()) {
-            int num = (int) number.fold();
+        if (field.foldable()) {
+            int num = (int) field.fold();
             checkNumber(num);
             return toEvaluator.apply(new Literal(source(), " ".repeat(num), KEYWORD));
         }
 
-        ExpressionEvaluator.Factory numberExpr = toEvaluator.apply(number);
+        ExpressionEvaluator.Factory numberExpr = toEvaluator.apply(field);
         return new SpaceEvaluator.Factory(source(), context -> new BreakingBytesRefBuilder(context.breaker(), "space"), numberExpr);
     }
 
-    Expression number() {
-        return number;
-    }
 }

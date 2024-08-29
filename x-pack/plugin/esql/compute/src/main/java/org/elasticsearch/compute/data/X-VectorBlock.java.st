@@ -72,6 +72,11 @@ $endif$
     }
 
     @Override
+    public $Type$Block keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
     public ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return vector.lookup(positions, targetBlockSize);
     }

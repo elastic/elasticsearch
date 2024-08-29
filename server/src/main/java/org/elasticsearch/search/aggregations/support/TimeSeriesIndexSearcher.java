@@ -63,10 +63,7 @@ public class TimeSeriesIndexSearcher {
                 searcher.getSimilarity(),
                 searcher.getQueryCache(),
                 searcher.getQueryCachingPolicy(),
-                false,
-                searcher.getExecutor(),
-                1,
-                -1
+                false
             );
         } catch (IOException e) {
             // IOException from wrapping the index searcher which should never happen.

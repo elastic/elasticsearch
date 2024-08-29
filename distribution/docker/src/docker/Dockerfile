@@ -164,7 +164,7 @@ RUN <%= retry.loop(package_manager,
           "      ${package_manager} update && \n" +
           "      ${package_manager} upgrade && \n" +
           "      ${package_manager} add --no-cache \n" +
-          "        bash ca-certificates curl netcat-openbsd p11-kit p11-kit-trust shadow zstd unzip libsystemd zip && \n" +
+          "        bash ca-certificates curl libsystemd netcat-openbsd p11-kit p11-kit-trust shadow tini unzip zip zstd && \n" +
           "      rm -rf /var/cache/apk/* "
      ) %>
 <% } else if (docker_base == "default" || docker_base == "cloud") { %>
@@ -216,7 +216,9 @@ ENV ELASTIC_CONTAINER true
 WORKDIR /usr/share/elasticsearch
 
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
+<% if (docker_base != "wolfi") { %>
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
+<% } %>
 
 <% if (docker_base == 'cloud') { %>
 COPY --from=builder --chown=0:0 /opt /opt
@@ -300,7 +302,12 @@ CMD ["/app/elasticsearch.sh"]
 RUN mkdir /app && \\
     echo -e '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
     chmod 0555 /app/elasticsearch.sh
-
+<% } else if (docker_base == "wolfi") { %>
+# Our actual entrypoint is `tini`, a minimal but functional init program. It
+# calls the entrypoint we provide, while correctly forwarding signals.
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
+# Dummy overridable parameter parsed by entrypoint
+CMD ["eswrapper"]
 <% } else { %>
 # Our actual entrypoint is `tini`, a minimal but functional init program. It
 # calls the entrypoint we provide, while correctly forwarding signals.

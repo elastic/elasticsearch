@@ -1,5 +1,5 @@
 pr: 112319
-summary: Capabilities to Hide/Show Vector fields from Source
-area: "Mapping, Vector Search, Relevance"
+summary: Add parameter to hide/show vector fields from _source
+area: "Mapping"
 type: enhancement
 issues: []

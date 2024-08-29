@@ -89,6 +89,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.array;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -709,6 +710,63 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             BlockingOnRewriteQueryBuilder.unblockOnRewrite();
             expectThrows(CancellationException.class, future::actionGet);
         }
+    }
+
+    public void testIndexMode() throws Exception {
+        Map<String, IndexMode> indexModes = new HashMap<>();
+        // metrics
+        {
+            final String metricsMapping = """
+                 {
+                     "properties": {
+                       "@timestamp": { "type": "date" },
+                       "hostname": { "type": "keyword", "time_series_dimension": true },
+                       "request_count" : { "type" : "long", "time_series_metric" : "counter" },
+                       "cluster": {"type": "keyword"}
+                     }
+                 }
+                """;
+            Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("hostname")).build();
+            int numIndices = between(1, 5);
+            for (int i = 0; i < numIndices; i++) {
+                assertAcked(indicesAdmin().prepareCreate("test_metrics_" + i).setSettings(settings).setMapping(metricsMapping).get());
+                indexModes.put("test_metrics_" + i, IndexMode.TIME_SERIES);
+                assertAcked(indicesAdmin().prepareCreate("test_old_metrics_" + i).setMapping(metricsMapping).get());
+                indexModes.put("test_old_metrics_" + i, IndexMode.STANDARD);
+            }
+        }
+        // logsdb
+        {
+            final String logsMapping = """
+                 {
+                     "properties": {
+                       "@timestamp": { "type": "date" },
+                       "hostname": { "type": "keyword"},
+                       "request_count" : { "type" : "long"},
+                       "cluster": {"type": "keyword"}
+                     }
+                 }
+                """;
+            Settings settings = Settings.builder().put("mode", "logsdb").build();
+            int numIndices = between(1, 5);
+            for (int i = 0; i < numIndices; i++) {
+                assertAcked(indicesAdmin().prepareCreate("test_logs_" + i).setSettings(settings).setMapping(logsMapping).get());
+                indexModes.put("test_logs_" + i, IndexMode.LOGSDB);
+                assertAcked(indicesAdmin().prepareCreate("test_old_logs_" + i).setMapping(logsMapping).get());
+                indexModes.put("test_old_logs_" + i, IndexMode.STANDARD);
+            }
+        }
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.setMergeResults(false);
+        request.indices("test_*");
+        request.fields(randomFrom("*", "@timestamp", "host*"));
+        var resp = client().fieldCaps(request).get();
+        assertThat(resp.getFailures(), empty());
+        Map<String, IndexMode> actualIndexModes = new HashMap<>();
+        for (var indexResp : resp.getIndexResponses()) {
+            actualIndexModes.put(indexResp.getIndexName(), indexResp.getIndexMode());
+        }
+        assertThat(actualIndexModes, equalTo(indexModes));
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {

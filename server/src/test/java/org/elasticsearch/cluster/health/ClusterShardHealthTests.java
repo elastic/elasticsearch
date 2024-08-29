@@ -205,7 +205,7 @@ public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase
                     instance.getInitializingShards(),
                     instance.getUnassignedShards(),
                     instance.getUnassignedPrimaryShards(),
-                    instance.isPrimaryActive() == false
+                    instance.isPrimaryActive() ? false : true
                 );
             default:
                 throw new UnsupportedOperationException();

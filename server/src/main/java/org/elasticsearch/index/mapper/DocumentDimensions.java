@@ -12,8 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexSettings;
 
 import java.net.InetAddress;
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  * Collects dimensions from documents.
@@ -47,63 +45,6 @@ public interface DocumentDimensions {
     DocumentDimensions addBoolean(String fieldName, boolean value);
 
     DocumentDimensions validate(IndexSettings settings);
-
-    /**
-     * Makes sure that each dimension only appears on time.
-     */
-    class OnlySingleValueAllowed implements DocumentDimensions {
-        private final Set<String> names = new HashSet<>();
-
-        @Override
-        public DocumentDimensions addString(String fieldName, BytesRef value) {
-            add(fieldName);
-            return this;
-        }
-
-        // Override to skip the UTF-8 conversion that happens in the default implementation
-        @Override
-        public DocumentDimensions addString(String fieldName, String value) {
-            add(fieldName);
-            return this;
-        }
-
-        @Override
-        public DocumentDimensions addIp(String fieldName, InetAddress value) {
-            add(fieldName);
-            return this;
-        }
-
-        @Override
-        public DocumentDimensions addLong(String fieldName, long value) {
-            add(fieldName);
-            return this;
-        }
-
-        @Override
-        public DocumentDimensions addUnsignedLong(String fieldName, long value) {
-            add(fieldName);
-            return this;
-        }
-
-        @Override
-        public DocumentDimensions addBoolean(String fieldName, boolean value) {
-            add(fieldName);
-            return this;
-        }
-
-        @Override
-        public DocumentDimensions validate(final IndexSettings settings) {
-            // DO NOTHING
-            return this;
-        }
-
-        private void add(String fieldName) {
-            boolean isNew = names.add(fieldName);
-            if (false == isNew) {
-                throw new IllegalArgumentException("Dimension field [" + fieldName + "] cannot be a multi-valued field.");
-            }
-        }
-    };
 
     /**
      * Noop implementation that doesn't perform validations on dimension fields

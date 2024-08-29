@@ -1596,6 +1596,7 @@ emp_no:integer | languages:integer | first_name:keyword
 ;
 
 space
+required_capability: space
 // tag::space[]
 ROW message = CONCAT("Hello", SPACE(1), "World!");
 // end::space[]
@@ -1607,6 +1608,7 @@ Hello World!
 ;
 
 spaceLength
+required_capability: space
 ROW len = LENGTH(SPACE(12));
 
 len:integer
@@ -1614,6 +1616,7 @@ len:integer
 ;
 
 spaceCalculated
+required_capability: space
 ROW inner_width = 20, title = "Title"
 | EVAL lspace = SPACE((inner_width-LENGTH(title))/2),
        rspace = SPACE(inner_width-LENGTH(lspace)-LENGTH(title)),
@@ -1625,6 +1628,7 @@ inner_width:integer | centered_title:keyword
 ;
 
 spaceZero
+required_capability: space
 ROW s = SPACE(0);
 
 s:keyword
@@ -1632,6 +1636,7 @@ s:keyword
 ;
 
 spaceNull
+required_capability: space
 ROW s = SPACE(null);
 
 s:keyword
@@ -1639,6 +1644,7 @@ null
 ;
 
 spaceNegative
+required_capability: space
 FROM employees | SORT emp_no | LIMIT 1 | EVAL s = SPACE(-LENGTH(first_name)) | KEEP s;
 
 warning:Line 1:51: evaluation of [SPACE(-LENGTH(first_name))] failed, treating result as null. Only first 20 failures recorded.

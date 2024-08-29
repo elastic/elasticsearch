@@ -269,7 +269,12 @@ public class EsqlCapabilities {
         /**
          * Allow mixed numeric types in coalesce
          */
-        MIXED_NUMERIC_TYPES_IN_COALESCE;
+        MIXED_NUMERIC_TYPES_IN_COALESCE,
+
+        /**
+         * Support for requesting the "SPACE" function.
+         */
+        SPACE;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

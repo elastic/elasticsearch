@@ -90,13 +90,17 @@ public class Space extends UnaryScalarFunction {
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static BytesRef process(@Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch, int number) {
+        checkNumber(number);
+        return processInner(scratch, number);
+    }
+
+    static void checkNumber(int number) {
         if (number < 0) {
             throw new IllegalArgumentException("Number parameter cannot be negative, found [" + number + "]");
         }
         if (number > MAX_LENGTH) {
             throw new IllegalArgumentException("Creating strings longer than [" + MAX_LENGTH + "] bytes is not supported");
         }
-        return processInner(scratch, number);
     }
 
     static BytesRef processInner(BreakingBytesRefBuilder scratch, int number) {
@@ -122,12 +126,7 @@ public class Space extends UnaryScalarFunction {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         if (number.foldable()) {
             int num = (int) number.fold();
-            if (num < 0) {
-                throw new IllegalArgumentException("Number parameter cannot be negative, found [" + number + "]");
-            }
-            if (num > MAX_LENGTH) {
-                throw new IllegalArgumentException("Creating strings longer than [" + MAX_LENGTH + "] bytes is not supported");
-            }
+            checkNumber(num);
             return new SpaceConstantEvaluator.Factory(source(), context -> new BreakingBytesRefBuilder(context.breaker(), "space"), num);
         }
 

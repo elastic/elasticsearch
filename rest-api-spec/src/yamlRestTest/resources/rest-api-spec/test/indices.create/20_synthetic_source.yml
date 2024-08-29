@@ -1209,8 +1209,8 @@ nested object with stored array:
 # 112156
 stored field under object with store_array_source:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
+      cluster_features: ["mapper.source.synthetic_source_stored_fields_advance_fix"]
+      reason: requires bug fix to be implemented
 
   - do:
       indices.create:

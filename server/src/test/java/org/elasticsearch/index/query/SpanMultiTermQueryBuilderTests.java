@@ -219,7 +219,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
             assertThat(prefixQuery.getPrefix().text(), equalTo("f"));
             assertThat(wrapper.getRewriteMethod(), instanceOf(SpanBooleanQueryRewriteWithMaxClause.class));
             SpanBooleanQueryRewriteWithMaxClause rewrite = (SpanBooleanQueryRewriteWithMaxClause) wrapper.getRewriteMethod();
-            assertThat(rewrite.getMaxExpansions(), equalTo(BooleanQuery.getMaxClauseCount()));
+            assertThat(rewrite.getMaxExpansions(), equalTo(IndexSearcher.getMaxClauseCount()));
             assertTrue(rewrite.isHardLimit());
         }
     }
@@ -264,8 +264,8 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
                     iw.addDocument(singleton(new TextField("body", "foo bar" + Integer.toString(i), Field.Store.NO)));
                 }
                 try (IndexReader reader = iw.getReader()) {
-                    int origBoolMaxClauseCount = BooleanQuery.getMaxClauseCount();
-                    BooleanQuery.setMaxClauseCount(1);
+                    int origBoolMaxClauseCount = IndexSearcher.getMaxClauseCount();
+                    IndexSearcher.setMaxClauseCount(1);
                     try {
                         QueryBuilder queryBuilder = new SpanMultiTermQueryBuilder(QueryBuilders.prefixQuery("body", "bar"));
                         IndexSearcher searcher = newSearcher(reader);

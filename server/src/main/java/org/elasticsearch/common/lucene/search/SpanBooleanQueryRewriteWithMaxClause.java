@@ -18,7 +18,7 @@ import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.AttributeSource;
@@ -41,7 +41,7 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
     private final boolean hardLimit;
 
     public SpanBooleanQueryRewriteWithMaxClause() {
-        this(BooleanQuery.getMaxClauseCount(), true);
+        this(IndexSearcher.getMaxClauseCount(), true);
     }
 
     public SpanBooleanQueryRewriteWithMaxClause(int maxExpansions, boolean hardLimit) {
@@ -98,7 +98,7 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
                                         + query.toString()
                                         + " ] "
                                         + "exceeds maxClauseCount [ Boolean maxClauseCount is set to "
-                                        + BooleanQuery.getMaxClauseCount()
+                                        + IndexSearcher.getMaxClauseCount()
                                         + "]"
                                 );
                             } else {

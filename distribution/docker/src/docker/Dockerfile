@@ -23,6 +23,10 @@
 ARG BASE_REGISTRY=registry1.dso.mil
 ARG BASE_IMAGE=ironbank/redhat/ubi/ubi9
 ARG BASE_TAG=9.4
+<% } else if (docker_base == "wolfi") { %>
+ARG BASE_REGISTRY=docker.elastic.co
+ARG BASE_IMAGE=wolfi/chainguard-base
+ARG BASE_TAG=latest@sha256:c16d3ad6cebf387e8dd2ad769f54320c4819fbbaa21e729fad087c7ae223b4d0
 <% } %>
 
 ################################################################################
@@ -43,6 +47,8 @@ RUN chmod 0555 /bin/tini
 # Install required packages to extract the Elasticsearch distribution
 <% if (docker_base == 'default' || docker_base == 'cloud') { %>
 RUN <%= retry.loop(package_manager, "${package_manager} update && DEBIAN_FRONTEND=noninteractive ${package_manager} install -y curl ") %>
+<% } else if (docker_base == "wolfi") { %>
+RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
 <% } else { %>
 RUN <%= retry.loop(package_manager, "${package_manager} install -y findutils tar gzip") %>
 <% } %>
@@ -152,6 +158,15 @@ RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
       nc shadow-utils zip findutils unzip procps-ng && \\
     ${package_manager} clean all
 
+<% } else if (docker_base == "wolfi") { %>
+RUN <%= retry.loop(package_manager,
+          "export DEBIAN_FRONTEND=noninteractive && \n" +
+          "      ${package_manager} update && \n" +
+          "      ${package_manager} upgrade && \n" +
+          "      ${package_manager} add --no-cache \n" +
+          "        ca-certificates curl netcat-openbsd p11-kit p11-kit-trust shadow zstd unzip libsystemd zip && \n" +
+          "      rm -rf /var/cache/apk/* "
+     ) %>
 <% } else if (docker_base == "default" || docker_base == "cloud") { %>
 
 # Change default shell to bash, then install required packages with retries.
@@ -184,6 +199,11 @@ RUN <%= retry.loop(
 RUN groupadd -g 1000 elasticsearch && \\
     adduser --uid 1000 --gid 1000 --home /usr/share/elasticsearch elasticsearch && \\
     adduser elasticsearch root && \\
+    chown -R 0:0 /usr/share/elasticsearch
+<% } else if (docker_base == "wolfi") { %>
+RUN groupadd -g 1000 elasticsearch && \
+    adduser -G elasticsearch -u 1000 elasticsearch -D --home /usr/share/elasticsearch elasticsearch && \
+    adduser elasticsearch root && \
     chown -R 0:0 /usr/share/elasticsearch
 <% } else { %>
 RUN groupadd -g 1000 elasticsearch && \\

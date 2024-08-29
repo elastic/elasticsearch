@@ -13,6 +13,39 @@ values:integer | median_absolute_deviation:integer | median:integer
 // end::example-result[]
 ;
 
+fromIndex
+required_capability: fn_mv_median_absolute_deviation
+
+FROM employees
+| WHERE emp_no <= 10002
+| SORT emp_no ASC
+| EVAL
+    int = MV_MEDIAN_ABSOLUTE_DEVIATION(salary_change.int),
+    long = MV_MEDIAN_ABSOLUTE_DEVIATION(salary_change.long),
+    double = MV_MEDIAN_ABSOLUTE_DEVIATION(salary_change)
+| KEEP emp_no, int, long, double
+;
+
+emp_no:integer | int:integer | long:long | double:double
+10001          | 0           | 0         | 0
+10002          | 9           | 9         | 9.2
+;
+
+allTypes
+required_capability: fn_mv_median_absolute_deviation
+
+ROW x = [0, 2, 5, 6]
+| EVAL
+    int = MV_MEDIAN_ABSOLUTE_DEVIATION(x::INTEGER),
+    long = MV_MEDIAN_ABSOLUTE_DEVIATION(x::LONG),
+    double = MV_MEDIAN_ABSOLUTE_DEVIATION(x::DOUBLE),
+    ul = MV_MEDIAN_ABSOLUTE_DEVIATION(x::UNSIGNED_LONG)
+| KEEP int, long, double, ul
+;
+
+int:integer | long:long | double:double | ul:unsigned_long
+2           | 2         | 2             | 2
+;
 
 multipleExpressions
 required_capability: fn_mv_median_absolute_deviation

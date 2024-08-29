@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -34,6 +35,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -189,18 +191,25 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testDimensionMultiValuedField() throws IOException {
+    public void testDimensionMultiValuedField() throws Throwable {
         XContentBuilder mapping = fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimensions", List.of("key1", "key2", "field3.key3"));
         });
-        DocumentMapper mapper = randomBoolean() ? createDocumentMapper(mapping) : createTimeSeriesModeDocumentMapper(mapping);
 
-        Exception e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field.key1", "value1", "value2")))
-        );
-        assertThat(e.getCause().getMessage(), containsString("Dimension field [field.key1] cannot be a multi-valued field"));
+        IndexMode indexMode = randomFrom(IndexMode.values());
+        DocumentMapper mapper = createDocumentMapper(mapping, indexMode);
+
+        ThrowingRunnable parseArray = () -> mapper.parse(source(b -> {
+            b.array("field.key1", "value1", "value2");
+            b.field("@timestamp", Instant.now());
+        }));
+        if (indexMode == IndexMode.TIME_SERIES) {
+            Exception e = expectThrows(DocumentParsingException.class, parseArray);
+            assertThat(e.getCause().getMessage(), containsString("Dimension field [field.key1] cannot be a multi-valued field"));
+        } else {
+            parseArray.run();
+        }
     }
 
     public void testDisableIndex() throws Exception {

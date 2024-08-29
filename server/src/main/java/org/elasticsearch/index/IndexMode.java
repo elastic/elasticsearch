@@ -105,7 +105,7 @@ public enum IndexMode {
 
         @Override
         public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            return new DocumentDimensions.OnlySingleValueAllowed();
+            return DocumentDimensions.Noop.INSTANCE;
         }
 
         @Override
@@ -279,7 +279,7 @@ public enum IndexMode {
 
         @Override
         public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            return new DocumentDimensions.OnlySingleValueAllowed();
+            return DocumentDimensions.Noop.INSTANCE;
         }
 
         @Override

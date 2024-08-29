@@ -28,6 +28,7 @@ import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -260,17 +261,25 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         }
     }
 
-    public void testDimensionMultiValuedField() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+    public void testDimensionMultiValuedField() throws Throwable {
+        XContentBuilder mapping = fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true);
-        }));
+        });
 
-        Exception e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())))
-        );
-        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+        IndexMode indexMode = randomFrom(IndexMode.values());
+        DocumentMapper mapper = createDocumentMapper(mapping, indexMode);
+
+        ThrowingRunnable parseArray = () -> mapper.parse(source(b -> {
+            b.array("field", randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+            b.field("@timestamp", Instant.now());
+        }));
+        if (indexMode == IndexMode.TIME_SERIES) {
+            Exception e = expectThrows(DocumentParsingException.class, parseArray);
+            assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+        } else {
+            parseArray.run();
+        }
     }
 
     public void testMetricType() throws IOException {

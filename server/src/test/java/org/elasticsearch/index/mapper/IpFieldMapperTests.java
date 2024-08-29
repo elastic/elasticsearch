@@ -18,6 +18,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.IpFieldScript;
@@ -26,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -255,17 +257,25 @@ public class IpFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testDimensionMultiValuedField() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+    public void testDimensionMultiValuedField() throws Throwable {
+        XContentBuilder mapping = fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true);
-        }));
+        });
 
-        Exception e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", "192.168.1.1", "192.168.1.1")))
-        );
-        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+        IndexMode indexMode = randomFrom(IndexMode.values());
+        DocumentMapper mapper = createDocumentMapper(mapping, indexMode);
+
+        ThrowingRunnable parseArray = () -> mapper.parse(source(b -> {
+            b.array("field", "192.168.1.1", "192.168.1.1");
+            b.field("@timestamp", Instant.now());
+        }));
+        if (indexMode == IndexMode.TIME_SERIES) {
+            Exception e = expectThrows(DocumentParsingException.class, parseArray);
+            assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+        } else {
+            parseArray.run();
+        }
     }
 
     @Override

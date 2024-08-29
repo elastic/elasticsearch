@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.BooleanFieldScript;
@@ -25,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.function.Function;
 
@@ -257,15 +259,24 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testDimensionMultiValuedField() throws IOException {
+    public void testDimensionMultiValuedField() throws Throwable {
         XContentBuilder mapping = fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true);
         });
-        DocumentMapper mapper = randomBoolean() ? createDocumentMapper(mapping) : createTimeSeriesModeDocumentMapper(mapping);
+        IndexMode indexMode = randomFrom(IndexMode.values());
+        DocumentMapper mapper = createDocumentMapper(mapping, indexMode);
 
-        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.array("field", true, false))));
-        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+        ThrowingRunnable parseArray = () -> mapper.parse(source(b -> {
+            b.array("field", true, false);
+            b.field("@timestamp", Instant.now());
+        }));
+        if (indexMode == IndexMode.TIME_SERIES) {
+            Exception e = expectThrows(DocumentParsingException.class, parseArray);
+            assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+        } else {
+            parseArray.run();
+        }
     }
 
     public void testDimensionInRoutingPath() throws IOException {

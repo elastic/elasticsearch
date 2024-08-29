@@ -104,4 +104,47 @@ public interface DocumentDimensions {
             }
         }
     };
+
+    /**
+     * Noop implementation that doesn't perform validations on dimension fields
+     */
+    enum Noop implements DocumentDimensions {
+
+        INSTANCE;
+
+        @Override
+        public DocumentDimensions addString(String fieldName, BytesRef utf8Value) {
+            return this;
+        }
+
+        @Override
+        public DocumentDimensions addString(String fieldName, String value) {
+            return this;
+        }
+
+        @Override
+        public DocumentDimensions addIp(String fieldName, InetAddress value) {
+            return this;
+        }
+
+        @Override
+        public DocumentDimensions addLong(String fieldName, long value) {
+            return this;
+        }
+
+        @Override
+        public DocumentDimensions addUnsignedLong(String fieldName, long value) {
+            return this;
+        }
+
+        @Override
+        public DocumentDimensions addBoolean(String fieldName, boolean value) {
+            return this;
+        }
+
+        @Override
+        public DocumentDimensions validate(IndexSettings settings) {
+            return this;
+        }
+    }
 }

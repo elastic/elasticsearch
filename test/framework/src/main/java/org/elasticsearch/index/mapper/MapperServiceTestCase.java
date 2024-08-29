@@ -139,6 +139,14 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return randomFrom("docs", "freqs", "positions", "offsets");
     }
 
+    protected final DocumentMapper createDocumentMapper(XContentBuilder mappings, IndexMode indexMode) throws IOException {
+        return switch (indexMode) {
+            case STANDARD -> createDocumentMapper(mappings);
+            case TIME_SERIES -> createTimeSeriesModeDocumentMapper(mappings);
+            case LOGSDB -> createLogsModeDocumentMapper(mappings);
+        };
+    }
+
     protected final DocumentMapper createDocumentMapper(XContentBuilder mappings) throws IOException {
         return createMapperService(mappings).documentMapper();
     }

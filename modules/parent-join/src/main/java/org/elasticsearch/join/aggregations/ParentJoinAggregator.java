@@ -133,6 +133,11 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                 public float score() {
                     return 1f;
                 }
+
+                @Override
+                public int docID() {
+                    return childDocsIter.docID();
+                }
             });
 
             final Bits liveDocs = ctx.reader().getLiveDocs();

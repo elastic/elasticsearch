@@ -32,8 +32,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MultiBucketCollectorTests extends ESTestCase {
-    private static class Score extends Scorable {
+    private static class ScoreAndDoc extends Scorable {
         float score;
+        int doc = -1;
+
+        @Override
+        public int docID() {
+            return doc;
+        }
 
         @Override
         public float score() {
@@ -240,7 +246,7 @@ public class MultiBucketCollectorTests extends ESTestCase {
         collector1 = new TerminateAfterBucketCollector(collector1, 1);
         collector2 = new TerminateAfterBucketCollector(collector2, 2);
 
-        Scorable scorer = new Score();
+        Scorable scorer = new ScoreAndDoc();
 
         List<BucketCollector> collectors = Arrays.asList(collector1, collector2);
         Collections.shuffle(collectors, random());

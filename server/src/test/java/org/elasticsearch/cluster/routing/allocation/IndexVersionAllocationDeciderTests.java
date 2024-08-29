@@ -472,7 +472,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
 
         clusterState = service.disassociateDeadNodes(clusterState, true, "reroute");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        assertRecoveryNodeVersions(routingNodes);
+        assertRecoveryIndexVersions(routingNodes);
 
         logger.info("complete rebalancing");
         boolean changed;
@@ -482,12 +482,12 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             changed = newState.equals(clusterState) == false;
             clusterState = newState;
             routingNodes = clusterState.getRoutingNodes();
-            assertRecoveryNodeVersions(routingNodes);
+            assertRecoveryIndexVersions(routingNodes);
         } while (changed);
         return clusterState;
     }
 
-    private void assertRecoveryNodeVersions(RoutingNodes routingNodes) {
+    private void assertRecoveryIndexVersions(RoutingNodes routingNodes) {
         logger.trace("RoutingNodes: {}", routingNodes);
 
         List<ShardRouting> mutableShardRoutings = shardsWithState(routingNodes, ShardRoutingState.RELOCATING);
@@ -547,6 +547,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testMessages() {
+
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
@@ -585,9 +586,9 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(
             decision.getExplanation(),
             is(
-                "can allocate an index shard with index mappings updated by index version ["
-                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
-                    + "] to a node with max supported index version ["
+                "can relocate primary shard from a node with maximum index version ["
+                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
+                    + "] to a node with equal-or-newer index version ["
                     + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
@@ -598,9 +599,9 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(
             decision.getExplanation(),
             is(
-                "cannot allocate an index shard with index mappings updated by index version ["
+                "cannot relocate primary shard from a node with maximum index version ["
                     + newNode.node().getMaxIndexVersion().toReleaseVersion()
-                    + "] to a node with max supported index version ["
+                    + "] to a node with older index version ["
                     + oldNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
@@ -654,7 +655,6 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             )
         );
 
-        // replicas have the same messages as primaries
         final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver() {
         };
         final RoutingNodes routingNodes = clusterState.mutableRoutingNodes();
@@ -671,9 +671,9 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(
             decision.getExplanation(),
             is(
-                "cannot allocate an index shard with index mappings updated by index version ["
+                "cannot allocate replica shard to a node with maximum index version ["
                     + oldNode.node().getMaxIndexVersion().toReleaseVersion()
-                    + "] to a node with max supported index version ["
+                    + "] since this is older than the primary index version ["
                     + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
@@ -692,10 +692,10 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(
             decision.getExplanation(),
             is(
-                "can allocate an index shard with index mappings updated by index version ["
-                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
-                    + "] to a node with max supported index version ["
+                "can allocate replica shard to a node with maximum index version ["
                     + newNode.node().getMaxIndexVersion().toReleaseVersion()
+                    + "] since this is equal-or-newer than the primary index version ["
+                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
         );

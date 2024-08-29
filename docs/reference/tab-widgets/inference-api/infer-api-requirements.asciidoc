@@ -43,8 +43,8 @@ You can apply for access to Azure OpenAI by completing the form at https://aka.m
 
 // tag::google-vertex-ai[]
 * A https://console.cloud.google.com/[Google Cloud account]
-* A valid service account for the Google Vertex AI API.
 * A project in Google Cloud
+* A valid service account for the Google Vertex AI API.
 
 // end::google-vertex-ai[]
 

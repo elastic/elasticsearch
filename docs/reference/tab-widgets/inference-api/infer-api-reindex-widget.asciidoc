@@ -41,7 +41,7 @@
             aria-selected="false"
             aria-controls="infer-api-reindex-google-vertex-ai-tab"
             id="infer-api-reindex-google-vertex-ai">
-      Mistral
+      Google Vertex AI
     </button>
     <button role="tab"
             aria-selected="false"

@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.threadpool.ThreadPool.indexAutoscalingEWMA;
 import static org.elasticsearch.threadpool.ThreadPool.searchAutoscalingEWMA;
 
 public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
@@ -41,7 +42,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.WRITE,
                 allocatedProcessors,
                 10000,
-                new EsExecutors.TaskTrackingConfig(true, 0.1)
+                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA)
             )
         );
         int searchOrGetThreadPoolSize = ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors);
@@ -187,7 +188,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_WRITE,
                 halfProcMaxAt5,
                 1000,
-                new EsExecutors.TaskTrackingConfig(true, 0.1)
+                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA)
             )
         );
         result.put(
@@ -207,7 +208,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_CRITICAL_WRITE,
                 halfProcMaxAt5,
                 1500,
-                new EsExecutors.TaskTrackingConfig(true, 0.1)
+                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA)
             )
         );
         return unmodifiableMap(result);

@@ -178,6 +178,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     public static final double searchAutoscalingEWMA = 0.1;
 
+    // This value is chosen such that a sudden increase in the task durations would need to persist roughly for 120 samples
+    // for the EWMA value to be mostly representative of the increased task durations. Mostly representative means that the
+    // EWMA value is at least within 90% of the new increased task duration. This value also determines the impact of a single
+    // long-running task on the moving average and limits it roughly to 2% of the (long) task duration, e.g. if the current
+    // moving average is 100ms, and we get one task which takes 20s the new EWMA will be ~500ms.
+    public static final double indexAutoscalingEWMA = 0.02;
+
     private final Map<String, ExecutorHolder> executors;
 
     private final ThreadPoolInfo threadPoolInfo;

@@ -56,7 +56,6 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
     );
 
     public static final String MODEL_DOWNLOAD_THREADPOOL_NAME = "model_download";
-    public static final String ML_UTILITY_THREADPOOL_NAME = "ml_utility";
 
     public MachineLearningPackageLoader() {}
 

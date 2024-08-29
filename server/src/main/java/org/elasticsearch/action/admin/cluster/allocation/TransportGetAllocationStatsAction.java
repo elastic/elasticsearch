@@ -108,6 +108,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
         private final EnumSet<Metric> metrics;
 
+        @SuppressWarnings("this-escape")
         public Request(TimeValue masterNodeTimeout, TaskId parentTaskId, EnumSet<Metric> metrics) {
             super(masterNodeTimeout);
             setParentTask(parentTaskId);

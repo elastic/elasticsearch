@@ -430,7 +430,7 @@ GET google-vertex-ai-embeddings/_search
 As a result, you receive the top 10 documents that are closest in meaning to the
 query from the `mistral-embeddings` index sorted by their proximity to the query:
 
-[source,consol-result]
+[source,console-result]
 --------------------------------------------------
 "hits": [
       {

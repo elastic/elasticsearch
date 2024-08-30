@@ -1533,10 +1533,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 }
             })
             .startObject("templates")
-            .forEach(
-                templates().values().iterator(),
-                (t, xb) -> xb.append((b, p) -> IndexTemplateMetadata.Builder.toXContentWithTypes(t, b, p))
-            )
+            .forEach(templates().values().iterator(), t -> (b, p) -> IndexTemplateMetadata.Builder.toXContentWithTypes(t, b, p))
             .endObject()
             .execute(xb -> {
                 if (context == XContentContext.API) {
@@ -1548,9 +1545,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                     b.startObject(e.getKey()).append(e.getValue()).endObject();
                 }
             })
-            .startObject("reserved_state")
-            .append(reservedStateMetadata().values().iterator())
-            .endObject()
+            .object("reserved_state", b -> b.append(reservedStateMetadata().values().iterator()))
             .endObject();
     }
 

@@ -15,8 +15,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -51,6 +53,10 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
         return this;
     }
 
+    public ChunkedToXContentBuilder object(String name, Consumer<ChunkedToXContentBuilder> contents) {
+        return startObject().execute(contents).endObject();
+    }
+
     public ChunkedToXContentBuilder startArray() {
         builder.add((b, p) -> b.startArray());
         return this;
@@ -71,6 +77,11 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
         return this;
     }
 
+    public ChunkedToXContentBuilder field(String name) {
+        builder.add((b, p) -> b.field(name));
+        return this;
+    }
+
     public ChunkedToXContentBuilder field(String name, long value) {
         builder.add((b, p) -> b.field(name, value));
         return this;
@@ -81,15 +92,8 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
         return this;
     }
 
-    public <T> ChunkedToXContentBuilder forEach(Iterator<T> items, BiConsumer<? super T, ChunkedToXContentBuilder> create) {
-        items.forEachRemaining(t -> create.accept(t, this));
-        return this;
-    }
-
-    private ChunkedToXContentBuilder appendXContent(ToXContent xContent) {
-        if (xContent != ToXContent.EMPTY) {
-            builder.add(xContent);
-        }
+    public ChunkedToXContentBuilder field(String name, Object value) {
+        builder.add((b, p) -> b.field(name, value));
         return this;
     }
 
@@ -101,6 +105,38 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      */
     public ChunkedToXContentBuilder execute(Consumer<ChunkedToXContentBuilder> consumer) {
         consumer.accept(this);
+        return this;
+    }
+
+    public <T> ChunkedToXContentBuilder forEach(Iterator<T> items, BiConsumer<? super T, ChunkedToXContentBuilder> create) {
+        items.forEachRemaining(t -> create.accept(t, this));
+        return this;
+    }
+
+    public <T> ChunkedToXContentBuilder forEach(
+        Iterator<T> items,
+        Function<? super T, CheckedBiConsumer<XContentBuilder, ToXContent.Params, IOException>> create
+    ) {
+        items.forEachRemaining(t -> append(create.apply(t)));
+        return this;
+    }
+
+    public <T> ChunkedToXContentBuilder appendEntries(Map<String, ?> map) {
+        return forEach(map.entrySet().iterator(), (e, b) -> b.field(e.getKey(), e.getValue()));
+    }
+
+    public <T> ChunkedToXContentBuilder appendXContentObjects(Map<String, ? extends ToXContent> map) {
+        return forEach(map.entrySet().iterator(), (e, b) -> b.startObject(e.getKey()).appendXContent(e.getValue()).endObject());
+    }
+
+    public <T> ChunkedToXContentBuilder appendXContentFields(Map<String, ? extends ToXContent> map) {
+        return forEach(map.entrySet().iterator(), (e, b) -> b.field(e.getKey()).appendXContent(e.getValue()));
+    }
+
+    private ChunkedToXContentBuilder appendXContent(ToXContent xContent) {
+        if (xContent != ToXContent.EMPTY) {
+            builder.add(xContent);
+        }
         return this;
     }
 

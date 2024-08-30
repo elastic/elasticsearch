@@ -44,10 +44,7 @@ public class NodesStatsResponse extends BaseNodesXContentResponse<NodeStats> {
             .startObject("nodes")
             .forEach(
                 getNodes().iterator(),
-                (ns, b) -> b.startObject(ns.getNode().getId())
-                    .field("timestamp", ns.getTimestamp())
-                    .append(ns.toXContentChunked(outerParams))
-                    .endObject()
+                (ns, b) -> b.startObject(ns.getNode().getId()).field("timestamp", ns.getTimestamp()).append(ns).endObject()
             )
             .endObject();
     }

@@ -138,7 +138,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             randomBoolean(),
             IndexOptions.NONE,
             DocValuesType.NONE,
-            randomBoolean(),
+            false,
             -1,
             new HashMap<>(),
             1,

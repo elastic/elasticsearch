@@ -2741,8 +2741,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Verify that a single slice is created for requests that don't support parallel collection, while computation
-     * is still offloaded to the worker threads. Also ensure multiple slices are created for requests that do support
+     * Verify that a single slice is created for requests that don't support parallel collection, while an executor is still
+     * provided to the searcher to parallelize other operations. Also ensure multiple slices are created for requests that do support
      * parallel collection.
      */
     public void testSlicingBehaviourForParallelCollection() throws Exception {

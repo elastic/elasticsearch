@@ -295,21 +295,6 @@ public final class DocumentParser {
             throwOnConcreteValue(context.parent(), currentFieldName, context);
         }
 
-        if (context.storeSourceModeFromIndexSettings() == Mapper.StoreSourceMode.ENABLED && context.canAddIgnoredField()) {
-            Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
-            context.addIgnoredField(
-                new IgnoredSourceFieldMapper.NameValue(
-                    context.parent().fullPath(),
-                    context.parent().fullPath().lastIndexOf(context.parent().leafName()),
-                    XContentDataHelper.encodeXContentBuilder(tuple.v2()),
-                    context.doc()
-                )
-            );
-            context = tuple.v1();
-            token = context.parser().currentToken();
-            parser = context.parser();
-        }
-
         if (context.parent().isNested()) {
             // Handle a nested object that doesn't contain an array. Arrays are handled in #parseNonDynamicArray.
             if (context.parent().storeArraySource() && context.canAddIgnoredField()) {
@@ -327,6 +312,19 @@ public final class DocumentParser {
                 parser = context.parser();
             }
             context = context.createNestedContext((NestedObjectMapper) context.parent());
+        } else if (context.storeSourceModeFromIndexSettings() == Mapper.StoreSourceMode.ENABLED && context.canAddIgnoredField()) {
+            Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
+            context.addIgnoredField(
+                new IgnoredSourceFieldMapper.NameValue(
+                    context.parent().fullPath(),
+                    context.parent().fullPath().lastIndexOf(context.parent().leafName()),
+                    XContentDataHelper.encodeXContentBuilder(tuple.v2()),
+                    context.doc()
+                )
+            );
+            context = tuple.v1();
+            token = context.parser().currentToken();
+            parser = context.parser();
         }
 
         // if we are at the end of the previous object, advance

@@ -75,6 +75,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private QueryProfiler profiler;
     private final MutableQueryTimeout cancellable;
 
+    private final boolean hasExecutor;
     private final int maximumNumberOfSlices;
     // don't create slices with less than this number of docs
     private final int minimumDocsPerSlice;
@@ -132,6 +133,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         int minimumDocsPerSlice
     ) throws IOException {
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
+        this.hasExecutor = executor != null;
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
@@ -140,17 +142,21 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.maximumNumberOfSlices = maximumNumberOfSlices;
     }
 
+    /**
+     * Whether an executor was provided at construction time or not. This indicates whether operations that support concurrency
+     * may be executed concurrently. It is not straightforward to deduct this from {@link #getTaskExecutor()} because {@link IndexSearcher}
+     * creates a {@link org.apache.lucene.search.TaskExecutor} anyways.
+     */
+    public boolean hasExecutor() {
+        return hasExecutor;
+    }
+
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
         // we offload to the executor unconditionally, including requests that don't support concurrency
         LeafSlice[] leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, minimumDocsPerSlice);
         assert leafSlices.length <= maximumNumberOfSlices : "more slices created than the maximum allowed";
         return leafSlices;
-    }
-
-    // package private for testing
-    int getMinimumDocsPerSlice() {
-        return minimumDocsPerSlice;
     }
 
     public void setProfiler(QueryProfiler profiler) {

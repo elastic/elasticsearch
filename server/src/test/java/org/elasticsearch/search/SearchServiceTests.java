@@ -2713,7 +2713,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             SearchShardTask task = new SearchShardTask(0, "type", "action", "description", null, emptyMap());
 
             try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean())) {
-                assertNotNull(searchContext.searcher().getExecutor());
+                assertTrue(searchContext.searcher().hasExecutor());
             }
 
             try {
@@ -2724,7 +2724,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     .get();
                 assertTrue(response.isAcknowledged());
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean())) {
-                    assertNull(searchContext.searcher().getExecutor());
+                    assertFalse(searchContext.searcher().hasExecutor());
                 }
             } finally {
                 // reset original default setting
@@ -2734,15 +2734,15 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     .setPersistentSettings(Settings.builder().putNull(SEARCH_WORKER_THREADS_ENABLED.getKey()).build())
                     .get();
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean())) {
-                    assertNotNull(searchContext.searcher().getExecutor());
+                    assertTrue(searchContext.searcher().hasExecutor());
                 }
             }
         }
     }
 
     /**
-     * Verify that a single slice is created for requests that don't support parallel collection, while computation
-     * is still offloaded to the worker threads. Also ensure multiple slices are created for requests that do support
+     * Verify that a single slice is created for requests that don't support parallel collection, while an executor is still
+     * provided to the searcher to parallelize other operations. Also ensure multiple slices are created for requests that do support
      * parallel collection.
      */
     public void testSlicingBehaviourForParallelCollection() throws Exception {
@@ -2777,7 +2777,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             {
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, true)) {
                     ContextIndexSearcher searcher = searchContext.searcher();
-                    assertNotNull(searcher.getExecutor());
+                    assertTrue(searcher.hasExecutor());
 
                     final int maxPoolSize = executor.getMaximumPoolSize();
                     assertEquals(
@@ -2807,7 +2807,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             {
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.QUERY, true)) {
                     ContextIndexSearcher searcher = searchContext.searcher();
-                    assertNotNull(searcher.getExecutor());
+                    assertTrue(searcher.hasExecutor());
 
                     final int maxPoolSize = executor.getMaximumPoolSize();
                     assertEquals(
@@ -2837,7 +2837,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             {
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.FETCH, true)) {
                     ContextIndexSearcher searcher = searchContext.searcher();
-                    assertNull(searcher.getExecutor());
+                    assertFalse(searcher.hasExecutor());
                     final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                     searcher.search(termQuery, new TotalHitCountCollectorManager());
                     assertBusy(
@@ -2853,7 +2853,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             {
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.NONE, true)) {
                     ContextIndexSearcher searcher = searchContext.searcher();
-                    assertNull(searcher.getExecutor());
+                    assertFalse(searcher.hasExecutor());
                     final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                     searcher.search(termQuery, new TotalHitCountCollectorManager());
                     assertBusy(
@@ -2876,7 +2876,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 {
                     try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.QUERY, true)) {
                         ContextIndexSearcher searcher = searchContext.searcher();
-                        assertNull(searcher.getExecutor());
+                        assertFalse(searcher.hasExecutor());
                         final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                         searcher.search(termQuery, new TotalHitCountCollectorManager());
                         assertBusy(
@@ -2898,7 +2898,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 {
                     try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.QUERY, true)) {
                         ContextIndexSearcher searcher = searchContext.searcher();
-                        assertNotNull(searcher.getExecutor());
+                        assertTrue(searcher.hasExecutor());
 
                         final int maxPoolSize = executor.getMaximumPoolSize();
                         assertEquals(

@@ -36,7 +36,7 @@ public enum RegexpFlag {
 
     /**
      * Enables complement expression of the form: {@code ~&lt;expression&gt;}
-     * NOCOMMIT: Lucenes RegExp class has removed the COMPLEMENT flag in https://issues.apache.org/jira/browse/LUCENE-10010
+     * TODO Lucene 10 upgrade: Lucenes RegExp class has removed the COMPLEMENT flag in https://issues.apache.org/jira/browse/LUCENE-10010
      * I'm currently not sure if it still supports the "~" operator but we need an enum constant for
      * parsing our own flag syntax, so leaving a tombstone here for now
      */

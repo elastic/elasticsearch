@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
@@ -98,7 +99,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -815,8 +815,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveEnrich(Enrich enrich, List<Attribute> childrenOutput) {
-
-            // TODO: validation error if there's a qualifier but we still have conflicts with existing fields.
+            // TODO: validation error if there's a qualifier but we still have conflicts with existing fields, e.g.
+            // | ENRICH policy AS p
+            // but there's an existing field p.foo, and the policy has an enrich field called foo (which would be qualified to p.foo,
+            // conflicting with the existing field).
             if (enrich.matchField().toAttribute() instanceof UnresolvedAttribute ua) {
                 Attribute resolved = maybeResolveAttribute(ua, childrenOutput);
                 if (resolved.equals(ua)) {
@@ -869,6 +871,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern());
         return resolveAgainstList(
             a -> up.match(a.name()),
+            null,
             ua,
             attrList,
             true,
@@ -877,8 +880,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
+        String suffix = "." + ua.name();
+        Predicate<Attribute> matchLoosely = a -> a.name().equals(ua.name()) || a.name().endsWith(suffix);
+        Predicate<Attribute> matchExactly = a -> a.name().equals(ua.name());
+
         return resolveAgainstList(
-            a -> Objects.equals(ua.name(), a.name()),
+            matchLoosely,
+            matchExactly,
             ua,
             attrList,
             false,
@@ -887,46 +895,59 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static List<Attribute> resolveAgainstList(
-        Predicate<Attribute> matcher,
+        Predicate<Attribute> matchLoosely,
+        @Nullable Predicate<Attribute> matchExact,
         UnresolvedAttribute ua,
         Collection<Attribute> attrList,
         boolean isPattern,
         Function<List<String>, String> messageProducer
     ) {
-        List<Attribute> matches = maybeResolveAgainstList(matcher, ua, attrList, isPattern);
+        List<Attribute> matches = maybeResolveAgainstList(matchLoosely, matchExact, ua, attrList, isPattern);
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, messageProducer);
     }
 
+    /**
+     * Take an {@link UnresolvedAttribute} and find matching attributes in a given collection of attributes.
+     * Throws {@link IllegalArgumentException} if we fail to resolve.
+     * <p>
+     * If {@code matchExactly} is not {@code null}, it will be used to narrow down multiple matches found with {@code matchLoosely}.
+     * This allows predicates that match a field name {@code b} to a qualified field {@code a.b} if there's no other fields ending in
+     * {@code .b} (loose match), while still matching {@code b} correctly if there's both fields {@code a.b} and {@code b} present
+     * (exact match).
+     * <p>
+     * Regardless of {@code matchLoosely} and {@code matchExactly}, {@link Attribute}s for which {@link Attribute#synthetic()} is true are
+     * never resolved against.
+     */
     private static List<Attribute> maybeResolveAgainstList(
-        Predicate<Attribute> matcher,
+        Predicate<Attribute> matchLoosely,
+        @Nullable Predicate<Attribute> matchExactly,
         UnresolvedAttribute unresolved,
         Collection<Attribute> attrList,
-        boolean isPattern
+        boolean allowMultipleMatches
     ) {
-        List<Attribute> matches = new ArrayList<>();
+        List<Attribute> looseMatches = attrList.stream().filter(a -> a.synthetic() == false && matchLoosely.test(a)).toList();
 
-        for (Attribute attribute : attrList) {
-            if (attribute.synthetic() == false) {
-                boolean match = matcher.test(attribute);
-                if (match) {
-                    matches.add(attribute);
-                }
-            }
+        if (looseMatches.isEmpty()) {
+            return looseMatches;
         }
 
-        if (matches.isEmpty()) {
-            return matches;
+        List<Attribute> result;
+        if (looseMatches.size() > 1 && matchExactly != null) {
+            result = looseMatches.stream().filter(matchExactly).toList();
+        } else {
+            result = looseMatches;
         }
 
         // found exact match or multiple if pattern
-        if (matches.size() == 1 || isPattern) {
+        if (result.size() == 1 || allowMultipleMatches) {
             // NB: only add the location if the match is univocal; b/c otherwise adding the location will overwrite any preexisting one
-            matches.replaceAll(a -> a.withLocation(unresolved.source()));
-            return matches;
+            return result.stream().map(a -> a.withLocation(unresolved.source())).toList();
         }
 
+        // TODO: look for exact match in case of ambiguity
+
         // report ambiguity
-        List<String> refs = matches.stream().sorted((a, b) -> {
+        List<String> refs = looseMatches.stream().sorted((a, b) -> {
             int lineDiff = a.sourceLocation().getLineNumber() - b.sourceLocation().getLineNumber();
             int colDiff = a.sourceLocation().getColumnNumber() - b.sourceLocation().getColumnNumber();
             return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : a.name().compareTo(b.name()));

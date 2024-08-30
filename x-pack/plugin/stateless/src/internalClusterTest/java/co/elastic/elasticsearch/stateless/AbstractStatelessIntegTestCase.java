@@ -113,11 +113,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
-
-    public static final boolean STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED = Boolean.parseBoolean(
-        System.getProperty("es.test.stateless.generational_files_tracking.enabled", "true")
-    );
-
     private int uploadMaxCommits;
 
     @Before
@@ -287,11 +282,6 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             builder.put(ObjectStoreService.BASE_PATH_SETTING.getKey(), "base_path");
         }
         builder.put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), getUploadMaxCommits());
-        if (STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED) {
-            builder.put(StatelessCommitService.STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), true);
-        } else {
-            builder.put(StatelessCommitService.STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false);
-        }
         return builder;
     }
 

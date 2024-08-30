@@ -272,6 +272,13 @@ row x=1, y=2 | stats c=count(null + 1), c_d=count_distinct(1 + null), a=avg(null
 0          |0              |null           |null           |null           |null
 ;
 
+rowWithMultipleStatsOverNull3
+ROW a = 1, b = "two", c = null | STATS `a_count` = COUNT(`a`), `a_cardinality` = COUNT_DISTINCT(`a`),`b_count` = COUNT(`b`), `b_cardinality` = COUNT_DISTINCT(`b`),`c_count` = COUNT(`c`), `c_cardinality` = COUNT_DISTINCT(`c`)
+;
+
+a_count:long   |a_cardinality:long |b_count:long   |b_cardinality:long |c_count:long   | c_cardinality:long 
+1              |1                  |1              |1                  |0              |0
+; 
 
 min
 row l=1, d=1.0, ln=1 + null, dn=1.0 + null, n=null | stats min(l), min(d), min(ln), min(dn), n1=min(null), n2=min(null+123), n3=min(n);

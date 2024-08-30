@@ -2086,6 +2086,21 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(limit.limit().fold(), equalTo(1000));
     }
 
+    // TODO: add parameterized test for all kinds of commands referring to attributes with qualified names, resp. attributes of subfields,
+    // where we refer to qualifier.name just as name because there's no ambiguity. Also consider what happens with multiple levels of
+    // qualifiers/subfields, e.g. for a.b.c and us addressing this as c resp. b.c.
+
+    // TODO: parameterized test for ambiguous addressing of qualified names; e.g. there's a.b.c and b.c and we just ask for c.
+    // (Maybe needs to go into the verifier tests, as this is invalid.)
+
+    // TODO: tests where we simply ask by suffix instead of qualified fields/subfields; e.g. addressing somefield as omefield shouldn't be
+    // permitted, neither parent.child as t.child, .child or ild.
+
+    // TODO: Add more project tests (KEEP/DROP) with wildcards.
+    // If there's only one super field a.b.c of c, KEEP c* still should not be equivalent to KEEP a.b.c*.
+    // If there are multiple super fields b.c and a.b.c of c, KEEP c* still shouldn't yield neither b.c nor a.b.c.
+    // Similarly for DROP with wildcards.
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }

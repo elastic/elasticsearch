@@ -1,0 +1,5 @@
+pr: 111947
+summary: Improve performance of grok pattern cycle detection
+area: Ingest Node
+type: bug
+issues: []

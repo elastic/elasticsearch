@@ -5,7 +5,7 @@
 <titleabbrev>Get policy</titleabbrev>
 ++++
 
-Retrieves a lifecycle policy.
+Retrieves a <<index-lifecycle-management,lifecycle>> policy.
 
 [[ilm-get-lifecycle-request]]
 ==== {api-request-title}

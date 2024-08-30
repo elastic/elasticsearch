@@ -103,7 +103,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle = new ExplainIndexDataStreamLifecycle(
                 index,
                 true,
-                parentDataStream.isSystem(),
+                parentDataStream.isInternal(),
                 idxMetadata.getCreationDate(),
                 rolloverInfo == null ? null : rolloverInfo.getTime(),
                 generationDate,

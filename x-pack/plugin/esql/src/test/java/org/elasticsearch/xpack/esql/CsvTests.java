@@ -415,10 +415,10 @@ public class CsvTests extends ESTestCase {
 
         PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();
 
-        session.executeAnalyzedPlan(
+        session.executeOptimizedPlan(
             new EsqlQueryRequest(),
             runPhase(bigArrays, physicalOperationProviders),
-            analyzed,
+            session.optimizedPlan(analyzed),
             listener.delegateFailureAndWrap(
                 // Wrap so we can capture the warnings in the calling thread
                 (next, result) -> next.onResponse(

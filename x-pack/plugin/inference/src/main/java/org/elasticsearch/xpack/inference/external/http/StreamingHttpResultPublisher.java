@@ -14,18 +14,15 @@ import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.apache.http.nio.util.SimpleInputBuffer;
 import org.apache.http.protocol.HttpContext;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Deque;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
@@ -58,7 +55,6 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
     private final RequestBasedTaskRunner taskRunner;
     private final AtomicBoolean pendingRequest = new AtomicBoolean(false);
     private final Deque<Runnable> queue = new ConcurrentLinkedDeque<>();
-    private final AtomicReference<CompletableFuture<Void>> threadRunner = new AtomicReference<>(CompletableFuture.completedFuture(null));
 
     // used to control the flow of data from the Apache client, if we're producing more bytes than we can consume then we'll pause
     private final AtomicLong bytesInQueue = new AtomicLong(0);
@@ -108,10 +104,10 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
         if (allBytes.length > 0) {
             queue.offer(() -> {
                 subscriber.onNext(new HttpResult(response, allBytes));
-
+                var currentBytesInQueue = bytesInQueue.updateAndGet(current -> Long.max(0, current - allBytes.length));
                 if (savedIoControl != null) {
                     var maxBytes = settings.getMaxResponseSize().getBytes() * 0.5;
-                    if (bytesInQueue.updateAndGet(current -> Long.min(0, current - allBytes.length)) <= maxBytes) {
+                    if (currentBytesInQueue <= maxBytes) {
                         resumeProducer();
                     }
                 }
@@ -207,7 +203,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
         @Override
         public void cancel() {
             if (subscriptionCanceled.compareAndSet(false, true)) {
-                FutureUtils.cancel(threadRunner.get());
+                taskRunner.cancel();
             }
         }
     }

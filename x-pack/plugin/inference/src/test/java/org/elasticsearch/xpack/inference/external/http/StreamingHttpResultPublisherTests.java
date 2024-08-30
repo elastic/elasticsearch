@@ -187,8 +187,9 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
      * Then we should decrement the current number of bytes in the queue
      */
     public void testTotalBytesDecrement() throws IOException {
-        var currentMessage = "message".getBytes(StandardCharsets.UTF_8);
-        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(currentMessage.length));
+        var longMessage = "message".getBytes(StandardCharsets.UTF_8);
+        var shortMessage = "a ".getBytes(StandardCharsets.UTF_8);
+        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(longMessage.length));
 
         var subscriber = new TestSubscriber();
         publisher.responseReceived(mock(HttpResponse.class));
@@ -197,17 +198,22 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         subscriber.httpResult = null;
 
         var ioControl = mock(IOControl.class);
-        publisher.consumeContent(contentDecoder(currentMessage), ioControl);
+        publisher.consumeContent(contentDecoder(shortMessage), ioControl);
+        verify(ioControl, times(0)).suspendInput();
+        publisher.consumeContent(contentDecoder(longMessage), ioControl);
         // consumeContent should check that bytesInQueue == consumedBytes and pause
-        verify(ioControl).suspendInput();
+        verify(ioControl, times(1)).suspendInput();
 
-        // requesting data should reduce bytesInQueue and resume
+        // requesting data should reduce bytesInQueue but not resume yet because we haven't reduced totalbytes enough
         subscriber.requestData();
-        verify(ioControl).requestInput();
+        verify(ioControl, times(0)).requestInput();
+        // now it should unpause
+        subscriber.requestData();
+        verify(ioControl, times(1)).requestInput();
 
         // bytesInQueue should be 0, so increase maxResponseSize and verify we don't pause when we consume the same number of bytes
-        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(currentMessage.length + 1));
-        publisher.consumeContent(contentDecoder(currentMessage), ioControl);
+        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(longMessage.length + 1));
+        publisher.consumeContent(contentDecoder(longMessage), ioControl);
         verifyNoMoreInteractions(ioControl);
     }
 

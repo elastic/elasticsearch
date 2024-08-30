@@ -452,7 +452,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
-            // TODO: parser/validation error if there's both a qualifier AND a WITH clause
+            // TODO: parser/validation error if there's both a qualifier AND a WITH clause with explicit aliases
             return new Enrich(
                 source,
                 p,

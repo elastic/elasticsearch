@@ -310,7 +310,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
-        // TODO: here, we need to do something
         public static List<NamedExpression> calculateEnrichFields(
             Source source,
             String policyName,
@@ -327,12 +326,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (enrichFields == null || enrichFields.isEmpty()) {
                 // use the policy to infer the enrich fields
                 for (String enrichFieldName : policy.getEnrichFields()) {
-                    result.add(createEnrichFieldExpression(source, policyName, fieldMap, enrichFieldName));
+                    NamedExpression field = createEnrichFieldExpression(source, policyName, fieldMap, enrichFieldName);
+                    result.add(qualifier == null ? field : new Alias(source, qualifier + "." + enrichFieldName, field));
                 }
             } else {
                 for (NamedExpression enrichField : enrichFields) {
                     String enrichFieldName = Expressions.name(enrichField instanceof Alias a ? a.child() : enrichField);
                     NamedExpression field = createEnrichFieldExpression(source, policyName, fieldMap, enrichFieldName);
+                    // TODO: qualifier in case of WITH (but without explicit aliases)
                     result.add(enrichField instanceof Alias a ? new Alias(a.source(), a.name(), field) : field);
                 }
             }

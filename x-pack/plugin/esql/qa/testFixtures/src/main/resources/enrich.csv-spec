@@ -54,6 +54,7 @@ client_ip:keyword | env:integer | c.env:keyword
 
 // TODO: test cases for ENRICH ... AS qualifier
 // - no ON clause
+// - WITH clause (but without explicit aliases)
 // - with subsequent KEEP without name conflicts, referring to the new columns with/without qualifier
 // - with subsequent KEEP with name conflicts, referring to the conflicting columns with/without qualifier
 

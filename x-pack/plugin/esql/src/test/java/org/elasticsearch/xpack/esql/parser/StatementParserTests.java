@@ -880,6 +880,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
 
         // TODO: add cases with qualifier/AS clause
+        // Esp. consider validation of legal/illegal qualifier strings
     }
 
     public void testMvExpand() {

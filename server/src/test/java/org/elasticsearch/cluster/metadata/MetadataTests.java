@@ -45,15 +45,12 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
-import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -2470,10 +2467,6 @@ public class MetadataTests extends ESTestCase {
         if (context != Metadata.XContentContext.API && metadata.persistentSettings().isEmpty() == false) {
             chunkCount += 1;
         }
-        // 2 chunks wrapping templates and one chunk per template
-        chunkCount += 2 + metadata.getProject().templates().size();
-        // 1 chunk for each index + 2 to wrap the indices field
-        chunkCount += 2 + metadata.getProject().indices().size();
 
         for (Metadata.ClusterCustom custom : metadata.customs().values()) {
             chunkCount += 2;
@@ -2493,29 +2486,12 @@ public class MetadataTests extends ESTestCase {
         if (context != Metadata.XContentContext.API) {
             chunkCount += 2; // start/end "project":{}
         }
-        for (Metadata.ProjectCustom custom : metadata.getProject().customs().values()) {
-            chunkCount += 2;
-            if (custom instanceof ComponentTemplateMetadata componentTemplateMetadata) {
-                chunkCount += 2 + componentTemplateMetadata.componentTemplates().size();
-            } else if (custom instanceof ComposableIndexTemplateMetadata composableIndexTemplateMetadata) {
-                chunkCount += 2 + composableIndexTemplateMetadata.indexTemplates().size();
-            } else if (custom instanceof DataStreamMetadata dataStreamMetadata) {
-                chunkCount += 4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size();
-            } else if (custom instanceof FeatureMigrationResults featureMigrationResults) {
-                chunkCount += 2 + featureMigrationResults.getFeatureStatuses().size();
-            } else if (custom instanceof IndexGraveyard indexGraveyard) {
-                chunkCount += 2 + indexGraveyard.getTombstones().size();
-            } else if (custom instanceof IngestMetadata ingestMetadata) {
-                chunkCount += 2 + ingestMetadata.getPipelines().size();
-            } else if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
-                chunkCount += 3 + persistentTasksCustomMetadata.tasks().size();
-            } else {
-                // could be anything, we have to just try it
-                chunkCount += Iterables.size(
-                    (Iterable<ToXContent>) (() -> Iterators.map(custom.toXContentChunked(params), Function.identity()))
-                );
-            }
-        }
+
+        chunkCount += metadata.projects()
+            .values()
+            .stream()
+            .mapToInt(project -> ProjectMetadataTests.expectedChunkCount(params, project))
+            .sum();
 
         // 2 chunks for wrapping reserved state + 1 chunk for each item
         chunkCount += 2 + metadata.reservedStateMetadata().size();

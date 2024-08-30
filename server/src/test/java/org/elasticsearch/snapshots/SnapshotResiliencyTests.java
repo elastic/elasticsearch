@@ -45,6 +45,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAct
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -195,6 +196,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
 import org.junit.Before;
@@ -1353,7 +1355,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             if (randomBoolean()) {
                 final var snapshotName = "snapshot-" + i;
                 testListener = testListener.andThen(
-                    (stepListener, v) -> scheduleNow(
+                    stepListener -> scheduleNow(
                         ActionRunnable.wrap(
                             stepListener,
                             l -> client.admin()
@@ -1367,7 +1369,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
             } else {
                 final var cloneName = "clone-" + i;
-                testListener = testListener.andThen((stepListener, v) -> scheduleNow(ActionRunnable.wrap(stepListener, l -> {
+                testListener = testListener.andThen(stepListener -> scheduleNow(ActionRunnable.wrap(stepListener, l -> {
                     // The clone API only responds when the clone is complete, but we only want to wait until the clone starts so we watch
                     // the cluster state instead.
                     ClusterServiceUtils.addTemporaryStateListener(
@@ -1390,7 +1392,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
         }
 
-        testListener = testListener.andThen((l, ignored) -> scheduleNow(() -> {
+        testListener = testListener.andThen(l -> scheduleNow(() -> {
             // Once all snapshots & clones have started, drop the data node and wait for all snapshot activity to complete
             testClusterNodes.disconnectNode(testClusterNodes.randomDataNodeSafe());
             ClusterServiceUtils.addTemporaryStateListener(masterClusterService, cs -> SnapshotsInProgress.get(cs).isEmpty()).addListener(l);
@@ -1444,7 +1446,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             // Take the snapshot to check the reaction to having unassigned shards
             .<Void>andThen(
-                (l, ignored) -> client().admin()
+                l -> client().admin()
                     .cluster()
                     .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, randomIdentifier())
                     .setWaitForCompletion(randomBoolean())
@@ -1495,7 +1497,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final var testListener = createRepoAndIndex(repoName, "index", between(1, 2))
             // take snapshot once
             .<CreateSnapshotResponse>andThen(
-                (l, ignored) -> client().admin()
+                l -> client().admin()
                     .cluster()
                     .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                     .setWaitForCompletion(true)
@@ -1503,7 +1505,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             )
             // take snapshot again
             .<CreateSnapshotResponse>andThen(
-                (l, ignored) -> client().admin()
+                l -> client().admin()
                     .cluster()
                     .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                     .setWaitForCompletion(randomBoolean())
@@ -1522,7 +1524,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             )
             // attempt to clone snapshot
             .<AcknowledgedResponse>andThen(
-                (l, ignored) -> client().admin()
+                l -> client().admin()
                     .cluster()
                     .prepareCloneSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName, snapshotName)
                     .setIndices("*")
@@ -1581,7 +1583,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             )
             // take snapshot of index that does not exist
             .<CreateSnapshotResponse>andThen(
-                (l, ignored) -> client().admin()
+                l -> client().admin()
                     .cluster()
                     .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, randomIdentifier())
                     .setIndices(indexName)
@@ -1633,7 +1635,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             )
             // attempt to take snapshot with illegal config ('none' is allowed as a feature state iff it's the only one in the list)
             .<CreateSnapshotResponse>andThen(
-                (l, ignored) -> client().admin()
+                l -> client().admin()
                     .cluster()
                     .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, randomIdentifier())
                     .setFeatureStates("none", "none")
@@ -1816,10 +1818,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     private static Settings defaultIndexSettings(int shards) {
         // TODO: randomize replica count settings once recovery operations aren't blocking anymore
-        return Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
+        return indexSettings(shards, 0).build();
     }
 
     private static <T> void continueOrDie(SubscribableListener<T> listener, CheckedConsumer<T, Exception> onResponse) {
@@ -2061,6 +2060,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             private final BigArrays bigArrays;
 
+            private final UsageService usageService;
+
             private Coordinator coordinator;
 
             TestClusterNode(DiscoveryNode node, TransportInterceptorFactory transportInterceptorFactory) throws IOException {
@@ -2071,6 +2072,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
                 final Settings settings = environment.settings();
                 client = new NodeClient(settings, threadPool);
+                this.usageService = new UsageService();
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterService = new ClusterService(
                     settings,
@@ -2398,14 +2400,16 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             Collections.emptyList(),
                             client,
                             null,
-                            DocumentParsingProvider.EMPTY_INSTANCE
+                            DocumentParsingProvider.EMPTY_INSTANCE,
+                            FailureStoreMetrics.NOOP
                         ),
                         mockFeatureService,
                         client,
                         actionFilters,
                         indexNameExpressionResolver,
                         new IndexingPressure(settings),
-                        EmptySystemIndices.INSTANCE
+                        EmptySystemIndices.INSTANCE,
+                        FailureStoreMetrics.NOOP
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(
@@ -2486,7 +2490,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         EmptySystemIndices.INSTANCE.getExecutorSelector(),
                         new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-                        client
+                        client,
+                        usageService
                     )
                 );
                 actions.put(

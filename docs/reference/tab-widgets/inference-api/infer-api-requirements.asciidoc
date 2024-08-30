@@ -5,6 +5,13 @@ the Cohere service.
 
 // end::cohere[]
 
+// tag::elser[]
+
+ELSER is a model trained by Elastic. If you have an {es} deployment, there is no
+further requirement for using the {infer} API with the `elser` service.
+
+// end::elser[]
+
 // tag::hugging-face[]
 
 A https://huggingface.co/[HuggingFace account] is required to use the {infer}
@@ -45,3 +52,9 @@ You can apply for access to Azure OpenAI by completing the form at https://aka.m
 * A pair of access and secret keys used to access Amazon Bedrock
 
 // end::amazon-bedrock[]
+
+// tag::alibabacloud-ai-search[]
+* An AlibabaCloud Account with https://console.aliyun.com[AlibabaCloud] access
+* An API key generated for your account from the https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[API keys section]
+
+// end::alibabacloud-ai-search[]

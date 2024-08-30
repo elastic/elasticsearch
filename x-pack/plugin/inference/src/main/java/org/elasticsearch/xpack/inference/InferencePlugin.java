@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -62,6 +63,8 @@ import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorSer
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
+import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
+import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -71,11 +74,16 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockService;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicService;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
@@ -84,8 +92,8 @@ import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
-import org.elasticsearch.xpack.inference.telemetry.InferenceAPMStats;
-import org.elasticsearch.xpack.inference.telemetry.StatsMap;
+import org.elasticsearch.xpack.inference.telemetry.ApmInferenceStats;
+import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -123,7 +131,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
     private final SetOnce<AmazonBedrockRequestSender.Factory> amazonBedrockFactory = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
-
+    private final SetOnce<ElasticInferenceServiceComponents> eisComponents = new SetOnce<>();
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
     private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
@@ -186,6 +194,15 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var inferenceServices = new ArrayList<>(inferenceServiceExtensions);
         inferenceServices.add(this::getInferenceServiceFactories);
 
+        if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
+            ElasticInferenceServiceSettings eisSettings = new ElasticInferenceServiceSettings(settings);
+            eisComponents.set(new ElasticInferenceServiceComponents(eisSettings.getEisGatewayUrl()));
+
+            inferenceServices.add(
+                () -> List.of(context -> new ElasticInferenceService(httpFactory.get(), serviceComponents.get(), eisComponents.get()))
+            );
+        }
+
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(services.client());
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
         // reference correctly
@@ -196,10 +213,10 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var actionFilter = new ShardBulkInferenceActionFilter(registry, modelRegistry);
         shardBulkInferenceActionFilter.set(actionFilter);
 
-        var statsFactory = new InferenceAPMStats.Factory(services.telemetryProvider().getMeterRegistry());
-        var statsMap = new StatsMap<>(InferenceAPMStats::key, statsFactory::newInferenceRequestAPMCounter);
+        var meterRegistry = services.telemetryProvider().getMeterRegistry();
+        var stats = new PluginComponentBinding<>(InferenceStats.class, ApmInferenceStats.create(meterRegistry));
 
-        return List.of(modelRegistry, registry, httpClientManager, statsMap);
+        return List.of(modelRegistry, registry, httpClientManager, stats);
     }
 
     @Override
@@ -221,6 +238,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             context -> new MistralService(httpFactory.get(), serviceComponents.get()),
             context -> new AnthropicService(httpFactory.get(), serviceComponents.get()),
             context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get()),
+            context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new
         );
     }
@@ -229,6 +247,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         var entries = new ArrayList<>(InferenceNamedWriteablesProvider.getNamedWriteables());
         entries.add(new NamedWriteableRegistry.Entry(RankBuilder.class, TextSimilarityRankBuilder.NAME, TextSimilarityRankBuilder::new));
+        entries.add(new NamedWriteableRegistry.Entry(RankBuilder.class, RandomRankBuilder.NAME, RandomRankBuilder::new));
         return entries;
     }
 
@@ -280,6 +299,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             HttpClientManager.getSettingsDefinitions(),
             ThrottlerManager.getSettingsDefinitions(),
             RetrySettings.getSettingsDefinitions(),
+            ElasticInferenceServiceSettings.getSettingsDefinitions(),
             Truncator.getSettingsDefinitions(),
             RequestExecutorServiceSettings.getSettingsDefinitions(),
             List.of(SKIP_VALIDATE_AND_START)
@@ -321,7 +341,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     @Override
     public List<RetrieverSpec<?>> getRetrievers() {
         return List.of(
-            new RetrieverSpec<>(new ParseField(TextSimilarityRankBuilder.NAME), TextSimilarityRankRetrieverBuilder::fromXContent)
+            new RetrieverSpec<>(new ParseField(TextSimilarityRankBuilder.NAME), TextSimilarityRankRetrieverBuilder::fromXContent),
+            new RetrieverSpec<>(new ParseField(RandomRankBuilder.NAME), RandomRankRetrieverBuilder::fromXContent)
         );
     }
 }

@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 public final class PushDownRegexExtract extends OptimizerRules.OptimizerRule<RegexExtract> {
     @Override
     protected LogicalPlan rule(RegexExtract re) {
-        return LogicalPlanOptimizer.pushGeneratingPlanPastProjectAndOrderBy(re, re.extractedFields());
+        return LogicalPlanOptimizer.pushGeneratingPlanPastProjectAndOrderBy(re);
     }
 }

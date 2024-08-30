@@ -2194,14 +2194,24 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     private void validate() throws ValidationException {
-        var exceptions = validate(null, false);
+        var exceptions = validate(null, false, false);
         if (exceptions != null) {
             throw exceptions;
         }
     }
 
-    public ActionRequestValidationException validate(ActionRequestValidationException validationException, boolean isScroll) {
+    public ActionRequestValidationException validate(
+        ActionRequestValidationException validationException,
+        boolean isScroll,
+        boolean allowPartialSearchResults
+    ) {
         if (retriever() != null) {
+            if (allowPartialSearchResults && retriever().isCompound()) {
+                validationException = addValidationError(
+                    "cannot specify a compound retriever and [allow_partial_search_results]",
+                    validationException
+                );
+            }
             List<String> specified = new ArrayList<>();
             if (subSearches().isEmpty() == false) {
                 specified.add(QUERY_FIELD.getPreferredName());
@@ -2218,14 +2228,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (sorts() != null) {
                 specified.add(SORT_FIELD.getPreferredName());
             }
-            if (rescores() != null) {
-                specified.add(RESCORE_FIELD.getPreferredName());
-            }
             if (minScore() != null) {
                 specified.add(MIN_SCORE_FIELD.getPreferredName());
             }
             if (rankBuilder() != null) {
                 specified.add(RANK_FIELD.getPreferredName());
+            }
+            if (rescores() != null) {
+                specified.add(RESCORE_FIELD.getPreferredName());
             }
             if (specified.isEmpty() == false) {
                 validationException = addValidationError(

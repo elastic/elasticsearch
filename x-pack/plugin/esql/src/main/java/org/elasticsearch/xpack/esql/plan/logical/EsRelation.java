@@ -6,15 +6,22 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +29,11 @@ import java.util.Map.Entry;
 import java.util.Objects;
 
 public class EsRelation extends LeafPlan {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        "EsRelation",
+        EsRelation::readFrom
+    );
 
     private final EsIndex index;
     private final List<Attribute> attrs;
@@ -42,6 +54,45 @@ public class EsRelation extends LeafPlan {
         this.attrs = attributes;
         this.indexMode = indexMode;
         this.frozen = frozen;
+    }
+
+    private static EsRelation readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        EsIndex esIndex = new EsIndex(in);
+        List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
+        if (supportingEsSourceOptions(in.getTransportVersion())) {
+            // We don't do anything with these strings
+            in.readOptionalString();
+            in.readOptionalString();
+            in.readOptionalString();
+        }
+        IndexMode indexMode = readIndexMode(in);
+        boolean frozen = in.readBoolean();
+        return new EsRelation(source, esIndex, attributes, indexMode, frozen);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        index().writeTo(out);
+        out.writeNamedWriteableCollection(output());
+        if (supportingEsSourceOptions(out.getTransportVersion())) {
+            // write (null) string fillers expected by remote
+            out.writeOptionalString(null);
+            out.writeOptionalString(null);
+            out.writeOptionalString(null);
+        }
+        writeIndexMode(out, indexMode());
+        out.writeBoolean(frozen());
+    }
+
+    private static boolean supportingEsSourceOptions(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.V_8_14_0) && version.before(TransportVersions.ESQL_REMOVE_ES_SOURCE_OPTIONS);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -121,5 +172,21 @@ public class EsRelation extends LeafPlan {
     @Override
     public String nodeString() {
         return nodeName() + "[" + index + "]" + NodeUtils.limitedToString(attrs);
+    }
+
+    public static IndexMode readIndexMode(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_TO_SOURCE)) {
+            return IndexMode.fromString(in.readString());
+        } else {
+            return IndexMode.STANDARD;
+        }
+    }
+
+    public static void writeIndexMode(StreamOutput out, IndexMode indexMode) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_TO_SOURCE)) {
+            out.writeString(indexMode.getName());
+        } else if (indexMode != IndexMode.STANDARD) {
+            throw new IllegalStateException("not ready to support index mode [" + indexMode + "]");
+        }
     }
 }

@@ -39,7 +39,8 @@ public class ClusterName implements Writeable {
     }
 
     public ClusterName(String value) {
-        this.value = value.intern();
+        // cluster name string is most likely part of a setting so we can speed things up over outright interning here
+        this.value = Settings.internKeyOrValue(value);
     }
 
     public String value() {

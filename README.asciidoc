@@ -1,6 +1,6 @@
 = Elasticsearch
 
-Elasticsearch is a distributed search and analytics engine optimized for speed and relevance on production-scale workloads. Elasticsearch is the foundation of Elastic's open Stack platform. Search in near real-time over massive datasets, perform vector searches, integrate with generative AI applications, and much more.
+Elasticsearch is a distributed search and analytics engine, scalable data store and vector database optimized for speed and relevance on production-scale workloads. Elasticsearch is the foundation of Elastic's open Stack platform. Search in near real-time over massive datasets, perform vector searches, integrate with generative AI applications, and much more.
 
 Use cases enabled by Elasticsearch include:
 
@@ -33,76 +33,144 @@ https://www.elastic.co/downloads/elasticsearch[elastic.co/downloads/elasticsearc
 === Run Elasticsearch locally
 
 //// 
-IMPORTANT: This content is replicated in the Elasticsearch guide. 
-If you make changes, you must also update setup/set-up-local-dev-deployment.asciidoc.
+IMPORTANT: This content is replicated in the Elasticsearch guide. See `run-elasticsearch-locally.asciidoc`.
+Both will soon be replaced by a quickstart script.
 ////
 
-To try out Elasticsearch on your own machine, we recommend using Docker
-and running both Elasticsearch and Kibana.
-Docker images are available from the https://www.docker.elastic.co[Elastic Docker registry].
+[WARNING]
+==== 
+DO NOT USE THESE INSTRUCTIONS FOR PRODUCTION DEPLOYMENTS.
 
-NOTE: Starting in Elasticsearch 8.0, security is enabled by default. 
-The first time you start Elasticsearch, TLS encryption is configured automatically, 
-a password is generated for the `elastic` user, 
-and a Kibana enrollment token is created so you can connect Kibana to your secured cluster.
+This setup is intended for local development and testing only.
+====
 
-For other installation options, see the
-https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Elasticsearch installation documentation].
+The following commands help you very quickly spin up a single-node Elasticsearch cluster, together with Kibana in Docker.
+Use this setup for local development or testing.
 
-**Start Elasticsearch**
+==== Prerequisites
 
-. Install and start https://www.docker.com/products/docker-desktop[Docker
-Desktop]. Go to **Preferences > Resources > Advanced** and set Memory to at least 4GB.
+If you don't have Docker installed, https://www.docker.com/products/docker-desktop[download and install Docker Desktop] for your operating system.
 
-. Start an Elasticsearch container:
-+
+==== Set environment variables
+
+Configure the following environment variables.
+
+[source,sh]
 ----
-docker network create elastic
-docker pull docker.elastic.co/elasticsearch/elasticsearch:{version} <1>
-docker run --name elasticsearch --net elastic -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -t docker.elastic.co/elasticsearch/elasticsearch:{version}
+export ELASTIC_PASSWORD="<ES_PASSWORD>"  # password for "elastic" username
+export KIBANA_PASSWORD="<KIB_PASSWORD>"   # Used internally by Kibana, must be at least 6 characters long
 ----
-<1> Replace {version} with the version of Elasticsearch you want to run.
-+
-When you start Elasticsearch for the first time, the generated `elastic` user password and
-Kibana enrollment token are output to the terminal.
-+
-NOTE: You might need to scroll back a bit in the terminal to view the password 
-and enrollment token.
 
-. Copy the generated password and enrollment token and save them in a secure 
-location. These values are shown only when you start Elasticsearch for the first time.
-You'll use these to enroll Kibana with your Elasticsearch cluster and log in.
+==== Create a Docker network
 
-**Start Kibana**
+To run both Elasticsearch and Kibana, you'll need to create a Docker network:
 
-Kibana enables you to easily send requests to Elasticsearch and analyze, visualize, and manage data interactively.
-
-. In a new terminal session, start Kibana and connect it to your Elasticsearch container:
-+
+[source,sh]
 ----
-docker pull docker.elastic.co/kibana/kibana:{version} <1>
-docker run --name kibana --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
+docker network create elastic-net
 ----
-<1> Replace {version} with the version of Kibana you want to run.
-+
-When you start Kibana, a unique URL is output to your terminal.
 
-. To access Kibana, open the generated URL in your browser.
+==== Run Elasticsearch
 
-  .. Paste the enrollment token that you copied when starting
-  Elasticsearch and click the button to connect your Kibana instance with Elasticsearch.
+Start the Elasticsearch container with the following command:
 
-  .. Log in to Kibana as the `elastic` user with the password that was generated
-  when you started Elasticsearch.
+[source,sh]
+----
+docker run -p 127.0.0.1:9200:9200 -d --name elasticsearch --network elastic-net \
+  -e ELASTIC_PASSWORD=$ELASTIC_PASSWORD \
+  -e "discovery.type=single-node" \
+  -e "xpack.security.http.ssl.enabled=false" \
+  -e "xpack.license.self_generated.type=trial" \
+  docker.elastic.co/elasticsearch/elasticsearch:{version}
+----
 
-**Send requests to Elasticsearch**
+==== Run Kibana (optional)
+
+To run Kibana, you must first set the `kibana_system` password in the Elasticsearch container.
+
+[source,sh]
+----
+# configure the Kibana password in the ES container
+curl -u elastic:$ELASTIC_PASSWORD \
+  -X POST \
+  http://localhost:9200/_security/user/kibana_system/_password \
+  -d '{"password":"'"$KIBANA_PASSWORD"'"}' \
+  -H 'Content-Type: application/json'
+----
+// NOTCONSOLE
+
+Start the Kibana container with the following command:
+
+[source,sh]
+----
+docker run -p 127.0.0.1:5601:5601 -d --name kibana --network elastic-net \
+  -e ELASTICSEARCH_URL=http://elasticsearch:9200 \
+  -e ELASTICSEARCH_HOSTS=http://elasticsearch:9200 \
+  -e ELASTICSEARCH_USERNAME=kibana_system \
+  -e ELASTICSEARCH_PASSWORD=$KIBANA_PASSWORD \
+  -e "xpack.security.enabled=false" \
+  -e "xpack.license.self_generated.type=trial" \
+  docker.elastic.co/kibana/kibana:{version}
+----
+
+.Trial license
+[%collapsible]
+====
+The service is started with a trial license. The trial license enables all features of Elasticsearch for a trial period of 30 days. After the trial period expires, the license is downgraded to a basic license, which is free forever. If you prefer to skip the trial and use the basic license, set the value of the `xpack.license.self_generated.type` variable to basic instead. For a detailed feature comparison between the different licenses, refer to our https://www.elastic.co/subscriptions[subscriptions page].
+====
+
+==== Send requests to Elasticsearch
 
 You send data and other requests to Elasticsearch through REST APIs. 
 You can interact with Elasticsearch using any client that sends HTTP requests, 
 such as the https://www.elastic.co/guide/en/elasticsearch/client/index.html[Elasticsearch
 language clients] and https://curl.se[curl]. 
+
+===== Using curl 
+
+Here's an example curl command to create a new Elasticsearch index, using basic auth:
+
+[source,sh]
+----
+curl -u elastic:$ELASTIC_PASSWORD \
+  -X PUT \
+  http://localhost:9200/my-new-index \
+  -H 'Content-Type: application/json'
+----
+// NOTCONSOLE
+
+===== Using a language client
+
+To connect to your local dev Elasticsearch cluster with a language client, you can use basic authentication with the `elastic` username and the password you set in the environment variable.
+
+You'll use the following connection details:
+
+* **Elasticsearch endpoint**: `http://localhost:9200`
+* **Username**: `elastic`
+* **Password**: `$ELASTIC_PASSWORD` (Value you set in the environment variable)
+
+For example, to connect with the Python `elasticsearch` client:
+
+[source,python]
+----
+import os
+from elasticsearch import Elasticsearch
+
+username = 'elastic'
+password = os.getenv('ELASTIC_PASSWORD') # Value you set in the environment variable
+
+client = Elasticsearch(
+    "http://localhost:9200",
+    basic_auth=(username, password)
+)
+
+print(client.info())
+----
+
+===== Using the Dev Tools Console
+
 Kibana's developer console provides an easy way to experiment and test requests. 
-To access the console, go to **Management > Dev Tools**.
+To access the console, open Kibana, then go to **Management** > **Dev Tools**.
 
 **Add data**
 

@@ -14,7 +14,7 @@
         },
         {
           "name" : "date",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Date expression. If `null`, the function returns `null`."
         }
@@ -32,7 +32,7 @@
         },
         {
           "name" : "date",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Date expression. If `null`, the function returns `null`."
         }

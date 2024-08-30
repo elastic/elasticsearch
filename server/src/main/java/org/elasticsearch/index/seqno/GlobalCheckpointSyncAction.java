@@ -16,13 +16,13 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -64,7 +64,8 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
             Request::new,
             threadPool.executor(ThreadPool.Names.WRITE),
             SyncGlobalCheckpointAfterOperation.DoNotSync,
-            PrimaryActionExecution.Force
+            PrimaryActionExecution.Force,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 

@@ -116,9 +116,25 @@ geo_point unsortable:
           query: 'from geo_points | sort location'
 
 ---
+geo_point unsortable status:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from geo_points | sort location'
+
+---
 geo_point unsortable with limit:
   - do:
       catch: /cannot sort on geo_point/
+      esql.query:
+        body:
+          query: 'from geo_points | LIMIT 10 | sort location'
+
+---
+geo_point unsortable with limit status:
+  - do:
+      catch: bad_request
       esql.query:
         body:
           query: 'from geo_points | LIMIT 10 | sort location'
@@ -134,7 +150,15 @@ geo_point unsortable with limit from row:
 ---
 values unsupported for geo_point:
   - do:
-      catch: '/.+argument of \[VALUES\(location\)\] must be \[boolean, date, double, integer, ip, keyword, long, null, text, unsigned_long or version\].+/'
+      catch: '/.+argument of \[VALUES\(location\)\] must be .+/'
+      esql.query:
+        body:
+          query: 'FROM geo_points | STATS VALUES(location)'
+
+---
+values unsupported for geo_point status code:
+  - do:
+      catch: bad_request
       esql.query:
         body:
           query: 'FROM geo_points | STATS VALUES(location)'
@@ -166,9 +190,25 @@ cartesian_point unsortable:
           query: 'from cartesian_points | sort location'
 
 ---
+cartesian_point unsortable status code:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from cartesian_points | sort location'
+
+---
 cartesian_point unsortable with limit:
   - do:
       catch: /cannot sort on cartesian_point/
+      esql.query:
+        body:
+          query: 'from cartesian_points | LIMIT 10 | sort location'
+
+---
+cartesian_point unsortable with limit status code:
+  - do:
+      catch: bad_request
       esql.query:
         body:
           query: 'from cartesian_points | LIMIT 10 | sort location'
@@ -208,9 +248,25 @@ geo_shape unsortable:
           query: 'from geo_shapes | sort shape'
 
 ---
+geo_shape unsortable status code:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from geo_shapes | sort shape'
+
+---
 geo_shape unsortable with limit:
   - do:
       catch: /cannot sort on geo_shape/
+      esql.query:
+        body:
+          query: 'from geo_shapes | LIMIT 10 | sort shape'
+
+---
+geo_shape unsortable with limit status code:
+  - do:
+      catch: bad_request
       esql.query:
         body:
           query: 'from geo_shapes | LIMIT 10 | sort shape'
@@ -250,9 +306,25 @@ cartesian_shape unsortable:
           query: 'from cartesian_shapes | sort shape'
 
 ---
+cartesian_shape unsortable status code:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from cartesian_shapes | sort shape'
+
+---
 cartesian_shape unsortable with limit:
   - do:
       catch: /cannot sort on cartesian_shape/
+      esql.query:
+        body:
+          query: 'from cartesian_shapes | LIMIT 10 | sort shape'
+
+---
+cartesian_shape unsortable with limit status code:
+  - do:
+      catch: bad_request
       esql.query:
         body:
           query: 'from cartesian_shapes | LIMIT 10 | sort shape'

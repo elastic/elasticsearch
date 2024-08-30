@@ -9,6 +9,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -26,7 +27,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -34,6 +34,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -173,7 +174,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             if (resp.canMatch() && resp.getIndexMappingHash() != null) {
                 FieldCapabilitiesIndexResponse curr = indexMappingHashToResponses.putIfAbsent(resp.getIndexMappingHash(), resp);
                 if (curr != null) {
-                    resp = new FieldCapabilitiesIndexResponse(resp.getIndexName(), curr.getIndexMappingHash(), curr.get(), true);
+                    resp = new FieldCapabilitiesIndexResponse(
+                        resp.getIndexName(),
+                        curr.getIndexMappingHash(),
+                        curr.get(),
+                        true,
+                        curr.getIndexMode()
+                    );
                 }
             }
             if (request.includeEmptyFields()) {
@@ -185,7 +192,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     }
                     Map<String, IndexFieldCapabilities> mergedCaps = new HashMap<>(a.get());
                     mergedCaps.putAll(b.get());
-                    return new FieldCapabilitiesIndexResponse(a.getIndexName(), a.getIndexMappingHash(), mergedCaps, true);
+                    return new FieldCapabilitiesIndexResponse(
+                        a.getIndexName(),
+                        a.getIndexMappingHash(),
+                        mergedCaps,
+                        true,
+                        a.getIndexMode()
+                    );
                 });
             }
             if (fieldCapTask.isCancelled()) {
@@ -248,7 +261,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
                         String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
                         handleIndexResponse.accept(
-                            new FieldCapabilitiesIndexResponse(indexName, resp.getIndexMappingHash(), resp.get(), resp.canMatch())
+                            new FieldCapabilitiesIndexResponse(
+                                indexName,
+                                resp.getIndexMappingHash(),
+                                resp.get(),
+                                resp.canMatch(),
+                                resp.getIndexMode()
+                            )
                         );
                     }
                     for (FieldCapabilitiesFailure failure : response.getFailures()) {
@@ -557,7 +576,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
                 final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService, request.includeEmptyFields());
-                final Predicate<String> fieldNameFilter = Regex.simpleMatcher(request.fields());
+                Predicate<String> fieldNameFilter;
+                try {
+                    fieldNameFilter = Regex.simpleMatcher(request.fields());
+                } catch (TooComplexToDeterminizeException e) {
+                    throw new IllegalArgumentException("The field names are too complex to process. " + e.getMessage());
+                }
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();
                     final Set<ShardId> unmatched = new HashSet<>();

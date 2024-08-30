@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -2158,6 +2159,23 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         MetadataIndexTemplateService.innerRemoveIndexTemplateV2(stateWithTwoTemplates, "logs");
     }
 
+    public void testDataStreamsUsingMatchAllTemplate() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList("*"))
+            .priority(100L)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
+        final String templateName = "all-data-streams-template";
+        state = service.addIndexTemplateV2(state, false, templateName, template);
+        // When creating a data stream, we'll look for templates. The data stream is not hidden
+        assertThat(MetadataIndexTemplateService.findV2Template(state.metadata(), "some-data-stream", false), equalTo(templateName));
+        // The write index for a data stream will be a hidden index. We need to make sure it matches the same template:
+        assertThat(MetadataIndexTemplateService.findV2Template(state.metadata(), "some-data-stream", true), equalTo(templateName));
+    }
+
     public void testRemovingHigherOrderTemplateOfDataStreamWithMultipleTemplates() throws Exception {
         ClusterState state = ClusterState.EMPTY_STATE;
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
@@ -2484,7 +2502,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry,
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            new DataStreamGlobalRetentionResolver(DataStreamFactoryRetention.emptyFactoryRetention())
+            DataStreamGlobalRetentionSettings.create(
+                ClusterSettings.createBuiltInClusterSettings(),
+                DataStreamFactoryRetention.emptyFactoryRetention()
+            )
         );
 
         final List<Throwable> throwables = new ArrayList<>();
@@ -2526,9 +2547,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     private MetadataIndexTemplateService getMetadataIndexTemplateService() {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = new DataStreamGlobalRetentionResolver(
-            DataStreamFactoryRetention.emptyFactoryRetention()
-        );
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             Settings.EMPTY,
             clusterService,
@@ -2551,7 +2569,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            dataStreamGlobalRetentionResolver
+            DataStreamGlobalRetentionSettings.create(
+                ClusterSettings.createBuiltInClusterSettings(),
+                DataStreamFactoryRetention.emptyFactoryRetention()
+            )
         );
     }
 

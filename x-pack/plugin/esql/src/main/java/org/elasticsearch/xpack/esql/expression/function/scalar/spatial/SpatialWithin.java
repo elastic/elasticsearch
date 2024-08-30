@@ -11,6 +11,7 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
@@ -30,7 +31,6 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -107,8 +107,8 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
     }
 
     @Override
-    public ShapeField.QueryRelation queryRelation() {
-        return ShapeField.QueryRelation.WITHIN;
+    public ShapeRelation queryRelation() {
+        return ShapeRelation.WITHIN;
     }
 
     @Override
@@ -132,9 +132,9 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
     @Override
     public Object fold() {
         try {
-            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType, left());
-            Component2D component2D = asLuceneComponent2D(crsType, right());
-            return (crsType == SpatialCrsType.GEO)
+            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType(), left());
+            Component2D component2D = asLuceneComponent2D(crsType(), right());
+            return (crsType() == SpatialCrsType.GEO)
                 ? GEO.geometryRelatesGeometry(docValueReader, component2D)
                 : CARTESIAN.geometryRelatesGeometry(docValueReader, component2D);
         } catch (IOException e) {
@@ -173,7 +173,7 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
                     new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(SpatialWithinGeoSourceAndConstantEvaluator.Factory::new)
                 );
-                if (EsqlDataTypes.isSpatialPoint(spatialType)) {
+                if (DataType.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
@@ -205,7 +205,7 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
                         SpatialWithinCartesianSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                if (EsqlDataTypes.isSpatialPoint(spatialType)) {
+                if (DataType.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(

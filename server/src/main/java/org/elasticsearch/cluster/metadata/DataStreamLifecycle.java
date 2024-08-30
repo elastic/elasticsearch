@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -55,6 +54,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     // Versions over the wire
     public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersions.V_8_10_X;
+    public static final String EFFECTIVE_RETENTION_REST_API_CAPABILITY = "data_stream_lifecycle_effective_retention";
 
     public static final String DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME = "data_streams.lifecycle_only.mode";
     // The following XContent params are used to enrich the DataStreamLifecycle json with effective retention information
@@ -65,6 +65,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME,
         "true"
     );
+    public static final Tuple<TimeValue, RetentionSource> INFINITE_RETENTION = Tuple.tuple(null, RetentionSource.DATA_STREAM_CONFIGURATION);
 
     /**
      * Check if {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME} is present and set to {@code true}, indicating that
@@ -145,41 +146,46 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     /**
-     * The least amount of time data should be kept by elasticsearch. If a caller does not want the global retention considered (for
-     * example, when evaluating the effective retention for a system data stream or a template) then null should be given for
-     * globalRetention.
-     * @param globalRetention The global retention, or null if global retention does not exist or should not be applied
+     * The least amount of time data should be kept by elasticsearch. The effective retention is a function with three parameters,
+     * the {@link DataStreamLifecycle#dataRetention}, the global retention and whether this lifecycle is associated with an internal
+     * data stream.
+     * @param globalRetention The global retention, or null if global retention does not exist.
+     * @param isInternalDataStream A flag denoting if this lifecycle is associated with an internal data stream or not
      * @return the time period or null, null represents that data should never be deleted.
      */
     @Nullable
-    public TimeValue getEffectiveDataRetention(@Nullable DataStreamGlobalRetention globalRetention) {
-        return getEffectiveDataRetentionWithSource(globalRetention).v1();
+    public TimeValue getEffectiveDataRetention(@Nullable DataStreamGlobalRetention globalRetention, boolean isInternalDataStream) {
+        return getEffectiveDataRetentionWithSource(globalRetention, isInternalDataStream).v1();
     }
 
     /**
-     * The least amount of time data should be kept by elasticsearch. If a caller does not want the global retention considered (for
-     * example, when evaluating the effective retention for a system data stream or a template) then null should be given for
-     * globalRetention.
-     * @param globalRetention The global retention, or null if global retention does not exist or should not be applied
+     * The least amount of time data should be kept by elasticsearch.. The effective retention is a function with three parameters,
+     * the {@link DataStreamLifecycle#dataRetention}, the global retention and whether this lifecycle is associated with an internal
+     * data stream.
+     * @param globalRetention The global retention, or null if global retention does not exist.
+     * @param isInternalDataStream A flag denoting if this lifecycle is associated with an internal data stream or not
      * @return A tuple containing the time period or null as v1 (where null represents that data should never be deleted), and the non-null
      * retention source as v2.
      */
-    public Tuple<TimeValue, RetentionSource> getEffectiveDataRetentionWithSource(@Nullable DataStreamGlobalRetention globalRetention) {
+    public Tuple<TimeValue, RetentionSource> getEffectiveDataRetentionWithSource(
+        @Nullable DataStreamGlobalRetention globalRetention,
+        boolean isInternalDataStream
+    ) {
         // If lifecycle is disabled there is no effective retention
         if (enabled == false) {
-            return Tuple.tuple(null, RetentionSource.DATA_STREAM_CONFIGURATION);
+            return INFINITE_RETENTION;
         }
         var dataStreamRetention = getDataStreamRetention();
-        if (globalRetention == null) {
+        if (globalRetention == null || isInternalDataStream) {
             return Tuple.tuple(dataStreamRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
         }
         if (dataStreamRetention == null) {
-            return globalRetention.getDefaultRetention() != null
-                ? Tuple.tuple(globalRetention.getDefaultRetention(), RetentionSource.DEFAULT_GLOBAL_RETENTION)
-                : Tuple.tuple(globalRetention.getMaxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
+            return globalRetention.defaultRetention() != null
+                ? Tuple.tuple(globalRetention.defaultRetention(), RetentionSource.DEFAULT_GLOBAL_RETENTION)
+                : Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
         }
-        if (globalRetention.getMaxRetention() != null && globalRetention.getMaxRetention().getMillis() < dataStreamRetention.getMillis()) {
-            return Tuple.tuple(globalRetention.getMaxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
+        if (globalRetention.maxRetention() != null && globalRetention.maxRetention().getMillis() < dataStreamRetention.getMillis()) {
+            return Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
         } else {
             return Tuple.tuple(dataStreamRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
         }
@@ -187,7 +193,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     /**
      * The least amount of time data the data stream is requesting es to keep the data.
-     * NOTE: this can be overridden by the {@link DataStreamLifecycle#getEffectiveDataRetention(DataStreamGlobalRetention)}.
+     * NOTE: this can be overridden by the {@link DataStreamLifecycle#getEffectiveDataRetention(DataStreamGlobalRetention,boolean)}.
      * @return the time period or null, null represents that data should never be deleted.
      */
     @Nullable
@@ -199,12 +205,16 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * This method checks if the effective retention is matching what the user has configured; if the effective retention
      * does not match then it adds a warning informing the user about the effective retention and the source.
      */
-    public void addWarningHeaderIfDataRetentionNotEffective(@Nullable DataStreamGlobalRetention globalRetention) {
-        if (globalRetention == null) {
+    public void addWarningHeaderIfDataRetentionNotEffective(
+        @Nullable DataStreamGlobalRetention globalRetention,
+        boolean isInternalDataStream
+    ) {
+        if (globalRetention == null || isInternalDataStream) {
             return;
         }
         Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = getEffectiveDataRetentionWithSource(
-            globalRetention
+            globalRetention,
+            isInternalDataStream
         );
         if (effectiveDataRetentionWithSource.v1() == null) {
             return;
@@ -318,7 +328,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, null, null);
+        return toXContent(builder, params, null, null, false);
     }
 
     /**
@@ -326,12 +336,14 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * and injects the RolloverConditions if they exist.
      * In order to request the effective retention you need to set {@link #INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME} to true
      * in the XContent params.
+     * NOTE: this is used for serialising user output and the result is never deserialised in elasticsearch.
      */
     public XContentBuilder toXContent(
         XContentBuilder builder,
         Params params,
         @Nullable RolloverConfiguration rolloverConfiguration,
-        @Nullable DataStreamGlobalRetention globalRetention
+        @Nullable DataStreamGlobalRetention globalRetention,
+        boolean isInternalDataStream
     ) throws IOException {
         builder.startObject();
         builder.field(ENABLED_FIELD.getPreferredName(), enabled);
@@ -342,11 +354,14 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.value().getStringRep());
             }
         }
+        Tuple<TimeValue, RetentionSource> effectiveDataRetentionWithSource = getEffectiveDataRetentionWithSource(
+            globalRetention,
+            isInternalDataStream
+        );
         if (params.paramAsBoolean(INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, false)) {
-            Tuple<TimeValue, RetentionSource> effectiveRetention = getEffectiveDataRetentionWithSource(globalRetention);
-            if (effectiveRetention.v1() != null) {
-                builder.field(EFFECTIVE_RETENTION_FIELD.getPreferredName(), effectiveRetention.v1().getStringRep());
-                builder.field(RETENTION_SOURCE_FIELD.getPreferredName(), effectiveRetention.v2().displayName());
+            if (effectiveDataRetentionWithSource.v1() != null) {
+                builder.field(EFFECTIVE_RETENTION_FIELD.getPreferredName(), effectiveDataRetentionWithSource.v1().getStringRep());
+                builder.field(RETENTION_SOURCE_FIELD.getPreferredName(), effectiveDataRetentionWithSource.v2().displayName());
             }
         }
 
@@ -356,25 +371,29 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
         if (rolloverConfiguration != null) {
             builder.field(ROLLOVER_FIELD.getPreferredName());
-            rolloverConfiguration.evaluateAndConvertToXContent(builder, params, getEffectiveDataRetention(globalRetention));
+            rolloverConfiguration.evaluateAndConvertToXContent(builder, params, effectiveDataRetentionWithSource.v1());
         }
         builder.endObject();
         return builder;
     }
 
+    /**
+     * This method deserialises XContent format as it was generated ONLY by {@link DataStreamLifecycle#toXContent(XContentBuilder, Params)}.
+     * It does not support the output of
+     * {@link DataStreamLifecycle#toXContent(XContentBuilder, Params, RolloverConfiguration, DataStreamGlobalRetention, boolean)} because
+     * this output is enriched with derived fields we do not handle in this deserialisation.
+     */
     public static DataStreamLifecycle fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
     /**
-     * Adds a retention param to signal that this serialisation should include the effective retention metadata
+     * Adds a retention param to signal that this serialisation should include the effective retention metadata.
+     * @param params the XContent params to be extended with the new flag
+     * @return XContent params with `include_effective_retention` set to true. If the flag exists it will override it.
      */
-    public static ToXContent.Params maybeAddEffectiveRetentionParams(ToXContent.Params params) {
-        boolean shouldAddEffectiveRetention = Objects.equals(params.param(RestRequest.PATH_RESTRICTED), "serverless");
-        return new DelegatingMapParams(
-            Map.of(INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, Boolean.toString(shouldAddEffectiveRetention)),
-            params
-        );
+    public static ToXContent.Params addEffectiveRetentionParams(ToXContent.Params params) {
+        return new DelegatingMapParams(INCLUDE_EFFECTIVE_RETENTION_PARAMS, params);
     }
 
     public static Builder newBuilder(DataStreamLifecycle lifecycle) {

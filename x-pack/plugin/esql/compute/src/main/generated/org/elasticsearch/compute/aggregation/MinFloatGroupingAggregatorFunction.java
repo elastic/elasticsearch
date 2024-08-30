@@ -92,7 +92,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
 
   private void addRawInput(int positionOffset, IntVector groups, FloatBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
@@ -106,7 +106,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
 
   private void addRawInput(int positionOffset, IntVector groups, FloatVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), values.getFloat(groupPosition + positionOffset)));
     }
   }
@@ -119,7 +119,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         if (values.isNull(groupPosition + positionOffset)) {
           continue;
         }
@@ -140,7 +140,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), values.getFloat(groupPosition + positionOffset)));
       }
     }
@@ -162,7 +162,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert min.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (seen.getBoolean(groupPosition + positionOffset)) {
         state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), min.getFloat(groupPosition + positionOffset)));
       }

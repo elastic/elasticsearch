@@ -13,6 +13,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -75,7 +75,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         String[] indices = new String[] { "test" };
 
         Client qlClient = mock(Client.class);
-        IndexResolver idxResolver = new IndexResolver(qlClient, EsqlDataTypeRegistry.INSTANCE);
+        IndexResolver idxResolver = new IndexResolver(qlClient);
         // simulate a valid field_caps response so we can parse and correctly analyze de query
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
         when(fieldCapabilitiesResponse.getIndices()).thenReturn(indices);
@@ -89,7 +89,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }).when(qlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
         Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient, EsqlDataTypeRegistry.INSTANCE);
+        IndexResolver indexResolver = new IndexResolver(esqlClient);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<FieldCapabilitiesResponse> listener = (ActionListener<FieldCapabilitiesResponse>) invocation.getArguments()[2];
@@ -152,7 +152,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                         Map.entry("foo", new IndexFieldCapabilities("foo", "integer", false, true, true, false, null, Map.of())),
                         Map.entry("bar", new IndexFieldCapabilities("bar", "long", false, true, true, false, null, Map.of()))
                     ),
-                    true
+                    true,
+                    IndexMode.STANDARD
                 )
             );
         }

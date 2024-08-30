@@ -25,12 +25,12 @@ import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -78,7 +78,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        if (clusterService.state().getMinTransportVersion().before(TransportVersions.ALLOCATION_STATS)) {
+        if (clusterService.state().getMinTransportVersion().before(TransportVersions.V_8_14_0)) {
             // The action is not available before ALLOCATION_STATS
             listener.onResponse(new Response(Map.of(), null));
             return;
@@ -108,6 +108,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
         private final EnumSet<Metric> metrics;
 
+        @SuppressWarnings("this-escape")
         public Request(TimeValue masterNodeTimeout, TaskId parentTaskId, EnumSet<Metric> metrics) {
             super(masterNodeTimeout);
             setParentTask(parentTaskId);
@@ -123,7 +124,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            assert out.getTransportVersion().onOrAfter(TransportVersions.ALLOCATION_STATS);
+            assert out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0);
             super.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.MASTER_NODE_METRICS)) {
                 out.writeEnumSet(metrics);

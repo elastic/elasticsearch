@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -41,7 +40,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
@@ -1508,49 +1507,51 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params p) {
-        XContentContext context = XContentContext.valueOf(p.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
-        final Iterator<? extends ToXContent> start = context == XContentContext.API
-            ? ChunkedToXContentHelper.startObject("metadata")
-            : Iterators.single((builder, params) -> builder.startObject("meta-data").field("version", version()));
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
 
-        final Iterator<? extends ToXContent> persistentSettings = context != XContentContext.API && persistentSettings().isEmpty() == false
-            ? Iterators.single((builder, params) -> {
-                builder.startObject("settings");
-                persistentSettings().toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
-                return builder.endObject();
+        return ChunkedToXContentBuilder.builder(params)
+            .execute(
+                context == XContentContext.API
+                    ? (ChunkedToXContentBuilder b) -> b.startObject("metadata")
+                    : (ChunkedToXContentBuilder b) -> b.startObject("meta-data").field("version", version())
+            )
+            .append((b, p) -> {
+                b.field("cluster_uuid", clusterUUID);
+                b.field("cluster_uuid_committed", clusterUUIDCommitted);
+                b.startObject("cluster_coordination");
+                coordinationMetadata().toXContent(b, p);
+                b.endObject();
             })
-            : Collections.emptyIterator();
-
-        final Iterator<? extends ToXContent> indices = context == XContentContext.API
-            ? ChunkedToXContentHelper.wrapWithObject("indices", indices().values().iterator())
-            : Collections.emptyIterator();
-
-        return Iterators.concat(start, Iterators.single((builder, params) -> {
-            builder.field("cluster_uuid", clusterUUID);
-            builder.field("cluster_uuid_committed", clusterUUIDCommitted);
-            builder.startObject("cluster_coordination");
-            coordinationMetadata().toXContent(builder, params);
-            return builder.endObject();
-        }),
-            persistentSettings,
-            ChunkedToXContentHelper.wrapWithObject(
-                "templates",
-                Iterators.map(
-                    templates().values().iterator(),
-                    template -> (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(template, builder, params)
-                )
-            ),
-            indices,
-            Iterators.flatMap(
-                customs.entrySet().iterator(),
-                entry -> entry.getValue().context().contains(context)
-                    ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
-                    : Collections.emptyIterator()
-            ),
-            ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
-            ChunkedToXContentHelper.endObject()
-        );
+            .execute(xb -> {
+                if (context != XContentContext.API && persistentSettings().isEmpty() == false) {
+                    xb.append((b, p) -> {
+                        b.startObject("settings");
+                        persistentSettings().toXContent(b, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+                        b.endObject();
+                    });
+                }
+            })
+            .startObject("templates")
+            .forEach(
+                templates().values().iterator(),
+                (t, xb) -> xb.append((b, p) -> IndexTemplateMetadata.Builder.toXContentWithTypes(t, b, p))
+            )
+            .endObject()
+            .execute(xb -> {
+                if (context == XContentContext.API) {
+                    xb.startObject("indices").append(indices().values().iterator()).endObject();
+                }
+            })
+            .forEach(customs.entrySet().iterator(), (e, b) -> {
+                if (e.getValue().context().contains(context)) {
+                    b.startObject(e.getKey()).append(e.getValue()).endObject();
+                }
+            })
+            .startObject("reserved_state")
+            .append(reservedStateMetadata().values().iterator())
+            .endObject()
+            .endObject();
     }
 
     public Map<String, MappingMetadata> getMappingsByHash() {

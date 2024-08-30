@@ -92,17 +92,15 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 searchRequest
             );
             searchAction.execute(searchTask, searchRequest, searchTask.getSearchProgressActionListener());
+
+            ActionListener<AsyncSearchResponse> submitListenerWithHeaders = submitListener.map(response -> {
+                threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, response.isRunning() ? "?1" : "?0");
+                threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, response.getId());
+                return response;
+            });
             searchTask.addCompletionListener(new ActionListener<>() {
                 @Override
                 public void onResponse(AsyncSearchResponse searchResponse) {
-                    ActionListener<AsyncSearchResponse> submitListenerWithHeaders = submitListener.map(response -> {
-                        threadContext.addResponseHeader(
-                            AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER,
-                            searchResponse.isRunning() ? "?1" : "?0"
-                        );
-                        threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, searchResponse.getId());
-                        return response;
-                    });
                     if (searchResponse.isRunning() || request.isKeepOnCompletion()) {
                         // the task is still running and the user cannot wait more so we create
                         // a document for further retrieval

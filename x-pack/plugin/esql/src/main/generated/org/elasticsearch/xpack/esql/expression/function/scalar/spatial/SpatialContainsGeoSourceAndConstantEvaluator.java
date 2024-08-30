@@ -9,11 +9,9 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.geo.Component2D;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -34,8 +32,6 @@ public final class SpatialContainsGeoSourceAndConstantEvaluator implements EvalO
 
   private final DriverContext driverContext;
 
-  private final org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains.SpatialContainsCombiner multiValuesCombiner = new SpatialContains.SpatialContainsCombiner();
-
   public SpatialContainsGeoSourceAndConstantEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, Component2D[] rightValue,
       DriverContext driverContext) {
@@ -48,51 +44,23 @@ public final class SpatialContainsGeoSourceAndConstantEvaluator implements EvalO
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock leftValueBlock = (BytesRefBlock) leftValue.eval(page)) {
-      BytesRefVector leftValueVector = leftValueBlock.asVector();
-      if (leftValueVector == null) {
-        return eval(page.getPositionCount(), leftValueBlock);
-      }
-      return eval(page.getPositionCount(), leftValueVector);
+      return eval(page.getPositionCount(), leftValueBlock);
     }
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock leftValueBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BytesRef leftValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (leftValueBlock.isNull(p)) {
+        boolean allBlocksAreNulls = true;
+        if (!leftValueBlock.isNull(p)) {
+          allBlocksAreNulls = false;
+        }
+        if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
-        int leftValueBlockCount = leftValueBlock.getValueCount(p);
-        if (leftValueBlockCount < 1) {
-          result.appendNull();
-          continue position;
-        }
-        int leftValueBlockFirst = leftValueBlock.getFirstValueIndex(p);
         try {
-          multiValuesCombiner.initialize();
-          for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
-            multiValuesCombiner.add(SpatialContains.processGeoSourceAndConstant(leftValueBlock.getBytesRef(leftValueBlockIndex, leftValueScratch), this.rightValue));
-          }
-          result.appendBoolean(multiValuesCombiner.result());
-        } catch (IllegalArgumentException | IOException e) {
-          warnings.registerException(e);
-          result.appendNull();
-        }
-      }
-      return result.build();
-    }
-  }
-
-  public BooleanBlock eval(int positionCount, BytesRefVector leftValueVector) {
-    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BytesRef leftValueScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        try {
-          multiValuesCombiner.initialize();
-          multiValuesCombiner.add(SpatialContains.processGeoSourceAndConstant(leftValueVector.getBytesRef(p, leftValueScratch), this.rightValue));
-          result.appendBoolean(multiValuesCombiner.result());
+          SpatialContains.processGeoSourceAndConstant(result, p, leftValueBlock, this.rightValue);
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();

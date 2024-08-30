@@ -112,7 +112,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if ("dutch".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new DutchStemmer());
         } else if ("dutch_kp".equalsIgnoreCase(language) || "dutchKp".equalsIgnoreCase(language) || "kp".equalsIgnoreCase(language)) {
-            //TODO Lucene 10 upgrade: KPStemmer has been removed, what is the migration path for users relying on it?
+            // TODO Lucene 10 upgrade: KPStemmer has been removed, what is the migration path for users relying on it?
             throw new UnsupportedOperationException();
             // English stemmers
         } else if ("english".equalsIgnoreCase(language)) {
@@ -122,7 +122,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             || "kstem".equalsIgnoreCase(language)) {
                 return new KStemFilter(tokenStream);
             } else if ("lovins".equalsIgnoreCase(language)) {
-                //TODO Lucene 10 upgrade: LovinsStemmer has been removed, what is the migration path for users relying on it?
+                // TODO Lucene 10 upgrade: LovinsStemmer has been removed, what is the migration path for users relying on it?
                 throw new UnsupportedOperationException();
             } else if ("porter".equalsIgnoreCase(language)) {
                 return new PorterStemFilter(tokenStream);
@@ -163,7 +163,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             } else if ("german".equalsIgnoreCase(language)) {
                 return new SnowballFilter(tokenStream, new GermanStemmer());
             } else if ("german2".equalsIgnoreCase(language)) {
-                //TODO Lucene 10 upgrade: how about bw comp for users relying on german2 stemmer that is now folded into german stemmer?
+                // TODO Lucene 10 upgrade: how about bw comp for users relying on german2 stemmer that is now folded into german stemmer?
                 return new SnowballFilter(tokenStream, new GermanStemmer());
             } else if ("light_german".equalsIgnoreCase(language) || "lightGerman".equalsIgnoreCase(language)) {
                 return new GermanLightStemFilter(tokenStream);
@@ -210,10 +210,10 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
                 // Norwegian (Nynorsk) stemmers
             } else if ("light_nynorsk".equalsIgnoreCase(language) || "lightNynorsk".equalsIgnoreCase(language)) {
-                //TODO Lucene 10 upgrade: NorwegianLightStemmer is now package private, we no longer have access to the flags constants
+                // TODO Lucene 10 upgrade: NorwegianLightStemmer is now package private, we no longer have access to the flags constants
                 return new NorwegianLightStemFilter(tokenStream, 2);
             } else if ("minimal_nynorsk".equalsIgnoreCase(language) || "minimalNynorsk".equalsIgnoreCase(language)) {
-                //TODO Lucene 10 upgrade: NorwegianLightStemmer is now package private, we no longer have access to the flags constants
+                // TODO Lucene 10 upgrade: NorwegianLightStemmer is now package private, we no longer have access to the flags constants
                 return new NorwegianMinimalStemFilter(tokenStream, 2);
 
                 // Persian stemmers

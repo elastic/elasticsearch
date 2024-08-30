@@ -197,7 +197,7 @@ final class QueryAnalyzer {
         @Override
         public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
             if (query instanceof TermInSetQuery q) {
-                //TODO Lucene 10 upgrade: this is a workaround that only gets one term
+                // TODO Lucene 10 upgrade: this is a workaround that only gets one term
                 Term term = NestedHelper.getTermInSetTerm(q);
                 Set<QueryExtraction> qe = new HashSet<>();
                 qe.add(new QueryExtraction(term));

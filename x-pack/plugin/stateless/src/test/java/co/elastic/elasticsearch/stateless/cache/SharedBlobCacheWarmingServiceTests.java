@@ -17,6 +17,11 @@
 
 package co.elastic.elasticsearch.stateless.cache;
 
+import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
+import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
+import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -26,9 +31,13 @@ import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -42,6 +51,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.Mockito;
@@ -51,9 +61,14 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -158,6 +173,149 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             buffer.flip();
             BytesReference bytesReference = BytesReference.fromByteBuffer(buffer);
             assertEquals(output.bytes(), bytesReference);
+        }
+    }
+
+    public void testPopulateCacheWithSharedSourceInputStreamFactory() throws Exception {
+
+        var actualRangeInputStreamPosition = new SetOnce<Long>();
+        var actualRangeInputStreamLength = new SetOnce<Integer>();
+
+        try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected Settings nodeSettings() {
+                Settings settings = super.nodeSettings();
+                return Settings.builder()
+                    .put(settings)
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1))
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(512))
+                    .build();
+            }
+
+            @Override
+            protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
+                return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+                    @Override
+                    public CacheBlobReader getCacheBlobReader(
+                        ShardId shardId,
+                        LongFunction<BlobContainer> blobContainer,
+                        BlobLocation location,
+                        MutableObjectStoreUploadTracker objectStoreUploadTracker,
+                        LongConsumer totalBytesReadFromObjectStore,
+                        LongConsumer totalBytesReadFromIndexing,
+                        BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+                        Executor objectStoreFetchExecutor
+                    ) {
+                        return new ObjectStoreCacheBlobReader(
+                            blobContainer.apply(location.primaryTerm()),
+                            location.blobName(),
+                            cacheService.getRangeSize(),
+                            objectStoreFetchExecutor
+                        ) {
+                            @Override
+                            protected InputStream getRangeInputStream(long position, int length) throws IOException {
+                                actualRangeInputStreamPosition.set(position);
+                                actualRangeInputStreamLength.set(length);
+                                return super.getRangeInputStream(position, length);
+                            }
+                        };
+                    }
+                };
+            }
+        }) {
+            var indexCommits = fakeNode.generateIndexCommits(randomIntBetween(10, 20));
+
+            var primaryTerm = 1;
+            var vbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "fake-node-id",
+                primaryTerm,
+                indexCommits.get(0).getGeneration(),
+                (v) -> null,
+                ESTestCase::randomNonNegativeLong
+            );
+
+            for (StatelessCommitRef ref : indexCommits) {
+                assertTrue(vbcc.appendCommit(ref));
+            }
+
+            vbcc.freeze();
+
+            // ensure that everything fits single region
+            assertThat(Math.toIntExact(vbcc.getTotalSizeInBytes()), lessThan(fakeNode.sharedCacheService.getRegionSize()));
+
+            // upload vbcc
+            SetOnce<BatchedCompoundCommit> bcc = new SetOnce<>();
+            var indexBlobContainer = fakeNode.getShardContainer();
+            indexBlobContainer.writeMetadataBlob(
+                OperationPurpose.INDICES,
+                vbcc.getBlobName(),
+                false,
+                true,
+                out -> bcc.set(vbcc.writeToStore(out))
+            );
+
+            var frozenBcc = bcc.get();
+
+            // update search directory with latest commit
+            fakeNode.searchDirectory.updateCommit(frozenBcc.lastCompoundCommit());
+
+            // test harness to be able to call `warmingService.warmCache`
+            var indexShard = mockIndexShard(fakeNode);
+
+            // read disjoint ranges of BCC into cache effectively creating cache holes
+            var cacheKey = new FileCacheKey(indexShard.shardId(), primaryTerm, vbcc.getBlobName());
+            SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = fakeNode.sharedCacheService.getCacheFile(
+                cacheKey,
+                vbcc.getTotalSizeInBytes()
+            );
+
+            var writeBuffer = ByteBuffer.allocate(8192);
+            for (int start = SharedBytes.PAGE_SIZE; start < vbcc.getTotalSizeInBytes() - SharedBytes.PAGE_SIZE; start += 2
+                * SharedBytes.PAGE_SIZE) {
+                var range = ByteRange.of(start, start + SharedBytes.PAGE_SIZE);
+                long bytesRead = cacheFile.populateAndRead(
+                    range,
+                    range,
+                    (channel, channelPos, relativePos, length) -> length,
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> {
+                        var shardContainer = fakeNode.getShardContainer();
+                        try (
+                            var in = shardContainer.readBlob(
+                                OperationPurpose.INDICES,
+                                vbcc.getBlobName(),
+                                range.start() + relativePos,
+                                length
+                            )
+                        ) {
+                            SharedBytes.copyToCacheFileAligned(channel, in, channelPos, progressUpdater, writeBuffer.clear());
+                        }
+                        ActionListener.completeWith(completionListener, () -> null);
+                    }
+                );
+                assertThat(bytesRead, equalTo((long) SharedBytes.PAGE_SIZE));
+            }
+
+            ByteBuffer testBuffer = ByteBuffer.allocate((int) vbcc.getTotalSizeInBytes());
+            // there is no continues data in cache since there are cache holes
+            assertThat(cacheFile.tryRead(testBuffer, 0), equalTo(false));
+
+            // re-populate cache and fill holes
+            PlainActionFuture<Void> refillCacheCompletionListener = new PlainActionFuture<>();
+            fakeNode.warmingService.warmCache(
+                "test-prewarming-1",
+                indexShard,
+                frozenBcc.lastCompoundCommit(),
+                fakeNode.searchDirectory,
+                refillCacheCompletionListener
+            );
+            safeGet(refillCacheCompletionListener);
+
+            // assert that whole bcc is cached which implies absence of cache holes
+            assertThat(cacheFile.tryRead(testBuffer.clear(), 0), equalTo(true));
+            // check that position and length were set only once
+            assertThat(actualRangeInputStreamPosition.get(), equalTo(0L));
+            assertThat(actualRangeInputStreamLength.get(), equalTo(fakeNode.sharedCacheService.getRegionSize()));
         }
     }
 

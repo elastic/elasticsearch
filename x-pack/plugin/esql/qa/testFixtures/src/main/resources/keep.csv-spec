@@ -540,6 +540,41 @@ c:i
 1
 ;
 
+keepSubfieldViaSuffix
+required_capability: enrich_with_qualifier
+ROW a.b.c = "abc", b.c = "bc", x.y.z = "xyz"
+| EVAL xyz_implicit = z, xyz_implicit2 = y.z, xyz_full = x.y.z, bc_full = b.c, abc_full = a.b.c
+;
+
+a.b.c:keyword | b.c:keyword | x.y.z:keyword  | xyz_implicit:keyword | xyz_implicit2:keyword | xyz_full:keyword | bc_full:keyword | abc_full:keyword
+abc           | bc          | xyz            | xyz                  | xyz                   | xyz              | bc              | abc
+;
+
+// TODO: Test from index with deeper nesting levels.
+keepSubfieldViaSuffixFromIndex
+required_capability: enrich_with_qualifier
+FROM employees
+| WHERE emp_no == 10001
+| KEEP height.half_float
+| EVAL triple_height = half_float*3
+;
+
+height.half_float:double | triple_height:double
+             2.029296875 |          6.087890625
+;
+
+// TODO: For this to work we'll need to update our index resolution. Do we want to?
+keepSubfieldViaSuffixFromIndexDirectly-Ignore
+required_capability: enrich_with_qualifier
+FROM employees
+| WHERE emp_no == 10001
+| KEEP half_float
+;
+
+height.half_float:double
+             2.029296875
+;
+
 shadowingInternal#[skip:-8.13.3,reason:fixed in 8.13]
 FROM employees
 | SORT emp_no ASC

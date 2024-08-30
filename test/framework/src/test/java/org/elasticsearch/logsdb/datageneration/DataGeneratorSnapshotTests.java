@@ -39,6 +39,7 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
         var expectedMapping = """
             {
               "_doc" : {
+                "dynamic" : "false",
                 "properties" : {
                   "f1" : {
                     "dynamic" : "false",
@@ -184,7 +185,6 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
 
         @Override
         public DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
-
             return childFieldGenerator;
         }
 
@@ -205,11 +205,11 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
             return new DataSourceResponse.FieldTypeGenerator(() -> {
                 if (fieldType == FieldType.KEYWORD) {
                     fieldType = FieldType.LONG;
-                    return FieldType.KEYWORD;
+                    return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.KEYWORD, false);
                 }
 
                 fieldType = FieldType.KEYWORD;
-                return FieldType.LONG;
+                return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG, false);
             });
         }
 
@@ -238,6 +238,11 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
         @Override
         public int generateChildFieldCount() {
             return 2;
+        }
+
+        @Override
+        public boolean generateDynamicSubObject() {
+            return false;
         }
 
         @Override

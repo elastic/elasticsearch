@@ -2087,9 +2087,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         private static final DiffableUtils.DiffableValueReader<String, IndexTemplateMetadata> TEMPLATES_DIFF_VALUE_READER =
             new DiffableUtils.DiffableValueReader<>(IndexTemplateMetadata::readFrom, IndexTemplateMetadata::readDiffFrom);
 
-        final DiffableUtils.MapDiff<String, IndexMetadata, ImmutableOpenMap<String, IndexMetadata>> indices;
-        final DiffableUtils.MapDiff<String, IndexTemplateMetadata, ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
-        final DiffableUtils.MapDiff<String, Metadata.ProjectCustom, ImmutableOpenMap<String, Metadata.ProjectCustom>> customs;
+        private final DiffableUtils.MapDiff<String, IndexMetadata, ImmutableOpenMap<String, IndexMetadata>> indices;
+        private final DiffableUtils.MapDiff<String, IndexTemplateMetadata, ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
+        private final DiffableUtils.MapDiff<String, Metadata.ProjectCustom, ImmutableOpenMap<String, Metadata.ProjectCustom>> customs;
 
         private ProjectMetadataDiff(ProjectMetadata before, ProjectMetadata after) {
             if (before == after) {
@@ -2122,6 +2122,18 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), PROJECT_CUSTOM_VALUE_SERIALIZER);
+        }
+
+        Diff<ImmutableOpenMap<String, IndexMetadata>> indices() {
+            return indices;
+        }
+
+        Diff<ImmutableOpenMap<String, IndexTemplateMetadata>> templates() {
+            return templates;
+        }
+
+        DiffableUtils.MapDiff<String, Metadata.ProjectCustom, ImmutableOpenMap<String, Metadata.ProjectCustom>> customs() {
+            return customs;
         }
 
         @Override

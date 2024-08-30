@@ -501,6 +501,10 @@ public class SharedBlobCacheWarmingService {
                 try (ref; var in = directory.openInput(fileName, IOContext.READONCE)) {
                     var entries = Lucene90CompoundEntriesReader.readEntries(in);
 
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Detected {} entries in {}: {}", entries.size(), fileName, entries);
+                    }
+
                     var cfs = fileName.replace(".cfe", ".cfs");
                     var cfsLocation = commit.commitFiles().get(cfs);
 

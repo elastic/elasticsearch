@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
+import co.elastic.elasticsearch.stateless.lucene.SearchIndexInput;
 import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
 import co.elastic.elasticsearch.stateless.utils.IndexingShardRecoveryComparator;
 
@@ -624,28 +625,16 @@ public class SharedBlobCacheWarmingService {
                         // this length is not used since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService
                         // to fully utilize each region. So we just pass it with a value that cover the current region.
                         (long) (blobRegion.region + 1) * cacheService.getRegionSize(),
-                        (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> {
-                            // TODO: ES-8987 We should leverage streamFactory to fill multiple gaps with a single request
-                            assert streamFactory == null : streamFactory;
-                            long position = range.start() + relativePos;
-                            cacheBlobReader.getRangeInputStream(position, length, completionListener.map(in -> {
-                                try (in) {
-                                    assert ThreadPool.assertCurrentThreadPool(
-                                        Stateless.PREWARM_THREAD_POOL,
-                                        Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
-                                    );
-                                    var bytesCopied = SharedBytes.copyToCacheFileAligned(
-                                        channel,
-                                        in,
-                                        channelPos,
-                                        progressUpdater,
-                                        writeBuffer.get().clear()
-                                    );
-                                    totalBytesCopied.addAndGet(bytesCopied);
-                                    return null;
-                                }
-                            }));
-                        },
+                        // Can be executed on different thread pool depending whether we read from
+                        // the SharedBlobCacheWarmingService (PREWARM_THREAD_POOL pool) or the IndexingShardCacheBlobReader (VBCC pool)
+                        new SearchIndexInput.SequentialRangeMissingHandler(
+                            range,
+                            cacheBlobReader,
+                            () -> writeBuffer.get().clear(),
+                            totalBytesCopied::addAndGet,
+                            Stateless.PREWARM_THREAD_POOL,
+                            Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                        ),
                         fetchExecutor,
                         l.map(ignored -> null)
                     );

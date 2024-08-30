@@ -493,11 +493,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                                     assert allowAlreadyClosed || e.getMessage().equals("evicted during free region allocation") : e;
                                     throw e;
                                 }
+                                assertTrue(cacheFileRegion.testOnlyNonVolatileIO() != null || cacheFileRegion.isEvicted());
                                 if (incRef && cacheFileRegion.tryIncRef()) {
                                     if (yield[i] == 0) {
                                         Thread.yield();
                                     }
-                                    assertTrue(cacheFileRegion.testOnlyNonVolatileIO() != null || cacheFileRegion.isEvicted());
                                     cacheFileRegion.decRef();
                                 }
                                 if (evict[i] == 0) {

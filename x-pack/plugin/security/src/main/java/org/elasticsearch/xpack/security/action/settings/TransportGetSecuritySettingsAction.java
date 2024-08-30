@@ -85,7 +85,7 @@ public class TransportGetSecuritySettingsAction extends TransportMasterNodeActio
             .map(IndexMetadata::getSettings)
             .map(settings -> {
                 Settings.Builder builder = Settings.builder();
-                for (String settingName : UpdateSecuritySettingsAction.ALLOWED_SETTING_KEYS) {
+                for (String settingName : UpdateSecuritySettingsAction.ALLOWED_SETTING_VALIDATORS.keySet()) {
                     if (settings.hasValue(settingName)) {
                         builder.put(settingName, settings.get(settingName));
                     }

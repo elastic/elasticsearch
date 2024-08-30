@@ -33,6 +33,7 @@ public class MapperFeatures implements FeatureSpecification {
             NodeMappingStats.SEGMENT_LEVEL_FIELDS_STATS,
             BooleanFieldMapper.BOOLEAN_DIMENSION,
             ObjectMapper.SUBOBJECTS_AUTO,
+            KeywordFieldMapper.KEYWORD_NORMALIZER_SYNTHETIC_SOURCE,
             SourceFieldMapper.SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX,
             Mapper.STORE_SOURCE_MAPPER_PARAM
         );

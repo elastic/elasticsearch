@@ -270,3 +270,35 @@ the {infer} pipeline configuration in the next step.
 <6> The field type which is text in this example.
 
 // end::amazon-bedrock[]
+
+// tag::alibabacloud-ai-search[]
+
+[source,console]
+--------------------------------------------------
+PUT alibabacloud-ai-search-embeddings
+{
+  "mappings": {
+    "properties": {
+      "content_embedding": { <1>
+        "type": "dense_vector", <2>
+        "dims": 1024, <3>
+        "element_type": "float"
+      },
+      "content": { <4>
+        "type": "text" <5>
+      }
+    }
+  }
+}
+--------------------------------------------------
+<1> The name of the field to contain the generated tokens. It must be referenced
+in the {infer} pipeline configuration in the next step.
+<2> The field to contain the tokens is a `dense_vector` field.
+<3> The output dimensions of the model. This value may be different depending on the underlying model used.
+See the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-embedding-api-details[AlibabaCloud AI Search embedding model] documentation.
+<4> The name of the field from which to create the dense vector representation.
+In this example, the name of the field is `content`. It must be referenced in
+the {infer} pipeline configuration in the next step.
+<5> The field type which is text in this example.
+
+// end::alibabacloud-ai-search[]

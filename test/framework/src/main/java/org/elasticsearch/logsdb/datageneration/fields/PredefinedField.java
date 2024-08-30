@@ -8,6 +8,36 @@
 
 package org.elasticsearch.logsdb.datageneration.fields;
 
+import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.FieldType;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 
-public record PredefinedField(String fieldName, FieldType fieldType) {}
+public interface PredefinedField {
+    String name();
+
+    FieldDataGenerator generator(DataSource dataSource);
+
+    record WithType(String fieldName, FieldType fieldType) implements PredefinedField {
+        @Override
+        public String name() {
+            return fieldName;
+        }
+
+        @Override
+        public FieldDataGenerator generator(DataSource dataSource) {
+            return fieldType().generator(fieldName, dataSource);
+        }
+    }
+
+    record WithGenerator(String fieldName, FieldDataGenerator generator) implements PredefinedField {
+        @Override
+        public String name() {
+            return fieldName;
+        }
+
+        @Override
+        public FieldDataGenerator generator(DataSource dataSource) {
+            return generator;
+        }
+    }
+}

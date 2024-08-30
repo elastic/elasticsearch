@@ -16,6 +16,8 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicHeader;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -27,7 +29,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public interface IbmWatsonxRequest extends Request {
+
     static void decorateWithBearerToken(HttpPost httpPost, DefaultSecretSettings secretSettings) {
+        final Logger logger = LogManager.getLogger(IbmWatsonxRequest.class);
         String bearerTokenGenUrl = "https://iam.cloud.ibm.com/identity/token";
         String bearerToken = "";
 
@@ -51,7 +55,7 @@ public interface IbmWatsonxRequest extends Request {
                 return (String) map.get("access_token");
             });
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Failed to add Bearer token to the request", e);
         }
 
         Header bearerHeader = new BasicHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);

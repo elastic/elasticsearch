@@ -7,6 +7,13 @@ DELETE _ingest/pipeline/*_embeddings
 // TEST
 // TEARDOWN
 
+[source,console]
+----
+DELETE _ingest/pipeline/*_pipeline
+----
+// TEST
+// TEARDOWN
+
 ////
 
 // tag::cohere[]

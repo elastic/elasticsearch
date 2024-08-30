@@ -98,6 +98,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -866,14 +867,72 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     private static List<Attribute> resolveAgainstList(UnresolvedNamePattern up, Collection<Attribute> attrList) {
         UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern());
-        Predicate<Attribute> matcher = a -> up.match(a.name());
-        var matches = AnalyzerRules.maybeResolveAgainstList(matcher, () -> ua, attrList, true, a -> Analyzer.handleSpecialFields(ua, a));
-        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedNamePattern.errorMessage(up.pattern(), list));
+        return resolveAgainstList(
+            a -> up.match(a.name()),
+            ua,
+            attrList,
+            true,
+            list -> UnresolvedNamePattern.errorMessage(up.pattern(), list)
+        );
     }
 
     private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
-        var matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
-        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedAttribute.errorMessage(ua.name(), list));
+        return resolveAgainstList(
+            a -> Objects.equals(ua.name(), a.name()),
+            ua,
+            attrList,
+            false,
+            list -> UnresolvedAttribute.errorMessage(ua.name(), list)
+        );
+    }
+
+    private static List<Attribute> resolveAgainstList(
+        Predicate<Attribute> matcher,
+        UnresolvedAttribute ua,
+        Collection<Attribute> attrList,
+        boolean isPattern,
+        Function<List<String>, String> messageProducer
+    ) {
+        List<Attribute> matches = maybeResolveAgainstList(matcher, ua, attrList, isPattern);
+        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, messageProducer);
+    }
+
+    private static List<Attribute> maybeResolveAgainstList(
+        Predicate<Attribute> matcher,
+        UnresolvedAttribute unresolved,
+        Collection<Attribute> attrList,
+        boolean isPattern
+    ) {
+        List<Attribute> matches = new ArrayList<>();
+
+        for (Attribute attribute : attrList) {
+            if (attribute.synthetic() == false) {
+                boolean match = matcher.test(attribute);
+                if (match) {
+                    matches.add(attribute);
+                }
+            }
+        }
+
+        if (matches.isEmpty()) {
+            return matches;
+        }
+
+        // found exact match or multiple if pattern
+        if (matches.size() == 1 || isPattern) {
+            // NB: only add the location if the match is univocal; b/c otherwise adding the location will overwrite any preexisting one
+            matches.replaceAll(a -> a.withLocation(unresolved.source()));
+            return matches;
+        }
+
+        // report ambiguity
+        List<String> refs = matches.stream().sorted((a, b) -> {
+            int lineDiff = a.sourceLocation().getLineNumber() - b.sourceLocation().getLineNumber();
+            int colDiff = a.sourceLocation().getColumnNumber() - b.sourceLocation().getColumnNumber();
+            return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : a.name().compareTo(b.name()));
+        }).map(a -> "line " + a.sourceLocation().toString().substring(1) + " [" + a.name() + "]").toList();
+
+        throw new IllegalStateException("Reference [" + unresolved.name() + "] is ambiguous; " + "matches any of " + refs);
     }
 
     private static List<Attribute> potentialCandidatesIfNoMatchesFound(
@@ -899,10 +958,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             matches = singletonList(unresolved);
         }
         return matches;
-    }
-
-    private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named) {
-        return named.withLocation(u.source());
     }
 
     private static class ResolveFunctions extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {

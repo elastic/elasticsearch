@@ -7,18 +7,9 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 public final class AnalyzerRules {
 
@@ -67,56 +58,5 @@ public final class AnalyzerRules {
         }
 
         protected abstract LogicalPlan doRule(LogicalPlan plan);
-    }
-
-    public static List<Attribute> maybeResolveAgainstList(
-        UnresolvedAttribute u,
-        Collection<Attribute> attrList,
-        java.util.function.Function<Attribute, Attribute> fieldInspector
-    ) {
-        final String name = u.name();
-
-        Predicate<Attribute> predicate = a -> Objects.equals(name, a.name());
-        return maybeResolveAgainstList(predicate, () -> u, attrList, false, fieldInspector);
-    }
-
-    public static List<Attribute> maybeResolveAgainstList(
-        Predicate<Attribute> matcher,
-        Supplier<UnresolvedAttribute> unresolved,
-        Collection<Attribute> attrList,
-        boolean isPattern,
-        java.util.function.Function<Attribute, Attribute> fieldInspector
-    ) {
-        List<Attribute> matches = new ArrayList<>();
-
-        for (Attribute attribute : attrList) {
-            if (attribute.synthetic() == false) {
-                boolean match = matcher.test(attribute);
-                if (match) {
-                    matches.add(attribute);
-                }
-            }
-        }
-
-        if (matches.isEmpty()) {
-            return matches;
-        }
-
-        UnresolvedAttribute ua = unresolved.get();
-        // found exact match or multiple if pattern
-        if (matches.size() == 1 || isPattern) {
-            // NB: only add the location if the match is univocal; b/c otherwise adding the location will overwrite any preexisting one
-            matches.replaceAll(fieldInspector::apply);
-            return matches;
-        }
-
-        // report ambiguity
-        List<String> refs = matches.stream().sorted((a, b) -> {
-            int lineDiff = a.sourceLocation().getLineNumber() - b.sourceLocation().getLineNumber();
-            int colDiff = a.sourceLocation().getColumnNumber() - b.sourceLocation().getColumnNumber();
-            return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : a.name().compareTo(b.name()));
-        }).map(a -> "line " + a.sourceLocation().toString().substring(1) + " [" + a.name() + "]").toList();
-
-        throw new IllegalStateException("Reference [" + ua.name() + "] is ambiguous; " + "matches any of " + refs);
     }
 }

@@ -9,9 +9,9 @@ base {
 }
 
 dependencies {
-  implementation project(path: ':x-pack:plugin:ml')
   compileOnly project(':server')
   compileOnly project('ann')
+  compileOnly project(xpackModule('ml'))
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
 

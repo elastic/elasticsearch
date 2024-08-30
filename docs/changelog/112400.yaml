@@ -1,5 +1,0 @@
-pr: 112400
-summary: Make sure file accesses in `DnRoleMapper` are done in stack frames with permissions
-area: Infra/Core
-type: bug
-issues: []

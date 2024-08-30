@@ -944,8 +944,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return result.stream().map(a -> a.withLocation(unresolved.source())).toList();
         }
 
-        // TODO: look for exact match in case of ambiguity
-
         // report ambiguity
         List<String> refs = looseMatches.stream().sorted((a, b) -> {
             int lineDiff = a.sourceLocation().getLineNumber() - b.sourceLocation().getLineNumber();

@@ -204,6 +204,8 @@ public class TransportVersions {
     public static final TransportVersion FIELD_CAPS_RESPONSE_INDEX_MODE = def(8_734_00_0);
     public static final TransportVersion GET_DATA_STREAMS_VERBOSE = def(8_735_00_0);
 
+    public static final TransportVersion ESQL_ADD_INDEX_MODE_CONCRETE_INDICES = def(8_735_00_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

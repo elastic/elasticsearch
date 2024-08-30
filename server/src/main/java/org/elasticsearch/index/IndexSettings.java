@@ -24,6 +24,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
@@ -794,6 +795,16 @@ public final class IndexSettings {
     private final IndexRouting indexRouting;
 
     /**
+     * The default mode for storing source, for all mappers not overriding setting.
+     * This is only relevant for indexes configured with synthetic-source code.
+     */
+    public Mapper.StoreSourceMode storeSourceMode() {
+        return storeSourceMode;
+    }
+
+    private final Mapper.StoreSourceMode storeSourceMode;
+
+    /**
      * Returns the default search fields for this index.
      */
     public List<String> getDefaultFields() {
@@ -922,6 +933,9 @@ public final class IndexSettings {
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        storeSourceMode = scopedSettings.get(Mapper.STORE_ARRAY_SOURCE_SETTING)
+            ? Mapper.StoreSourceMode.ARRAYS
+            : Mapper.StoreSourceMode.DISABLED;
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(

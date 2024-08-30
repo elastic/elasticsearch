@@ -329,6 +329,10 @@ public abstract class DocumentParserContext {
         return mappingLookup.isSourceSynthetic() && clonedSource == false;
     }
 
+    Mapper.StoreSourceMode storeSourceModeFromIndexSettings() {
+        return indexSettings().storeSourceMode();
+    }
+
     /**
      * Description on the document being parsed used in error messages. Not
      * called unless there is an error.

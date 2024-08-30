@@ -53,7 +53,7 @@ public class ReleaseVersions {
 
             NavigableMap<Integer, List<Version>> versions = new TreeMap<>();
             // add the current version id, which won't be in the csv
-            versions.put(current, List.of(Version.CURRENT));
+            versions.computeIfAbsent(current, k -> new ArrayList<>()).add(Version.CURRENT);
 
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(versionsFile, StandardCharsets.UTF_8))) {
                 String line;

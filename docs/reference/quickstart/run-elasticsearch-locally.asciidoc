@@ -125,7 +125,7 @@ The service is started with a trial license. The trial license enables all featu
 
 To connect to the {es} cluster from a language client, you can use basic authentication with the `elastic` username and the password you set in the environment variable.
 
-.*Expand* for examples
+.*Expand* for details
 [%collapsible]
 ==============
 

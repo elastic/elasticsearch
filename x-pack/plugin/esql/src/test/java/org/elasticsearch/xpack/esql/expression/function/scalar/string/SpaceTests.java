@@ -69,7 +69,7 @@ public class SpaceTests extends AbstractScalarFunctionTestCase {
 
         cases.add(new TestCaseSupplier("Space with number too large", List.of(DataType.INTEGER), () -> {
             int max = (int) MB.toBytes(1);
-            int number = randomIntBetween(max, max + 10);
+            int number = randomIntBetween(max + 1, max + 10);
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(number, DataType.INTEGER, "number")),
                 "SpaceEvaluator[number=Attribute[channel=0]]",

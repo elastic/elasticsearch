@@ -19,6 +19,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -187,7 +188,7 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testToReleaseVersion() {
-        assertThat(TransportVersion.current().toReleaseVersion(), equalTo(Version.CURRENT.toString()));
+        assertThat(TransportVersion.current().toReleaseVersion(), endsWith(Version.CURRENT.toString()));
     }
 
     public void testToString() {

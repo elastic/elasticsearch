@@ -226,8 +226,11 @@ public final class Case extends EsqlScalarFunction {
             }
             Object o = condition.condition.fold();
             if (o instanceof List) {
-                // multivalued fields
-                return true;
+                /*
+                 * multivalued fields fold to null which folds to false.
+                 * So they *are* foldable if the value is foldable.
+                 */
+                return condition.value.foldable();
             }
             Boolean b = (Boolean) o;
             if (b != null && b) {
@@ -264,6 +267,11 @@ public final class Case extends EsqlScalarFunction {
                 continue;
             }
             modified = true;
+            Object o = condition.condition.fold();
+            if (o instanceof List) {
+                // multivalued field folds to null which folds to false
+                continue;
+            }
             Boolean b = (Boolean) condition.condition.fold();
             if (b != null && b) {
                 newChildren.add(condition.value);

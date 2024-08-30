@@ -7,17 +7,29 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
 public class ExchangeExec extends UnaryExec {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "ExchangeExec",
+        ExchangeExec::new
+    );
 
     private final List<Attribute> output;
     private final boolean inBetweenAggs;
@@ -32,6 +44,28 @@ public class ExchangeExec extends UnaryExec {
         this.inBetweenAggs = inBetweenAggs;
     }
 
+    private ExchangeExec(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readBoolean(),
+            ((PlanStreamInput) in).readPhysicalPlanNode()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteableCollection(output);
+        out.writeBoolean(inBetweenAggs());
+        ((PlanStreamOutput) out).writePhysicalPlanNode(child());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
     @Override
     public List<Attribute> output() {
         return output.isEmpty() ? super.output() : output;
@@ -42,7 +76,7 @@ public class ExchangeExec extends UnaryExec {
         return Expressions.references(expressions());
     }
 
-    public boolean isInBetweenAggs() {
+    public boolean inBetweenAggs() {
         return inBetweenAggs;
     }
 
@@ -54,5 +88,19 @@ public class ExchangeExec extends UnaryExec {
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
         return NodeInfo.create(this, ExchangeExec::new, output, inBetweenAggs, child());
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        ExchangeExec other = (ExchangeExec) obj;
+        return output.equals(other.output) && inBetweenAggs == other.inBetweenAggs;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), output, inBetweenAggs);
     }
 }

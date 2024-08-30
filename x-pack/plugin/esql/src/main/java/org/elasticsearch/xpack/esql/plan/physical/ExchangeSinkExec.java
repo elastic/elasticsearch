@@ -7,16 +7,27 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 public class ExchangeSinkExec extends UnaryExec {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "ExchangeSinkExec",
+        ExchangeSinkExec::new
+    );
 
     private final List<Attribute> output;
     private final boolean intermediateAgg;
@@ -25,6 +36,28 @@ public class ExchangeSinkExec extends UnaryExec {
         super(source, child);
         this.output = output;
         this.intermediateAgg = intermediateAgg;
+    }
+
+    private ExchangeSinkExec(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readBoolean(),
+            ((PlanStreamInput) in).readPhysicalPlanNode()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteableCollection(output());
+        out.writeBoolean(isIntermediateAgg());
+        ((PlanStreamOutput) out).writePhysicalPlanNode(child());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

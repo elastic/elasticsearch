@@ -118,7 +118,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                                 fragmentExec.estimatedRowSize(),
                                 fragmentExec.reducer()
                             );
-                            return new ExchangeExec(exec.source(), output, exec.isInBetweenAggs(), newChild);
+                            return new ExchangeExec(exec.source(), output, exec.inBetweenAggs(), newChild);
                         }
                     }
                 } else {

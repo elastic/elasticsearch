@@ -504,7 +504,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(agg.getMode(), is(FINAL));
         assertThat(Expressions.names(agg.aggregates()), contains("c"));
         var exchange = as(agg.child(), ExchangeExec.class);
-        assertThat(exchange.isInBetweenAggs(), is(true));
+        assertThat(exchange.inBetweenAggs(), is(true));
         var localSource = as(exchange.child(), LocalSourceExec.class);
         assertThat(Expressions.names(localSource.output()), contains("count", "seen"));
     }

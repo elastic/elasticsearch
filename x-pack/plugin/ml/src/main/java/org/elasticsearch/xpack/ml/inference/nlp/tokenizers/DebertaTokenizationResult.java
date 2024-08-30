@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
-import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,6 +28,7 @@ public class DebertaTokenizationResult extends TokenizationResult {
     static final String ARG2 = "arg_2";
     static final String ARG3 = "arg_3";
 
+    private static final Logger logger = LogManager.getLogger(DebertaTokenizationResult.class);
 
     protected DebertaTokenizationResult(List<String> vocab, List<Tokens> tokenizations, int padTokenId) {
         super(vocab, tokenizations, padTokenId);
@@ -40,11 +42,11 @@ public class DebertaTokenizationResult extends TokenizationResult {
         writePaddedTokens(TOKENS, builder);
         writeTokenTypeIds(ARG1, builder);
         writeAttentionMask(ARG2, builder);
-        writePositionIds(ARG3, builder);
         builder.endObject();
 
         // BytesReference.bytes closes the builder
         BytesReference jsonRequest = BytesReference.bytes(builder);
+        logger.debug("DebertaTokenizationResult.buildRequest: {}", jsonRequest.utf8ToString());
         return new NlpTask.Request(this, jsonRequest);
     }
 
@@ -88,28 +90,24 @@ public class DebertaTokenizationResult extends TokenizationResult {
             List<Integer> tokenMap2
         ) {
             // DeBERTa-v2 pair of sequences: [CLS] A [SEP] B [SEP]
-            int specialTokenCount = 0;
             if (withSpecialTokens) {
                 tokenIds.add(IntStream.of(clsTokenId));
                 tokenMap.add(IntStream.of(SPECIAL_TOKEN_POSITION));
-                specialTokenCount++;
             }
             tokenIds.add(tokenId1s.stream().mapToInt(Integer::valueOf));
             tokenMap.add(tokenMap1.stream().mapToInt(Integer::valueOf));
             int previouslyFinalMap = tokenMap1.get(tokenMap1.size() - 1);
             if (withSpecialTokens) {
-                tokenIds.add(IntStream.of(sepTokenId, sepTokenId));
-                tokenMap.add(IntStream.of(SPECIAL_TOKEN_POSITION, SPECIAL_TOKEN_POSITION));
-                specialTokenCount++;
+                tokenIds.add(IntStream.of(sepTokenId));
+                tokenMap.add(IntStream.of(SPECIAL_TOKEN_POSITION));
             }
             tokenIds.add(tokenId2s.stream().mapToInt(Integer::valueOf));
             tokenMap.add(tokenMap2.stream().mapToInt(i -> i + previouslyFinalMap));
             if (withSpecialTokens) {
                 tokenIds.add(IntStream.of(sepTokenId));
                 tokenMap.add(IntStream.of(SPECIAL_TOKEN_POSITION));
-                specialTokenCount++;
             }
-            seqPairOffset = withSpecialTokens ? tokenId1s.size() + specialTokenCount : tokenId1s.size();
+            seqPairOffset = withSpecialTokens ? tokenId1s.size() + 2 : tokenId1s.size();
             return this;
         }
 

@@ -52,6 +52,7 @@ import static org.elasticsearch.gradle.internal.distribution.InternalElasticsear
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_CLOUD_ESS;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_IRONBANK;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_UBI;
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_WOLFI;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.RPM;
 
 /**
@@ -93,6 +94,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         for (ElasticsearchDistribution distribution : testDistributions) {
             String taskname = destructiveDistroTestTaskName(distribution);
+            ElasticsearchDistributionType type = distribution.getType();
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                 t.onlyIf(
                     "Docker is not available",
@@ -106,12 +108,14 @@ public class DistroTestPlugin implements Plugin<Project> {
             if (distribution.getPlatform() == Platform.WINDOWS) {
                 windowsTestTasks.add(destructiveTask);
             } else {
-                linuxTestTasks.computeIfAbsent(distribution.getType(), k -> new ArrayList<>()).add(destructiveTask);
+                linuxTestTasks.computeIfAbsent(type, k -> new ArrayList<>()).add(destructiveTask);
             }
             destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
-            lifecycleTasks.get(distribution.getType()).configure(t -> t.dependsOn(destructiveTask));
+            TaskProvider<?> lifecycleTask = lifecycleTasks.get(type);
+            System.out.println("lifecycleTask.getName() = " + lifecycleTask.getName());
+            lifecycleTask.configure(t -> t.dependsOn(destructiveTask));
 
-            if ((distribution.getType() == DEB || distribution.getType() == RPM) && distribution.getBundledJdk()) {
+            if ((type == DEB || type == RPM) && distribution.getBundledJdk()) {
                 for (Version version : BuildParams.getBwcVersions().getIndexCompatible()) {
                     final ElasticsearchDistribution bwcDistro;
                     if (version.equals(Version.fromString(distribution.getVersion()))) {
@@ -121,7 +125,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                         bwcDistro = createDistro(
                             allDistributions,
                             distribution.getArchitecture(),
-                            distribution.getType(),
+                            type,
                             distribution.getPlatform(),
                             distribution.getBundledJdk(),
                             version.toString()
@@ -147,6 +151,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         lifecyleTasks.put(DOCKER_IRONBANK, project.getTasks().register(taskPrefix + ".docker-ironbank"));
         lifecyleTasks.put(DOCKER_CLOUD, project.getTasks().register(taskPrefix + ".docker-cloud"));
         lifecyleTasks.put(DOCKER_CLOUD_ESS, project.getTasks().register(taskPrefix + ".docker-cloud-ess"));
+        lifecyleTasks.put(DOCKER_WOLFI, project.getTasks().register(taskPrefix + ".docker-wolfi"));
         lifecyleTasks.put(ARCHIVE, project.getTasks().register(taskPrefix + ".archives"));
         lifecyleTasks.put(DEB, project.getTasks().register(taskPrefix + ".packages"));
         lifecyleTasks.put(RPM, lifecyleTasks.get(DEB));

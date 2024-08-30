@@ -90,7 +90,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         GATEWAY,
 
         /* Custom metadata should be stored as part of a snapshot */
-        SNAPSHOT
+        SNAPSHOT;
+
+        public static XContentContext from(ToXContent.Params params) {
+            return valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
+        }
     }
 
     /**
@@ -534,7 +538,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params p) {
-        XContentContext context = XContentContext.valueOf(p.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
+        XContentContext context = XContentContext.from(p);
         final Iterator<? extends ToXContent> start = context == XContentContext.API
             ? ChunkedToXContentHelper.startObject("metadata")
             : Iterators.single((builder, params) -> builder.startObject("meta-data").field("version", version()));

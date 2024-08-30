@@ -40,24 +40,93 @@ setup:
         name: simple-data-stream1
 
 ---
-"Get data stream lifecycle":
+teardown:
+  - requires:
+      reason: "Global retention was exposed in 8.16+"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_data_stream/{index}/_lifecycle
+          capabilities: [ 'data_stream_global_retention' ]
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            data_streams.lifecycle.retention.max: null
+            data_streams.lifecycle.retention.default: null
 
+---
+"Get data stream lifecycle":
+  - requires:
+      reason: "Global retention was exposed in 8.16+"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_data_stream/{index}/_lifecycle
+          capabilities: [ 'data_stream_global_retention' ]
   - do:
       indices.get_data_lifecycle:
         name: "data-stream-with-lifecycle"
   - length: { data_streams: 1}
   - match: { data_streams.0.name: data-stream-with-lifecycle }
   - match: { data_streams.0.lifecycle.data_retention: '10d' }
+  - match: { data_streams.0.lifecycle.effective_retention: '10d' }
   - match: { data_streams.0.lifecycle.enabled: true}
+  - match: { global_retention: {} }
 
 ---
-"Get data stream with default lifecycle":
+"Get data stream with default lifecycle configuration":
+  - requires:
+      reason: "Global retention was exposed in 8.16+"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_data_stream/{index}/_lifecycle
+          capabilities: [ 'data_stream_global_retention' ]
   - do:
       indices.get_data_lifecycle:
         name: "simple-data-stream1"
   - length: { data_streams: 1}
   - match: { data_streams.0.name: simple-data-stream1 }
   - match: { data_streams.0.lifecycle.enabled: true}
+  - is_false: data_streams.0.lifecycle.effective_retention
+  - match: { global_retention: {} }
+
+---
+"Get data stream with global retention":
+  - requires:
+      reason: "Global retention was exposed in 8.16+"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_data_stream/{index}/_lifecycle
+          capabilities: [ 'data_stream_global_retention' ]
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            data_streams.lifecycle.retention.default: "7d"
+            data_streams.lifecycle.retention.max: "9d"
+  - do:
+      indices.get_data_lifecycle:
+        name: "simple-data-stream1"
+  - length: { data_streams: 1}
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.lifecycle.enabled: true}
+  - match: { data_streams.0.lifecycle.effective_retention: '7d'}
+  - match: { global_retention.default_retention: '7d' }
+  - match: { global_retention.max_retention: '9d' }
+
+  - do:
+      indices.get_data_lifecycle:
+        name: "data-stream-with-lifecycle"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: data-stream-with-lifecycle }
+  - match: { data_streams.0.lifecycle.data_retention: '10d' }
+  - match: { data_streams.0.lifecycle.effective_retention: '9d' }
+  - match: { data_streams.0.lifecycle.enabled: true }
+  - match: { global_retention.default_retention: '7d' }
+  - match: { global_retention.max_retention: '9d' }
 
 ---
 "Put data stream lifecycle":

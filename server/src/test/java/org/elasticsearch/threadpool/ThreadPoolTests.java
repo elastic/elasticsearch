@@ -22,7 +22,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedTransferQueue;
@@ -31,10 +30,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DO_NOT_TRACK;
-import static org.elasticsearch.threadpool.ThreadPool.DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA;
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING;
-import static org.elasticsearch.threadpool.ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.assertCurrentMethodIsNotCalledRecursively;
 import static org.elasticsearch.threadpool.ThreadPool.getMaxSnapshotThreadPoolSize;
 import static org.elasticsearch.threadpool.ThreadPool.halfAllocatedProcessorsMaxFive;
@@ -360,19 +357,14 @@ public class ThreadPoolTests extends ESTestCase {
     }
 
     public void testWriteThreadPoolUsesTaskExecutionTimeTrackingEsThreadPoolExecutor() {
-        Settings settings = Settings.EMPTY;
-        double ewmaAlpha = DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA;
-        if (randomBoolean()) {
-            ewmaAlpha = randomDoubleBetween(0.0, 1.0, true);
-            settings = Settings.builder().put(WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING.getKey(), ewmaAlpha).build();
-        }
-        final ThreadPool threadPool = new TestThreadPool("test", settings);
+        final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
         try {
-            for (var name : List.of(ThreadPool.Names.WRITE, ThreadPool.Names.SYSTEM_WRITE, ThreadPool.Names.SYSTEM_CRITICAL_WRITE)) {
-                assertThat(threadPool.executor(name), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
-                final var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(name);
-                assertThat(Double.compare(executor.getEwmaAlpha(), ewmaAlpha), equalTo(0));
-            }
+            assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+            assertThat(threadPool.executor(ThreadPool.Names.SYSTEM_WRITE), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+            assertThat(
+                threadPool.executor(ThreadPool.Names.SYSTEM_CRITICAL_WRITE),
+                instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class)
+            );
         } finally {
             assertTrue(terminate(threadPool));
         }

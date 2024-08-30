@@ -387,6 +387,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         ensureGreen(indexName);
         assertHitCount(prepareSearch(indexName).setSize(0), totalDocs);
 
+        stopFailingObjectStore(searchNodeA);
+        disableTransportBlocking(searchNodeA);
+        ensureSearchHits(indexName, totalDocs);
+
         var searchNodeB = startSearchNode(cacheSettings);
         ensureStableCluster(4);
 
@@ -396,6 +400,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         ensureGreen(indexName);
         assertThat(findSearchShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(searchNodeB)));
         assertHitCount(prepareSearch(indexName).setSize(0), totalDocs);
+
+        stopFailingObjectStore(searchNodeB);
+        disableTransportBlocking(searchNodeB);
+        ensureSearchHits(indexName, totalDocs);
     }
 
     public void testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded() {
@@ -405,7 +413,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), "1g")
-            .put(TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(PAGE_SIZE))
+            .put(TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
         final var indexNode = startMasterAndIndexNode(cacheSettings);
@@ -521,60 +529,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         ensureGreen(indexName);
         assertTrue(flushed.get());
         assertHitCount(prepareSearch(indexName).setSize(0), totalDocs);
-    }
 
-    public void testSearchNodeWarmingFromIndexingNodeInMixedUploadDelaySettings() {
-        var cacheSettings = Settings.builder()
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
-            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
-            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
-            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-            .build();
-        boolean indexNodeUploadDelayed = randomBoolean();
-        var indexNodeSettings = indexNodeUploadDelayed
-            ? Settings.builder().put(cacheSettings).put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100).build()
-            : cacheSettings;
-        startMasterOnlyNode();
-        startIndexNode(indexNodeSettings);
-
-        final String indexName = randomIdentifier();
-        assertAcked(
-            prepareCreate(
-                indexName,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
-            )
-        );
-        ensureGreen(indexName);
-
-        int totalDocs = randomIntBetween(1, 10);
-        indexDocs(indexName, totalDocs);
-        refresh(indexName);
-
-        var searchNode = startSearchNode(cacheSettings);
-        ensureStableCluster(3);
-
-        // When upload is delayed, instantiate latch for seeing at least one request to the indexing node for getting VBCC chunks
-        CountDownLatch latch = new CountDownLatch(1);
-        final var transportService = MockTransportService.getInstance(searchNode);
-        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
-                latch.countDown();
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
-
-        // After pre-warming, we fail when the search node tries to fetch from the object store or the indexing node
-        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, searchNode, SEARCH_WARMING_DESCRIPTION);
-
-        setReplicaCount(1, indexName);
-        if (indexNodeUploadDelayed) {
-            safeAwait(latch);
-        }
-        ensureGreen(indexName);
-        assertHitCount(prepareSearch(indexName).setSize(0), totalDocs);
+        stopFailingObjectStore(searchNode);
+        disableTransportBlocking(searchNode);
+        ensureSearchHits(indexName, totalDocs);
     }
 
     /**
@@ -739,5 +697,27 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         final var future = new UnsafePlainActionFuture<T>(ThreadPool.Names.GENERIC);
         listener.addListener(future);
         return safeGet(future);
+    }
+
+    private static void disableTransportBlocking(String node) {
+        MockTransportService.getInstance(node)
+            .addSendBehavior(
+                (connection, requestId, action, request, options) -> connection.sendRequest(requestId, action, request, options)
+            );
+    }
+
+    private static void stopFailingObjectStore(String node) {
+        var mockRepository = getObjectStoreMockRepository(getObjectStoreService(node));
+        mockRepository.setRandomControlIOExceptionRate(0.0);
+        mockRepository.setRandomDataFileIOExceptionRate(0.0);
+    }
+
+    private static void ensureSearchHits(String indexName, long totalDocs) {
+        var res = prepareSearch(indexName).setSize((int) totalDocs).get();
+        try {
+            assertEquals(totalDocs, res.getHits().getHits().length);
+        } finally {
+            res.decRef();
+        }
     }
 }

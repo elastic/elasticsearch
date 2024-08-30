@@ -9,6 +9,7 @@
 package org.elasticsearch.usage;
 
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsage;
+import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
 import org.elasticsearch.rest.BaseRestHandler;
 
 import java.util.HashMap;
@@ -23,10 +24,12 @@ public class UsageService {
 
     private final Map<String, BaseRestHandler> handlers;
     private final SearchUsageHolder searchUsageHolder;
+    private final CCSUsageTelemetry ccsUsageHolder;
 
     public UsageService() {
         this.handlers = new HashMap<>();
         this.searchUsageHolder = new SearchUsageHolder();
+        this.ccsUsageHolder = new CCSUsageTelemetry();
     }
 
     /**
@@ -80,5 +83,9 @@ public class UsageService {
      */
     public SearchUsageHolder getSearchUsageHolder() {
         return searchUsageHolder;
+    }
+
+    public CCSUsageTelemetry getCcsUsageHolder() {
+        return ccsUsageHolder;
     }
 }

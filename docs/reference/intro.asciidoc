@@ -119,6 +119,7 @@ A simple {es} document might look like this:
   }
 }
 ----
+// NOTCONSOLE
 
 [discrete]
 [[elasticsearch-intro-documents-fields-data-metadata]]

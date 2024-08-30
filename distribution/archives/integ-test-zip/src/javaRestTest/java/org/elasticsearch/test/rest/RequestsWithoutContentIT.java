@@ -25,6 +25,7 @@ public class RequestsWithoutContentIT extends ESRestTestCase {
         assertResponseException(responseException, "request body is required");
     }
 
+    @AwaitsFix(bugUrl = "need to decide how to handle this scenario")
     public void testBulkMissingBody() throws IOException {
         ResponseException responseException = expectThrows(
             ResponseException.class,

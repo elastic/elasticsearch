@@ -13,25 +13,56 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 public class IncrementalBulkService {
 
     private final Client client;
     private final IndexingPressure indexingPressure;
+    private final ThreadContext threadContext;
+    private final Supplier<Boolean> enabled;
 
-    public IncrementalBulkService(Client client, IndexingPressure indexingPressure) {
+    public IncrementalBulkService(Client client, IndexingPressure indexingPressure, ThreadContext threadContext) {
+        this(client, indexingPressure, threadContext, new Enabled());
+    }
+
+    public IncrementalBulkService(
+        Client client,
+        IndexingPressure indexingPressure,
+        ThreadContext threadContext,
+        ClusterSettings clusterSettings
+    ) {
+        this(client, indexingPressure, threadContext, new Enabled(clusterSettings));
+    }
+
+    public IncrementalBulkService(
+        Client client,
+        IndexingPressure indexingPressure,
+        ThreadContext threadContext,
+        Supplier<Boolean> enabled
+    ) {
         this.client = client;
         this.indexingPressure = indexingPressure;
+        this.threadContext = threadContext;
+        this.enabled = enabled;
+    }
+
+    public boolean incrementalBulkEnabled() {
+        return enabled.get();
     }
 
     public Handler newBulkRequest() {
@@ -39,14 +70,32 @@ public class IncrementalBulkService {
     }
 
     public Handler newBulkRequest(@Nullable String waitForActiveShards, @Nullable TimeValue timeout, @Nullable String refresh) {
-        return new Handler(client, indexingPressure, waitForActiveShards, timeout, refresh);
+        return new Handler(client, threadContext, indexingPressure, waitForActiveShards, timeout, refresh);
     }
 
-    public static class Handler {
+    public static class Enabled implements Supplier<Boolean> {
+
+        private final AtomicBoolean incrementalBulksEnabled = new AtomicBoolean(true);
+
+        public Enabled() {}
+
+        public Enabled(ClusterSettings clusterSettings) {
+            incrementalBulksEnabled.set(clusterSettings.get(RestBulkAction.INCREMENTAL_BULK));
+            clusterSettings.addSettingsUpdateConsumer(RestBulkAction.INCREMENTAL_BULK, incrementalBulksEnabled::set);
+        }
+
+        @Override
+        public Boolean get() {
+            return incrementalBulksEnabled.get();
+        }
+    }
+
+    public static class Handler implements Releasable {
 
         public static final BulkRequest.IncrementalState EMPTY_STATE = new BulkRequest.IncrementalState(Collections.emptyMap(), true);
 
         private final Client client;
+        private final ThreadContext threadContext;
         private final IndexingPressure indexingPressure;
         private final ActiveShardCount waitForActiveShards;
         private final TimeValue timeout;
@@ -56,17 +105,21 @@ public class IncrementalBulkService {
         private final ArrayList<BulkResponse> responses = new ArrayList<>(2);
         private boolean globalFailure = false;
         private boolean incrementalRequestSubmitted = false;
+        private ThreadContext.StoredContext requestContext;
         private Exception bulkActionLevelFailure = null;
         private BulkRequest bulkRequest = null;
 
-        private Handler(
+        protected Handler(
             Client client,
+            ThreadContext threadContext,
             IndexingPressure indexingPressure,
             @Nullable String waitForActiveShards,
             @Nullable TimeValue timeout,
             @Nullable String refresh
         ) {
             this.client = client;
+            this.threadContext = threadContext;
+            this.requestContext = threadContext.newStoredContext();
             this.indexingPressure = indexingPressure;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
@@ -84,30 +137,34 @@ public class IncrementalBulkService {
                     if (shouldBackOff()) {
                         final boolean isFirstRequest = incrementalRequestSubmitted == false;
                         incrementalRequestSubmitted = true;
+                        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                            requestContext.restore();
+                            client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
 
-                        client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
+                                @Override
+                                public void onResponse(BulkResponse bulkResponse) {
+                                    responses.add(bulkResponse);
+                                    releaseCurrentReferences();
+                                    createNewBulkRequest(
+                                        new BulkRequest.IncrementalState(bulkResponse.getIncrementalState().shardLevelFailures(), true)
+                                    );
+                                }
 
-                            @Override
-                            public void onResponse(BulkResponse bulkResponse) {
-                                responses.add(bulkResponse);
-                                releaseCurrentReferences();
-                                createNewBulkRequest(
-                                    new BulkRequest.IncrementalState(bulkResponse.getIncrementalState().shardLevelFailures(), true)
-                                );
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                handleBulkFailure(isFirstRequest, e);
-                            }
-                        }, nextItems));
+                                @Override
+                                public void onFailure(Exception e) {
+                                    handleBulkFailure(isFirstRequest, e);
+                                }
+                            }, () -> {
+                                requestContext = threadContext.newStoredContext();
+                                nextItems.run();
+                            }));
+                        }
                     } else {
                         nextItems.run();
                     }
                 } else {
                     nextItems.run();
                 }
-
             }
         }
 
@@ -122,23 +179,26 @@ public class IncrementalBulkService {
             } else {
                 assert bulkRequest != null;
                 if (internalAddItems(items, releasable)) {
-                    client.bulk(bulkRequest, new ActionListener<>() {
+                    try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                        requestContext.restore();
+                        client.bulk(bulkRequest, new ActionListener<>() {
 
-                        private final boolean isFirstRequest = incrementalRequestSubmitted == false;
+                            private final boolean isFirstRequest = incrementalRequestSubmitted == false;
 
-                        @Override
-                        public void onResponse(BulkResponse bulkResponse) {
-                            responses.add(bulkResponse);
-                            releaseCurrentReferences();
-                            listener.onResponse(combineResponses());
-                        }
+                            @Override
+                            public void onResponse(BulkResponse bulkResponse) {
+                                responses.add(bulkResponse);
+                                releaseCurrentReferences();
+                                listener.onResponse(combineResponses());
+                            }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            handleBulkFailure(isFirstRequest, e);
-                            errorResponse(listener);
-                        }
-                    });
+                            @Override
+                            public void onFailure(Exception e) {
+                                handleBulkFailure(isFirstRequest, e);
+                                errorResponse(listener);
+                            }
+                        });
+                    }
                 } else {
                     errorResponse(listener);
                 }
@@ -238,6 +298,11 @@ public class IncrementalBulkService {
             }
 
             return new BulkResponse(bulkItemResponses, tookInMillis, ingestTookInMillis);
+        }
+
+        @Override
+        public void close() {
+            // TODO: Implement
         }
     }
 }

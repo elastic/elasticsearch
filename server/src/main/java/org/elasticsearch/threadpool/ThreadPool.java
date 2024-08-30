@@ -181,7 +181,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     // EWMA value is at least within 90% of the new increased task duration. This value also determines the impact of a single
     // long-running task on the moving average and limits it roughly to 2% of the (long) task duration, e.g. if the current
     // moving average is 100ms, and we get one task which takes 20s the new EWMA will be ~500ms.
-    public static final double indexAutoscalingEWMA = 0.02;
+    public static final double DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA = 0.02;
 
     private final Map<String, ExecutorHolder> executors;
 
@@ -225,6 +225,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         "thread_pool.scheduler.warn_threshold",
         TimeValue.timeValueSeconds(5),
         TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
+    // A setting to change the alpha parameter of the EWMA used in WRITE, SYSTEM_WRITE and SYSTEM_CRITICAL_WRITE thread pools
+    public static final Setting<Double> WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING = Setting.doubleSetting(
+        "thread_pool.write.ewma_alpha",
+        DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA,
+        0.0,
+        1.0,
         Setting.Property.NodeScope
     );
 

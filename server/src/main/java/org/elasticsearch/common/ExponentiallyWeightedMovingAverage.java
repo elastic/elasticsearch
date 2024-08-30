@@ -46,4 +46,9 @@ public class ExponentiallyWeightedMovingAverage {
             successful = averageBits.compareAndSet(currentBits, newBits);
         } while (successful == false);
     }
+
+    // Used for testing
+    public double getAlpha() {
+        return alpha;
+    }
 }

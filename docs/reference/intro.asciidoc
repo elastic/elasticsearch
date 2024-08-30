@@ -94,7 +94,7 @@ Each document has a unique ID, which you can create or have {es} auto-generate.
 
 A simple {es} document might look like this:
 
-[source,json]
+[source,js]
 ----
 {
   "_index": "my-first-elasticsearch-index",

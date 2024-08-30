@@ -58,6 +58,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -329,7 +330,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private final LongSupplier relativeTimeInNanosSupplier;
 
-    private volatile boolean closed = false;
+    private AtomicBoolean closed = new AtomicBoolean(false);
 
     public SharedBlobCacheService(
         NodeEnvironment environment,
@@ -716,8 +717,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     @Override
     public void close() {
-        sharedBytes.decRef();
-        closed = true;
+        if (closed.compareAndSet(false, true)) {
+            sharedBytes.decRef();
+        }
     }
 
     private record RegionKey<KeyType>(KeyType file, int region) {
@@ -1184,7 +1186,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer
         ) throws Exception {
-            if (closed) {
+            if (closed.get()) {
                 throwAlreadyClosed("Blob cache has been closed");
             }
             // some cache files can grow after being created, so rangeToWrite can be larger than the initial {@code length}

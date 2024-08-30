@@ -28,6 +28,10 @@ import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
+
 public class IteratorsTests extends ESTestCase {
     public void testConcatentation() {
         List<Integer> threeTwoOne = Arrays.asList(3, 2, 1);
@@ -240,6 +244,25 @@ public class IteratorsTests extends ESTestCase {
             expectThrows(AssertionError.class, () -> Iterators.filter(inputIterator, i -> predicateCalled.compareAndSet(false, true)));
             assertFalse(predicateCalled.get());
         }
+    }
+
+    public void testLimit() {
+        var result = Iterators.limit(Collections.emptyIterator(), 10);
+        assertThat(result.hasNext(), is(false));
+        assertThat(Iterators.toList(result), is(empty()));
+
+        var values = List.of(1, 2, 3);
+        result = Iterators.limit(values.iterator(), 10);
+        assertThat(result.hasNext(), is(true));
+        assertThat(Iterators.toList(result), contains(1, 2, 3));
+
+        result = Iterators.limit(values.iterator(), 2);
+        assertThat(result.hasNext(), is(true));
+        assertThat(Iterators.toList(result), contains(1, 2));
+
+        result = Iterators.limit(values.iterator(), 0);
+        assertThat(result.hasNext(), is(false));
+        assertThat(Iterators.toList(result), is(empty()));
     }
 
     public void testFailFast() {

@@ -117,6 +117,24 @@ public final class DiffableUtils {
         return new MapDiff<K, T, M>(keySerializer, valueSerializer, deletes, diffs, upserts, DiffableUtils::createImmutableMapBuilder);
     }
 
+    /**
+     * Creates a MapDiff that applies a single entry diff to a map
+     */
+    public static <K, T extends Diffable<T>, M extends Map<K, T>> MapDiff<K, T, M> singleEntryDiff(
+        K key,
+        Diff<T> diff,
+        KeySerializer<K> keySerializer
+    ) {
+        return new MapDiff<>(
+            keySerializer,
+            DiffableValueSerializer.getWriteOnlyInstance(),
+            List.of(),
+            List.of(Map.entry(key, diff)),
+            List.of(),
+            DiffableUtils::createJdkMapBuilder
+        );
+    }
+
     private static <K, F, T> Stream<Map.Entry<K, T>> mapEntries(List<Map.Entry<K, F>> source, Function<F, T> fn) {
         return source.stream().map(e -> Map.entry(e.getKey(), fn.apply(e.getValue())));
     }

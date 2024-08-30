@@ -253,6 +253,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         this.reservedStateMetadata = reservedStateMetadata;
     }
 
+    private boolean isSingleProject() {
+        return projectMetadata.size() == 1 && projectMetadata.containsKey(DEFAULT_PROJECT_ID);
+    }
+
     private ProjectMetadata getSingleProject() {
         if (projectMetadata.isEmpty()) {
             throw new UnsupportedOperationException("There are no projects");
@@ -604,6 +608,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
     }
 
+    private static final DiffableUtils.KeySerializer<ProjectId> PROJECT_ID_SERIALIZER = DiffableUtils.getWriteableKeySerializer(
+        ProjectId.READER
+    );
+
     private static class MetadataDiff implements Diff<Metadata> {
 
         private static final TransportVersion NOOP_METADATA_DIFF_VERSION = TransportVersions.V_8_5_0;
@@ -617,7 +625,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         private final Settings transientSettings;
         private final Settings persistentSettings;
         private final Diff<DiffableStringMap> hashesOfConsistentSettings;
-        private final ProjectMetadata.ProjectMetadataDiff projectMetadata;
+        private final ProjectMetadata.ProjectMetadataDiff singleProject;
+        private final MapDiff<ProjectId, ProjectMetadata, Map<ProjectId, ProjectMetadata>> multiProject;
         private final MapDiff<String, ClusterCustom, ImmutableOpenMap<String, ClusterCustom>> clusterCustoms;
         private final Diff<Map<String, ReservedStateMetadata>> reservedStateMetadata;
 
@@ -634,7 +643,15 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             coordinationMetadata = after.coordinationMetadata;
             transientSettings = after.transientSettings;
             persistentSettings = after.persistentSettings;
-            projectMetadata = after.getSingleProject().diff(before.getSingleProject());
+            if (before.isSingleProject() && after.isSingleProject()) {
+                // single-project, just handle the project metadata diff itself
+                singleProject = after.getSingleProject().diff(before.getSingleProject());
+                multiProject = null;
+            } else {
+                singleProject = null;
+                multiProject = DiffableUtils.diff(before.projectMetadata, after.projectMetadata, PROJECT_ID_SERIALIZER);
+            }
+
             if (empty) {
                 hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
                 clusterCustoms = DiffableUtils.emptyDiff();
@@ -689,14 +706,21 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 var bwcCustoms = readBwcCustoms(in);
                 clusterCustoms = bwcCustoms.v1();
                 var projectCustoms = bwcCustoms.v2();
-                projectMetadata = new ProjectMetadata.ProjectMetadataDiff(indices, templates, projectCustoms);
+                singleProject = new ProjectMetadata.ProjectMetadataDiff(indices, templates, projectCustoms);
+                multiProject = null;
             } else {
                 clusterCustoms = DiffableUtils.readImmutableOpenMapDiff(
                     in,
                     DiffableUtils.getStringKeySerializer(),
                     CLUSTER_CUSTOM_VALUE_SERIALIZER
                 );
-                projectMetadata = new ProjectMetadata.ProjectMetadataDiff(in);
+                singleProject = null;
+                multiProject = DiffableUtils.readJdkMapDiff(
+                    in,
+                    PROJECT_ID_SERIALIZER,
+                    ProjectMetadata::readFrom,
+                    ProjectMetadata.ProjectMetadataDiff::new
+                );
             }
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 reservedStateMetadata = DiffableUtils.readJdkMapDiff(
@@ -748,13 +772,25 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 hashesOfConsistentSettings.writeTo(out);
             }
             if (out.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
-                projectMetadata.indices.writeTo(out);
-                projectMetadata.templates.writeTo(out);
+                // there's only ever a single project with pre-multi-project
+                if (multiProject != null) {
+                    throw new UnsupportedOperationException(
+                        "Trying to serialize a multi-project diff with a single-project serialization version"
+                    );
+                }
+                singleProject.indices().writeTo(out);
+                singleProject.templates().writeTo(out);
                 buildUnifiedCustomDiff().writeTo(out);
             } else {
                 clusterCustoms.writeTo(out);
-                projectMetadata.writeTo(out);
+                if (multiProject != null) {
+                    multiProject.writeTo(out);
+                } else {
+                    // construct the MapDiff to write out this single project
+                    DiffableUtils.singleEntryDiff(DEFAULT_PROJECT_ID, singleProject, PROJECT_ID_SERIALIZER).writeTo(out);
+                }
             }
+
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 reservedStateMetadata.writeTo(out);
             }
@@ -764,7 +800,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         private Diff<ImmutableOpenMap<String, ?>> buildUnifiedCustomDiff() {
             return DiffableUtils.merge(
                 clusterCustoms,
-                projectMetadata.customs,
+                singleProject.customs(),
                 DiffableUtils.getStringKeySerializer(),
                 BWC_CUSTOM_VALUE_SERIALIZER
             );
@@ -785,7 +821,15 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             builder.transientSettings(transientSettings);
             builder.persistentSettings(persistentSettings);
             builder.hashesOfConsistentSettings(hashesOfConsistentSettings.apply(part.hashesOfConsistentSettings));
-            builder.put(projectMetadata.apply(part.getSingleProject()));
+            if (singleProject != null) {
+                // should only be applied to single projects
+                if (part.isSingleProject() == false) {
+                    throw new UnsupportedOperationException("Trying to apply a single-project diff to a multi-project metadata");
+                }
+                builder.projectMetadata(Map.of(DEFAULT_PROJECT_ID, singleProject.apply(part.getSingleProject())));
+            } else {
+                builder.projectMetadata(multiProject.apply(part.projectMetadata));
+            }
             builder.customs(clusterCustoms.apply(part.customs));
             builder.put(reservedStateMetadata.apply(part.reservedStateMetadata));
             return builder.build(true);
@@ -828,7 +872,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             readBwcCustoms(in, builder);
         } else {
             readClusterCustoms(in, builder);
-            builder.put(ProjectMetadata.readFrom(in));
+            builder.projectMetadata(in.readMap(ProjectId::new, ProjectMetadata::readFrom));
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             int reservedStateSize = in.readVInt();
@@ -903,7 +947,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             VersionedNamedWriteable.writeVersionedWriteables(out, merge);
         } else {
             VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
-            getSingleProject().writeTo(out);
+            out.writeMap(projectMetadata, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeCollection(reservedStateMetadata.values());
@@ -973,6 +1017,14 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 throw new UnsupportedOperationException("There are multiple projects " + projectMetadata.keySet());
             }
             return projectMetadata.values().iterator().next();
+        }
+
+        public Builder projectMetadata(Map<ProjectId, ProjectMetadata> projectMetadata) {
+            assert projectMetadata.entrySet().stream().allMatch(e -> e.getValue().id().equals(e.getKey()))
+                : "Project metadata map is inconsistent";
+            this.projectMetadata.clear();
+            projectMetadata.forEach((k, v) -> this.projectMetadata.put(k, ProjectMetadata.builder(v)));
+            return this;
         }
 
         public Builder put(ProjectMetadata projectMetadata) {

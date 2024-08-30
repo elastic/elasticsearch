@@ -63,6 +63,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -1456,6 +1457,38 @@ public class MetadataTests extends ESTestCase {
         assertTrue(Metadata.isGlobalStateEquals(orig, fromStreamMeta));
     }
 
+    public void testMultiProjectSerialization() throws IOException {
+        // TODO: this whole suite needs to be updated for multiple projects
+        ProjectMetadata project1 = randomProject(new ProjectId("1"), 1);
+        ProjectMetadata project2 = randomProject(new ProjectId("2"), randomIntBetween(2, 10));
+        Metadata metadata = randomMetadata(List.of(project1, project2));
+        BytesStreamOutput out = new BytesStreamOutput();
+        metadata.writeTo(out);
+
+        // check it deserializes ok
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        Metadata fromStreamMeta = Metadata.readFrom(new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry));
+
+        // check it matches the original object
+        assertThat(fromStreamMeta.projects(), aMapWithSize(2));
+        for (var original : List.of(project1, project2)) {
+            assertThat(fromStreamMeta.projects(), hasKey(original.id()));
+            final ProjectMetadata fromStreamProject = fromStreamMeta.getProject(original.id());
+            assertThat("For project " + original.id(), fromStreamProject.indices().size(), equalTo(original.indices().size()));
+            assertThat("For project " + original.id(), fromStreamProject.dataStreams().size(), equalTo(original.dataStreams().size()));
+            assertThat("For project " + original.id(), fromStreamProject.templates().size(), equalTo(original.templates().size()));
+            assertThat("For project " + original.id(), fromStreamProject.templatesV2().size(), equalTo(original.templatesV2().size()));
+            original.indices().forEach((name, value) -> {
+                assertThat(fromStreamProject.indices(), hasKey(name));
+                assertThat(fromStreamProject.index(name), equalTo(value));
+            });
+            original.dataStreams().forEach((name, value) -> {
+                assertThat(fromStreamProject.dataStreams(), hasKey(name));
+                assertThat(fromStreamProject.dataStreams().get(name), equalTo(value));
+            });
+        }
+    }
+
     public void testMetadataSerializationPreMultiProject() throws IOException {
         final Metadata orig = randomMetadata();
         TransportVersion version = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
@@ -1472,15 +1505,16 @@ public class MetadataTests extends ESTestCase {
     public void testDiffSerializationPreMultiProject() throws IOException {
         final Metadata meta1 = randomMetadata(1);
         final Metadata meta2 = randomMetadata(2);
+        TransportVersion version = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
         final Diff<Metadata> diff = meta2.diff(meta1);
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(TransportVersions.K_FOR_KNN_QUERY_ADDED);
+        out.setTransportVersion(version);
         diff.writeTo(out);
 
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         final StreamInput input = out.bytes().streamInput();
-        input.setTransportVersion(TransportVersions.K_FOR_KNN_QUERY_ADDED);
+        input.setTransportVersion(version);
         final Diff<Metadata> read = Metadata.readDiffFrom(new NamedWriteableAwareStreamInput(input, namedWriteableRegistry));
 
         final Metadata applied = read.apply(meta1);
@@ -2588,7 +2622,25 @@ public class MetadataTests extends ESTestCase {
     }
 
     public static Metadata randomMetadata(int numDataStreams) {
-        Metadata.Builder md = Metadata.builder()
+        final ProjectMetadata project = randomProject(Metadata.DEFAULT_PROJECT_ID, numDataStreams);
+        return randomMetadata(List.of(project));
+    }
+
+    private static Metadata randomMetadata(Collection<ProjectMetadata> projects) {
+        final Metadata.Builder md = Metadata.builder()
+            .persistentSettings(Settings.builder().put("setting" + randomAlphaOfLength(3), randomAlphaOfLength(4)).build())
+            .transientSettings(Settings.builder().put("other_setting" + randomAlphaOfLength(3), randomAlphaOfLength(4)).build())
+            .clusterUUID("uuid" + randomAlphaOfLength(3))
+            .clusterUUIDCommitted(randomBoolean())
+            .version(randomNonNegativeLong());
+        for (var project : projects) {
+            md.put(project);
+        }
+        return md.build();
+    }
+
+    private static ProjectMetadata randomProject(ProjectId id, int numDataStreams) {
+        ProjectMetadata.Builder project = ProjectMetadata.builder(id)
             .put(buildIndexMetadata("index", "alias", randomBoolean() ? null : randomBoolean()).build(), randomBoolean())
             .put(
                 IndexTemplateMetadata.builder("template" + randomAlphaOfLength(3))
@@ -2596,24 +2648,18 @@ public class MetadataTests extends ESTestCase {
                     .settings(Settings.builder().put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5)).build())
                     .build()
             )
-            .persistentSettings(Settings.builder().put("setting" + randomAlphaOfLength(3), randomAlphaOfLength(4)).build())
-            .transientSettings(Settings.builder().put("other_setting" + randomAlphaOfLength(3), randomAlphaOfLength(4)).build())
-            .clusterUUID("uuid" + randomAlphaOfLength(3))
-            .clusterUUIDCommitted(randomBoolean())
             .indexGraveyard(IndexGraveyardTests.createRandom())
-            .version(randomNonNegativeLong())
             .put("component_template_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
             .put("index_template_v2_" + randomAlphaOfLength(3), ComposableIndexTemplateTests.randomInstance());
 
         for (int k = 0; k < numDataStreams; k++) {
             DataStream randomDataStream = DataStreamTestHelper.randomInstance();
             for (Index index : randomDataStream.getIndices()) {
-                md.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
+                project.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
             }
-            md.put(randomDataStream);
+            project.put(randomDataStream);
         }
-
-        return md.build();
+        return project.build();
     }
 
     private static CreateIndexResult createIndices(int numIndices, int numBackingIndices, String dataStreamName) {

@@ -40,7 +40,8 @@ public class EnrichSerializationTests extends AbstractLogicalPlanSerializationTe
         EnrichPolicy policy = randomEnrichPolicy();
         Map<String, String> concreteIndices = randomConcreteIndices();
         List<NamedExpression> enrichFields = randomFieldAttributes(0, 10, false).stream().map(f -> (NamedExpression) f).toList();
-        return new Enrich(source, child, mode, policyName, matchField, policy, concreteIndices, enrichFields);
+        // TODO we need to update this test to account for the qualifier.
+        return new Enrich(source, child, mode, policyName, matchField, policy, concreteIndices, null, enrichFields);
     }
 
     private static Expression randomPolicyName() {
@@ -102,7 +103,8 @@ public class EnrichSerializationTests extends AbstractLogicalPlanSerializationTe
             );
             default -> throw new IllegalArgumentException();
         }
-        return new Enrich(source, child, mode, policyName, matchField, policy, concreteIndices, enrichFields);
+        // TODO: mutate the qualifier?
+        return new Enrich(source, child, mode, policyName, matchField, policy, concreteIndices, null, enrichFields);
     }
 
     @Override

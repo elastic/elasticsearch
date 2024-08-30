@@ -52,9 +52,12 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
     private final NamedExpression matchField;
     private final EnrichPolicy policy;
     private final Map<String, String> concreteIndices; // cluster -> enrich indices
-    // This could be simplified by just always using an Alias.
+    // TODO: Adding this may or may not require a new transport version. Maybe the qualifier is only relevant at analysis time, then we may
+    // not have to serialize it at all.
+    private final String qualifier;
     private final List<NamedExpression> enrichFields;
-    private List<Attribute> output;
+
+    private List<Attribute> lazyOutput;
 
     private final Mode mode;
 
@@ -86,11 +89,13 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
         NamedExpression matchField,
         EnrichPolicy policy,
         Map<String, String> concreteIndices,
+        String qualifier,
         List<NamedExpression> enrichFields
     ) {
         super(source, child);
         this.mode = mode == null ? Mode.ANY : mode;
         this.policyName = policyName;
+        this.qualifier = qualifier;
         this.matchField = matchField;
         this.policy = policy;
         this.concreteIndices = concreteIndices;
@@ -128,6 +133,8 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
             matchField,
             policy,
             concreteIndices,
+            // TODO: deserialize qualifier?
+            null,
             in.readNamedWriteableCollectionAsList(NamedExpression.class)
         );
     }
@@ -178,6 +185,10 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
         return policy;
     }
 
+    public String qualifier() {
+        return qualifier;
+    }
+
     public Map<String, String> concreteIndices() {
         return concreteIndices;
     }
@@ -200,12 +211,12 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Enrich(source(), newChild, mode, policyName, matchField, policy, concreteIndices, enrichFields);
+        return new Enrich(source(), newChild, mode, policyName, matchField, policy, concreteIndices, qualifier, enrichFields);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Enrich::new, child(), mode, policyName, matchField, policy, concreteIndices, enrichFields);
+        return NodeInfo.create(this, Enrich::new, child(), mode, policyName, matchField, policy, concreteIndices, qualifier, enrichFields);
     }
 
     @Override
@@ -213,10 +224,10 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
         if (enrichFields == null) {
             return child().output();
         }
-        if (this.output == null) {
-            this.output = mergeOutputAttributes(enrichFields(), child().output());
+        if (this.lazyOutput == null) {
+            this.lazyOutput = mergeOutputAttributes(enrichFields(), child().output());
         }
-        return output;
+        return lazyOutput;
     }
 
     @Override
@@ -242,7 +253,7 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
                 throw new IllegalArgumentException("Enrich field must be Alias or ReferenceAttribute");
             }
         }
-        return new Enrich(source(), child(), mode(), policyName(), matchField(), policy(), concreteIndices(), newEnrichFields);
+        return new Enrich(source(), child(), mode(), policyName(), matchField(), policy(), concreteIndices(), qualifier(), newEnrichFields);
     }
 
     @Override
@@ -255,12 +266,13 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
             && Objects.equals(policyName, enrich.policyName)
             && Objects.equals(matchField, enrich.matchField)
             && Objects.equals(policy, enrich.policy)
+            && Objects.equals(qualifier, enrich.qualifier)
             && Objects.equals(concreteIndices, enrich.concreteIndices)
             && Objects.equals(enrichFields, enrich.enrichFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), mode, policyName, matchField, policy, concreteIndices, enrichFields);
+        return Objects.hash(super.hashCode(), mode, policyName, qualifier, matchField, policy, concreteIndices, enrichFields);
     }
 }

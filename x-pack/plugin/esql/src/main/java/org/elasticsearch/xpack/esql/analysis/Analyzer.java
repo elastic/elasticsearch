@@ -278,6 +278,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.source(),
                     policyName,
                     mappingAsAttributes(plan.source(), resolved.mapping()),
+                    plan.qualifier(),
                     plan.enrichFields(),
                     policy
                 );
@@ -289,19 +290,32 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     matchField,
                     policy,
                     resolved.concreteIndices(),
+                    plan.qualifier(),
                     enrichFields
                 );
             } else {
                 String error = context.enrichResolution().getError(policyName, plan.mode());
                 var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, error);
-                return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, plan.matchField(), null, Map.of(), List.of());
+                return new Enrich(
+                    plan.source(),
+                    plan.child(),
+                    plan.mode(),
+                    policyNameExp,
+                    plan.matchField(),
+                    null,
+                    Map.of(),
+                    plan.qualifier(),
+                    List.of()
+                );
             }
         }
 
+        // TODO: here, we need to do something
         public static List<NamedExpression> calculateEnrichFields(
             Source source,
             String policyName,
             List<Attribute> mapping,
+            String qualifier,
             List<NamedExpression> enrichFields,
             EnrichPolicy policy
         ) {
@@ -800,6 +814,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolveEnrich(Enrich enrich, List<Attribute> childrenOutput) {
 
+            // TODO: validation error if there's a qualifier but we still have conflicts with existing fields.
             if (enrich.matchField().toAttribute() instanceof UnresolvedAttribute ua) {
                 Attribute resolved = maybeResolveAttribute(ua, childrenOutput);
                 if (resolved.equals(ua)) {
@@ -833,6 +848,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     resolved,
                     enrich.policy(),
                     enrich.concreteIndices(),
+                    enrich.qualifier(),
                     enrich.enrichFields()
                 );
             }

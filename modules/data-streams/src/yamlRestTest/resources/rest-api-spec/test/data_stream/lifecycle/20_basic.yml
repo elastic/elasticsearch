@@ -25,6 +25,7 @@ setup:
         body:
           index_patterns: [simple-data-stream1]
           template:
+            lifecycle: {}
             mappings:
               properties:
                 '@timestamp':
@@ -51,9 +52,6 @@ setup:
 
 ---
 "Get data stream with default lifecycle":
-  - skip:
-      awaits_fix: https://github.com/elastic/elasticsearch/pull/100187
-
   - do:
       indices.get_data_lifecycle:
         name: "simple-data-stream1"

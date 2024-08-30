@@ -1,0 +1,5 @@
+pr: 112397
+summary: Control storing array source with index setting
+area: Mapping
+type: enhancement
+issues: []

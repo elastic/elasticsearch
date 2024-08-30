@@ -94,6 +94,27 @@ M              |10
 M              |10           
 ;
 
+caseOnMv
+FROM employees
+| WHERE emp_no == 10010
+| EVAL foo = CASE(still_hired, "still", is_rehired, "rehired", "not")
+| KEEP still_hired, is_rehired, foo;
+warning:Line 3:41: evaluation of [is_rehired] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 3:41: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+
+still_hired:boolean |     is_rehired:boolean     | foo:keyword
+              false | [false, false, true, true] | not
+;
+
+caseOnConstantMv
+ROW foo = CASE([false, true], "a", "b");
+warning:Line 1:16: evaluation of [[false, true]] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 1:16: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+
+foo:keyword
+b
+;
+
 docsCaseSuccessRate
 // tag::docsCaseSuccessRate[]
 FROM sample_data

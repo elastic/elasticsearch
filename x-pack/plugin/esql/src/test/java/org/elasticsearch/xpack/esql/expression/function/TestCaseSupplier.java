@@ -67,6 +67,21 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return types.stream().map(t -> "<" + t.typeName() + ">").collect(Collectors.joining(", "));
     }
 
+    /**
+     * Build a name for the test case based on objects likely to describe it.
+     */
+    public static String nameFrom(List<Object> paramDescriptors) {
+        return paramDescriptors.stream().map(p -> {
+            if (p == null) {
+                return "null";
+            }
+            if (p instanceof DataType t) {
+                return "<" + t.typeName() + ">";
+            }
+            return p.toString();
+        }).collect(Collectors.joining(", "));
+    }
+
     public static List<TestCaseSupplier> stringCases(
         BinaryOperator<Object> expected,
         BiFunction<DataType, DataType, String> evaluatorToString,

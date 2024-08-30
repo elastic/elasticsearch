@@ -356,7 +356,7 @@ stored field under object with store_array_source:
 ---
 index param - root arrays:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.source.store_param"]
       reason: requires tracking ignored source
 
   - do:
@@ -421,7 +421,7 @@ index param - root arrays:
 ---
 index param - dynamic root arrays:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.source.store_param"]
       reason: requires tracking ignored source
 
   - do:
@@ -474,7 +474,7 @@ index param - dynamic root arrays:
 ---
 index param - object array within array:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.source.store_param"]
       reason: requires tracking ignored source
 
   - do:
@@ -524,7 +524,7 @@ index param - object array within array:
 ---
 index param - no object array:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.source.store_param"]
       reason: requires tracking ignored source
 
   - do:
@@ -569,7 +569,7 @@ index param - no object array:
 ---
 index param - field ordering:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.source.store_param"]
       reason: requires tracking ignored source
 
   - do:
@@ -620,7 +620,7 @@ index param - field ordering:
 ---
 index param - nested arrays:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.source.store_param"]
       reason: requires tracking ignored source
 
   - do:
@@ -683,7 +683,7 @@ index param - nested arrays:
 ---
 index param - nested object with stored array:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.source.store_param"]
       reason: requires tracking ignored source
 
   - do:

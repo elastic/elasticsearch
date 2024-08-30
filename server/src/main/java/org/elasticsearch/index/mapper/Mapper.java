@@ -12,6 +12,7 @@ import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -22,6 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
+
+    public static final NodeFeature STORE_SOURCE_MAPPER_PARAM = new NodeFeature("mapper.source.store_param");
 
     static final String STORE_SOURCE_PARAM = "store_source";
 

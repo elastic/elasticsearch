@@ -288,7 +288,7 @@ public class IngestMetricsService implements ClusterStateListener {
 
     private class NodeIngestLoad {
         private double ingestLoad;
-        private long latestSampleTimeInNanos;
+        private long latestSampleTimeInNanos = relativeTimeInNanos();
         private long maxSeqNo = Long.MIN_VALUE;
         private MetricQuality quality = MetricQuality.MISSING;
 

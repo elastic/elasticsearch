@@ -677,6 +677,29 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         });
     }
 
+    public void testMissingIngestionLoadMetricsAreNotRemovedImmediately() {
+        var masterNode = startMasterOnlyNode();
+        // drop all updates
+        MockTransportService.getInstance(masterNode)
+            .addRequestHandlingBehavior(TransportPublishNodeIngestLoadMetric.NAME, (handler, request, channel, task) -> {
+                // respond so that new publications happen
+                logger.info("--> Dropping publication");
+                channel.sendResponse(ActionResponse.Empty.INSTANCE);
+            });
+        var setting = Settings.builder()
+            .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .build();
+        var numberOfIndexNodes = between(1, 5);
+        IntStream.range(0, numberOfIndexNodes).forEach(i -> startIndexNode(setting));
+        ensureStableCluster(numberOfIndexNodes + 1);
+        final String indexName = randomIdentifier();
+        createIndex(indexName, numberOfIndexNodes, 0);
+        ensureGreen(indexName);
+        var ingestionLoads = getIngestNodesLoad();
+        assertThat(ingestionLoads.size(), equalTo(numberOfIndexNodes));
+        assertTrue(ingestionLoads.toString(), ingestionLoads.stream().allMatch(load -> load.metricQuality().equals(MetricQuality.MISSING)));
+    }
+
     private static void markNodesForShutdown(List<DiscoveryNode> shuttingDownNodes, List<SingleNodeShutdownMetadata.Type> shutdownTypes) {
         shuttingDownNodes.forEach(node -> {
             final var type = randomFrom(shutdownTypes);

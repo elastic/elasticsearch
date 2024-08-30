@@ -274,7 +274,12 @@ public class EsqlCapabilities {
         /**
          * Allow mixed numeric types in coalesce
          */
-        MIXED_NUMERIC_TYPES_IN_COALESCE;
+        MIXED_NUMERIC_TYPES_IN_COALESCE,
+
+        /**
+         * Qualifier syntax for ENRICH
+         */
+        ENRICH_WITH_QUALIFIER;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

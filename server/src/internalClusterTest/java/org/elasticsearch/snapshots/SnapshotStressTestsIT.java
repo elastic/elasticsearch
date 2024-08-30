@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -1257,7 +1256,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         )
 
                         .<Void>andThen(
-                            (l, ignored) -> clusterService.submitUnbatchedStateUpdateTask(
+                            l -> clusterService.submitUnbatchedStateUpdateTask(
                                 "unmark [" + node + "] for removal",
                                 new ClusterStateUpdateTask() {
                                     @Override
@@ -1461,11 +1460,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 docPermits = new Semaphore(between(1000, 3000));
                 logger.info("--> create index [{}] with max [{}] docs", indexName, docPermits.availablePermits());
                 indicesAdmin().prepareCreate(indexName)
-                    .setSettings(
-                        Settings.builder()
-                            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shardCount)
-                            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(0, cluster.numDataNodes() - 1))
-                    )
+                    .setSettings(indexSettings(shardCount, between(0, cluster.numDataNodes() - 1)))
                     .execute(mustSucceed(response -> {
                         assertTrue(response.isAcknowledged());
                         logger.info("--> finished create index [{}]", indexName);

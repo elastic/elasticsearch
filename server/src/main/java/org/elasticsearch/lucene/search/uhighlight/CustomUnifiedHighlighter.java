@@ -32,6 +32,7 @@ import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.search.retriever.rankdoc.RankDocsQuery;
 import org.elasticsearch.search.runtime.AbstractScriptFieldQuery;
 import org.elasticsearch.search.vectors.KnnScoreDocQuery;
 
@@ -255,10 +256,10 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
                     hasUnknownLeaf[0] = true;
                 }
                 /**
-                 * KnnScoreDocQuery requires the same reader that built the docs
+                 * KnnScoreDocQuery and RankDocsQuery requires the same reader that built the docs
                  * When using {@link HighlightFlag#WEIGHT_MATCHES} different readers are used and isn't supported by this query
                  */
-                if (leafQuery instanceof KnnScoreDocQuery) {
+                if (leafQuery instanceof KnnScoreDocQuery || leafQuery instanceof RankDocsQuery) {
                     hasUnknownLeaf[0] = true;
                 }
                 super.visitLeaf(query);

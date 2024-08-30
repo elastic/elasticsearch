@@ -33,7 +33,6 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -56,6 +55,7 @@ import org.elasticsearch.http.HttpBodyTracer;
 import org.elasticsearch.http.HttpRouteStats;
 import org.elasticsearch.http.HttpRouteStatsTracker;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -435,7 +435,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
             @Inject
             public TransportYieldsContinuationsAction(ActionFilters actionFilters, TransportService transportService) {
-                this(actionFilters, transportService, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                this(actionFilters, transportService, transportService.getThreadPool().executor(ThreadPool.Names.GENERIC));
             }
 
             TransportYieldsContinuationsAction(ActionFilters actionFilters, TransportService transportService, ExecutorService executor) {

@@ -59,6 +59,7 @@ import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -617,18 +618,19 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 null,
                 () -> true,
                 scriptService,
-                createMockResolvedIndices()
+                createMockResolvedIndices(),
+                null
             );
         }
 
         CoordinatorRewriteContext createCoordinatorContext(DateFieldMapper.DateFieldType dateFieldType, long min, long max) {
-            return new CoordinatorRewriteContext(
-                parserConfiguration,
-                this.client,
-                () -> nowInMillis,
+            DateFieldRangeInfo timestampFieldInfo = new DateFieldRangeInfo(
+                dateFieldType,
                 IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max)),
-                dateFieldType
+                dateFieldType,
+                IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max))
             );
+            return new CoordinatorRewriteContext(parserConfiguration, this.client, () -> nowInMillis, timestampFieldInfo);
         }
 
         DataRewriteContext createDataContext() {

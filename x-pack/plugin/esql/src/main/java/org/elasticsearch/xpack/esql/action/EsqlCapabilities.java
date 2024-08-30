@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +38,11 @@ public class EsqlCapabilities {
         FN_MV_APPEND,
 
         /**
+         * Support for {@code MV_PERCENTILE} function.
+         */
+        FN_MV_PERCENTILE,
+
+        /**
          * Support for function {@code IP_PREFIX}.
          */
         FN_IP_PREFIX,
@@ -47,7 +55,12 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code INLINESTATS} syntax.
          */
-        INLINESTATS(true),
+        INLINESTATS(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+
+        /**
+         * Support for the expressions in grouping in {@code INLINESTATS} syntax.
+         */
+        INLINESTATS_V2(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support for aggregation function {@code TOP}.
@@ -63,6 +76,11 @@ public class EsqlCapabilities {
          * Support for ips in aggregations {@code MAX} and {@code MIN}.
          */
         AGG_MAX_MIN_IP_SUPPORT,
+
+        /**
+         * Support for strings in aggregations {@code MAX} and {@code MIN}.
+         */
+        AGG_MAX_MIN_STRING_SUPPORT,
 
         /**
          * Support for booleans in {@code TOP} aggregation.
@@ -118,6 +136,11 @@ public class EsqlCapabilities {
         ST_DISTANCE,
 
         /**
+         * Fix determination of CRS types in spatial functions when folding.
+         */
+        SPATIAL_FUNCTIONS_FIX_CRSTYPE_FOLDING,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -155,6 +178,12 @@ public class EsqlCapabilities {
         UNION_TYPES_REMOVE_FIELDS,
 
         /**
+         * Fix for union-types when renaming unrelated columns.
+         * https://github.com/elastic/elasticsearch/issues/111452
+         */
+        UNION_TYPES_FIX_RENAME_RESOLUTION,
+
+        /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */
@@ -181,24 +210,97 @@ public class EsqlCapabilities {
          * Make attributes of GROK/DISSECT adjustable and fix a shadowing bug when pushing them down past PROJECT.
          * https://github.com/elastic/elasticsearch/issues/108008
          */
-        FIXED_PUSHDOWN_PAST_PROJECT;
+        FIXED_PUSHDOWN_PAST_PROJECT,
+
+        /**
+         * Adds the {@code MV_PSERIES_WEIGHTED_SUM} function for converting sorted lists of numbers into
+         * a bounded score. This is a generalization of the
+         * <a href="https://en.wikipedia.org/wiki/Riemann_zeta_function">riemann zeta function</a> but we
+         * don't name it that because we don't support complex numbers and don't want to make folks think
+         * of mystical number theory things. This is just a weighted sum that is adjacent to magic.
+         */
+        MV_PSERIES_WEIGHTED_SUM,
+
+        /**
+         * Support for match operator
+         */
+        MATCH_OPERATOR(true),
+
+        /**
+         * Add CombineBinaryComparisons rule.
+         */
+        COMBINE_BINARY_COMPARISONS,
+
+        /**
+         * MATCH command support
+         */
+        MATCH_COMMAND(true),
+
+        /**
+         * Support for nanosecond dates as a data type
+         */
+        DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * Support CIDRMatch in CombineDisjunctions rule.
+         */
+        COMBINE_DISJUNCTIVE_CIDRMATCHES,
+
+        /**
+         * Support sending HTTP headers about the status of an async query.
+         */
+        ASYNC_QUERY_STATUS_HEADERS,
+
+        /**
+         * Consider the upper bound when computing the interval in BUCKET auto mode.
+         */
+        BUCKET_INCLUSIVE_UPPER_BOUND,
+
+        /**
+         * Changed error messages for fields with conflicting types in different indices.
+         */
+        SHORT_ERROR_MESSAGES_FOR_UNSUPPORTED_FIELDS,
+
+        /**
+         * Support for the whole number spans in BUCKET function.
+         */
+        BUCKET_WHOLE_NUMBER_AS_SPAN,
+
+        /**
+         * Allow mixed numeric types in coalesce
+         */
+        MIXED_NUMERIC_TYPES_IN_COALESCE;
 
         private final boolean snapshotOnly;
+        private final FeatureFlag featureFlag;
 
         Cap() {
-            snapshotOnly = false;
+            this(false, null);
         };
 
         Cap(boolean snapshotOnly) {
-            this.snapshotOnly = snapshotOnly;
+            this(snapshotOnly, null);
         };
+
+        Cap(FeatureFlag featureFlag) {
+            this(false, featureFlag);
+        }
+
+        Cap(boolean snapshotOnly, FeatureFlag featureFlag) {
+            assert featureFlag == null || snapshotOnly == false;
+            this.snapshotOnly = snapshotOnly;
+            this.featureFlag = featureFlag;
+        }
+
+        public boolean isEnabled() {
+            if (featureFlag == null) {
+                return Build.current().isSnapshot() || this.snapshotOnly == false;
+            }
+            return featureFlag.isEnabled();
+        }
 
         public String capabilityName() {
             return name().toLowerCase(Locale.ROOT);
-        }
-
-        public boolean snapshotOnly() {
-            return snapshotOnly;
         }
     }
 
@@ -207,7 +309,7 @@ public class EsqlCapabilities {
     private static Set<String> capabilities() {
         List<String> caps = new ArrayList<>();
         for (Cap cap : Cap.values()) {
-            if (Build.current().isSnapshot() || cap.snapshotOnly == false) {
+            if (cap.isEnabled()) {
                 caps.add(cap.capabilityName());
             }
         }

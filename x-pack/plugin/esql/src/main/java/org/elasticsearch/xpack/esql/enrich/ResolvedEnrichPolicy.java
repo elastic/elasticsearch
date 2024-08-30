@@ -29,7 +29,7 @@ public record ResolvedEnrichPolicy(
             in.readString(),
             in.readStringCollectionAsList(),
             in.readMap(StreamInput::readString),
-            in.readMap(EsField::new)
+            in.readMap(EsField::readFrom)
         );
     }
 

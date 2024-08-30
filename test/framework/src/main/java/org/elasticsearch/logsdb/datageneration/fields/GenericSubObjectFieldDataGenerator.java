@@ -11,6 +11,16 @@ package org.elasticsearch.logsdb.datageneration.fields;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.FieldType;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.ByteFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.DoubleFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.FloatFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.HalfFloatFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.IntegerFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.KeywordFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.LongFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.ScaledFloatFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.ShortFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.UnsignedLongFieldDataGenerator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -25,83 +35,98 @@ import java.util.Set;
 public class GenericSubObjectFieldDataGenerator {
     private final Context context;
 
-    private final List<ChildField> childFields;
-
-    public GenericSubObjectFieldDataGenerator(Context context) {
+    GenericSubObjectFieldDataGenerator(Context context) {
         this.context = context;
-
-        childFields = new ArrayList<>();
-        generateChildFields();
     }
 
-    public CheckedConsumer<XContentBuilder, IOException> mappingWriter(
-        CheckedConsumer<XContentBuilder, IOException> customMappingParameters
-    ) {
-        return b -> {
-            b.startObject();
-            customMappingParameters.accept(b);
-
-            b.startObject("properties");
-            for (var childField : childFields) {
-                b.field(childField.fieldName);
-                childField.generator.mappingWriter().accept(b);
-            }
-            b.endObject();
-
-            b.endObject();
-        };
-    }
-
-    public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
-        return b -> {
-            b.startObject();
-
-            for (var childField : childFields) {
-                b.field(childField.fieldName);
-                childField.generator.fieldValueGenerator().accept(b);
-            }
-
-            b.endObject();
-        };
-    }
-
-    private void generateChildFields() {
-        var existingFields = new HashSet<String>();
+    List<ChildField> generateChildFields() {
+        var existingFieldNames = new HashSet<String>();
         // no child fields is legal
-        var childFieldsCount = context.specification().arbitrary().childFieldCount(0, context.specification().maxFieldCountPerLevel());
+        var childFieldsCount = context.childFieldGenerator().generateChildFieldCount();
+        var result = new ArrayList<ChildField>(childFieldsCount);
 
         for (int i = 0; i < childFieldsCount; i++) {
-            var fieldName = generateFieldName(existingFields);
+            var fieldName = generateFieldName(existingFieldNames);
 
             if (context.shouldAddObjectField()) {
-                childFields.add(new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject())));
+                result.add(new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject()), false));
             } else if (context.shouldAddNestedField()) {
-                childFields.add(new ChildField(fieldName, new NestedFieldDataGenerator(context.nestedObject())));
+                result.add(new ChildField(fieldName, new NestedFieldDataGenerator(context.nestedObject()), false));
             } else {
-                var fieldType = context.specification().arbitrary().fieldType();
-                addLeafField(fieldType, fieldName);
+                var fieldType = context.fieldTypeGenerator().generator().get();
+                result.add(leafField(fieldType, fieldName));
             }
+        }
+
+        return result;
+    }
+
+    List<ChildField> generateChildFields(List<PredefinedField> predefinedFields) {
+        return predefinedFields.stream().map(pf -> leafField(pf.fieldType(), pf.fieldName())).toList();
+    }
+
+    static void writeChildFieldsMapping(XContentBuilder mapping, List<ChildField> childFields) throws IOException {
+        for (var childField : childFields) {
+            mapping.field(childField.fieldName);
+            childField.generator.mappingWriter().accept(mapping);
         }
     }
 
-    private void addLeafField(FieldType type, String fieldName) {
+    static void writeObjectsData(XContentBuilder document, Context context, CheckedConsumer<XContentBuilder, IOException> objectWriter)
+        throws IOException {
+        var optionalLength = context.generateObjectArray();
+        if (optionalLength.isPresent()) {
+            int size = optionalLength.get();
+
+            document.startArray();
+            for (int i = 0; i < size; i++) {
+                objectWriter.accept(document);
+            }
+            document.endArray();
+        } else {
+            objectWriter.accept(document);
+        }
+    }
+
+    static void writeSingleObject(XContentBuilder document, Iterable<ChildField> childFields) throws IOException {
+        document.startObject();
+        writeChildFieldsData(document, childFields);
+        document.endObject();
+    }
+
+    static void writeChildFieldsData(XContentBuilder document, Iterable<ChildField> childFields) throws IOException {
+        for (var childField : childFields) {
+            document.field(childField.fieldName);
+            childField.generator.fieldValueGenerator().accept(document);
+        }
+    }
+
+    private ChildField leafField(FieldType type, String fieldName) {
         var generator = switch (type) {
-            case LONG -> new LongFieldDataGenerator(context.specification().arbitrary());
-            case KEYWORD -> new KeywordFieldDataGenerator(context.specification().arbitrary());
+            case KEYWORD -> new KeywordFieldDataGenerator(fieldName, context.specification().dataSource());
+            case LONG -> new LongFieldDataGenerator(fieldName, context.specification().dataSource());
+            case UNSIGNED_LONG -> new UnsignedLongFieldDataGenerator(fieldName, context.specification().dataSource());
+            case INTEGER -> new IntegerFieldDataGenerator(fieldName, context.specification().dataSource());
+            case SHORT -> new ShortFieldDataGenerator(fieldName, context.specification().dataSource());
+            case BYTE -> new ByteFieldDataGenerator(fieldName, context.specification().dataSource());
+            case DOUBLE -> new DoubleFieldDataGenerator(fieldName, context.specification().dataSource());
+            case FLOAT -> new FloatFieldDataGenerator(fieldName, context.specification().dataSource());
+            case HALF_FLOAT -> new HalfFloatFieldDataGenerator(fieldName, context.specification().dataSource());
+            case SCALED_FLOAT -> new ScaledFloatFieldDataGenerator(fieldName, context.specification().dataSource());
         };
 
-        childFields.add(new ChildField(fieldName, generator));
+        return new ChildField(fieldName, generator, false);
     }
 
     private String generateFieldName(Set<String> existingFields) {
-        var fieldName = context.specification().arbitrary().fieldName(1, 10);
+        var fieldName = context.childFieldGenerator().generateFieldName();
         while (existingFields.contains(fieldName)) {
-            fieldName = context.specification().arbitrary().fieldName(1, 10);
+            fieldName = context.childFieldGenerator().generateFieldName();
         }
         existingFields.add(fieldName);
 
         return fieldName;
     }
 
-    private record ChildField(String fieldName, FieldDataGenerator generator) {}
+    record ChildField(String fieldName, FieldDataGenerator generator, boolean dynamic) {}
 }

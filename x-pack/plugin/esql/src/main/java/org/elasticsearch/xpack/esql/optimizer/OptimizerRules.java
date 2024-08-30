@@ -12,11 +12,12 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -99,7 +100,8 @@ class OptimizerRules {
             if (logicalPlan instanceof EsRelation
                 || logicalPlan instanceof LocalRelation
                 || logicalPlan instanceof Row
-                || logicalPlan instanceof Aggregate) {
+                || logicalPlan instanceof Aggregate
+                || logicalPlan instanceof InlineStats) {
                 return logicalPlan.outputSet();
             }
             if (logicalPlan instanceof GeneratingPlan<?> generating) {

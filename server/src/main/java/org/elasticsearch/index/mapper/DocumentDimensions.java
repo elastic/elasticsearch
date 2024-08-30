@@ -44,6 +44,8 @@ public interface DocumentDimensions {
 
     DocumentDimensions addUnsignedLong(String fieldName, long value);
 
+    DocumentDimensions addBoolean(String fieldName, boolean value);
+
     DocumentDimensions validate(IndexSettings settings);
 
     /**
@@ -79,6 +81,12 @@ public interface DocumentDimensions {
 
         @Override
         public DocumentDimensions addUnsignedLong(String fieldName, long value) {
+            add(fieldName);
+            return this;
+        }
+
+        @Override
+        public DocumentDimensions addBoolean(String fieldName, boolean value) {
             add(fieldName);
             return this;
         }

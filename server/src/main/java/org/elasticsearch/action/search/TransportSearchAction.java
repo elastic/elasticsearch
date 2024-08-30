@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShard
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -42,7 +43,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -64,10 +64,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -495,11 +497,72 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             }
         });
+        final SearchSourceBuilder source = original.source();
+        if (shouldOpenPIT(source)) {
+            openPIT(client, original, searchService.getDefaultKeepAliveInMillis(), listener.delegateFailureAndWrap((delegate, resp) -> {
+                // We set the keep alive to -1 to indicate that we don't need the pit id in the response.
+                // This is needed since we delete the pit prior to sending the response so the id doesn't exist anymore.
+                source.pointInTimeBuilder(new PointInTimeBuilder(resp.getPointInTimeId()).setKeepAlive(TimeValue.MINUS_ONE));
+                executeRequest(task, original, new ActionListener<>() {
+                    @Override
+                    public void onResponse(SearchResponse response) {
+                        // we need to close the PIT first so we delay the release of the response to after the closing
+                        response.incRef();
+                        closePIT(
+                            client,
+                            original.source().pointInTimeBuilder(),
+                            () -> ActionListener.respondAndRelease(listener, response)
+                        );
+                    }
 
-        Rewriteable.rewriteAndFetch(
-            original,
-            searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices),
-            rewriteListener
+                    @Override
+                    public void onFailure(Exception e) {
+                        closePIT(client, original.source().pointInTimeBuilder(), () -> listener.onFailure(e));
+                    }
+                }, searchPhaseProvider);
+            }));
+        } else {
+            Rewriteable.rewriteAndFetch(
+                original,
+                searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices, original.pointInTimeBuilder()),
+                rewriteListener
+            );
+        }
+    }
+
+    /**
+     * Returns true if the provided source needs to open a shared point in time prior to executing the request.
+     */
+    private boolean shouldOpenPIT(SearchSourceBuilder source) {
+        if (source == null) {
+            return false;
+        }
+        if (source.pointInTimeBuilder() != null) {
+            return false;
+        }
+        var retriever = source.retriever();
+        return retriever != null && retriever.isCompound();
+    }
+
+    static void openPIT(Client client, SearchRequest request, long keepAliveMillis, ActionListener<OpenPointInTimeResponse> listener) {
+        OpenPointInTimeRequest pitReq = new OpenPointInTimeRequest(request.indices()).indicesOptions(request.indicesOptions())
+            .preference(request.preference())
+            .routing(request.routing())
+            .keepAlive(TimeValue.timeValueMillis(keepAliveMillis));
+        client.execute(TransportOpenPointInTimeAction.TYPE, pitReq, listener);
+    }
+
+    static void closePIT(Client client, PointInTimeBuilder pit, Runnable next) {
+        client.execute(
+            TransportClosePointInTimeAction.TYPE,
+            new ClosePointInTimeRequest(pit.getEncodedId()),
+            ActionListener.runAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(ClosePointInTimeResponse closePointInTimeResponse) {}
+
+                @Override
+                public void onFailure(Exception e) {}
+            }, next)
         );
     }
 
@@ -789,9 +852,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         );
                     } else {
                         // does not do a can-match
-                        ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices).indicesOptions(
-                            indicesOptions
-                        ).local(true).preference(preference).routing(routing);
+                        ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(
+                            MasterNodeRequest.infiniteMasterNodeTimeout(connection.getTransportVersion()),
+                            indices
+                        ).indicesOptions(indicesOptions).local(true).preference(preference).routing(routing);
                         transportService.sendRequest(
                             connection,
                             TransportClusterSearchShardsAction.TYPE.name(),
@@ -1052,11 +1116,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 final String clusterAlias = entry.getKey();
                 assert clusterAlias.equals(perNode.getClusterAlias()) : clusterAlias + " != " + perNode.getClusterAlias();
                 final List<String> targetNodes = new ArrayList<>(group.allocatedNodes().size());
-                targetNodes.add(perNode.getNode());
-                if (perNode.getSearchContextId().getSearcherId() != null) {
-                    for (String node : group.allocatedNodes()) {
-                        if (node.equals(perNode.getNode()) == false) {
-                            targetNodes.add(node);
+                if (perNode.getNode() != null) {
+                    // If the shard was available when the PIT was created, it's included.
+                    // Otherwise, we add the shard iterator without a target node, allowing a partial search failure to
+                    // be thrown when a search phase attempts to access it.
+                    targetNodes.add(perNode.getNode());
+                    if (perNode.getSearchContextId().getSearcherId() != null) {
+                        for (String node : group.allocatedNodes()) {
+                            if (node.equals(perNode.getNode()) == false) {
+                                targetNodes.add(node);
+                            }
                         }
                     }
                 }
@@ -1152,7 +1221,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             assert searchRequest.pointInTimeBuilder() != null;
             aliasFilter = resolvedIndices.getSearchContextId().aliasFilter();
             concreteLocalIndices = resolvedIndices.getLocalIndices() == null ? new String[0] : resolvedIndices.getLocalIndices().indices();
-            localShardIterators = getLocalLocalShardsIteratorFromPointInTime(
+            localShardIterators = getLocalShardsIteratorFromPointInTime(
                 clusterState,
                 searchRequest.indicesOptions(),
                 searchRequest.getLocalClusterAlias(),
@@ -1659,7 +1728,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", e);
     }
 
-    static List<SearchShardIterator> getLocalLocalShardsIteratorFromPointInTime(
+    static List<SearchShardIterator> getLocalShardsIteratorFromPointInTime(
         ClusterState clusterState,
         IndicesOptions indicesOptions,
         String localClusterAlias,
@@ -1673,25 +1742,30 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (Strings.isEmpty(perNode.getClusterAlias())) {
                 final ShardId shardId = entry.getKey();
                 final List<String> targetNodes = new ArrayList<>(2);
-                try {
-                    final ShardIterator shards = OperationRouting.getShards(clusterState, shardId);
-                    // Prefer executing shard requests on nodes that are part of PIT first.
-                    if (clusterState.nodes().nodeExists(perNode.getNode())) {
-                        targetNodes.add(perNode.getNode());
-                    }
-                    if (perNode.getSearchContextId().getSearcherId() != null) {
-                        for (ShardRouting shard : shards) {
-                            if (shard.currentNodeId().equals(perNode.getNode()) == false) {
-                                targetNodes.add(shard.currentNodeId());
+                if (perNode.getNode() != null) {
+                    // If the shard was available when the PIT was created, it's included.
+                    // Otherwise, we add the shard iterator without a target node, allowing a partial search failure to
+                    // be thrown when a search phase attempts to access it.
+                    try {
+                        final ShardIterator shards = OperationRouting.getShards(clusterState, shardId);
+                        // Prefer executing shard requests on nodes that are part of PIT first.
+                        if (clusterState.nodes().nodeExists(perNode.getNode())) {
+                            targetNodes.add(perNode.getNode());
+                        }
+                        if (perNode.getSearchContextId().getSearcherId() != null) {
+                            for (ShardRouting shard : shards) {
+                                if (shard.currentNodeId().equals(perNode.getNode()) == false) {
+                                    targetNodes.add(shard.currentNodeId());
+                                }
                             }
                         }
-                    }
-                } catch (IndexNotFoundException | ShardNotFoundException e) {
-                    // We can hit these exceptions if the index was deleted after creating PIT or the cluster state on
-                    // this coordinating node is outdated. It's fine to ignore these extra "retry-able" target shards
-                    // when allowPartialSearchResults is false
-                    if (allowPartialSearchResults == false) {
-                        throw e;
+                    } catch (IndexNotFoundException | ShardNotFoundException e) {
+                        // We can hit these exceptions if the index was deleted after creating PIT or the cluster state on
+                        // this coordinating node is outdated. It's fine to ignore these extra "retry-able" target shards
+                        // when allowPartialSearchResults is false
+                        if (allowPartialSearchResults == false) {
+                            throw e;
+                        }
                     }
                 }
                 OriginalIndices finalIndices = new OriginalIndices(new String[] { shardId.getIndexName() }, indicesOptions);

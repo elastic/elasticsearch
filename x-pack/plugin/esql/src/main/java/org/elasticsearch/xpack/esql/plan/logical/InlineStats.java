@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
@@ -51,7 +50,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  */
 public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, Stats {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        InlineStats.class,
+        LogicalPlan.class,
         "InlineStats",
         InlineStats::new
     );
@@ -69,7 +68,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
     public InlineStats(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readLogicalPlanNode(),
+            in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteableCollectionAsList(Expression.class),
             in.readNamedWriteableCollectionAsList(NamedExpression.class)
         );
@@ -78,7 +77,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeLogicalPlanNode(child());
+        out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(groupings);
         out.writeNamedWriteableCollection(aggregates);
     }
@@ -99,8 +98,8 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
     }
 
     @Override
-    public InlineStats with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new InlineStats(source(), child(), newGroupings, newAggregates);
+    public InlineStats with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
+        return new InlineStats(source(), child, newGroupings, newAggregates);
     }
 
     @Override
@@ -122,11 +121,13 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
     public List<Attribute> output() {
         if (this.lazyOutput == null) {
             List<NamedExpression> addedFields = new ArrayList<>();
-            AttributeSet childOutput = child().outputSet();
+            AttributeSet set = child().outputSet();
 
             for (NamedExpression agg : aggregates) {
-                if (childOutput.contains(agg) == false) {
+                Attribute att = agg.toAttribute();
+                if (set.contains(att) == false) {
                     addedFields.add(agg);
+                    set.add(att);
                 }
             }
 
@@ -184,7 +185,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
         for (int i = 0; i < schema.size(); i++) {
             Attribute s = schema.get(i);
             Object value = BlockUtils.toJavaObject(p.getBlock(i), 0);
-            values.add(new Alias(source(), s.name(), null, new Literal(source(), value, s.dataType()), aggregates.get(i).id()));
+            values.add(new Alias(source(), s.name(), new Literal(source(), value, s.dataType()), aggregates.get(i).id()));
         }
         return new Eval(source(), child(), values);
     }
@@ -208,7 +209,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
             if (g instanceof Attribute a) {
                 groupingAttributes.add(a);
             } else {
-                throw new UnsupportedOperationException("INLINESTATS doesn't support expressions in grouping position yet");
+                throw new IllegalStateException("optimized plans should only have attributes in groups, but got [" + g + "]");
             }
         }
         List<Attribute> leftFields = new ArrayList<>(groupingAttributes.size());

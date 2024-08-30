@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -49,12 +50,12 @@ public class ExplainDataStreamLifecycleAction {
         private boolean includeDefaults;
         private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
-        public Request(String[] names) {
-            this(names, false);
+        public Request(TimeValue masterNodeTimeout, String[] names) {
+            this(masterNodeTimeout, names, false);
         }
 
-        public Request(String[] names, boolean includeDefaults) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, String[] names, boolean includeDefaults) {
+            super(masterNodeTimeout);
             this.names = names;
             this.includeDefaults = includeDefaults;
         }
@@ -216,7 +217,7 @@ public class ExplainDataStreamLifecycleAction {
                 builder.field(explainIndexDataLifecycle.getIndex());
                 explainIndexDataLifecycle.toXContent(
                     builder,
-                    DataStreamLifecycle.maybeAddEffectiveRetentionParams(outerParams),
+                    DataStreamLifecycle.addEffectiveRetentionParams(outerParams),
                     rolloverConfiguration,
                     globalRetention
                 );

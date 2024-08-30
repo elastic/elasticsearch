@@ -1,0 +1,72 @@
+[[put-geoip-database-api]]
+=== Create or update geoip database configuration API
+++++
+<titleabbrev>Create or update geoip database configuration</titleabbrev>
+++++
+
+Creates or updates an IP geolocation database configuration.
+
+IMPORTANT: The Maxmind `account_id` shown below requires a license key. Because the license key is sensitive information,
+it is stored as a <<secure-settings,secure setting>> in {es} named `ingest.geoip.downloader.maxmind.license_key`. Only
+one Maxmind license key is currently allowed per {es} cluster. A valid license key must be in the secure settings in order
+to download from Maxmind. The license key setting does not take effect until all nodes are restarted.
+
+[source,console]
+----
+PUT _ingest/geoip/database/my-database-id
+{
+  "name": "GeoIP2-Domain",
+  "maxmind": {
+    "account_id": "1025402"
+  }
+}
+----
+// TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]
+
+[[put-geoip-database-api-request]]
+==== {api-request-title}
+
+`PUT /_ingest/geoip/database/<database>`
+
+[[put-geoip-database-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+
+[[put-geoip-database-api-path-params]]
+==== {api-path-parms-title}
+
+`<database>`::
++
+__
+(Required, string) ID of the database configuration to create or update.
+
+[[put-geoip-database-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[[put-geoip-database-api-request-body]]
+==== {api-request-body-title}
+
+// tag::geoip-database-object[]
+`name`::
+(Required, string)
+The provider-assigned name of the IP geolocation database to download.
+
+`<provider>`::
+(Required, a provider object and its associated configuration)
+The configuration necessary to identify which IP geolocation provider to use to download
+the database, as well as any provider-specific configuration necessary for such downloading.
++
+At present, the only supported provider is `maxmind`, and the maxmind provider
+requires that an `account_id` (string) is configured.
+// end::geoip-database-object[]
+
+[[geoip-database-configuration-licensing]]
+==== Licensing
+
+Downloading databases from third party providers is a commercial feature that requires an
+appropriate license. For more information, refer to https://www.elastic.co/subscriptions.

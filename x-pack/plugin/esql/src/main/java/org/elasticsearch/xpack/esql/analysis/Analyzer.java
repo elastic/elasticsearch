@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -36,17 +35,15 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.rule.RuleExecutor;
-import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -59,11 +56,17 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -80,9 +83,9 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -113,8 +116,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
@@ -126,7 +129,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
     // ie from test | stats c = count(*)
     public static final List<Attribute> NO_FIELDS = List.of(
-        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataType.NULL, null, Nullability.TRUE, null, true)
+        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataType.NULL, Nullability.TRUE, null, true)
     );
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
@@ -215,11 +218,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Specific flattening method, different from the default EsRelation that:
      * 1. takes care of data type widening (for certain types)
      * 2. drops the object and keyword hierarchy
+     * <p>
+     *     Public for testing.
+     * </p>
      */
-    private static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping) {
+    public static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping) {
         var list = new ArrayList<Attribute>();
         mappingAsAttributes(list, source, null, mapping);
-        list.sort(Comparator.comparing(Attribute::qualifiedName));
+        list.sort(Comparator.comparing(Attribute::name));
         return list;
     }
 
@@ -245,8 +251,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (DataType.isPrimitive(type)) {
                     list.add(attribute);
                 }
-                // allow compound object even if they are unknown (but not NESTED)
-                if (type != NESTED && fieldProperties.isEmpty() == false) {
+                // allow compound object even if they are unknown
+                if (fieldProperties.isEmpty() == false) {
                     mappingAsAttributes(list, source, attribute, fieldProperties);
                 }
             }
@@ -287,7 +293,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             } else {
                 String error = context.enrichResolution().getError(policyName, plan.mode());
-                var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, null, error);
+                var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, error);
                 return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, plan.matchField(), null, Map.of(), List.of());
             }
         }
@@ -332,9 +338,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (CollectionUtils.isEmpty(similar) == false) {
                     msg += ", did you mean " + (similar.size() == 1 ? "[" + similar.get(0) + "]" : "any of " + similar) + "?";
                 }
-                return new UnresolvedAttribute(source, enrichFieldName, null, msg);
+                return new UnresolvedAttribute(source, enrichFieldName, msg);
             } else {
-                return new ReferenceAttribute(source, enrichFieldName, mappedField.dataType(), null, Nullability.TRUE, null, false);
+                return new ReferenceAttribute(source, enrichFieldName, mappedField.dataType(), Nullability.TRUE, null, false);
             }
         }
     }
@@ -357,7 +363,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (CollectionUtils.isEmpty(potentialMatches) == false) {
                     message = UnresolvedAttribute.errorMessage(tableName, potentialMatches).replace("column", "table");
                 }
-                tableNameExpression = new UnresolvedAttribute(tableNameExpression.source(), tableName, null, message);
+                tableNameExpression = new UnresolvedAttribute(tableNameExpression.source(), tableName, message);
             }
             // wrap the table in a local relationship for idiomatic field resolution
             else {
@@ -440,6 +446,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // e.g. STATS a ... GROUP BY a = x + 1
             Holder<Boolean> changed = new Holder<>(false);
             List<Expression> groupings = stats.groupings();
+            List<? extends NamedExpression> aggregates = stats.aggregates();
             // first resolve groupings since the aggs might refer to them
             // trying to globally resolve unresolved attributes will lead to some being marked as unresolvable
             if (Resolvables.resolved(groupings) == false) {
@@ -453,22 +460,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 groupings = newGroupings;
                 if (changed.get()) {
-                    stats = stats.with(newGroupings, stats.aggregates());
+                    stats = stats.with(stats.child(), newGroupings, stats.aggregates());
                     changed.set(false);
                 }
             }
 
-            if (stats.expressionsResolved() == false) {
-                AttributeMap<Expression> resolved = new AttributeMap<>();
+            if (Resolvables.resolved(groupings) == false || (Resolvables.resolved(aggregates) == false)) {
+                ArrayList<Attribute> resolved = new ArrayList<>();
                 for (Expression e : groupings) {
                     Attribute attr = Expressions.attribute(e);
                     if (attr != null && attr.resolved()) {
-                        resolved.put(attr, attr);
+                        resolved.add(attr);
                     }
                 }
-                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(new ArrayList<>(resolved.keySet()), childrenOutput);
-                List<NamedExpression> newAggregates = new ArrayList<>();
+                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolved, childrenOutput);
 
+                List<NamedExpression> newAggregates = new ArrayList<>();
                 for (NamedExpression aggregate : stats.aggregates()) {
                     var agg = (NamedExpression) aggregate.transformUp(UnresolvedAttribute.class, ua -> {
                         Expression ne = ua;
@@ -482,7 +489,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     newAggregates.add(agg);
                 }
 
-                stats = changed.get() ? stats.with(groupings, newAggregates) : stats;
+                stats = changed.get() ? stats.with(stats.child(), groupings, newAggregates) : stats;
             }
 
             return (LogicalPlan) stats;
@@ -499,15 +506,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     p.child(),
                     resolved,
                     resolved.resolved()
-                        ? new ReferenceAttribute(
-                            resolved.source(),
-                            resolved.name(),
-                            resolved.dataType(),
-                            null,
-                            resolved.nullable(),
-                            null,
-                            false
-                        )
+                        ? new ReferenceAttribute(resolved.source(), resolved.name(), resolved.dataType(), resolved.nullable(), null, false)
                         : resolved
                 );
             }
@@ -556,7 +555,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 matchFieldChildReference = new UnresolvedAttribute(
                                     attr.source(),
                                     attr.name(),
-                                    attr.qualifier(),
                                     attr.id(),
                                     "column type mismatch, table column was ["
                                         + joinedAttribute.dataType().typeName()
@@ -812,9 +810,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     String matchType = enrich.policy().getType();
                     DataType[] allowed = allowedEnrichTypes(matchType);
                     if (Arrays.asList(allowed).contains(dataType) == false) {
-                        String suffix = "only " + Arrays.toString(allowed) + " allowed for type [" + matchType + "]";
+                        String suffix = "only ["
+                            + Arrays.stream(allowed).map(DataType::typeName).collect(Collectors.joining(", "))
+                            + "] allowed for type ["
+                            + matchType
+                            + "]";
                         resolved = ua.withUnresolvedMessage(
-                            "Unsupported type [" + resolved.dataType() + "] for enrich matching field [" + ua.name() + "]; " + suffix
+                            "Unsupported type ["
+                                + resolved.dataType().typeName()
+                                + "] for enrich matching field ["
+                                + ua.name()
+                                + "]; "
+                                + suffix
                         );
                     }
                 }
@@ -841,8 +848,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static List<Attribute> resolveAgainstList(UnresolvedNamePattern up, Collection<Attribute> attrList) {
-        UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern(), null);
-        Predicate<Attribute> matcher = a -> up.match(a.name()) || up.match(a.qualifiedName());
+        UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern());
+        Predicate<Attribute> matcher = a -> up.match(a.name());
         var matches = AnalyzerRules.maybeResolveAgainstList(matcher, () -> ua, attrList, true, a -> Analyzer.handleSpecialFields(ua, a));
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedNamePattern.errorMessage(up.pattern(), list));
     }
@@ -858,6 +865,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         Collection<Attribute> attrList,
         java.util.function.Function<List<String>, String> messageProducer
     ) {
+        if (ua.customMessage()) {
+            return List.of();
+        }
         // none found - add error message
         if (matches.isEmpty()) {
             Set<String> names = new HashSet<>(attrList.size());
@@ -939,6 +949,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return b;
     }
 
+    /**
+     * Cast string literals in ScalarFunction, EsqlArithmeticOperation, BinaryComparison and In to desired data types.
+     * For example, the string literals in the following expressions will be cast implicitly to the field data type on the left hand side.
+     * date > "2024-08-21"
+     * date in ("2024-08-21", "2024-08-22", "2024-08-23")
+     * date = "2024-08-21" + 3 days
+     * ip == "127.0.0.1"
+     * version != "1.0"
+     *
+     * If the inputs to Coalesce are mixed numeric types, cast the rest of the numeric field or value to the first numeric data type if
+     * applicable. For example, implicit casting converts:
+     * Coalesce(Long, Int) to Coalesce(Long, Long)
+     * Coalesce(null, Long, Int) to Coalesce(null, Long, Long)
+     * Coalesce(Double, Long, Int) to Coalesce(Double, Double, Double)
+     * Coalesce(null, Double, Long, Int) to Coalesce(null, Double, Double, Double)
+     *
+     * Coalesce(Int, Long) will NOT be converted to Coalesce(Long, Long) or Coalesce(Int, Int).
+     */
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
@@ -968,22 +996,38 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             boolean childrenChanged = false;
             DataType targetDataType = DataType.NULL;
             Expression arg;
+            DataType targetNumericType = null;
+            boolean castNumericArgs = true;
             for (int i = 0; i < args.size(); i++) {
                 arg = args.get(i);
-                if (arg.resolved() && arg.dataType() == KEYWORD && arg.foldable() && ((arg instanceof EsqlScalarFunction) == false)) {
-                    if (i < targetDataTypes.size()) {
-                        targetDataType = targetDataTypes.get(i);
-                    }
-                    if (targetDataType != DataType.NULL && targetDataType != DataType.UNSUPPORTED) {
-                        Expression e = castStringLiteral(arg, targetDataType);
-                        childrenChanged = true;
-                        newChildren.add(e);
-                        continue;
+                if (arg.resolved()) {
+                    var dataType = arg.dataType();
+                    if (dataType == KEYWORD) {
+                        if (arg.foldable() && ((arg instanceof EsqlScalarFunction) == false)) {
+                            if (i < targetDataTypes.size()) {
+                                targetDataType = targetDataTypes.get(i);
+                            }
+                            if (targetDataType != DataType.NULL && targetDataType != DataType.UNSUPPORTED) {
+                                Expression e = castStringLiteral(arg, targetDataType);
+                                childrenChanged = true;
+                                newChildren.add(e);
+                                continue;
+                            }
+                        }
+                    } else if (dataType.isNumeric() && canCastMixedNumericTypes(f) && castNumericArgs) {
+                        if (targetNumericType == null) {
+                            targetNumericType = dataType;  // target data type is the first numeric data type
+                        } else if (dataType != targetNumericType) {
+                            castNumericArgs = canCastNumeric(dataType, targetNumericType);
+                        }
                     }
                 }
                 newChildren.add(args.get(i));
             }
-            return childrenChanged ? f.replaceChildren(newChildren) : f;
+            Expression resultF = childrenChanged ? f.replaceChildren(newChildren) : f;
+            return targetNumericType != null && castNumericArgs
+                ? castMixedNumericTypes((EsqlScalarFunction) resultF, targetNumericType)
+                : resultF;
         }
 
         private static Expression processBinaryOperator(BinaryOperator<?, ?, ?, ?> o) {
@@ -998,7 +1042,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression from = Literal.NULL;
 
             if (left.dataType() == KEYWORD && left.foldable() && (left instanceof EsqlScalarFunction == false)) {
-                if (supportsImplicitCasting(right.dataType())) {
+                if (supportsStringImplicitCasting(right.dataType())) {
                     targetDataType = right.dataType();
                     from = left;
                 } else if (supportsImplicitTemporalCasting(right, o)) {
@@ -1007,7 +1051,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             if (right.dataType() == KEYWORD && right.foldable() && (right instanceof EsqlScalarFunction == false)) {
-                if (supportsImplicitCasting(left.dataType())) {
+                if (supportsStringImplicitCasting(left.dataType())) {
                     targetDataType = left.dataType();
                     from = right;
                 } else if (supportsImplicitTemporalCasting(left, o)) {
@@ -1027,16 +1071,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static Expression processIn(In in) {
             Expression left = in.value();
             List<Expression> right = in.list();
+            DataType targetDataType = left.dataType();
 
-            if (left.resolved() == false || supportsImplicitCasting(left.dataType()) == false) {
+            if (left.resolved() == false || supportsStringImplicitCasting(targetDataType) == false) {
                 return in;
             }
+
             List<Expression> newChildren = new ArrayList<>(right.size() + 1);
             boolean childrenChanged = false;
 
             for (Expression value : right) {
-                if (value.dataType() == KEYWORD && value.foldable()) {
-                    Expression e = castStringLiteral(value, left.dataType());
+                if (value.resolved() && value.dataType() == KEYWORD && value.foldable()) {
+                    Expression e = castStringLiteral(value, targetDataType);
                     newChildren.add(e);
                     childrenChanged = true;
                 } else {
@@ -1047,11 +1093,47 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return childrenChanged ? in.replaceChildren(newChildren) : in;
         }
 
+        private static boolean canCastMixedNumericTypes(EsqlScalarFunction f) {
+            return f instanceof Coalesce;
+        }
+
+        private static boolean canCastNumeric(DataType from, DataType to) {
+            DataType commonType = EsqlDataTypeConverter.commonType(from, to);
+            return commonType == to;
+        }
+
+        private static Expression castMixedNumericTypes(EsqlScalarFunction f, DataType targetNumericType) {
+            List<Expression> newChildren = new ArrayList<>(f.children().size());
+            boolean childrenChanged = false;
+            DataType childDataType;
+
+            for (Expression e : f.children()) {
+                childDataType = e.dataType();
+                if (childDataType.isNumeric() == false
+                    || childDataType == targetNumericType
+                    || canCastNumeric(childDataType, targetNumericType) == false) {
+                    newChildren.add(e);
+                    continue;
+                }
+                childrenChanged = true;
+                // add a casting function
+                switch (targetNumericType) {
+                    case INTEGER -> newChildren.add(new ToInteger(e.source(), e));
+                    case LONG -> newChildren.add(new ToLong(e.source(), e));
+                    case DOUBLE -> newChildren.add(new ToDouble(e.source(), e));
+                    case UNSIGNED_LONG -> newChildren.add(new ToUnsignedLong(e.source(), e));
+                    default -> throw new EsqlIllegalArgumentException("unexpected data type: " + targetNumericType);
+                }
+
+            }
+            return childrenChanged ? f.replaceChildren(newChildren) : f;
+        }
+
         private static boolean supportsImplicitTemporalCasting(Expression e, BinaryOperator<?, ?, ?, ?> o) {
             return isTemporalAmount(e.dataType()) && (o instanceof DateTimeArithmeticOperation);
         }
 
-        private static boolean supportsImplicitCasting(DataType type) {
+        private static boolean supportsStringImplicitCasting(DataType type) {
             return type == DATETIME || type == IP || type == VERSION || type == BOOLEAN;
         }
 
@@ -1067,24 +1149,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     target,
                     e.getMessage()
                 );
-                return new UnsupportedAttribute(
-                    from.source(),
-                    String.valueOf(from.fold()),
-                    new UnsupportedEsField(String.valueOf(from.fold()), from.dataType().typeName()),
-                    message
-                );
+                return new UnresolvedAttribute(from.source(), String.valueOf(from.fold()), message);
             }
         }
     }
 
     /**
      * The EsqlIndexResolver will create InvalidMappedField instances for fields that are ambiguous (i.e. have multiple mappings).
-     * During ResolveRefs we do not convert these to UnresolvedAttribute instances, as we want to first determine if they can
+     * During {@link ResolveRefs} we do not convert these to UnresolvedAttribute instances, as we want to first determine if they can
      * instead be handled by conversion functions within the query. This rule looks for matching conversion functions and converts
      * those fields into MultiTypeEsField, which encapsulates the knowledge of how to convert these into a single type.
      * This knowledge will be used later in generating the FieldExtractExec with built-in type conversion.
      * Any fields which could not be resolved by conversion functions will be converted to UnresolvedAttribute instances in a later rule
-     * (See UnresolveUnionTypes below).
+     * (See {@link UnionTypesCleanup} below).
      */
     private static class ResolveUnionTypes extends Rule<LogicalPlan, LogicalPlan> {
 
@@ -1104,7 +1181,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             });
 
-            return plan.transformUp(LogicalPlan.class, p -> p.resolved() || p.childrenResolved() == false ? p : doRule(p));
+            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p));
         }
 
         private LogicalPlan doRule(LogicalPlan plan) {
@@ -1118,24 +1195,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // If no union fields were generated, return the plan as is
             if (unionFieldAttributes.size() == alreadyAddedUnionFieldAttributes) {
                 return plan;
-            }
-
-            // In ResolveRefs the aggregates are resolved from the groupings, which might have an unresolved MultiTypeEsField.
-            // Now that we have resolved those, we need to re-resolve the aggregates.
-            if (plan instanceof Aggregate agg) {
-                // TODO once inlinestats supports expressions in groups we'll likely need the same sort of extraction here
-                // If the union-types resolution occurred in a child of the aggregate, we need to check the groupings
-                plan = agg.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved);
-
-                // Aggregates where the grouping key comes from a union-type field need to be resolved against the grouping key
-                Map<Attribute, Expression> resolved = new HashMap<>();
-                for (Expression e : agg.groupings()) {
-                    Attribute attr = Expressions.attribute(e);
-                    if (attr != null && attr.resolved()) {
-                        resolved.put(attr, e);
-                    }
-                }
-                plan = plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> resolveAttribute(ua, resolved));
             }
 
             // And add generated fields to EsRelation, so these new attributes will appear in the OutputExec of the Fragment
@@ -1159,21 +1218,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan;
         }
 
-        private Expression resolveAttribute(UnresolvedAttribute ua, Map<Attribute, Expression> resolved) {
-            var named = resolveAgainstList(ua, resolved.keySet());
-            return switch (named.size()) {
-                case 0 -> ua;
-                case 1 -> named.get(0).equals(ua) ? ua : resolved.get(named.get(0));
-                default -> ua.withUnresolvedMessage("Resolved [" + ua + "] unexpectedly to multiple attributes " + named);
-            };
-        }
-
         private Expression resolveConvertFunction(AbstractConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
-                imf.getTypesToIndices().keySet().forEach(typeName -> {
-                    DataType type = DataType.fromTypeName(typeName);
+                imf.types().forEach(type -> {
+                    // TODO: Shouldn't we perform widening of small numerical types here?
                     if (supportedTypes.contains(type)) {
                         TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
                         var concreteConvert = typeSpecificConvert(convert, fa.source(), type, imf);
@@ -1229,7 +1279,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private Expression typeSpecificConvert(AbstractConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
             NameId id = ((FieldAttribute) convert.field()).id();
-            FieldAttribute resolvedAttr = new FieldAttribute(source, null, field.getName(), field, null, Nullability.TRUE, id, false);
+            FieldAttribute resolvedAttr = new FieldAttribute(source, null, field.getName(), field, Nullability.TRUE, id, false);
             return convert.replaceChildren(Collections.singletonList(resolvedAttr));
         }
     }
@@ -1246,13 +1296,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static class UnionTypesCleanup extends Rule<LogicalPlan, LogicalPlan> {
         public LogicalPlan apply(LogicalPlan plan) {
-            LogicalPlan planWithCheckedUnionTypes = plan.transformUp(LogicalPlan.class, p -> {
-                if (p instanceof EsRelation esRelation) {
-                    // Leave esRelation as InvalidMappedField so that UNSUPPORTED fields can still pass through
-                    return esRelation;
-                }
-                return p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved);
-            });
+            LogicalPlan planWithCheckedUnionTypes = plan.transformUp(
+                LogicalPlan.class,
+                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved)
+            );
 
             // To drop synthetic attributes at the end, we need to compute the plan's output.
             // This is only legal to do if the plan is resolved.
@@ -1264,7 +1311,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         static Attribute checkUnresolved(FieldAttribute fa) {
             if (fa.field() instanceof InvalidMappedField imf) {
                 String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
-                return new UnresolvedAttribute(fa.source(), fa.name(), fa.qualifier(), fa.id(), unresolvedMessage, null);
+                String types = imf.getTypesToIndices().keySet().stream().collect(Collectors.joining(","));
+                return new UnsupportedAttribute(
+                    fa.source(),
+                    fa.name(),
+                    new UnsupportedEsField(imf.getName(), types),
+                    unresolvedMessage,
+                    fa.id()
+                );
             }
             return fa;
         }

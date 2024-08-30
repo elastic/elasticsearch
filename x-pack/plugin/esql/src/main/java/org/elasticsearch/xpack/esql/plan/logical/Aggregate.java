@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,6 +27,12 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 public class Aggregate extends UnaryPlan implements Stats {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        "Aggregate",
+        Aggregate::new
+    );
+
     public enum AggregateType {
         STANDARD,
         // include metrics aggregates such as rates
@@ -67,22 +73,28 @@ public class Aggregate extends UnaryPlan implements Stats {
         this.aggregates = aggregates;
     }
 
-    public Aggregate(PlanStreamInput in) throws IOException {
+    public Aggregate(StreamInput in) throws IOException {
         this(
-            Source.readFrom(in),
-            in.readLogicalPlanNode(),
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(LogicalPlan.class),
             AggregateType.readType(in),
             in.readNamedWriteableCollectionAsList(Expression.class),
             in.readNamedWriteableCollectionAsList(NamedExpression.class)
         );
     }
 
-    public static void writeAggregate(PlanStreamOutput out, Aggregate aggregate) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        out.writeLogicalPlanNode(aggregate.child());
-        AggregateType.writeType(out, aggregate.aggregateType());
-        out.writeNamedWriteableCollection(aggregate.groupings);
-        out.writeNamedWriteableCollection(aggregate.aggregates());
+        out.writeNamedWriteable(child());
+        AggregateType.writeType(out, aggregateType());
+        out.writeNamedWriteableCollection(groupings);
+        out.writeNamedWriteableCollection(aggregates());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -96,8 +108,8 @@ public class Aggregate extends UnaryPlan implements Stats {
     }
 
     @Override
-    public Aggregate with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new Aggregate(source(), child(), aggregateType(), newGroupings, newAggregates);
+    public Aggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
+        return new Aggregate(source(), child, aggregateType(), newGroupings, newAggregates);
     }
 
     public AggregateType aggregateType() {

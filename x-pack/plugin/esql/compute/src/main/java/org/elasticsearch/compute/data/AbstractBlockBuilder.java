@@ -79,6 +79,7 @@ abstract class AbstractBlockBuilder implements Block.Builder {
     }
 
     public AbstractBlockBuilder endPositionEntry() {
+        assert valueCount > firstValueIndexes[positionCount] : "use appendNull to build an empty position";
         positionCount++;
         positionEntryIsOpen = false;
         if (hasMultiValues == false && valueCount != positionCount) {

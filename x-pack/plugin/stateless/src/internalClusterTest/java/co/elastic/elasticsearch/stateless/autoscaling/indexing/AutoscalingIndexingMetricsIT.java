@@ -175,7 +175,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         ensureGreen(indexName);
 
         // some write so that the WRITE EWMA is not zero
-        indexDocs(indexName, randomIntBetween(5000, 10000));
+        IntStream.range(0, between(10, 20)).forEach(i -> indexDocs(indexName, randomIntBetween(1000, 2000)));
         assertBusy(() -> {
             var metricsAfter = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class)
                 .getIndexTierMetrics(ClusterState.EMPTY_STATE);
@@ -197,7 +197,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
                 }
             });
         }
-        var writeRequests = randomIntBetween(100, 200);
+        var writeRequests = randomIntBetween(200, 300);
         for (int i = 0; i < writeRequests; i++) {
             client().prepareBulk().add(new IndexRequest(indexName).source("field", i)).execute();
         }
@@ -653,8 +653,11 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         // master-eligible node which might return only a subset of the nodes (temporarily)
         assertBusy(() -> {
             final List<NodeIngestLoadSnapshot> ingestNodesLoad = getIngestNodesLoad();
-            assertThat(ingestNodesLoad, hasSize(numNodes));
-            assertTrue(ingestNodesLoad.stream().allMatch(ingestNodeLoad -> ingestNodeLoad.metricQuality() == MetricQuality.EXACT));
+            assertThat(ingestNodesLoad.toString(), ingestNodesLoad, hasSize(numNodes));
+            assertTrue(
+                ingestNodesLoad.toString(),
+                ingestNodesLoad.stream().allMatch(ingestNodeLoad -> ingestNodeLoad.metricQuality() == MetricQuality.MINIMUM)
+            );
         });
 
         for (var node : shuttingDownNodes) {

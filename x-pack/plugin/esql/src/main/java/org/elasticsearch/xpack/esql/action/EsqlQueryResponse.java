@@ -203,6 +203,17 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         boolean dropNullColumns = params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
         boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
+
+        Iterator<ToXContent> tookTime;
+        if (executionInfo != null && executionInfo.getOverallTook() != null) {
+            tookTime = ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                builder.field("took", executionInfo.getOverallTook().millis());
+                return builder; // TOOK.getPreferredName(), took.millis()
+            });
+        } else {
+            tookTime = Collections.emptyIterator();
+        }
+
         Iterator<? extends ToXContent> columnHeadings = dropNullColumns
             ? Iterators.concat(
                 ResponseXContentUtils.allColumns(columns, "all_columns"),
@@ -216,6 +227,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             asyncPropertiesOrEmpty(),
+            tookTime,
             columnHeadings,
             ChunkedToXContentHelper.array("values", valuesIt),
             profileRender,
@@ -255,7 +267,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             && Objects.equals(isRunning, that.isRunning)
             && columnar == that.columnar
             && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals))
-            && Objects.equals(profile, that.profile);
+            && Objects.equals(profile, that.profile)
+            && Objects.equals(executionInfo, that.executionInfo);
     }
 
     @Override
@@ -265,7 +278,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             isRunning,
             columns,
             Iterators.hashCode(values(), row -> Iterators.hashCode(row, Objects::hashCode)),
-            columnar
+            columnar,
+            executionInfo
         );
     }
 

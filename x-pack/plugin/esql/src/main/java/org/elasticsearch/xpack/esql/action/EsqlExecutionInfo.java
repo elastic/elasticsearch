@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
@@ -101,6 +102,10 @@ public class EsqlExecutionInfo implements ToXContentFragment, Writeable {
 
     public void setOverallTookTime(TimeValue took) {
         this.overallTook = took;
+    }
+
+    public TimeValue getOverallTook() {
+        return overallTook;
     }
 
     // MP TODO: is there a better way to supply this info? Awkward to have it here
@@ -192,6 +197,19 @@ public class EsqlExecutionInfo implements ToXContentFragment, Writeable {
     @Override
     public String toString() {
         return "EsqlExecutionInfo{" + "overallTook=" + overallTook + ", clusterInfo=" + clusterInfo + '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        EsqlExecutionInfo that = (EsqlExecutionInfo) o;
+        return Objects.equals(clusterInfo, that.clusterInfo) && Objects.equals(overallTook, that.overallTook);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(clusterInfo, overallTook);
     }
 
     /**

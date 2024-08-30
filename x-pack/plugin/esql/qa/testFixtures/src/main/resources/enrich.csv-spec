@@ -31,6 +31,32 @@ FROM sample_data
 median_duration:double | env:keyword
 ;
 
+withQualifier
+required_capability: enrich_load
+required_capability: enrich_with_qualifier
+ROW client_ip = "172.21.0.5", env = 1
+| ENRICH clientip_policy ON client_ip AS c
+;
+
+client_ip:keyword | env:integer | c.env:keyword
+172.21.0.5        |           1 | Development
+;
+
+withQualifierLimit0
+required_capability: enrich_with_qualifier
+ROW client_ip = "172.21.0.5", env = 1
+| ENRICH clientip_policy ON client_ip  AS c
+| LIMIT 0
+;
+
+client_ip:keyword | env:integer | c.env:keyword
+;
+
+// TODO: test cases for ENRICH ... AS qualifier
+// - no ON clause
+// - with subsequent KEEP without name conflicts, referring to the new columns with/without qualifier
+// - with subsequent KEEP with name conflicts, referring to the conflicting columns with/without qualifier
+
 shadowing
 required_capability: enrich_load
 ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"

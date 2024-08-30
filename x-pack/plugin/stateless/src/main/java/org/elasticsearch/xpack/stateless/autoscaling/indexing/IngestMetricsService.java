@@ -67,7 +67,7 @@ public class IngestMetricsService implements ClusterStateListener {
 
     public static final Setting<Double> HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING = Setting.doubleSetting(
         "serverless.autoscaling.ingest_metrics.high_ingestion_load_weight_during_scaling",
-        1.0,
+        0.0,
         0.0,
         1.0,
         Setting.Property.NodeScope,

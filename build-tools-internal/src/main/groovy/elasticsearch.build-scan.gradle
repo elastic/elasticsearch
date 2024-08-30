@@ -19,12 +19,14 @@ import java.time.LocalDateTime
 develocity {
 
   buildScan {
+
+    def onCI = System.getenv('CI') ? Boolean.parseBoolean(System.getenv('CI')) : false
+
     // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
-    uploadInBackground = System.getenv('CI') ? false : true
-    String buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL') ? System.getenv('BUILDKITE_BUILD_URL') : null
+    uploadInBackground = onCI == false
 
     // Automatically publish scans from Elasticsearch CI
-    if (System.getenv('BUILDKITE') == 'true') {
+    if (onCI) {
       publishing.onlyIf { true }
       server = 'https://gradle-enterprise.elastic.co'
     } else if( server.isPresent() == false) {
@@ -39,8 +41,9 @@ develocity {
       if (BuildParams.inFipsJvm) {
         tag 'FIPS'
       }
-
-      if (buildKiteUrl) { //Buildkite-specific build scan metadata
+      println "onCI = $onCI"
+      if (onCI) { //Buildkite-specific build scan metadata
+        String buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL')
         def branch = System.getenv('BUILDKITE_PULL_REQUEST_BASE_BRANCH') ?: System.getenv('BUILDKITE_BRANCH')
         def repoMatcher = System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/
         def repository = repoMatcher.matches() ? repoMatcher.group(2) : "<unknown>"

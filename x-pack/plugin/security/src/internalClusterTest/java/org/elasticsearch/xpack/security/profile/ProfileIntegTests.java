@@ -133,7 +133,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         final Settings settings = getIndexResponse.getSettings().get(INTERNAL_SECURITY_PROFILE_INDEX_8);
         assertThat(settings.get("index.number_of_shards"), equalTo("1"));
         assertThat(settings.get("index.auto_expand_replicas"), equalTo("0-1"));
-        assertThat(settings.get("index.routing.allocation.include._tier_preference"), equalTo("data_content"));
+        assertThat(settings.get("index.routing.allocation.include._tier_preference"), equalTo("data_hot,data_content"));
 
         final Map<String, Object> mappings = getIndexResponse.getMappings().get(INTERNAL_SECURITY_PROFILE_INDEX_8).getSourceAsMap();
 

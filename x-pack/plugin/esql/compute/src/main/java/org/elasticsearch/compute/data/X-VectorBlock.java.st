@@ -44,8 +44,15 @@ $if(BytesRef)$
             return null;
         }
     }
-$endif$
 
+$elseif(boolean)$
+    @Override
+    public ToMask toMask() {
+        vector.incRef();
+        return new ToMask(vector, false);
+    }
+
+$endif$
     @Override
 $if(BytesRef)$
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {

@@ -40,6 +40,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.apache.lucene.util.automaton.Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
+
 /**
  * Uses a pattern string to define a protected space for indices belonging to a system feature, and, if needed, provides metadata for
  * managing indices that match the pattern.
@@ -356,7 +358,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         this.primaryIndex = primaryIndex;
         this.aliasName = aliasName;
 
-        final Automaton automaton = buildAutomaton(indexPattern, aliasName);
+        final Automaton automaton = Operations.determinize(buildAutomaton(indexPattern, aliasName), DEFAULT_DETERMINIZE_WORK_LIMIT);
         this.indexPatternAutomaton = new CharacterRunAutomaton(automaton);
         if (primaryIndex != null && indexPatternAutomaton.run(primaryIndex) == false) {
             throw new IllegalArgumentException("primary index does not match the index pattern!");

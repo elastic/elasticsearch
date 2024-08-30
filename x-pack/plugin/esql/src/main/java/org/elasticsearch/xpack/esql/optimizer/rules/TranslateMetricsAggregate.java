@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules;
 
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
@@ -44,37 +45,37 @@ import java.util.stream.Stream;
  * <p>
  * Examples:
  * <pre>
- * METRICS k8s max(rate(request))
+ * FROM k8s | STATS max(rate(request))
  *
  * becomes
  *
- * METRICS k8s
+ * FROM k8s
  * | STATS rate(request) BY _tsid
  * | STATS max(`rate(request)`)
  *
- * METRICS k8s max(rate(request)) BY host
+ * FROM k8s | STATS max(rate(request)) BY host
  *
  * becomes
  *
- * METRICS k8s
+ * FROM k8s
  * | STATS rate(request), VALUES(host) BY _tsid
  * | STATS max(`rate(request)`) BY host=`VALUES(host)`
  *
- * METRICS k8s avg(rate(request)) BY host
+ * FROM k8s | STATS avg(rate(request)) BY host
  *
  * becomes
  *
- * METRICS k8s
+ * FROM k8s
  * | STATS rate(request), VALUES(host) BY _tsid
  * | STATS sum=sum(`rate(request)`), count(`rate(request)`) BY host=`VALUES(host)`
  * | EVAL `avg(rate(request))` = `sum(rate(request))` / `count(rate(request))`
  * | KEEP `avg(rate(request))`, host
  *
- * METRICS k8s avg(rate(request)) BY host, bucket(@timestamp, 1minute)
+ * FROM k8s | STATS avg(rate(request)) BY host, bucket(@timestamp, 1minute)
  *
  * becomes
  *
- * METRICS k8s
+ * FROM k8s
  * | EVAL  `bucket(@timestamp, 1minute)`=datetrunc(@timestamp, 1minute)
  * | STATS rate(request), VALUES(host) BY _tsid,`bucket(@timestamp, 1minute)`
  * | STATS sum=sum(`rate(request)`), count(`rate(request)`) BY host=`VALUES(host)`, `bucket(@timestamp, 1minute)`
@@ -88,27 +89,27 @@ import java.util.stream.Stream;
  * produced by `to_partial`. Examples:
  *
  * <pre>
- * METRICS k8s max(rate(request)), max(memory_used) becomes:
+ * FROM k8s | STATS max(rate(request)), max(memory_used) becomes:
  *
- * METRICS k8s
+ * FROM k8s
  * | STATS rate(request), $p1=to_partial(max(memory_used)) BY _tsid
  * | STATS max(`rate(request)`), `max(memory_used)` = from_partial($p1, max($_))
  *
- * METRICS k8s max(rate(request)) avg(memory_used) BY host
+ * FROM k8s | STATS max(rate(request)) avg(memory_used) BY host
  *
  * becomes
  *
- * METRICS k8s
+ * FROM k8s
  * | STATS rate(request), $p1=to_partial(sum(memory_used)), $p2=to_partial(count(memory_used)), VALUES(host) BY _tsid
  * | STATS max(`rate(request)`), $sum=from_partial($p1, sum($_)), $count=from_partial($p2, count($_)) BY host=`VALUES(host)`
  * | EVAL `avg(memory_used)` = $sum / $count
  * | KEEP `max(rate(request))`, `avg(memory_used)`, host
  *
- * METRICS k8s min(memory_used) sum(rate(request)) BY pod, bucket(@timestamp, 5m)
+ * FROM k8s | STATS min(memory_used) sum(rate(request)) BY pod, bucket(@timestamp, 5m)
  *
  * becomes
  *
- * METRICS k8s
+ * FROM k8s
  * | EVAL `bucket(@timestamp, 5m)` = datetrunc(@timestamp, '5m')
  * | STATS rate(request), $p1=to_partial(min(memory_used)), VALUES(pod) BY _tsid, `bucket(@timestamp, 5m)`
  * | STATS sum(`rate(request)`), `min(memory_used)` = from_partial($p1, min($)) BY pod=`VALUES(pod)`, `bucket(@timestamp, 5m)`
@@ -122,15 +123,7 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
     }
 
     @Override
-    protected LogicalPlan rule(Aggregate aggregate) {
-        if (aggregate.aggregateType() == Aggregate.AggregateType.METRICS) {
-            return translate(aggregate);
-        } else {
-            return aggregate;
-        }
-    }
-
-    LogicalPlan translate(Aggregate metrics) {
+    protected LogicalPlan rule(Aggregate metrics) {
         Map<Rate, Alias> rateAggs = new HashMap<>();
         List<NamedExpression> firstPassAggs = new ArrayList<>();
         List<NamedExpression> secondPassAggs = new ArrayList<>();
@@ -157,7 +150,7 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
             }
         }
         if (rateAggs.isEmpty()) {
-            return toStandardAggregate(metrics);
+            return metrics;
         }
         Holder<Attribute> tsid = new Holder<>();
         Holder<Attribute> timestamp = new Holder<>();
@@ -170,9 +163,10 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
                     timestamp.set(attr);
                 }
             }
+            tsid.set(new MetadataAttribute(r.source(), MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
         });
-        if (tsid.get() == null || timestamp.get() == null) {
-            throw new IllegalArgumentException("_tsid or @timestamp field are missing from the metrics source");
+        if (timestamp.get() == null) {
+            throw new IllegalArgumentException("@timestamp field are missing from the metrics source");
         }
         // metrics aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
         List<Expression> firstPassGroupings = new ArrayList<>();
@@ -205,24 +199,18 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
             }
             secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
         }
+        var childWithTsid = metrics.child().transformUp(EsRelation.class, r -> {
+            if (r.indexMode() == IndexMode.TIME_SERIES) {
+                return r;
+            }
+            return new EsRelation(r.source(), r.index(), CollectionUtils.appendToCopy(r.output(), tsid.get()), IndexMode.TIME_SERIES);
+        });
         return newAggregate(
-            newAggregate(metrics.child(), Aggregate.AggregateType.METRICS, firstPassAggs, firstPassGroupings),
+            newAggregate(childWithTsid, Aggregate.AggregateType.METRICS, firstPassAggs, firstPassGroupings),
             Aggregate.AggregateType.STANDARD,
             secondPassAggs,
             secondPassGroupings
         );
-    }
-
-    private static Aggregate toStandardAggregate(Aggregate metrics) {
-        final LogicalPlan child = metrics.child().transformDown(EsRelation.class, r -> {
-            var attributes = new ArrayList<>(new AttributeSet(metrics.inputSet()));
-            attributes.removeIf(a -> a.name().equals(MetadataAttribute.TSID_FIELD));
-            if (attributes.stream().noneMatch(a -> a.name().equals(MetadataAttribute.TIMESTAMP_FIELD))) {
-                attributes.removeIf(a -> a.name().equals(MetadataAttribute.TIMESTAMP_FIELD));
-            }
-            return new EsRelation(r.source(), r.index(), new ArrayList<>(attributes), IndexMode.STANDARD);
-        });
-        return new Aggregate(metrics.source(), child, Aggregate.AggregateType.STANDARD, metrics.groupings(), metrics.aggregates());
     }
 
     private static Aggregate newAggregate(

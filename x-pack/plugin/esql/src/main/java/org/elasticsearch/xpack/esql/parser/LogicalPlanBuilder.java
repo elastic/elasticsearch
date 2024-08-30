@@ -500,14 +500,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             return new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null);
         }
         final Stats stats = stats(source, ctx.grouping, ctx.aggregates);
-        var relation = new UnresolvedRelation(
-            source,
-            table,
-            false,
-            List.of(new MetadataAttribute(source, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false)),
-            IndexMode.TIME_SERIES,
-            null
-        );
+        var relation = new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null);
         return new Aggregate(source, relation, Aggregate.AggregateType.METRICS, stats.groupings, stats.aggregates);
     }
 

@@ -179,9 +179,14 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature RESOLVE_FIELDS_API = new NodeFeature("esql.resolve_fields_api");
 
+    /**
+     * Support rate aggregation in STATS
+     */
+    public static final NodeFeature RATE_AGGREGATION = new NodeFeature("esql.rate_aggregation");
+
     private Set<NodeFeature> snapshotBuildFeatures() {
         assert Build.current().isSnapshot() : Build.current();
-        return Set.of(METRICS_SYNTAX);
+        return Set.of(METRICS_SYNTAX, RATE_AGGREGATION);
     }
 
     @Override

@@ -256,14 +256,7 @@ public class Verifier {
                 // traverse the tree to find invalid matches
                 checkInvalidNamedExpressionUsage(exp, groupings, groupRefs, failures, 0);
             });
-            if (agg.aggregateType() == Aggregate.AggregateType.METRICS) {
-                aggs.forEach(a -> checkRateAggregates(a, 0, failures));
-            } else {
-                agg.forEachExpression(
-                    Rate.class,
-                    r -> failures.add(fail(r, "the rate aggregate[{}] can only be used within the metrics command", r.sourceText()))
-                );
-            }
+            aggs.forEach(a -> checkRateAggregates(a, 0, failures));
         } else {
             p.forEachExpression(
                 GroupingFunction.class,
@@ -278,13 +271,7 @@ public class Verifier {
         }
         if (expr instanceof Rate r) {
             if (nestedLevel != 2) {
-                failures.add(
-                    fail(
-                        expr,
-                        "the rate aggregate [{}] can only be used within the metrics command and inside another aggregate",
-                        r.sourceText()
-                    )
-                );
+                failures.add(fail(expr, "the rate aggregate [{}] can only be used inside another aggregate", r.sourceText()));
             }
         }
         for (Expression child : expr.children()) {

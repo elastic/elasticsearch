@@ -148,7 +148,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     public void testSimpleMetrics() {
         List<String> sortedGroups = docs.stream().map(d -> d.host).distinct().sorted().toList();
         client().admin().indices().prepareRefresh("hosts").get();
-        try (EsqlQueryResponse resp = run("METRICS hosts load=avg(cpu) BY host | SORT host")) {
+        try (EsqlQueryResponse resp = run("FROM hosts | STATS load=avg(cpu) BY host | SORT host")) {
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
             assertThat(rows, hasSize(sortedGroups.size()));
             for (int i = 0; i < rows.size(); i++) {
@@ -160,7 +160,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat((double) r.get(0), equalTo(avg));
             }
         }
-        try (EsqlQueryResponse resp = run("METRICS hosts | SORT @timestamp DESC, host | KEEP @timestamp, host, cpu | LIMIT 5")) {
+        try (EsqlQueryResponse resp = run("FROM hosts | SORT @timestamp DESC, host | KEEP @timestamp, host, cpu | LIMIT 5")) {
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
             List<Doc> topDocs = docs.stream()
                 .sorted(Comparator.comparingLong(Doc::timestamp).reversed().thenComparing(Doc::host))
@@ -195,14 +195,14 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 rates.add(v);
             }
         }
-        try (var resp = run("METRICS hosts sum(rate(request_count, 1second))")) {
+        try (var resp = run("FROM hosts | STATS sum(rate(request_count, 1second))")) {
             assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("sum(rate(request_count, 1second))", "double"))));
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             assertThat(values, hasSize(1));
             assertThat(values.get(0), hasSize(1));
             assertThat((double) values.get(0).get(0), closeTo(rates.stream().mapToDouble(d -> d).sum(), 0.1));
         }
-        try (var resp = run("METRICS hosts max(rate(request_count)), min(rate(request_count))")) {
+        try (var resp = run("FROM hosts | STATS max(rate(request_count)), min(rate(request_count))")) {
             assertThat(
                 resp.columns(),
                 equalTo(
@@ -218,7 +218,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             assertThat((double) values.get(0).get(0), closeTo(rates.stream().mapToDouble(d -> d).max().orElse(0.0), 0.1));
             assertThat((double) values.get(0).get(1), closeTo(rates.stream().mapToDouble(d -> d).min().orElse(0.0), 0.1));
         }
-        try (var resp = run("METRICS hosts max(rate(request_count)), avg(rate(request_count)), max(rate(request_count, 1minute))")) {
+        try (var resp = run("FROM hosts | STATS max(rate(request_count)), avg(rate(request_count)), max(rate(request_count, 1minute))")) {
             assertThat(
                 resp.columns(),
                 equalTo(
@@ -237,7 +237,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             assertThat((double) values.get(0).get(1), closeTo(avg, 0.1));
             assertThat((double) values.get(0).get(2), closeTo(rates.stream().mapToDouble(d -> d * 60.0).max().orElse(0.0), 0.1));
         }
-        try (var resp = run("METRICS hosts avg(rate(request_count)), avg(rate(request_count, 1second))")) {
+        try (var resp = run("FROM hosts | STATS avg(rate(request_count)), avg(rate(request_count, 1second))")) {
             assertThat(
                 resp.columns(),
                 equalTo(
@@ -254,7 +254,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             assertThat((double) values.get(0).get(0), closeTo(avg, 0.1));
             assertThat((double) values.get(0).get(1), closeTo(avg, 0.1));
         }
-        try (var resp = run("METRICS hosts max(rate(request_count)), min(rate(request_count)), min(cpu), max(cpu)")) {
+        try (var resp = run("FROM hosts | STATS max(rate(request_count)), min(rate(request_count)), min(cpu), max(cpu)")) {
             assertThat(
                 resp.columns(),
                 equalTo(
@@ -294,7 +294,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             values.add(Objects.requireNonNullElse(rate, 0.0));
         }
         List<String> sortedKeys = bucketToRates.keySet().stream().sorted().toList();
-        try (var resp = run("METRICS hosts sum(rate(request_count)) BY cluster | SORT cluster")) {
+        try (var resp = run("FROM hosts | STATS sum(rate(request_count)) BY cluster | SORT cluster")) {
             assertThat(
                 resp.columns(),
                 equalTo(List.of(new ColumnInfoImpl("sum(rate(request_count))", "double"), new ColumnInfoImpl("cluster", "keyword")))
@@ -309,7 +309,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat((double) row.get(0), closeTo(bucketToRates.get(key).stream().mapToDouble(d -> d).sum(), 0.1));
             }
         }
-        try (var resp = run("METRICS hosts avg(rate(request_count)) BY cluster | SORT cluster")) {
+        try (var resp = run("FROM hosts | STATS avg(rate(request_count)) BY cluster | SORT cluster")) {
             assertThat(
                 resp.columns(),
                 equalTo(List.of(new ColumnInfoImpl("avg(rate(request_count))", "double"), new ColumnInfoImpl("cluster", "keyword")))
@@ -330,7 +330,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
             }
         }
-        try (var resp = run("METRICS hosts avg(rate(request_count, 1minute)), avg(rate(request_count)) BY cluster | SORT cluster")) {
+        try (var resp = run("FROM hosts | STATS avg(rate(request_count, 1minute)), avg(rate(request_count)) BY cluster | SORT cluster")) {
             assertThat(
                 resp.columns(),
                 equalTo(
@@ -378,7 +378,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             }
         }
         List<Long> sortedKeys = bucketToRates.keySet().stream().sorted().limit(5).toList();
-        try (var resp = run("METRICS hosts sum(rate(request_count)) BY ts=bucket(@timestamp, 1 minute) | SORT ts | LIMIT 5")) {
+        try (var resp = run("FROM hosts | STATS sum(rate(request_count)) BY ts=bucket(@timestamp, 1 minute) | SORT ts | LIMIT 5")) {
             assertThat(
                 resp.columns(),
                 equalTo(List.of(new ColumnInfoImpl("sum(rate(request_count))", "double"), new ColumnInfoImpl("ts", "date")))
@@ -398,7 +398,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
             }
         }
-        try (var resp = run("METRICS hosts avg(rate(request_count)) BY ts=bucket(@timestamp, 1minute) | SORT ts | LIMIT 5")) {
+        try (var resp = run("FROM hosts | STATS avg(rate(request_count)) BY ts=bucket(@timestamp, 1minute) | SORT ts | LIMIT 5")) {
             assertThat(
                 resp.columns(),
                 equalTo(List.of(new ColumnInfoImpl("avg(rate(request_count))", "double"), new ColumnInfoImpl("ts", "date")))
@@ -420,7 +420,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             }
         }
         try (var resp = run("""
-            METRICS hosts avg(rate(request_count, 1minute)), avg(rate(request_count)) BY ts=bucket(@timestamp, 1minute)
+            FROM hosts
+            | STATS avg(rate(request_count, 1minute)), avg(rate(request_count)) BY ts=bucket(@timestamp, 1minute)
             | SORT ts
             | LIMIT 5
             """)) {
@@ -483,7 +484,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             .limit(5)
             .toList();
         try (var resp = run("""
-            METRICS hosts sum(rate(request_count)) BY ts=bucket(@timestamp, 1 minute), cluster
+            FROM hosts
+            | STATS sum(rate(request_count)) BY ts=bucket(@timestamp, 1 minute), cluster
             | SORT ts, cluster
             | LIMIT 5""")) {
             assertThat(
@@ -513,7 +515,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             }
         }
         try (var resp = run("""
-            METRICS hosts avg(rate(request_count)) BY ts=bucket(@timestamp, 1minute), cluster
+            FROM hosts
+            | STATS avg(rate(request_count)) BY ts=bucket(@timestamp, 1minute), cluster
             | SORT ts, cluster
             | LIMIT 5""")) {
             assertThat(
@@ -544,7 +547,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             }
         }
         try (var resp = run("""
-            METRICS hosts avg(rate(request_count, 1minute)), avg(rate(request_count)) BY ts=bucket(@timestamp, 1minute), cluster
+            FROM hosts
+            | STATS avg(rate(request_count, 1minute)), avg(rate(request_count)) BY ts=bucket(@timestamp, 1minute), cluster
             | SORT ts, cluster
             | LIMIT 5""")) {
             assertThat(
@@ -578,12 +582,12 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             }
         }
         try (var resp = run("""
-            METRICS hosts
-                    s = sum(rate(request_count)),
+            FROM hosts
+            | STATS s = sum(rate(request_count)),
                     c = count(rate(request_count)),
                     max(rate(request_count)),
                     avg(rate(request_count))
-            BY ts=bucket(@timestamp, 1minute), cluster
+              BY ts=bucket(@timestamp, 1minute), cluster
             | SORT ts, cluster
             | LIMIT 5
             | EVAL avg_rate= s/c
@@ -623,7 +627,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             }
         }
         try (var resp = run("""
-            METRICS hosts sum(rate(request_count)), max(cpu) BY ts=bucket(@timestamp, 1 minute), cluster
+            FROM hosts
+            | STATS sum(rate(request_count)), max(cpu) BY ts=bucket(@timestamp, 1 minute), cluster
             | SORT ts, cluster
             | LIMIT 5""")) {
             assertThat(
@@ -660,7 +665,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             }
         }
         try (var resp = run("""
-            METRICS hosts sum(rate(request_count)), avg(cpu) BY ts=bucket(@timestamp, 1 minute), cluster
+            FROM hosts
+            | STATS sum(rate(request_count)), avg(cpu) BY ts=bucket(@timestamp, 1 minute), cluster
             | SORT ts, cluster
             | LIMIT 5""")) {
             assertThat(
@@ -715,21 +721,21 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 rates.add(v);
             }
         }
-        try (var resp = run("METRICS hosts sum(abs(rate(request_count, 1second)))")) {
+        try (var resp = run("FROM hosts | STATS sum(abs(rate(request_count, 1second)))")) {
             assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("sum(abs(rate(request_count, 1second)))", "double"))));
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             assertThat(values, hasSize(1));
             assertThat(values.get(0), hasSize(1));
             assertThat((double) values.get(0).get(0), closeTo(rates.stream().mapToDouble(d -> d).sum(), 0.1));
         }
-        try (var resp = run("METRICS hosts sum(10.0 * rate(request_count, 1second))")) {
+        try (var resp = run("FROM hosts | STATS sum(10.0 * rate(request_count, 1second))")) {
             assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("sum(10.0 * rate(request_count, 1second))", "double"))));
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             assertThat(values, hasSize(1));
             assertThat(values.get(0), hasSize(1));
             assertThat((double) values.get(0).get(0), closeTo(rates.stream().mapToDouble(d -> d * 10.0).sum(), 0.1));
         }
-        try (var resp = run("METRICS hosts sum(20 * rate(request_count, 1second) + 10 * floor(rate(request_count, 1second)))")) {
+        try (var resp = run("FROM hosts | STATS sum(20 * rate(request_count, 1second) + 10 * floor(rate(request_count, 1second)))")) {
             assertThat(
                 resp.columns(),
                 equalTo(

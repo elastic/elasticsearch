@@ -198,7 +198,7 @@ interface FieldSpecificMatcher {
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
-                        "Values of type [scaled_float] don't match after normalization, normalized "
+                        "Values of type [unsigned_long] don't match after normalization, normalized "
                             + prettyPrintCollections(actualNormalized, expectedNormalized)
                     )
                 );

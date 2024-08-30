@@ -1513,8 +1513,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         return ChunkedToXContentBuilder.builder(params)
             .execute(
                 context == XContentContext.API
-                    ? (ChunkedToXContentBuilder b) -> b.startObject("metadata")
-                    : (ChunkedToXContentBuilder b) -> b.startObject("meta-data").field("version", version())
+                    ? b -> b.startObject("metadata")
+                    : b -> b.startObject("meta-data").field("version", version())
             )
             .append((b, p) -> {
                 b.field("cluster_uuid", clusterUUID);

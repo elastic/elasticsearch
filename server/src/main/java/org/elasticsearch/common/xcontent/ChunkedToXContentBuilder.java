@@ -81,7 +81,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
         return this;
     }
 
-    public <T> ChunkedToXContentBuilder forEach(Iterator<T> items, BiConsumer<T, ChunkedToXContentBuilder> create) {
+    public <T> ChunkedToXContentBuilder forEach(Iterator<T> items, BiConsumer<? super T, ChunkedToXContentBuilder> create) {
         items.forEachRemaining(t -> create.accept(t, this));
         return this;
     }

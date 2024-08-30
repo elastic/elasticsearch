@@ -1320,9 +1320,9 @@ public class ClusterStateTests extends ESTestCase {
 
         // nodes, nodes_versions, nodes_features
         if (metrics.contains(ClusterState.Metric.NODES)) {
-            chunkCount += 7 + clusterState.nodes().size() + clusterState.compatibilityVersions().size() + clusterState.clusterFeatures()
+            chunkCount += 7 + clusterState.nodes().size() + clusterState.compatibilityVersions().size() + (clusterState.clusterFeatures()
                 .nodeFeatures()
-                .size();
+                .size() * 4L);
         }
 
         // metadata

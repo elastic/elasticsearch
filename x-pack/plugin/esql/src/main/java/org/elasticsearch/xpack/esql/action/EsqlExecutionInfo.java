@@ -35,7 +35,8 @@ import java.util.function.Predicate;
  * Holds execution metadata about ES|QL queries.
  * The Cluster object is patterned after the SearchResponse.Cluster object.
  */
-public class EsqlExecutionInfo implements ToXContentFragment {
+
+public class EsqlExecutionInfo implements ToXContentFragment, Writeable {
     // for cross-cluster scenarios where cluster names are shown in API responses, use this string
     // rather than empty string (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) we use internally
     public static final String LOCAL_CLUSTER_NAME_REPRESENTATION = "(local)";
@@ -48,14 +49,15 @@ public class EsqlExecutionInfo implements ToXContentFragment {
     public static final ParseField PARTIAL_FIELD = new ParseField("partial");
     public static final ParseField FAILED_FIELD = new ParseField("failed");
 
-    // key to map is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
+    // map key is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
     // the Map itself is immutable after construction - all Clusters will be accounted for at the start of the search
     // updates to the Cluster occur with the updateCluster method that given the key to map transforms an
     // old Cluster Object to a new Cluster Object with the remapping function.
     public final Map<String, Cluster> clusterInfo;
-    private final Predicate<String> skipUnavailablePredicate;
-    private final long id;  // MP FIXME - TMP for my debugging
+    // not Writeable since it is only needed on the primary CCS coordinator
+    private final transient Predicate<String> skipUnavailablePredicate;
     private TimeValue overallTook;  // TODO may not want this here long term, but recording here for now
+    private final long id;  // MP FIXME - TMP for my debugging
 
     public EsqlExecutionInfo() {
         this(Predicates.always());  // default all clusters to skip_unavailable=true
@@ -70,6 +72,26 @@ public class EsqlExecutionInfo implements ToXContentFragment {
         this.skipUnavailablePredicate = skipUnavailablePredicate;
         id = ThreadLocalRandom.current().nextLong(0, 888888);
         System.err.println("ID ID ID for new EsqlExecutionInfo: [" + id + "]     ==============================");
+    }
+
+    public EsqlExecutionInfo(StreamInput in) throws IOException {
+        Long took = in.readOptionalLong();
+        if (took == null) {
+            this.overallTook = null;
+        } else {
+            this.overallTook = new TimeValue(took);
+        }
+
+        List<EsqlExecutionInfo.Cluster> clusterList = in.readCollectionAsList(EsqlExecutionInfo.Cluster::new);
+        if (clusterList.isEmpty()) {
+            this.clusterInfo = Collections.emptyMap();
+        } else {
+            Map<String, EsqlExecutionInfo.Cluster> m = ConcurrentCollections.newConcurrentMap();
+            clusterList.forEach(c -> m.put(c.getClusterAlias(), c));
+            this.clusterInfo = m;
+        }
+        this.skipUnavailablePredicate = Predicates.always();
+        this.id = -100;  // MP FIXME - remove
     }
 
     // MP FIXME - remove
@@ -124,6 +146,16 @@ public class EsqlExecutionInfo implements ToXContentFragment {
     public Cluster swapCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
         System.err.printf("SWAP SWAP SWAP [%s] cluster with ID: [%d]\n", clusterAlias, id());
         return clusterInfo.compute(clusterAlias, remappingFunction);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalLong(overallTook == null ? null : overallTook.millis());
+        if (clusterInfo != null) {
+            out.writeCollection(clusterInfo.values().stream().toList());
+        } else {
+            out.writeCollection(Collections.emptyList());
+        }
     }
 
     @Override

@@ -192,9 +192,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         EsqlQueryResponse.Profile profile = configuration.profile() ? new EsqlQueryResponse.Profile(result.profiles()) : null;
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String id = asyncTask.getExecutionId().getEncoded();
-            return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), id, false, request.async());
+            return new EsqlQueryResponse(
+                columns,
+                result.pages(),
+                profile,
+                request.columnar(),
+                id,
+                false,
+                request.async(),
+                result.executionInfo()
+            );
         }
-        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async());
+        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async(), result.executionInfo());
     }
 
     /**
@@ -247,7 +256,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             false,
             task.getExecutionId().getEncoded(),
             true, // is_running
-            true // isAsync
+            true, // isAsync
+            new EsqlExecutionInfo()
         );
     }
 

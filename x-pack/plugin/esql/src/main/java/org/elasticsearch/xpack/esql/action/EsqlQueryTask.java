@@ -17,6 +17,7 @@ import java.util.Map;
 
 public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
 
+    // TODO: probably need to pass in EsqlExecutionInfo to show partial results?
     public EsqlQueryTask(
         long id,
         String type,
@@ -33,6 +34,6 @@ public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
 
     @Override
     public EsqlQueryResponse getCurrentResult() {
-        return new EsqlQueryResponse(List.of(), List.of(), null, false, getExecutionId().getEncoded(), true, true);
+        return new EsqlQueryResponse(List.of(), List.of(), null, false, getExecutionId().getEncoded(), true, true, new EsqlExecutionInfo());
     }
 }

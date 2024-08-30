@@ -19,6 +19,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
@@ -241,12 +242,21 @@ public class TextFormatTests extends ESTestCase {
     public void testPlainTextEmptyCursorWithoutColumns() {
         assertEquals(
             StringUtils.EMPTY,
-            getTextBodyContent(PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList(), null, false, false)))
+            getTextBodyContent(
+                PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList(), null, false, false, new EsqlExecutionInfo()))
+            )
         );
     }
 
     private static EsqlQueryResponse emptyData() {
-        return new EsqlQueryResponse(singletonList(new ColumnInfoImpl("name", "keyword")), emptyList(), null, false, false);
+        return new EsqlQueryResponse(
+            singletonList(new ColumnInfoImpl("name", "keyword")),
+            emptyList(),
+            null,
+            false,
+            false,
+            new EsqlExecutionInfo()
+        );
     }
 
     private static EsqlQueryResponse regularData() {
@@ -278,7 +288,7 @@ public class TextFormatTests extends ESTestCase {
             )
         );
 
-        return new EsqlQueryResponse(headers, values, null, false, false);
+        return new EsqlQueryResponse(headers, values, null, false, false, new EsqlExecutionInfo());
     }
 
     private static EsqlQueryResponse escapedData() {
@@ -299,7 +309,7 @@ public class TextFormatTests extends ESTestCase {
             )
         );
 
-        return new EsqlQueryResponse(headers, values, null, false, false);
+        return new EsqlQueryResponse(headers, values, null, false, false, new EsqlExecutionInfo());
     }
 
     private static RestRequest req() {

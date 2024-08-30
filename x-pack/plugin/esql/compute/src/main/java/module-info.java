@@ -18,6 +18,8 @@ module org.elasticsearch.compute {
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.geo;
     requires hppc;
+    requires org.elasticsearch.ml;
+    requires org.apache.lucene.analysis.common;
 
     exports org.elasticsearch.compute;
     exports org.elasticsearch.compute.aggregation;

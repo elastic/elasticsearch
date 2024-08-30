@@ -1,0 +1,14 @@
+categorize
+FROM sample_data
+  | STATS pattern_and_count=CATEGORIZE(message)
+  | MV_EXPAND pattern_and_count 
+  | EVAL pattern=SUBSTRING(pattern_and_count,3), 
+         count=TO_LONG(SUBSTRING(pattern_and_count,1,1))
+  | DROP pattern_and_count
+;
+
+pattern:keyword  | count:long
+Connection error | 3
+Connected to     | 3
+Disconnected     | 1
+;

@@ -31,6 +31,7 @@ public abstract class AggregateFunction extends Function {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
             Avg.ENTRY,
+            Categorize.ENTRY,
             Count.ENTRY,
             CountDistinct.ENTRY,
             Max.ENTRY,

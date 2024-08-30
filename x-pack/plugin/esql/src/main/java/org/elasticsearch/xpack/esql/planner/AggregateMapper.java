@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
@@ -71,6 +72,7 @@ final class AggregateMapper {
 
     /** List of all mappable ESQL agg functions (excludes surrogates like AVG = SUM/COUNT). */
     private static final List<? extends Class<? extends Function>> AGG_FUNCTIONS = List.of(
+        Categorize.class,
         Count.class,
         CountDistinct.class,
         Max.class,
@@ -169,6 +171,8 @@ final class AggregateMapper {
         } else if (Values.class.isAssignableFrom(clazz)) {
             // TODO can't we figure this out from the function itself?
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
+        } else if (Categorize.class.isAssignableFrom(clazz)) {
+            types = List.of("BytesRef");
         } else if (Top.class.isAssignableFrom(clazz)) {
             types = List.of("Boolean", "Int", "Long", "Double", "Ip");
         } else if (Rate.class.isAssignableFrom(clazz)) {

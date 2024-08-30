@@ -9,6 +9,7 @@ base {
 }
 
 dependencies {
+  implementation project(path: ':x-pack:plugin:ml')
   compileOnly project(':server')
   compileOnly project('ann')
   annotationProcessor project('gen')

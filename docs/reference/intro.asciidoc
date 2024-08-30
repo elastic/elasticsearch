@@ -1,42 +1,70 @@
 [[elasticsearch-intro]]
 == What is {es}?
-_**You know, for search (and analysis)**_
 
-{es} is the distributed search and analytics engine at the heart of
-the {stack}. {ls} and {beats} facilitate collecting, aggregating, and
-enriching your data and storing it in {es}. {kib} enables you to
-interactively explore, visualize, and share insights into your data and manage
-and monitor the stack. {es} is where the indexing, search, and analysis
-magic happens.
+{es-repo}[{es}] is a distributed search and analytics engine, scalable data store, and vector database built on Apache Lucene.
+It's optimized for speed and relevance on production-scale workloads.
+Use {es} to search, index, store, and analyze data of all shapes and sizes in near real time.
 
-{es} provides near real-time search and analytics for all types of data. Whether you
-have structured or unstructured text, numerical data, or geospatial data,
-{es} can efficiently store and index it in a way that supports fast searches.
-You can go far beyond simple data retrieval and aggregate information to discover
-trends and patterns in your data. And as your data and query volume grows, the
-distributed nature of {es} enables your deployment to grow seamlessly right
-along with it.
+[TIP]
+====
+{es} has a lot of features. Explore the full list on the https://www.elastic.co/elasticsearch/features[product webpage^].
+====
 
-While not _every_ problem is a search problem, {es} offers speed and flexibility
-to handle data in a wide variety of use cases:
+{es} is the heart of the {estc-welcome-current}/stack-components.html[Elastic Stack] and powers the Elastic https://www.elastic.co/enterprise-search[Search], https://www.elastic.co/observability[Observability] and https://www.elastic.co/security[Security] solutions.
 
-* Add a search box to an app or website
-* Store and analyze logs, metrics, and security event data
-* Use machine learning to automatically model the behavior of your data in real
-  time
-* Use {es} as a vector database to create, store, and search vector embeddings
-* Automate business workflows using {es} as a storage engine
-* Manage, integrate, and analyze spatial information using {es} as a geographic
-  information system (GIS)
-* Store and process genetic data using {es} as a bioinformatics research tool
+{es} is used for a wide and growing range of use cases. Here are a few examples:
 
-We’re continually amazed by the novel ways people use search. But whether
-your use case is similar to one of these, or you're using {es} to tackle a new
-problem, the way you work with your data, documents, and indices in {es} is
-the same.
+* *Monitor log and event data*. Store logs, metrics, and event data for observability and security information and event management (SIEM).
+* *Build search applications*. Add search capabilities to apps or websites, or build enterprise search engines over your organization's internal data sources.
+* *Vector database*. Store and search vectorized data, and create vector embeddings with built-in and third-party natural language processing (NLP) models.
+* *Retrieval augmented generation (RAG)*. Use {es} as a retrieval engine to augment Generative AI models.
+* *Application and security monitoring*. Monitor and analyze application performance and security data effectively.
+* *Machine learning*. Use {ml} to automatically model the behavior of your data in real-time.
+
+This is just a sample of search, observability, and security use cases enabled by {es}. 
+Refer to our https://www.elastic.co/customers/success-stories[customer success stories] for concrete examples across a range of industries.
+// Link to demos, search labs chatbots
+
+[discrete]
+[[elasticsearch-intro-elastic-stack]]
+.What is the Elastic Stack?
+*******************************
+{es} is the core component of the Elastic Stack, a suite of products for collecting, storing, searching, and visualizing data.
+https://www.elastic.co/guide/en/starting-with-the-elasticsearch-platform-and-its-solutions/current/stack-components.html[Learn more about the Elastic Stack].
+*******************************
+// TODO: Remove once we've moved Stack Overview to a subpage?
+
+[discrete]
+[[elasticsearch-intro-deploy]]
+=== Deployment options
+
+To use {es}, you need a running instance of the {es} service.
+You can deploy {es} in various ways:
+
+* <<run-elasticsearch-locally,*Local dev*>>. Get started quickly with a minimal local Docker setup. 
+* {cloud}/ec-getting-started-trial.html[*Elastic Cloud*]. {es} is available as part of our hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14 day free trial].
+* {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless* (technical preview)]. Create serverless projects for autoscaled and fully managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14 day free trial].
+
+**Advanced deployment options**
+
+* <<elasticsearch-deployment-options,*Self-managed*>>. Install, configure, and run {es} on your own premises.
+* {ece-ref}/Elastic-Cloud-Enterprise-overview.html[*Elastic Cloud Enterprise*]. Deploy Elastic Cloud on public or private clouds, virtual machines, or your own premises.
+* {eck-ref}/k8s-overview.html[*Elastic Cloud on Kubernetes*]. Deploy Elastic Cloud on Kubernetes.
+
+[discrete]
+[[elasticsearch-next-steps]]
+=== Learn more
+
+Here are some resources to help you get started:
+
+* <<getting-started, Quickstart>>. A beginner's guide to deploying your first {es} instance, indexing data, and running queries.
+* https://elastic.co/webinars/getting-started-elasticsearch[Webinar: Introduction to {es}]. Register for our live webinars to learn directly from {es} experts.
+* https://www.elastic.co/search-labs[Elastic Search Labs]. Tutorials and blogs that explore AI-powered search using the latest {es} features.
+** Follow our tutorial https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[to build a hybrid search solution in Python].
+** Check out the https://github.com/elastic/elasticsearch-labs?tab=readme-ov-file#elasticsearch-examples--apps[`elasticsearch-labs` repository] for a range of Python notebooks and apps for various use cases.
 
 [[documents-indices]]
-=== Data in: documents and indices
+=== Documents and indices
 
 {es} is a distributed document store. Instead of storing information as rows of
 columnar data, {es} stores complex data structures that have been serialized
@@ -65,8 +93,7 @@ behavior makes it easy to index and explore your data--just start
 indexing documents and {es} will detect and map booleans, floating point and
 integer values, dates, and strings to the appropriate {es} data types.
 
-Ultimately, however, you know more about your data and how you want to use it
-than {es} can. You can define rules to control dynamic mapping and explicitly
+You can define rules to control dynamic mapping and explicitly
 define mappings to take full control of how fields are stored and indexed.
 
 Defining your own mappings enables you to:
@@ -89,7 +116,7 @@ used at search time. When you query a full-text field, the query text undergoes
 the same analysis before the terms are looked up in the index.
 
 [[search-analyze]]
-=== Information out: search and analyze
+=== Search and analyze
 
 While you can use {es} as a document store and retrieve documents and their
 metadata, the real power comes from being able to easily access the full suite
@@ -160,27 +187,8 @@ size 70 needles, you’re displaying a count of the size 70 needles
 that match your users' search criteria--for example, all size 70 _non-stick
 embroidery_ needles.
 
-[discrete]
-[[more-features]]
-===== But wait, there’s more
-
-Want to automate the analysis of your time series data? You can use
-{ml-docs}/ml-ad-overview.html[machine learning] features to create accurate
-baselines of normal behavior in your data and identify anomalous patterns. With
-machine learning, you can detect:
-
-* Anomalies related to temporal deviations in values, counts, or frequencies
-* Statistical rarity
-* Unusual behaviors for a member of a population
-
-And the best part? You can do this without having to specify algorithms, models,
-or other data science-related configurations.
-
 [[scalability]]
-=== Scalability and resilience: clusters, nodes, and shards
-++++
-<titleabbrev>Scalability and resilience</titleabbrev>
-++++
+=== Scalability and resilience
 
 {es} is built to be always available and to scale with your needs. It does this
 by being distributed by nature. You can add servers (nodes) to a cluster to
@@ -209,7 +217,7 @@ interrupting indexing or query operations.
 
 [discrete]
 [[it-depends]]
-==== It depends...
+==== Shard size and number of shards
 
 There are a number of performance considerations and trade offs with respect
 to shard size and the number of primary shards configured for an index. The more
@@ -237,7 +245,7 @@ testing with your own data and queries].
 
 [discrete]
 [[disaster-ccr]]
-==== In case of disaster
+==== Disaster recovery
 
 A cluster's nodes need good, reliable connections to each other. To provide
 better connections, you typically co-locate the nodes in the same data center or
@@ -257,7 +265,7 @@ secondary clusters are read-only followers.
 
 [discrete]
 [[admin]]
-==== Care and feeding
+==== Security, management, and monitoring
 
 As with any enterprise system, you need tools to secure, manage, and
 monitor your {es} clusters. Security, monitoring, and administrative features
@@ -265,3 +273,5 @@ that are integrated into {es} enable you to use {kibana-ref}/introduction.html[{
 as a control center for managing a cluster. Features like <<downsampling,
 downsampling>> and <<index-lifecycle-management, index lifecycle management>>
 help you intelligently manage your data over time.
+
+Refer to <<monitor-elasticsearch-cluster>> for more information.

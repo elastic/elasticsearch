@@ -240,7 +240,7 @@ public class Iterators {
      */
     public static <T> Iterator<T> limit(Iterator<? extends T> input, int n) {
         assert n >= 0 : "negative limit";
-        if (input.hasNext()) {
+        if (n > 0 && input.hasNext()) {
             return new LimitIterator<>(input, n);
         } else {
             return Collections.emptyIterator();
@@ -259,7 +259,7 @@ public class Iterators {
 
         @Override
         public boolean hasNext() {
-            return input.hasNext() && current < limit;
+            return current < limit && input.hasNext();
         }
 
         @Override
@@ -276,9 +276,14 @@ public class Iterators {
      * Returns a list containing the elements of the provided {@code iterator}.
      */
     public static <T> List<T> toList(Iterator<T> iterator) {
-        var list = new ArrayList<T>();
-        iterator.forEachRemaining(list::add);
-        return list;
+        if (iterator.hasNext()) {
+            var list = new ArrayList<T>();
+            while (iterator.hasNext()) {
+                list.add(iterator.next());
+            }
+            return Collections.unmodifiableList(list);
+        }
+        return Collections.emptyList();
     }
 
     public static <T, U> Iterator<U> flatMap(Iterator<? extends T> input, Function<T, Iterator<? extends U>> fn) {

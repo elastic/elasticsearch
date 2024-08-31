@@ -56,12 +56,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 public class RepositoryIntegrityVerifier {
     private static final Logger logger = LogManager.getLogger(RepositoryIntegrityVerifier.class);
 
+    private final LongSupplier currentTimeMillisSupplier;
     private final BlobStoreRepository blobStoreRepository;
     private final RepositoryVerifyIntegrityResponseChunk.Writer responseChunkWriter;
     private final String repositoryName;
@@ -86,12 +88,14 @@ public class RepositoryIntegrityVerifier {
     private final Set<String> failedShardSnapshotDescriptions = ConcurrentCollections.newConcurrentSet();
 
     RepositoryIntegrityVerifier(
+        LongSupplier currentTimeMillisSupplier,
         BlobStoreRepository blobStoreRepository,
         RepositoryVerifyIntegrityResponseChunk.Writer responseChunkWriter,
         RepositoryVerifyIntegrityParams requestParams,
         RepositoryData repositoryData,
         CancellableThreads cancellableThreads
     ) {
+        this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.blobStoreRepository = blobStoreRepository;
         this.repositoryName = blobStoreRepository.getMetadata().name();
         this.responseChunkWriter = responseChunkWriter;
@@ -271,11 +275,12 @@ public class RepositoryIntegrityVerifier {
             void verifySnapshotInfo(SnapshotInfo snapshotInfo, ActionListener<Void> listener) {
                 final var chunkBuilder = new RepositoryVerifyIntegrityResponseChunk.Builder(
                     responseChunkWriter,
-                    RepositoryVerifyIntegrityResponseChunk.Type.SNAPSHOT_INFO
+                    RepositoryVerifyIntegrityResponseChunk.Type.SNAPSHOT_INFO,
+                    currentTimeMillisSupplier.getAsLong()
                 ).snapshotInfo(snapshotInfo);
 
                 // record the SnapshotInfo in the response
-                final var chunkWrittenStep = SubscribableListener.<Void>newForked(chunkBuilder::write);
+                final var chunkWrittenStep = SubscribableListener.newForked(chunkBuilder::write);
 
                 if (failedShardSnapshotsCount.get() < requestParams.maxFailedShardSnapshots()) {
                     for (final var shardFailure : snapshotInfo.shardFailures()) {
@@ -392,7 +397,8 @@ public class RepositoryIntegrityVerifier {
                     ensureNotCancelled();
                     new RepositoryVerifyIntegrityResponseChunk.Builder(
                         responseChunkWriter,
-                        RepositoryVerifyIntegrityResponseChunk.Type.INDEX_RESTORABILITY
+                        RepositoryVerifyIntegrityResponseChunk.Type.INDEX_RESTORABILITY,
+                        currentTimeMillisSupplier.getAsLong()
                     ).indexRestorability(indexId, totalSnapshotCounter.get(), restorableSnapshotCounter.get()).write(l);
                 })
                 .addListener(listener);
@@ -806,8 +812,11 @@ public class RepositoryIntegrityVerifier {
     }
 
     private RepositoryVerifyIntegrityResponseChunk.Builder anomaly(String anomaly) {
-        return new RepositoryVerifyIntegrityResponseChunk.Builder(responseChunkWriter, RepositoryVerifyIntegrityResponseChunk.Type.ANOMALY)
-            .anomaly(anomaly);
+        return new RepositoryVerifyIntegrityResponseChunk.Builder(
+            responseChunkWriter,
+            RepositoryVerifyIntegrityResponseChunk.Type.ANOMALY,
+            currentTimeMillisSupplier.getAsLong()
+        ).anomaly(anomaly);
     }
 
     public long getSnapshotCount() {

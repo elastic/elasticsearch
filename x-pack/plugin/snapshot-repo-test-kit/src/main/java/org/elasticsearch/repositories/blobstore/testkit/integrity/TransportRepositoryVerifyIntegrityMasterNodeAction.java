@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.function.LongSupplier;
 
 public class TransportRepositoryVerifyIntegrityMasterNodeAction extends HandledTransportAction<
     TransportRepositoryVerifyIntegrityMasterNodeAction.Request,
@@ -117,6 +118,7 @@ public class TransportRepositoryVerifyIntegrityMasterNodeAction extends HandledT
             }
         };
 
+        final LongSupplier currentTimeMillisSupplier = transportService.getThreadPool()::absoluteTimeInMillis;
         final var repository = (BlobStoreRepository) repositoriesService.repository(request.requestParams.repository());
         final var task = (RepositoryVerifyIntegrityTask) rawTask;
 
@@ -127,6 +129,7 @@ public class TransportRepositoryVerifyIntegrityMasterNodeAction extends HandledT
                 final var cancellableThreads = new CancellableThreads();
                 task.addListener(() -> cancellableThreads.cancel("task cancelled"));
                 final var verifier = new RepositoryIntegrityVerifier(
+                    currentTimeMillisSupplier,
                     repository,
                     responseWriter,
                     request.requestParams.withResolvedDefaults(repository.threadPool().info(ThreadPool.Names.SNAPSHOT_META)),
@@ -139,7 +142,8 @@ public class TransportRepositoryVerifyIntegrityMasterNodeAction extends HandledT
             .<RepositoryIntegrityVerifier>andThen(
                 (l, repositoryIntegrityVerifier) -> new RepositoryVerifyIntegrityResponseChunk.Builder(
                     responseWriter,
-                    RepositoryVerifyIntegrityResponseChunk.Type.START_RESPONSE
+                    RepositoryVerifyIntegrityResponseChunk.Type.START_RESPONSE,
+                    currentTimeMillisSupplier.getAsLong()
                 ).write(l.map(ignored -> repositoryIntegrityVerifier))
             )
             .<RepositoryVerifyIntegrityResponse>andThen((l, repositoryIntegrityVerifier) -> repositoryIntegrityVerifier.start(l))

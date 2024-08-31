@@ -44,6 +44,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -58,22 +59,29 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.LongStream;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX_SHARD_SNAPSHOTS_FORMAT;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
 
@@ -92,19 +100,36 @@ public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    private static long getCurrentTime(Function<LongStream, OptionalLong> summarizer) {
+        return summarizer.apply(
+            StreamSupport.stream(internalCluster().getInstances(ThreadPool.class).spliterator(), false)
+                .mapToLong(ThreadPool::absoluteTimeInMillis)
+        ).orElseThrow(AssertionError::new);
+    }
+
     public void testSuccess() throws IOException {
+        final var minStartTimeMillis = getCurrentTime(LongStream::min);
         final var testContext = createTestContext();
         final var request = testContext.getVerifyIntegrityRequest();
         if (randomBoolean()) {
             request.addParameter("verify_blob_contents", null);
         }
         final var response = getRestClient().performRequest(request);
+        final var maxEndTimeMillis = getCurrentTime(LongStream::max);
         assertEquals(200, response.getStatusLine().getStatusCode());
         final var responseObjectPath = ObjectPath.createFromResponse(response);
         final var logEntryCount = responseObjectPath.evaluateArraySize("log");
         final var seenSnapshotNames = new HashSet<String>();
         final var seenIndexNames = new HashSet<String>();
         for (int i = 0; i < logEntryCount; i++) {
+            assertThat(
+                responseObjectPath.evaluate("log." + i + ".timestamp_in_millis"),
+                allOf(greaterThanOrEqualTo(minStartTimeMillis), lessThanOrEqualTo(maxEndTimeMillis))
+            );
+            assertThat(
+                responseObjectPath.evaluate("log." + i + ".timestamp"),
+                request.getParameters().containsKey("human") ? instanceOf(String.class) : nullValue()
+            );
             final String maybeSnapshotName = responseObjectPath.evaluate("log." + i + ".snapshot.snapshot");
             if (maybeSnapshotName != null) {
                 assertTrue(seenSnapshotNames.add(maybeSnapshotName));

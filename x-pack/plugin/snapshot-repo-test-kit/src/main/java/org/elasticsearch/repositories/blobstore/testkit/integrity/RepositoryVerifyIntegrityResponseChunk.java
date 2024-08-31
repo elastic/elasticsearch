@@ -53,6 +53,7 @@ import java.util.Objects;
  * @param exception an exception which relates to the failure described by this chunk, or {@code null} if not applicable.
  */
 public record RepositoryVerifyIntegrityResponseChunk(
+    long timestampMillis,
     Type type,
     @Nullable String anomaly,
     @Nullable SnapshotId snapshotId,
@@ -111,6 +112,7 @@ public record RepositoryVerifyIntegrityResponseChunk(
 
     public RepositoryVerifyIntegrityResponseChunk(StreamInput in) throws IOException {
         this(
+            in.readVLong(),
             // TODO enum serialization tests
             in.readEnum(Type.class),
             in.readOptionalString(),
@@ -134,6 +136,7 @@ public record RepositoryVerifyIntegrityResponseChunk(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(timestampMillis);
         out.writeEnum(type);
         out.writeOptionalString(anomaly);
         out.writeOptionalWriteable(snapshotId);
@@ -155,6 +158,8 @@ public record RepositoryVerifyIntegrityResponseChunk(
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.timeField("timestamp_in_millis", "timestamp", timestampMillis);
+
         if (anomaly() != null) {
             builder.field("anomaly", anomaly());
         }
@@ -217,6 +222,7 @@ public record RepositoryVerifyIntegrityResponseChunk(
     static class Builder {
         private final Writer responseWriter;
         private final Type type;
+        private final long timestampMillis;
 
         private String anomaly;
         private SnapshotId snapshotId;
@@ -235,9 +241,10 @@ public record RepositoryVerifyIntegrityResponseChunk(
         private int restorableSnapshotCount = -1;
         private Exception exception;
 
-        Builder(Writer responseWriter, Type type) {
+        Builder(Writer responseWriter, Type type, long timestampMillis) {
             this.responseWriter = responseWriter;
             this.type = type;
+            this.timestampMillis = timestampMillis;
         }
 
         Builder anomaly(String anomaly) {
@@ -318,6 +325,7 @@ public record RepositoryVerifyIntegrityResponseChunk(
         void write(ActionListener<Void> listener) {
             responseWriter.writeResponseChunk(
                 new RepositoryVerifyIntegrityResponseChunk(
+                    timestampMillis,
                     type,
                     anomaly,
                     snapshotId,

@@ -624,7 +624,6 @@ public class RepositoryIntegrityVerifier {
 
                     for (final var snapshotFile : blobStoreIndexShardSnapshot.indexFiles()) {
                         if (summaryFilesByPhysicalName.get(snapshotFile.physicalName()) == null) {
-                            // TODO test needed
                             anomaly("blob in snapshot but not shard generation").snapshotId(snapshotId)
                                 .shardDescription(indexDescription, shardId)
                                 .shardGeneration(shardContainerContents.shardGeneration())

@@ -178,20 +178,15 @@ public final class NestedHelper {
     }
 
     public static Term getTermInSetTerm(TermInSetQuery tisQuery) {
-        try {
-            if (tisQuery.getTermsCount() == 1) {
-                final SetOnce<Term> collectedTerm = new SetOnce<>();
-                tisQuery.visit(new QueryVisitor() {
-                    @Override
-                    public void consumeTerms(Query query, Term... terms) {
-                        collectedTerm.set(terms[0]);
-                    }
-                });
-                return collectedTerm.get();
-            }
-            return null;
-        } catch (IOException e) {
-            // TODO should never happen, remove throwing IOException from TermInSetQuery in Lucene
+        if (tisQuery.getTermsCount() == 1) {
+            final SetOnce<Term> collectedTerm = new SetOnce<>();
+            tisQuery.visit(new QueryVisitor() {
+                @Override
+                public void consumeTerms(Query query, Term... terms) {
+                    collectedTerm.set(terms[0]);
+                }
+            });
+            return collectedTerm.get();
         }
         return null;
     }

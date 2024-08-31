@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 public class Space extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Space", Space::new);
 
-    static final long MAX_LENGTH = MB.toBytes(1);
+    private static final long MAX_LENGTH = MB.toBytes(1);
 
     @FunctionInfo(
         returnType = "keyword",

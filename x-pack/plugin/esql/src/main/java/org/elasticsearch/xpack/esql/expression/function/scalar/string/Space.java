@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
@@ -85,10 +86,8 @@ public class Space extends UnaryScalarFunction {
     static BytesRef process(@Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch, int number) {
         checkNumber(number);
         scratch.grow(number);
-        scratch.clear();
-        for (int i = 0; i < number; ++i) {
-            scratch.append((byte) ' ');
-        }
+        scratch.setLength(number);
+        Arrays.fill(scratch.bytes(), 0, number, (byte) ' ');
         return scratch.bytesRefView();
     }
 

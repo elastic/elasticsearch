@@ -46,18 +46,49 @@ repository, looking for any anomalies in its data or metadata which might
 prevent you from restoring snapshots from the repository or which might cause
 future snapshot create or delete operations to fail.
 
-The default values for the parameters of this API are designed to limit the
-impact of the integrity verification on other activities in your cluster. For
-instance, by default it will only use at most half of the `snapshot_meta`
-threads to verify the integrity of each snapshot, allowing other snapshot
-operations to use the other half of this thread pool.
+If you suspect the integrity of the contents of one of your snapshot
+repositories, cease all write activity to this repository immediately, set its
+`read_only` option to `true`, and use this API to verify its integrity. Until
+you do so:
 
-You should avoid any operations which write to the repository while this API is
-running. If something changes the repository contents while an integrity
-verification is running then {es} may incorrectly report having detected some
-anomalies in its contents due to the concurrent writes. It may also incorrectly
-fail to report some anomalies that the concurrent writes prevented it from
-detecting.
+* It may not be possible to <<snapshots-restore-snapshot,restore some
+  snapshots>> from this repository.
+
+* <<searchable-snapshots>> may report errors when searched, or may have
+  unassigned shards.
+
+* <<snapshots-take-snapshot,Taking snapshots>> into this repository may fail,
+  or may appear to succeed having created a snapshot which cannot be restored.
+
+* <<delete-snapshot-api,Deleting snapshots>> from this repository may fail, or
+  may appear to succeed leaving the underlying data on disk.
+
+* Continuing to write to the repository while it is in an invalid state may
+  causing additional damage to its contents.
+
+If the <<verify-repo-integrity-api>> API finds any problems with the integrity
+of the contents of your repository, {es} will not be able to repair the damage.
+The only way to bring the repository back into a fully working state after its
+contents have been damaged is by restoring its contents from a
+<<snapshots-repository-backup,repository backup>> which was taken before the
+damage occurred. You must also identify what caused the damage and take action
+to prevent it from happening again.
+
+If you cannot restore a repository backup,
+<<snapshots-register-repository,register a new repository>> and use this for
+all future snapshot operations. In some cases it may be possible to recover
+some of the contents of a damaged repository, either by
+<<snapshots-restore-snapshot,restoring>> as many of its snapshots as needed and
+<<snapshots-take-snapshot,taking new snapshots>> of the restored data, or by
+using the <<docs-reindex>> API to copy data from any <<searchable-snapshots>>
+mounted from the damaged repository.
+
+Avoid all operations which write to the repository while the
+<<verify-repo-integrity-api>> API is running. If something changes the
+repository contents while an integrity verification is running then {es} may
+incorrectly report having detected some anomalies in its contents due to the
+concurrent writes. It may also incorrectly fail to report some anomalies that
+the concurrent writes prevented it from detecting.
 
 NOTE: This API is intended for exploratory use by humans. You should expect the
 request parameters and the response format to vary in future versions.
@@ -73,6 +104,17 @@ Name of the snapshot repository whose integrity to verify.
 
 [[verify-repo-integrity-api-query-params]]
 ==== {api-query-parms-title}
+
+The default values for the parameters of this API are designed to limit the
+impact of the integrity verification on other activities in your cluster. For
+instance, by default it will only use at most half of the `snapshot_meta`
+threads to verify the integrity of each snapshot, allowing other snapshot
+operations to use the other half of this thread pool.
+
+If you modify these parameters to speed up the verification process, you risk
+disrupting other snapshot-related operations in your cluster. For large
+repositories, consider setting up a separate single-node {es} cluster just for
+running the integrity verification API.
 
 `snapshot_verification_concurrency`::
 (Optional, integer) Specifies the number of snapshots to verify concurrently.
@@ -127,6 +169,15 @@ stable and may be different in newer versions.
 .Properties of `log`
 [%collapsible%open]
 ====
+`timestamp_in_millis`::
+(integer) The timestamp of this log entry, represented as the number of
+milliseconds since the {wikipedia}/Unix_time[Unix epoch].
+
+`timestamp`::
+(string) The timestamp of this log entry, represented as a string formatted
+according to {wikipedia}/ISO_8601[ISO 8601]. Only included if the
+<<common-options,`?human`>> flag is set.
+
 `snapshot`::
 (object) If the log entry pertains to a particular snapshot then the snapshot
 will be described in this object.

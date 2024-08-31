@@ -135,10 +135,6 @@ will be described in this object.
 (object) If the log entry pertains to a particular index then the index will be
 described in this object.
 
-`index`::
-(object) If the log entry pertains to a particular index then the index will be
-described in this object.
-
 `snapshot_restorability`::
 (object) If the log entry pertains to the restorability of an index then the
 details will be described in this object.

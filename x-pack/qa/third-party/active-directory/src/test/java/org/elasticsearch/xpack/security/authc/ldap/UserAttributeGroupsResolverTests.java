@@ -11,7 +11,6 @@ import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.SearchRequest;
 import com.unboundid.ldap.sdk.SearchScope;
 
-import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.fixtures.smb.SmbTestContainer;

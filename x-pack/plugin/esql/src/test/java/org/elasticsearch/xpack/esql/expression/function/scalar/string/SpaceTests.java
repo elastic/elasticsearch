@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SpaceTests extends AbstractScalarFunctionTestCase {
@@ -35,25 +34,15 @@ public class SpaceTests extends AbstractScalarFunctionTestCase {
 
         List<TestCaseSupplier> cases = new ArrayList<>();
 
-        cases.add(new TestCaseSupplier("Space basic test", List.of(DataType.INTEGER), () -> {
-            int number = between(0, 10);
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(number, DataType.INTEGER, "number")),
-                "SpaceEvaluator[number=Attribute[channel=0]]",
-                DataType.KEYWORD,
-                equalTo(new BytesRef(" ".repeat(number)))
-            );
-        }));
-
-        cases.add(new TestCaseSupplier("Space with number zero", List.of(DataType.INTEGER), () -> {
-            int number = 0;
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(number, DataType.INTEGER, "number")),
-                "SpaceEvaluator[number=Attribute[channel=0]]",
-                DataType.KEYWORD,
-                equalTo(new BytesRef(""))
-            );
-        }));
+        TestCaseSupplier.forUnaryInt(
+            cases,
+            "SpaceEvaluator[number=Attribute[channel=0]]",
+            DataType.KEYWORD,
+            i -> new BytesRef(" ".repeat(i)),
+            0,
+            10,
+            List.of()
+        );
 
         cases.add(new TestCaseSupplier("Space with negative number", List.of(DataType.INTEGER), () -> {
             int number = randomIntBetween(-10, -1);
@@ -82,9 +71,7 @@ public class SpaceTests extends AbstractScalarFunctionTestCase {
                 .withFoldingException(IllegalArgumentException.class, "Creating strings longer than [" + max + "] bytes is not supported");
         }));
 
-        cases = anyNullIsNull(true, cases);
-        cases = errorsForCasesWithoutExamples(cases, (v, p) -> "integer");
-        return parameterSuppliersFromTypedData(cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases, (v, p) -> "integer");
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
@@ -42,6 +43,7 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
@@ -76,7 +78,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     public static final String SECURITY_INDEX = "security";
 
     @ClassRule
-    public static final SmbTestContainer smbFixture = new SmbTestContainer();
+    public static final SmbTestContainer smbFixture = SmbTestContainer.create();
 
     private static final RoleMappingEntry[] AD_ROLE_MAPPING = new RoleMappingEntry[] {
         new RoleMappingEntry("SHIELD:  [ \"CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]", """

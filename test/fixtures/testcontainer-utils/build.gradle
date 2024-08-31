@@ -5,7 +5,8 @@ configurations.all {
 }
 
 dependencies {
-  testImplementation project(':test:framework')
+  implementation project(':libs:elasticsearch-core')
+  implementation project(':test:framework')
   api "junit:junit:${versions.junit}"
   api "org.testcontainers:testcontainers:${versions.testcontainer}"
   implementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"

@@ -30,7 +30,9 @@ import org.elasticsearch.test.mockito.SecureMockMaker;
 import org.junit.Assert;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.lang.invoke.MethodHandles;
 import java.net.SocketPermission;
 import java.net.URL;
@@ -52,6 +54,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
@@ -349,19 +352,17 @@ public class BootstrapForTesting {
     public static void ensureInitialized() {}
 
     /**
-     * Temporarily dsiables security manager for a test.
-     *
-     * <p> This method is only callable by {@link org.elasticsearch.test.ESTestCase}.
+     * Temporarily disables security manager for a test.
      *
      * @return A closeable object which restores the test security manager
      */
     @SuppressWarnings("removal")
     public static Closeable disableTestSecurityManager() {
-        var caller = Thread.currentThread().getStackTrace()[2];
-        if (ESTestCase.class.getName().equals(caller.getClassName()) == false) {
-            throw new SecurityException("Cannot disable test SecurityManager directly. Use @NoSecurityManager to disable on a test suite");
-        }
         final var sm = System.getSecurityManager();
+        if (sm == null) {
+            throw new SecurityException("SecurityManager already disabled. This is indicative of a test bug. " +
+                "Please ensure callers to this method close the returned Closeable.");
+        }
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             Security.setSecurityManager(null);
             return null;
@@ -370,5 +371,29 @@ public class BootstrapForTesting {
             Security.setSecurityManager(sm);
             return null;
         });
+    }
+
+    /**
+     * Runs the given action, returning the produced object, without the security manager.
+     * This is a convenience method for {@link #disableTestSecurityManager()}.
+     */
+    public static <T> T doWithSecurityManagerDisabled(Supplier<T> action) {
+        try (var ignore = BootstrapForTesting.disableTestSecurityManager()) {
+            return action.get();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Runs the given action without the security manager.
+     * This is a convenience method for {@link #disableTestSecurityManager()}.
+     */
+    public static void doWithSecurityManagerDisabled(Runnable action) {
+        try (var ignore = BootstrapForTesting.disableTestSecurityManager()) {
+            action.run();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

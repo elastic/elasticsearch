@@ -322,7 +322,7 @@ rtrim         |Removes trailing whitespaces from a string.
 signum        |Returns the sign of the given number. It returns `-1` for negative numbers, `0` for `0` and `1` for positive numbers.
 sin           |Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric function of an angle.
 sinh          |Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of an angle.
-space         |Returns a string of `number` spaces.
+space         |Returns a string made of `number` spaces.
 split         |Split a single valued string into multiple strings.
 sqrt          |Returns the square root of a number. The input can be any numeric value, the return value is always a double. Square roots of negative numbers and infinities are null.
 st_centroid_ag|Calculate the spatial centroid over a field with spatial point geometry type.

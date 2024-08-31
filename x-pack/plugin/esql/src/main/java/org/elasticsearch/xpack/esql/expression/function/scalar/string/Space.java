@@ -43,7 +43,7 @@ public class Space extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Returns a string of `number` spaces.",
+        description = "Returns a string made of `number` spaces.",
         examples = @Example(file = "string", tag = "space")
     )
     public Space(

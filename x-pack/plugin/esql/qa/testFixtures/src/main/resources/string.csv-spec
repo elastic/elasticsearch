@@ -1668,3 +1668,16 @@ warning:Line 1:51: java.lang.IllegalArgumentException: Number parameter cannot b
 s:keyword
 null
 ;
+
+spaceComplex
+required_capability: space
+ROW x = 1+2+3, y = null | EVAL z = x + 5 | LIMIT 1
+| EVAL xs = SPACE(x), xsc = CONCAT("<",xs,">"),
+       xn = SPACE(null),
+       xz = SPACE(z), xzc = CONCAT("<",xz,">"),
+       lxz = LENGTH(xz), lxs = LENGTH(xs), ltr = LENGTH(TRIM(xz))
+| DROP xs, xz;
+
+x:integer | y:null | z:integer | xsc:keyword | xn:keyword | xzc:keyword | lxz:integer | lxs:integer | ltr:integer
+6 | null |  11 | <      > | null | <           > | 11 | 6 | 0
+;

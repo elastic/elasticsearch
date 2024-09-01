@@ -73,16 +73,19 @@ Some resources to help you get started:
 The index is the fundamental unit of storage in {es}, a logical namespace for storing data that share similar characteristics.
 After you have {es} <<elasticsearch-intro-deploy,deployed>>, you'll get started by creating an index to store your data.
 
+[TIP]
+====
 A closely related concept is a <<data-streams,data stream>>.
 This index abstraction is optimized for append-only time-series data, and is made up of hidden, auto-generated backing indices.
+If you're working with time-series data, we recommend the {observability-guide}[Elastic Observability] solution.
+====
 
-Some key facts:
+Some key facts about indices:
 
 * An index is a collection of documents
 * An index has a unique name
 * An index can also be referred to by an alias
 * An index has a mapping that defines the schema of its documents
-* An index has settings for management and optimization 
 
 [discrete]
 [[elasticsearch-intro-documents-fields]]
@@ -136,7 +139,7 @@ The most important metadata fields are:
 
 [discrete]
 [[elasticsearch-intro-documents-fields-mappings]]
-==== Mappings
+==== Mappings and data types
 
 Each index has a <<mapping,mapping>> or schema for how the fields in your documents are indexed.
 A mapping defines the <<mapping-types,data type>> for each field, how the field should be indexed,

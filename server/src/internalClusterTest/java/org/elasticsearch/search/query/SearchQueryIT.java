@@ -1922,7 +1922,9 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     /**
-     * Test correct handling {@link SpanBooleanQueryRewriteWithMaxClause#rewrite(IndexSearcher, MultiTermQuery)}. That rewrite method is e.g.
+     * Test correct handling
+     * {@link SpanBooleanQueryRewriteWithMaxClause#rewrite(IndexSearcher, MultiTermQuery)}.
+     * That rewrite method is e.g.
      * set for fuzzy queries with "constant_score" rewrite nested inside a `span_multi` query and would cause NPEs due to an unset
      * {@link AttributeSource}.
      */

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.codec.tsdb816;
 
+import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
@@ -118,47 +119,30 @@ final class ES816TSDBDocValuesProducer extends DocValuesProducer {
         return getNumeric(entry, -1);
     }
 
+    // START: Copied fom LUCENE-9211
     @Override
     public BinaryDocValues getBinary(FieldInfo field) throws IOException {
         BinaryEntry entry = binaries.get(field.name);
         if (entry.docsWithFieldOffset == -2) {
             return DocValues.emptyBinary();
         }
-
-        final IndexInput bytesSlice = data.slice("fixed-binary", entry.dataOffset, entry.dataLength);
-
         if (entry.docsWithFieldOffset == -1) {
             // dense
-            if (entry.minLength == entry.maxLength) {
-                // fixed length
-                final int length = entry.maxLength;
-                return new DenseBinaryDocValues(maxDoc) {
-                    final BytesRef bytes = new BytesRef(new byte[length], 0, length);
+            final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
+            final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
+            return new DenseBinaryDocValues(maxDoc) {
+                final BinaryDecoder decoder = new BinaryDecoder(
+                    addresses,
+                    data.clone(),
+                    entry.maxUncompressedChunkSize,
+                    entry.docsPerChunkShift
+                );
 
-                    @Override
-                    public BytesRef binaryValue() throws IOException {
-                        bytesSlice.seek((long) doc * length);
-                        bytesSlice.readBytes(bytes.bytes, 0, length);
-                        return bytes;
-                    }
-                };
-            } else {
-                // variable length
-                final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
-                final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
-                return new DenseBinaryDocValues(maxDoc) {
-                    final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
-
-                    @Override
-                    public BytesRef binaryValue() throws IOException {
-                        long startOffset = addresses.get(doc);
-                        bytes.length = (int) (addresses.get(doc + 1L) - startOffset);
-                        bytesSlice.seek(startOffset);
-                        bytesSlice.readBytes(bytes.bytes, 0, bytes.length);
-                        return bytes;
-                    }
-                };
-            }
+                @Override
+                public BytesRef binaryValue() throws IOException {
+                    return decoder.decode(doc);
+                }
+            };
         } else {
             // sparse
             final IndexedDISI disi = new IndexedDISI(
@@ -169,39 +153,103 @@ final class ES816TSDBDocValuesProducer extends DocValuesProducer {
                 entry.denseRankPower,
                 entry.numDocsWithField
             );
-            if (entry.minLength == entry.maxLength) {
-                // fixed length
-                final int length = entry.maxLength;
-                return new SparseBinaryDocValues(disi) {
-                    final BytesRef bytes = new BytesRef(new byte[length], 0, length);
+            final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
+            final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
+            return new SparseBinaryDocValues(disi) {
+                final BinaryDecoder decoder = new BinaryDecoder(
+                    addresses,
+                    data.clone(),
+                    entry.maxUncompressedChunkSize,
+                    entry.docsPerChunkShift
+                );
 
-                    @Override
-                    public BytesRef binaryValue() throws IOException {
-                        bytesSlice.seek((long) disi.index() * length);
-                        bytesSlice.readBytes(bytes.bytes, 0, length);
-                        return bytes;
-                    }
-                };
-            } else {
-                // variable length
-                final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
-                final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
-                return new SparseBinaryDocValues(disi) {
-                    final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
+                @Override
+                public BytesRef binaryValue() throws IOException {
+                    return decoder.decode(disi.index());
+                }
+            };
+        }
 
-                    @Override
-                    public BytesRef binaryValue() throws IOException {
-                        final int index = disi.index();
-                        long startOffset = addresses.get(index);
-                        bytes.length = (int) (addresses.get(index + 1L) - startOffset);
-                        bytesSlice.seek(startOffset);
-                        bytesSlice.readBytes(bytes.bytes, 0, bytes.length);
-                        return bytes;
+    }
+
+    // Decompresses blocks of binary values to retrieve content
+    static final class BinaryDecoder {
+
+        private final LongValues addresses;
+        private final IndexInput compressedData;
+        // Cache of last uncompressed block
+        private long lastBlockId = -1;
+        private final int[] uncompressedDocStarts;
+        private final byte[] uncompressedBlock;
+        private final BytesRef uncompressedBytesRef;
+        private final int docsPerChunk;
+        private final int docsPerChunkShift;
+
+        BinaryDecoder(LongValues addresses, IndexInput compressedData, int biggestUncompressedBlockSize, int docsPerChunkShift) {
+            super();
+            this.addresses = addresses;
+            this.compressedData = compressedData;
+            // pre-allocate a byte array large enough for the biggest uncompressed block needed.
+            this.uncompressedBlock = new byte[biggestUncompressedBlockSize];
+            uncompressedBytesRef = new BytesRef(uncompressedBlock);
+            this.docsPerChunk = 1 << docsPerChunkShift;
+            this.docsPerChunkShift = docsPerChunkShift;
+            uncompressedDocStarts = new int[docsPerChunk + 1];
+        }
+
+        BytesRef decode(int docNumber) throws IOException {
+            int blockId = docNumber >> docsPerChunkShift;
+            int docInBlockId = docNumber % docsPerChunk;
+            assert docInBlockId < docsPerChunk;
+
+            // already read and uncompressed?
+            if (blockId != lastBlockId) {
+                lastBlockId = blockId;
+                long blockStartOffset = addresses.get(blockId);
+                compressedData.seek(blockStartOffset);
+
+                int uncompressedBlockLength = 0;
+
+                int onlyLength = -1;
+                for (int i = 0; i < docsPerChunk; i++) {
+                    if (i == 0) {
+                        // The first length value is special. It is shifted and has a bit to denote if
+                        // all other values are the same length
+                        int lengthPlusSameInd = compressedData.readVInt();
+                        int sameIndicator = lengthPlusSameInd & 1;
+                        int firstValLength = lengthPlusSameInd >>> 1;
+                        if (sameIndicator == 1) {
+                            onlyLength = firstValLength;
+                        }
+                        uncompressedBlockLength += firstValLength;
+                    } else {
+                        if (onlyLength == -1) {
+                            // Various lengths are stored - read each from disk
+                            uncompressedBlockLength += compressedData.readVInt();
+                        } else {
+                            // Only one length
+                            uncompressedBlockLength += onlyLength;
+                        }
                     }
-                };
+                    uncompressedDocStarts[i + 1] = uncompressedBlockLength;
+                }
+
+                if (uncompressedBlockLength == 0) {
+                    uncompressedBytesRef.offset = 0;
+                    uncompressedBytesRef.length = 0;
+                    return uncompressedBytesRef;
+                }
+
+                assert uncompressedBlockLength <= uncompressedBlock.length;
+                LZ4.decompress(EndiannessReverserUtil.wrapDataInput(compressedData), uncompressedBlockLength, uncompressedBlock, 0);
             }
+
+            uncompressedBytesRef.offset = uncompressedDocStarts[docInBlockId];
+            uncompressedBytesRef.length = uncompressedDocStarts[docInBlockId + 1] - uncompressedBytesRef.offset;
+            return uncompressedBytesRef;
         }
     }
+    // END: Copied fom LUCENE-9211
 
     private abstract static class DenseBinaryDocValues extends BinaryDocValues {
 
@@ -773,11 +821,16 @@ final class ES816TSDBDocValuesProducer extends DocValuesProducer {
         entry.numDocsWithField = meta.readInt();
         entry.minLength = meta.readInt();
         entry.maxLength = meta.readInt();
-        if (entry.minLength < entry.maxLength) {
+        if (entry.numDocsWithField > 0 || entry.minLength < entry.maxLength) {
             entry.addressesOffset = meta.readLong();
 
             // Old count of uncompressed addresses
             long numAddresses = entry.numDocsWithField + 1L;
+            // New count of compressed addresses - the number of compresseed blocks
+            entry.numCompressedChunks = meta.readVInt();
+            entry.docsPerChunkShift = meta.readVInt();
+            entry.maxUncompressedChunkSize = meta.readVInt();
+            numAddresses = entry.numCompressedChunks;
 
             final int blockShift = meta.readVInt();
             entry.addressesMeta = DirectMonotonicReader.loadMeta(meta, numAddresses, blockShift);
@@ -1273,6 +1326,9 @@ final class ES816TSDBDocValuesProducer extends DocValuesProducer {
         int maxLength;
         long addressesOffset;
         long addressesLength;
+        int numCompressedChunks;
+        int maxUncompressedChunkSize;
+        int docsPerChunkShift;
         DirectMonotonicReader.Meta addressesMeta;
     }
 

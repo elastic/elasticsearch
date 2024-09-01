@@ -618,12 +618,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             )
         );
 
-        String error = EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", "");
+        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
         assertThat(
             error,
             containsString(
                 "Invalid interval value in [?n2::time_duration], expected integer followed by one of "
-                    + "[millisecond, milliseconds, ms, second, seconds, sec, s, minute, minutes, min, hour, hours, h] but got [3 days]"
+                    + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 days]"
             )
         );
 
@@ -634,12 +634,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                     .params("[{\"n1\": \"2024-01-01\"}, {\"n2\": \"3 hours\"}]")
             )
         );
-        error = EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", "");
+        error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
         assertThat(
             error,
             containsString(
                 "Invalid interval value in [?n2::date_period], expected integer followed by one of "
-                    + "[day, days, d, week, weeks, w, month, months, mo, quarter, quarters, q, year, years, yr, y] but got [3 hours]"
+                    + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 hours]"
             )
         );
     }
@@ -815,28 +815,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                     .entry("values", List.of(List.of(12)))
             );
         }
-    }
-
-    public void testToDatePeriodToTimeDurationWithField() throws IOException {
-        bulkLoadTestData(5);
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsql(requestObjectBuilder().query(fromIndex() + " | eval x = date + keyword::date_period").params("[]"))
-        );
-        assertThat(
-            EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", ""),
-            containsString("first argument of [keyword::date_period] must be a constant, received [keyword]")
-        );
-
-        re = expectThrows(
-            ResponseException.class,
-            () -> runEsql(requestObjectBuilder().query(fromIndex() + " | eval x = date + keyword::time_duration").params("[]"))
-        );
-        assertThat(
-            EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", ""),
-            containsString("first argument of [keyword::time_duration] must be a constant, received [keyword]")
-        );
-
     }
 
     private static String queryWithComplexFieldNames(int field) {

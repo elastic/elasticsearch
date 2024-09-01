@@ -83,7 +83,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         return factories().keySet();
     }
 
-    protected static String supportedTypesNames(Set<DataType> types) {
+    private static String supportedTypesNames(Set<DataType> types) {
         List<String> supportedTypesNames = new ArrayList<>(types.size());
         HashSet<DataType> supportTypes = new HashSet<>(types);
         if (supportTypes.containsAll(NUMERIC_TYPES)) {

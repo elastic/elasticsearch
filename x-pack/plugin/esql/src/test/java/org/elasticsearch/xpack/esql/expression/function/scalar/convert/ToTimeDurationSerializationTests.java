@@ -7,14 +7,32 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationTests;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
-//
-public class ToTimeDurationSerializationTests extends AbstractUnaryScalarSerializationTests<ToTimeDuration> {
+import java.io.IOException;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+
+public class ToTimeDurationSerializationTests extends AbstractExpressionSerializationTests<ToTimeDuration> {
     @Override
-    protected ToTimeDuration create(Source source, Expression child) {
-        return new ToTimeDuration(source, child);
+    protected ToTimeDuration createTestInstance() {
+        return new ToTimeDuration(randomSource(), randomLiteral(KEYWORD));
+    }
+
+    @Override
+    protected ToTimeDuration mutateInstance(ToTimeDuration instance) throws IOException {
+        return null;
+    }
+
+    @Override
+    protected boolean alwaysEmptySource() {
+        return true;
+    }
+
+    @Override
+    protected ToTimeDuration copyInstance(ToTimeDuration instance, TransportVersion version) throws IOException {
+        return new ToTimeDuration(instance.source(), instance.arguments().get(0));
     }
 }

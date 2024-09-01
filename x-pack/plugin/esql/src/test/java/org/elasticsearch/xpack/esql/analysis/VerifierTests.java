@@ -1093,31 +1093,31 @@ public class VerifierTests extends ESTestCase {
     public void testToDatePeriodTimeDurationWithInvalidIntervals() {
         assertEquals(
             "1:47: Invalid interval value in [\"3 dys\"::date_period], expected integer followed by one of "
-                + "[day, days, d, week, weeks, w, month, months, mo, quarter, quarters, q, year, years, yr, y] but got [3 dys]",
+                + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
             error("row x = \"2024-01-01\"::datetime | eval y = x + \"3 dys\"::date_period")
         );
 
         assertEquals(
             "1:47: Invalid interval value in [to_dateperiod(\"3 dys\")], expected integer followed by one of "
-                + "[day, days, d, week, weeks, w, month, months, mo, quarter, quarters, q, year, years, yr, y] but got [3 dys]",
+                + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
             error("row x = \"2024-01-01\"::datetime | eval y = x - to_dateperiod(\"3 dys\")")
         );
 
         assertEquals(
             "1:47: Invalid interval value in [\"3 ours\"::time_duration], expected integer followed by one of "
-                + "[millisecond, milliseconds, ms, second, seconds, sec, s, minute, minutes, min, hour, hours, h] but got [3 ours]",
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
             error("row x = \"2024-01-01\"::datetime | eval y = x + \"3 ours\"::time_duration")
         );
 
         assertEquals(
             "1:47: Invalid interval value in [to_timeduration(\"3 ours\")], expected integer followed by one of "
-                + "[millisecond, milliseconds, ms, second, seconds, sec, s, minute, minutes, min, hour, hours, h] but got [3 ours]",
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
             error("row x = \"2024-01-01\"::datetime | eval y = x - to_timeduration(\"3 ours\")")
         );
 
         assertEquals(
             "1:47: Invalid interval value in [to_timeduration(\"3.5 hours\")], expected integer followed by one of "
-                + "[millisecond, milliseconds, ms, second, seconds, sec, s, minute, minutes, min, hour, hours, h] but got [3.5 hours]",
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3.5 hours]",
             error("row x = \"2024-01-01\"::datetime | eval y = x - to_timeduration(\"3.5 hours\")")
         );
     }

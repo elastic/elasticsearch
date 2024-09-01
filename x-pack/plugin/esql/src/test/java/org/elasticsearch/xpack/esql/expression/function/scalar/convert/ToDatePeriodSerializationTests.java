@@ -7,13 +7,32 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationTests;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
-public class ToDatePeriodSerializationTests extends AbstractUnaryScalarSerializationTests<ToDatePeriod> {
+import java.io.IOException;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+
+public class ToDatePeriodSerializationTests extends AbstractExpressionSerializationTests<ToDatePeriod> {
     @Override
-    protected ToDatePeriod create(Source source, Expression child) {
-        return new ToDatePeriod(source, child);
+    protected ToDatePeriod createTestInstance() {
+        return new ToDatePeriod(randomSource(), randomLiteral(KEYWORD));
+    }
+
+    @Override
+    protected ToDatePeriod mutateInstance(ToDatePeriod instance) throws IOException {
+        return null;
+    }
+
+    @Override
+    protected boolean alwaysEmptySource() {
+        return true;
+    }
+
+    @Override
+    protected ToDatePeriod copyInstance(ToDatePeriod instance, TransportVersion version) throws IOException {
+        return new ToDatePeriod(instance.source(), instance.arguments().get(0));
     }
 }

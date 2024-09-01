@@ -14,45 +14,60 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.time.Period;
+import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DATE_PERIODS;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
+
 @FunctionName("to_dateperiod")
-public class ToDatePeriodTests extends AbstractFunctionTestCase {
+public class ToDatePeriodTests extends AbstractScalarFunctionTestCase {
     public ToDatePeriodTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        // TODO multivalue fields
-        String read = "Attribute[channel=0]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.unary(
-            suppliers,
-            read,
-            validDatePeriod(DataType.DATE_PERIOD),
-            DataType.DATE_PERIOD,
-            bytesRef -> EsqlDataTypeConverter.parseTemporalAmount(((BytesRef) bytesRef).utf8ToString(), DataType.DATE_PERIOD),
-            List.of()
-        );
-
-        for (DataType inputType : AbstractConvertFunction.STRING_TYPES) {
-            TestCaseSupplier.unary(
-                suppliers,
-                read,
-                validDatePeriod(inputType),
-                DataType.DATE_PERIOD,
-                bytesRef -> EsqlDataTypeConverter.parseTemporalAmount(((BytesRef) bytesRef).utf8ToString(), DataType.DATE_PERIOD),
-                List.of()
+        suppliers.add(new TestCaseSupplier(List.of(DATE_PERIOD), () -> {
+            Period field = (Period) randomLiteral(DATE_PERIOD).value();
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(field, DATE_PERIOD, "field").forceLiteral()),
+                matchesPattern("LiteralsEvaluator.*"),
+                DATE_PERIOD,
+                equalTo(field)
             );
+        }));
+
+        for (EsqlDataTypeConverter.INTERVALS interval : DATE_PERIODS) {
+            for (DataType inputType : List.of(KEYWORD, TEXT)) {
+                suppliers.add(new TestCaseSupplier(List.of(inputType), () -> {
+                    BytesRef field = new BytesRef(
+                        randomIntBetween(0, 36500000) + " ".repeat(randomIntBetween(1, 10)) + interval.toString()
+                    );
+                    TemporalAmount result = EsqlDataTypeConverter.parseTemporalAmount(field.utf8ToString(), DATE_PERIOD);
+                    return new TestCaseSupplier.TestCase(
+                        List.of(new TestCaseSupplier.TypedData(field, inputType, "field").forceLiteral()),
+                        matchesPattern("LiteralsEvaluator.*"),
+                        DATE_PERIOD,
+                        equalTo(result)
+                    );
+                }));
+            }
         }
 
         return parameterSuppliersFromTypedData(
@@ -65,28 +80,8 @@ public class ToDatePeriodTests extends AbstractFunctionTestCase {
         return new ToDatePeriod(source, args.get(0));
     }
 
-    private static List<TestCaseSupplier.TypedDataSupplier> validDatePeriod(DataType dataType) {
-        return List.of(
-            new TestCaseSupplier.TypedDataSupplier("1 day", () -> new BytesRef("1 day"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("1 d", () -> new BytesRef("1 d"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("10 days", () -> new BytesRef("10 days"), dataType),
-
-            new TestCaseSupplier.TypedDataSupplier("1 week", () -> new BytesRef("1 week"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("1 w", () -> new BytesRef("1 w"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("5 weeks", () -> new BytesRef("5 weeks"), dataType),
-
-            new TestCaseSupplier.TypedDataSupplier("1 month", () -> new BytesRef("1 month"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("1 mo", () -> new BytesRef("1 mo"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("12 months", () -> new BytesRef("12 months"), dataType),
-
-            new TestCaseSupplier.TypedDataSupplier("1 quarter", () -> new BytesRef("1 quarter"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("1 q", () -> new BytesRef("1 q"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("9 quarters", () -> new BytesRef("9 quarters"), dataType),
-
-            new TestCaseSupplier.TypedDataSupplier("1 year", () -> new BytesRef("1 year"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("1 y", () -> new BytesRef("1 y"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("1 yr", () -> new BytesRef("1 yr"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("8 years", () -> new BytesRef("8 years"), dataType)
-        );
+    @Override
+    public void testSerializationOfSimple() {
+        assertTrue("Serialization test does not apply", true);
     }
 }

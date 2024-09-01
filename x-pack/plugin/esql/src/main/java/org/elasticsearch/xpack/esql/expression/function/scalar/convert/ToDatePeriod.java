@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -23,43 +25,37 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
+import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
+import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DATE_PERIODS;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.INVALID_INTERVAL_ERROR;
 
-public class ToDatePeriod extends AbstractConvertFunction {
+public class ToDatePeriod extends AbstractConvertFunction implements Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ToDatePeriod",
         ToDatePeriod::new
     );
 
-    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(DATE_PERIOD, (fieldEval, source) -> fieldEval),
-        Map.entry(KEYWORD, (fieldEval, source) -> fieldEval),
-        Map.entry(TEXT, (fieldEval, source) -> fieldEval)
-    );
-
-    private static final String INVALID_INTERVAL_ERROR = "Invalid interval value in [{}], expected integer followed by one of "
-        + DATE_PERIODS
-        + " but got [{}]";
-
     @FunctionInfo(
         returnType = "date_period",
-        description = "Converts a string into a `date_period` value.",
+        description = "Converts an input value into a `date_period` value.",
         examples = @Example(file = "convert", tag = "castToDatePeriod")
     )
     public ToDatePeriod(
         Source source,
-        @Param(name = "string", type = { "date_period", "keyword", "text" }, description = "A string.") Expression v
+        @Param(
+            name = "field",
+            type = { "date_period", "keyword", "text" },
+            description = "Input value. The input is a valid constant date period expression."
+        ) Expression v
     ) {
         super(source, v);
     }
@@ -74,29 +70,36 @@ public class ToDatePeriod extends AbstractConvertFunction {
     }
 
     @Override
-    protected Map<DataType, BuildFactory> factories() {
-        return EVALUATORS;
-    }
-
-    @Override
     protected final TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
         TypeResolution typeResolution = isType(
             field(),
-            factories()::containsKey,
+            dt -> isString(dt) || dt == DATE_PERIOD,
             sourceText(),
-            FIRST,
-            supportedTypesNames(supportedTypes())
+            null,
+            "date_period or string"
         );
-        if (field().foldable()) {
-            if (isString(field().dataType()) && isValidInterval(field().fold().toString()) == false) {
-                typeResolution = new TypeResolution(LoggerMessageFormat.format(null, INVALID_INTERVAL_ERROR, sourceText(), field().fold()));
+        if (field().foldable() && field() instanceof Literal && isString(field().dataType())) {
+            Object value = field().fold();
+            if (value != null) {
+                if (value instanceof BytesRef b) {
+                    value = b.utf8ToString();
+                }
+                if (isValidInterval(value.toString()) == false) {
+                    typeResolution = new TypeResolution(
+                        LoggerMessageFormat.format(null, INVALID_INTERVAL_ERROR, sourceText(), DATE_PERIODS, field().fold())
+                    );
+                }
             }
-
         }
         return typeResolution;
+    }
+
+    @Override
+    protected Map<DataType, BuildFactory> factories() {
+        return Map.of();
     }
 
     @Override
@@ -116,41 +119,40 @@ public class ToDatePeriod extends AbstractConvertFunction {
 
     @Override
     public final Object fold() {
-        if (field() instanceof Literal l) {
-            Object v = l.value();
+        if (field().foldable()) {
+            Object v = field().fold();
             if (v instanceof BytesRef b) {
                 if (isValidInterval(b.utf8ToString()) == false) {
                     throw new IllegalArgumentException(
-                        LoggerMessageFormat.format(null, INVALID_INTERVAL_ERROR, sourceText(), b.utf8ToString())
+                        LoggerMessageFormat.format(null, INVALID_INTERVAL_ERROR, sourceText(), DATE_PERIODS, b.utf8ToString())
                     );
                 }
                 return EsqlDataTypeConverter.parseTemporalAmount(b.utf8ToString(), DATE_PERIOD);
+            } else if (v instanceof TemporalAmount) {
+                return v;
             }
-        } else if (field() instanceof ToDatePeriod && field().foldable()) {
-            return field().fold();
         }
-
         throw new IllegalArgumentException(
-            LoggerMessageFormat.format(
-                null,
-                "{}argument of [{}] must be a constant, received [{}]",
-                FIRST.name().toLowerCase(Locale.ROOT) + " ",
-                sourceText(),
-                Expressions.name(field())
-            )
+            LoggerMessageFormat.format(null, "argument of [{}] must be a constant, received [{}]", sourceText(), Expressions.name(field()))
         );
     }
 
     private boolean isValidInterval(String interval) {
-        String[] input = interval.toLowerCase(Locale.ROOT).stripLeading().stripTrailing().split("\\s+");
-        if (input.length != 2 || DATE_PERIODS.contains(input[1]) == false) {
-            return false;
-        }
         try {
+            String[] input = interval.toUpperCase(Locale.ROOT).stripLeading().stripTrailing().split("\\s+");
+            if (input.length != 2 || DATE_PERIODS.contains(EsqlDataTypeConverter.INTERVALS.valueOf(input[1])) == false) {
+                return false;
+            }
             Integer.parseInt(input[0].toString());
-        } catch (NumberFormatException e) {
+        } catch (IllegalArgumentException e) {
             return false;
         }
         return true;
+    }
+
+    @Override
+    public void validate(Failures failures) {
+        String operation = sourceText();
+        failures.add(isFoldable(field(), operation, null));
     }
 }

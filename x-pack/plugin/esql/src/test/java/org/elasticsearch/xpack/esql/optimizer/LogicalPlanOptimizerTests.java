@@ -5849,7 +5849,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from types | EVAL interval = "3 dys", x = date + interval::date_period"""));
         assertEquals(
             "Invalid interval value in [interval::date_period], expected integer followed by one of "
-                + "[day, days, d, week, weeks, w, month, months, mo, quarter, quarters, q, year, years, yr, y] but got [3 dys]",
+                + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
             e.getMessage()
         );
 
@@ -5857,7 +5857,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from types  | EVAL interval = "3 dys", x = date - to_dateperiod(interval)"""));
         assertEquals(
             "Invalid interval value in [to_dateperiod(interval)], expected integer followed by one of "
-                + "[day, days, d, week, weeks, w, month, months, mo, quarter, quarters, q, year, years, yr, y] but got [3 dys]",
+                + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
             e.getMessage()
         );
 
@@ -5865,7 +5865,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from types  | EVAL interval = "3 ours", x = date + interval::time_duration"""));
         assertEquals(
             "Invalid interval value in [interval::time_duration], expected integer followed by one of "
-                + "[millisecond, milliseconds, ms, second, seconds, sec, s, minute, minutes, min, hour, hours, h] but got [3 ours]",
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
             e.getMessage()
         );
 
@@ -5873,7 +5873,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from types  | EVAL interval = "3 ours", x = date - to_timeduration(interval)"""));
         assertEquals(
             "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
-                + "[millisecond, milliseconds, ms, second, seconds, sec, s, minute, minutes, min, hour, hours, h] but got [3 ours]",
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
             e.getMessage()
         );
 
@@ -5881,8 +5881,26 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from types  | EVAL interval = "3.5 hours", x = date - to_timeduration(interval)"""));
         assertEquals(
             "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
-                + "[millisecond, milliseconds, ms, second, seconds, sec, s, minute, minutes, min, hour, hours, h] but got [3.5 hours]",
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3.5 hours]",
             e.getMessage()
+        );
+    }
+
+    public void testToDatePeriodToTimeDurationWithField() {
+        final String header = "Found 1 problem\nline ";
+        VerificationException e = expectThrows(VerificationException.class, () -> planTypes("""
+            from types | EVAL x = date + keyword::date_period"""));
+        assertTrue(e.getMessage().startsWith("Found "));
+        assertEquals(
+            "1:30: argument of [keyword::date_period] must be a constant, received [keyword]",
+            e.getMessage().substring(header.length())
+        );
+
+        e = expectThrows(VerificationException.class, () -> planTypes("""
+            from types  | EVAL x = date - to_timeduration(keyword)"""));
+        assertEquals(
+            "1:47: argument of [to_timeduration(keyword)] must be a constant, received [keyword]",
+            e.getMessage().substring(header.length())
         );
     }
 

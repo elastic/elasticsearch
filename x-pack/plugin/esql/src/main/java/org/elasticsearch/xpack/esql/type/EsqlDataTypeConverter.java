@@ -114,40 +114,77 @@ public class EsqlDataTypeConverter {
         entry(TIME_DURATION, ToTimeDuration::new)
     );
 
-    public static final List<String> TIME_DURATIONS = List.of(
-        "millisecond",
-        "milliseconds",
-        "ms",
-        "second",
-        "seconds",
-        "sec",
-        "s",
-        "minute",
-        "minutes",
-        "min",
-        "hour",
-        "hours",
-        "h"
+    public enum INTERVALS {
+        // TIME_DURATION,
+        MILLISECOND,
+        MILLISECONDS,
+        MS,
+        SECOND,
+        SECONDS,
+        SEC,
+        S,
+        MINUTE,
+        MINUTES,
+        MIN,
+        HOUR,
+        HOURS,
+        H,
+        // DATE_PERIOD
+        DAY,
+        DAYS,
+        D,
+        WEEK,
+        WEEKS,
+        W,
+        MONTH,
+        MONTHS,
+        MO,
+        QUARTER,
+        QUARTERS,
+        Q,
+        YEAR,
+        YEARS,
+        YR,
+        Y;
+    }
+
+    public static List<INTERVALS> TIME_DURATIONS = List.of(
+        INTERVALS.MILLISECOND,
+        INTERVALS.MILLISECONDS,
+        INTERVALS.MS,
+        INTERVALS.SECOND,
+        INTERVALS.SECONDS,
+        INTERVALS.SEC,
+        INTERVALS.S,
+        INTERVALS.MINUTE,
+        INTERVALS.MINUTES,
+        INTERVALS.MIN,
+        INTERVALS.HOUR,
+        INTERVALS.HOURS,
+        INTERVALS.H
     );
 
-    public static final List<String> DATE_PERIODS = List.of(
-        "day",
-        "days",
-        "d",
-        "week",
-        "weeks",
-        "w",
-        "month",
-        "months",
-        "mo",
-        "quarter",
-        "quarters",
-        "q",
-        "year",
-        "years",
-        "yr",
-        "y"
+    public static List<INTERVALS> DATE_PERIODS = List.of(
+        INTERVALS.DAY,
+        INTERVALS.DAYS,
+        INTERVALS.D,
+        INTERVALS.WEEK,
+        INTERVALS.WEEKS,
+        INTERVALS.W,
+        INTERVALS.MONTH,
+        INTERVALS.MONTHS,
+        INTERVALS.MO,
+        INTERVALS.QUARTER,
+        INTERVALS.QUARTERS,
+        INTERVALS.Q,
+        INTERVALS.YEAR,
+        INTERVALS.YEARS,
+        INTERVALS.YR,
+        INTERVALS.Y
     );
+
+    public static final String INVALID_INTERVAL_ERROR =
+        "Invalid interval value in [{}], expected integer followed by one of {} but got [{}]";
 
     /**
      * Returns true if the from type can be converted to the to type, false - otherwise
@@ -200,6 +237,54 @@ public class EsqlDataTypeConverter {
             return converter;
         }
         return null;
+    }
+
+    public class Interval {
+        private String value;
+        private String qualifier;
+
+        Interval(String value, String qualifier) {
+            this.value = value;
+            this.qualifier = qualifier;
+        }
+
+        String value() {
+            return this.value;
+        }
+
+        String qualifier() {
+            return this.qualifier;
+        }
+    }
+
+    public Interval validateTemporalAmount(Object val, DataType expectedType) {
+        String errorMessage = "Cannot parse [{}] to {}";
+        String str = String.valueOf(val);
+        if (str == null) {
+            return null;
+        }
+        StringBuilder value = new StringBuilder();
+        StringBuilder qualifier = new StringBuilder();
+        StringBuilder nextBuffer = value;
+        boolean lastWasSpace = false;
+        for (char c : str.trim().toCharArray()) {
+            if (c == ' ') {
+                if (lastWasSpace == false) {
+                    nextBuffer = nextBuffer == value ? qualifier : null;
+                }
+                lastWasSpace = true;
+                continue;
+            }
+            if (nextBuffer == null) {
+                throw new ParsingException(Source.EMPTY, errorMessage, val, expectedType);
+            }
+            nextBuffer.append(c);
+            lastWasSpace = false;
+        }
+        if ((value.isEmpty() || qualifier.isEmpty()) == false) {
+            return new Interval(value.toString(), qualifier.toString());
+        }
+        throw new ParsingException(Source.EMPTY, errorMessage, val, expectedType);
     }
 
     public static TemporalAmount parseTemporalAmount(Object val, DataType expectedType) {
@@ -276,27 +361,25 @@ public class EsqlDataTypeConverter {
         return DataTypeConverter.commonType(left, right);
     }
 
-    /** generally supporting abbreviations from https://en.wikipedia.org/wiki/Unit_of_time
-     *
-     * When modify the qualifiers/constants, keep them in sync with DATE_PERIODS and TIME_DURATIONS.
-     * to_dateperiod and to_timeduration only recognize the qualifiers/constants defined in DATE_PERIODS and TIME_DURATIONS.
-     */
+    // generally supporting abbreviations from https://en.wikipedia.org/wiki/Unit_of_time
     public static TemporalAmount parseTemporalAmout(Number value, String qualifier, Source source) throws InvalidArgumentException,
         ArithmeticException, ParsingException {
-        return switch (qualifier) {
-            case "millisecond", "milliseconds", "ms" -> Duration.ofMillis(safeToLong(value));
-            case "second", "seconds", "sec", "s" -> Duration.ofSeconds(safeToLong(value));
-            case "minute", "minutes", "min" -> Duration.ofMinutes(safeToLong(value));
-            case "hour", "hours", "h" -> Duration.ofHours(safeToLong(value));
+        try {
+            return switch (INTERVALS.valueOf(qualifier.toUpperCase(Locale.ROOT))) {
+                case MILLISECOND, MILLISECONDS, MS -> Duration.ofMillis(safeToLong(value));
+                case SECOND, SECONDS, SEC, S -> Duration.ofSeconds(safeToLong(value));
+                case MINUTE, MINUTES, MIN -> Duration.ofMinutes(safeToLong(value));
+                case HOUR, HOURS, H -> Duration.ofHours(safeToLong(value));
 
-            case "day", "days", "d" -> Period.ofDays(safeToInt(safeToLong(value)));
-            case "week", "weeks", "w" -> Period.ofWeeks(safeToInt(safeToLong(value)));
-            case "month", "months", "mo" -> Period.ofMonths(safeToInt(safeToLong(value)));
-            case "quarter", "quarters", "q" -> Period.ofMonths(safeToInt(Math.multiplyExact(3L, safeToLong(value))));
-            case "year", "years", "yr", "y" -> Period.ofYears(safeToInt(safeToLong(value)));
-
-            default -> throw new ParsingException(source, "Unexpected time interval qualifier: '{}'", qualifier);
-        };
+                case DAY, DAYS, D -> Period.ofDays(safeToInt(safeToLong(value)));
+                case WEEK, WEEKS, W -> Period.ofWeeks(safeToInt(safeToLong(value)));
+                case MONTH, MONTHS, MO -> Period.ofMonths(safeToInt(safeToLong(value)));
+                case QUARTER, QUARTERS, Q -> Period.ofMonths(safeToInt(Math.multiplyExact(3L, safeToLong(value))));
+                case YEAR, YEARS, YR, Y -> Period.ofYears(safeToInt(safeToLong(value)));
+            };
+        } catch (IllegalArgumentException e) {
+            throw new ParsingException(source, "Unexpected time interval qualifier: '{}'", qualifier);
+        }
     }
 
     /**

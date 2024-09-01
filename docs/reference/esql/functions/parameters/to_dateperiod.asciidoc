@@ -2,5 +2,5 @@
 
 *Parameters*
 
-`string`::
-A string.
+`field`::
+Input value. The input is a valid constant date period expression.

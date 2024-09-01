@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-string | result
+field | result
 keyword | time_duration
 text | time_duration
 time_duration | time_duration

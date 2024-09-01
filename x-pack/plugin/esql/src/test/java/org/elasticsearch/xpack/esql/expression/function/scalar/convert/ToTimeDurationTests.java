@@ -14,50 +14,66 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.time.Duration;
+import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.TIME_DURATIONS;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
+
 @FunctionName("to_timeduration")
-public class ToTimeDurationTests extends AbstractFunctionTestCase {
+public class ToTimeDurationTests extends AbstractScalarFunctionTestCase {
     public ToTimeDurationTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        // TODO multivalue fields
-        String read = "Attribute[channel=0]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.unary(
-            suppliers,
-            read,
-            validTimeDuration(DataType.TIME_DURATION),
-            DataType.TIME_DURATION,
-            bytesRef -> EsqlDataTypeConverter.parseTemporalAmount(((BytesRef) bytesRef).utf8ToString(), DataType.TIME_DURATION),
-            List.of()
-        );
-
-        for (DataType inputType : AbstractConvertFunction.STRING_TYPES) {
-            TestCaseSupplier.unary(
-                suppliers,
-                read,
-                validTimeDuration(inputType),
-                DataType.TIME_DURATION,
-                bytesRef -> EsqlDataTypeConverter.parseTemporalAmount(((BytesRef) bytesRef).utf8ToString(), DataType.TIME_DURATION),
-                List.of()
+        suppliers.add(new TestCaseSupplier(List.of(TIME_DURATION), () -> {
+            Duration field = (Duration) randomLiteral(TIME_DURATION).value();
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(field, TIME_DURATION, "field").forceLiteral()),
+                matchesPattern("LiteralsEvaluator.*"),
+                TIME_DURATION,
+                equalTo(field)
             );
+        }));
+
+        for (EsqlDataTypeConverter.INTERVALS interval : TIME_DURATIONS) {
+            for (DataType inputType : List.of(KEYWORD, TEXT)) {
+                suppliers.add(new TestCaseSupplier(List.of(inputType), () -> {
+                    BytesRef field = new BytesRef(
+                        randomIntBetween(0, Integer.MAX_VALUE) + " ".repeat(randomIntBetween(1, 10)) + interval.toString()
+                    );
+                    TemporalAmount result = EsqlDataTypeConverter.parseTemporalAmount(field.utf8ToString(), TIME_DURATION);
+                    return new TestCaseSupplier.TestCase(
+                        List.of(new TestCaseSupplier.TypedData(field, inputType, "field").forceLiteral()),
+                        matchesPattern("LiteralsEvaluator.*"),
+                        TIME_DURATION,
+                        equalTo(result)
+                    );
+                }));
+            }
         }
 
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), (v, p) -> "time_duration or string")
+            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), (v, p) -> "string or time_duration")
         );
+
     }
 
     @Override
@@ -65,21 +81,8 @@ public class ToTimeDurationTests extends AbstractFunctionTestCase {
         return new ToTimeDuration(source, args.get(0));
     }
 
-    private static List<TestCaseSupplier.TypedDataSupplier> validTimeDuration(DataType dataType) {
-        return List.of(
-            new TestCaseSupplier.TypedDataSupplier("1 millisecond", () -> new BytesRef("1 millisecond"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("1 ms", () -> new BytesRef("1 ms"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("10 milliseconds", () -> new BytesRef("10 milliseconds"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("1 second", () -> new BytesRef("1 second"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("1 s", () -> new BytesRef("1 s"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("1 sec", () -> new BytesRef("1 sec"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("5 seconds", () -> new BytesRef("5 seconds"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("1 minute", () -> new BytesRef("1 minute"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("1 min", () -> new BytesRef("1 min"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("12 minutes", () -> new BytesRef("12 minutes"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("1 hour", () -> new BytesRef("1 hour"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("1 h", () -> new BytesRef("1 h"), dataType),
-            new TestCaseSupplier.TypedDataSupplier("9 hours", () -> new BytesRef("9 hours"), dataType)
-        );
+    @Override
+    public void testSerializationOfSimple() {
+        assertTrue("Serialization test does not apply", true);
     }
 }

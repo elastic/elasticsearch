@@ -2,4 +2,4 @@
 
 *Description*
 
-Converts a string into a `time_duration` value.
+Converts an input value into a `time_duration` value.

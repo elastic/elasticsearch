@@ -2,4 +2,4 @@
 
 *Description*
 
-Converts a string into a `date_period` value.
+Converts an input value into a `date_period` value.

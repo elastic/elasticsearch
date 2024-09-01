@@ -56,6 +56,6 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardId.writeTo(out);
-        out.writeArray((o, item) -> item.writeThin(o), responses);
+        out.writeArray(BulkItemResponse.THIN_WRITER, responses);
     }
 }

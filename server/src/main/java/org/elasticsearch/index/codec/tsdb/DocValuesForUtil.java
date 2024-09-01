@@ -27,7 +27,7 @@ public class DocValuesForUtil {
         this(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
     }
 
-    public DocValuesForUtil(int blockSize) {
+    private DocValuesForUtil(int blockSize) {
         this.blockSize = blockSize;
         this.encoded = new byte[1024];
     }

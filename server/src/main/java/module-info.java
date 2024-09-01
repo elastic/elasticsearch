@@ -8,7 +8,6 @@
 
 import org.elasticsearch.index.codec.Elasticsearch814Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
-import org.elasticsearch.index.codec.tsdb816.ES816TSDBDocValuesFormat;
 import org.elasticsearch.plugins.internal.RestExtension;
 
 /** The Elasticsearch Server Module. */
@@ -449,7 +448,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.postings.ES812PostingsFormat;
-    provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat, ES816TSDBDocValuesFormat;
+    provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat;
     provides org.apache.lucene.codecs.KnnVectorsFormat
         with
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,

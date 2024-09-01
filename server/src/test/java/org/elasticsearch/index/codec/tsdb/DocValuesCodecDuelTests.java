@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.codec;
+package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
@@ -23,8 +23,6 @@ import org.apache.lucene.tests.index.ForceMergePolicy;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
-import org.elasticsearch.index.codec.tsdb816.ES816TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -49,11 +47,7 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             baselineConfig.setMergePolicy(mergePolicy);
             baselineConfig.setCodec(TestUtil.alwaysDocValuesFormat(new Lucene90DocValuesFormat()));
             var contenderConf = newIndexWriterConfig();
-            if (randomBoolean()) {
-                contenderConf.setCodec(TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat()));
-            } else {
-                contenderConf.setCodec(TestUtil.alwaysDocValuesFormat(new ES816TSDBDocValuesFormat()));
-            }
+            contenderConf.setCodec(TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat()));
             contenderConf.setMergePolicy(mergePolicy);
 
             try (

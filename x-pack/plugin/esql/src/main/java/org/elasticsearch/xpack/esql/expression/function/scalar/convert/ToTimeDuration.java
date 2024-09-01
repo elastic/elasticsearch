@@ -7,15 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -23,20 +19,16 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
-import java.time.temporal.TemporalAmount;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.INVALID_INTERVAL_ERROR;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.TIME_DURATIONS;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.foldToTemporalAmount;
 
 public class ToTimeDuration extends AbstractConvertFunction implements Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -75,27 +67,7 @@ public class ToTimeDuration extends AbstractConvertFunction implements Validatab
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        TypeResolution typeResolution = isType(
-            field(),
-            dt -> isString(dt) || dt == TIME_DURATION,
-            sourceText(),
-            null,
-            "string or time_duration"
-        );
-        if (field().foldable() && field() instanceof Literal && isString(field().dataType())) {
-            Object value = field().fold();
-            if (value != null) {
-                if (value instanceof BytesRef b) {
-                    value = b.utf8ToString();
-                }
-                if (isValidInterval(value.toString()) == false) {
-                    typeResolution = new TypeResolution(
-                        LoggerMessageFormat.format(null, INVALID_INTERVAL_ERROR, sourceText(), TIME_DURATIONS, field().fold())
-                    );
-                }
-            }
-        }
-        return typeResolution;
+        return isType(field(), dt -> isString(dt) || dt == TIME_DURATION, sourceText(), null, "string or time_duration");
     }
 
     @Override
@@ -120,36 +92,7 @@ public class ToTimeDuration extends AbstractConvertFunction implements Validatab
 
     @Override
     public final Object fold() {
-        if (field().foldable()) {
-            Object v = field().fold();
-            if (v instanceof BytesRef b) {
-                if (isValidInterval(b.utf8ToString()) == false) {
-                    throw new IllegalArgumentException(
-                        LoggerMessageFormat.format(null, INVALID_INTERVAL_ERROR, sourceText(), TIME_DURATIONS, b.utf8ToString())
-                    );
-                }
-                return EsqlDataTypeConverter.parseTemporalAmount(b.utf8ToString(), TIME_DURATION);
-            } else if (v instanceof TemporalAmount) {
-                return v;
-            }
-        }
-
-        throw new IllegalArgumentException(
-            LoggerMessageFormat.format(null, "argument of [{}] must be a constant, received [{}]", sourceText(), Expressions.name(field()))
-        );
-    }
-
-    private boolean isValidInterval(String interval) {
-        try {
-            String[] input = interval.toUpperCase(Locale.ROOT).stripLeading().stripTrailing().split("\\s+");
-            if (input.length != 2 || TIME_DURATIONS.contains(EsqlDataTypeConverter.INTERVALS.valueOf(input[1])) == false) {
-                return false;
-            }
-            Integer.parseInt(input[0].toString());
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
-        return true;
+        return foldToTemporalAmount(field(), sourceText(), TIME_DURATION);
     }
 
     @Override

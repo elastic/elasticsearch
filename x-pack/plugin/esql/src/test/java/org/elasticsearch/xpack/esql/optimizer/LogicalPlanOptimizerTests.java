@@ -5882,6 +5882,46 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3.5 hours]",
             e.getMessage()
         );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            row x = "2024-01-01"::datetime | eval y = x + "3 dys"::date_period"""));
+        assertEquals(
+            "Invalid interval value in [\"3 dys\"::date_period], expected integer followed by one of "
+                + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            row x = "2024-01-01"::datetime | eval y = x - to_dateperiod("3 dys")"""));
+        assertEquals(
+            "Invalid interval value in [to_dateperiod(\"3 dys\")], expected integer followed by one of "
+                + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            row x = "2024-01-01"::datetime | eval y = x + "3 ours"::time_duration"""));
+        assertEquals(
+            "Invalid interval value in [\"3 ours\"::time_duration], expected integer followed by one of "
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            row x = "2024-01-01"::datetime | eval y = x - to_timeduration("3 ours")"""));
+        assertEquals(
+            "Invalid interval value in [to_timeduration(\"3 ours\")], expected integer followed by one of "
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            row x = "2024-01-01"::datetime | eval y = x - to_timeduration("3.5 hours")"""));
+        assertEquals(
+            "Invalid interval value in [to_timeduration(\"3.5 hours\")], expected integer followed by one of "
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3.5 hours]",
+            e.getMessage()
+        );
     }
 
     public void testToDatePeriodToTimeDurationWithField() {

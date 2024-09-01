@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.esql.type;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -231,52 +233,36 @@ public class EsqlDataTypeConverter {
         return null;
     }
 
-    public class Interval {
-        private String value;
-        private String qualifier;
-
-        Interval(String value, String qualifier) {
-            this.value = value;
-            this.qualifier = qualifier;
-        }
-
-        String value() {
-            return this.value;
-        }
-
-        String qualifier() {
-            return this.qualifier;
-        }
-    }
-
-    public Interval validateTemporalAmount(Object val, DataType expectedType) {
-        String errorMessage = "Cannot parse [{}] to {}";
-        String str = String.valueOf(val);
-        if (str == null) {
-            return null;
-        }
-        StringBuilder value = new StringBuilder();
-        StringBuilder qualifier = new StringBuilder();
-        StringBuilder nextBuffer = value;
-        boolean lastWasSpace = false;
-        for (char c : str.trim().toCharArray()) {
-            if (c == ' ') {
-                if (lastWasSpace == false) {
-                    nextBuffer = nextBuffer == value ? qualifier : null;
+    public static TemporalAmount foldToTemporalAmount(Expression field, String sourceText, DataType expectedType) {
+        if (field.foldable()) {
+            Object v = field.fold();
+            if (v instanceof BytesRef b) {
+                try {
+                    return EsqlDataTypeConverter.parseTemporalAmount(b.utf8ToString(), expectedType);
+                } catch (ParsingException e) {
+                    throw new IllegalArgumentException(
+                        LoggerMessageFormat.format(
+                            null,
+                            INVALID_INTERVAL_ERROR,
+                            sourceText,
+                            expectedType == DATE_PERIOD ? DATE_PERIODS : TIME_DURATIONS,
+                            b.utf8ToString()
+                        )
+                    );
                 }
-                lastWasSpace = true;
-                continue;
+            } else if (v instanceof TemporalAmount t) {
+                return t;
             }
-            if (nextBuffer == null) {
-                throw new ParsingException(Source.EMPTY, errorMessage, val, expectedType);
-            }
-            nextBuffer.append(c);
-            lastWasSpace = false;
         }
-        if ((value.isEmpty() || qualifier.isEmpty()) == false) {
-            return new Interval(value.toString(), qualifier.toString());
-        }
-        throw new ParsingException(Source.EMPTY, errorMessage, val, expectedType);
+
+        throw new IllegalArgumentException(
+            LoggerMessageFormat.format(
+                null,
+                "argument of [{}] must be a constant, received [{}]",
+                field.sourceText(),
+                Expressions.name(field)
+            )
+        );
     }
 
     public static TemporalAmount parseTemporalAmount(Object val, DataType expectedType) {
@@ -321,7 +307,6 @@ public class EsqlDataTypeConverter {
                 // wrong pattern
             }
         }
-
         throw new ParsingException(Source.EMPTY, errorMessage, val, expectedType);
     }
 

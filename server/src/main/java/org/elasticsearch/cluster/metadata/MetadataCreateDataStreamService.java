@@ -426,7 +426,7 @@ public class MetadataCreateDataStreamService {
         String dataStreamName,
         ComposableIndexTemplate template,
         String failureStoreIndexName,
-        @Nullable BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        @Nullable BiConsumer<ProjectMetadata.Builder, IndexMetadata> metadataTransformer
     ) throws Exception {
         if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
             return currentState;

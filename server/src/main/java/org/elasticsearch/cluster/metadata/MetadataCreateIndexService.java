@@ -337,7 +337,7 @@ public class MetadataCreateIndexService {
         ClusterState currentState,
         CreateIndexClusterStateUpdateRequest request,
         boolean silent,
-        BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        BiConsumer<ProjectMetadata.Builder, IndexMetadata> metadataTransformer,
         ActionListener<Void> rerouteListener
     ) throws Exception {
 
@@ -468,7 +468,7 @@ public class MetadataCreateIndexService {
         final List<CompressedXContent> mappings,
         final Function<IndexService, List<AliasMetadata>> aliasSupplier,
         final List<String> templatesApplied,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final BiConsumer<ProjectMetadata.Builder, IndexMetadata> metadataTransformer,
         final ActionListener<Void> rerouteListener
     ) throws Exception {
         // create the index here (on the master) to validate it can be created, as well as adding the mapping
@@ -562,7 +562,7 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
         final List<IndexTemplateMetadata> templates,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
         final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.debug(
@@ -617,7 +617,7 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             templates.stream().map(IndexTemplateMetadata::getName).collect(toList()),
-            metadataTransformer,
+            projectMetadataTransformer,
             rerouteListener
         );
     }
@@ -627,7 +627,7 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
         final String templateName,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
         final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.debug("applying create index request using composable template [{}]", templateName);
@@ -686,7 +686,7 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             Collections.singletonList(templateName),
-            metadataTransformer,
+            projectMetadataTransformer,
             rerouteListener
         );
     }
@@ -743,7 +743,7 @@ public class MetadataCreateIndexService {
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
         final ActionListener<Void> rerouteListener
     ) throws Exception {
         Objects.requireNonNull(request.systemDataStreamDescriptor());
@@ -793,7 +793,7 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             List.of(),
-            metadataTransformer,
+            projectMetadataTransformer,
             rerouteListener
         );
     }
@@ -844,7 +844,7 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
         final IndexMetadata sourceMetadata,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
         final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.info("applying create index request using existing index [{}] metadata", sourceMetadata.getIndex().getName());
@@ -890,7 +890,7 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             List.of(),
-            metadataTransformer,
+            projectMetadataTransformer,
             rerouteListener
         );
     }
@@ -1232,25 +1232,34 @@ public class MetadataCreateIndexService {
     static ClusterState clusterStateCreateIndex(
         ClusterState currentState,
         IndexMetadata indexMetadata,
-        BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
-        final Metadata newMetadata;
-        if (metadataTransformer != null) {
-            Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(indexMetadata, false);
-            metadataTransformer.accept(builder, indexMetadata);
-            newMetadata = builder.build();
+        // TODO multi-projects get the right project here
+        ProjectMetadata currentProjectMetadata = currentState.metadata().getProject();
+        final ProjectMetadata newProjectMetadata;
+        if (projectMetadataTransformer != null) {
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(currentProjectMetadata);
+            projectMetadataBuilder.put(indexMetadata, false);
+            projectMetadataTransformer.accept(projectMetadataBuilder, indexMetadata);
+            newProjectMetadata = projectMetadataBuilder.build();
         } else {
-            newMetadata = currentState.metadata().withAddedIndex(indexMetadata);
+            newProjectMetadata = currentProjectMetadata.withAddedIndex(indexMetadata);
         }
 
         var blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
         blocksBuilder.updateBlocks(indexMetadata);
 
+        // TODO multi-projects get the right project here
         var routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, currentState.routingTable())
-            .addAsNew(newMetadata.getProject().index(indexMetadata.getIndex().getName()));
+            .addAsNew(newProjectMetadata.index(indexMetadata.getIndex().getName()));
 
-        return ClusterState.builder(currentState).blocks(blocksBuilder).metadata(newMetadata).routingTable(routingTableBuilder).build();
+        // TODO multi-projects get the right project here
+        return ClusterState.builder(currentState)
+            .blocks(blocksBuilder)
+            .putProjectMetadata(newProjectMetadata)
+            .routingTable(routingTableBuilder)
+            .build();
     }
 
     static IndexMetadata buildIndexMetadata(

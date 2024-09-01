@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -407,9 +408,9 @@ public class MetadataRolloverService {
                 currentState,
                 createIndexClusterStateRequest,
                 silent,
-                (builder, indexMetadata) -> {
-                    downgradeBrokenTsdbBackingIndices(dataStream, builder);
-                    builder.put(
+                (projectBuilder, indexMetadata) -> {
+                    downgradeBrokenTsdbBackingIndices(dataStream, projectBuilder);
+                    projectBuilder.put(
                         dataStream.rollover(
                             indexMetadata.getIndex(),
                             newGeneration,
@@ -449,9 +450,9 @@ public class MetadataRolloverService {
      * have backing indices with no start and end time index settings set.
      * Note that as part of rollover the new backing index will be in tsdb mode.
      */
-    private static void downgradeBrokenTsdbBackingIndices(DataStream dataStream, Metadata.Builder builder) {
+    private static void downgradeBrokenTsdbBackingIndices(DataStream dataStream, ProjectMetadata.Builder projectBuilder) {
         for (Index indexName : dataStream.getIndices()) {
-            var index = builder.getSafe(indexName);
+            var index = projectBuilder.getSafe(indexName);
             final Settings originalSettings = index.getSettings();
             if (index.getCreationVersion().before(IndexVersions.FIRST_DETACHED_INDEX_VERSION)
                 && index.getIndexMode() == IndexMode.TIME_SERIES
@@ -461,7 +462,7 @@ public class MetadataRolloverService {
                 settingsBuilder.remove(IndexSettings.MODE.getKey());
                 settingsBuilder.remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
                 long newVersion = index.getSettingsVersion() + 1;
-                builder.put(IndexMetadata.builder(index).settings(settingsBuilder.build()).settingsVersion(newVersion));
+                projectBuilder.put(IndexMetadata.builder(index).settings(settingsBuilder.build()).settingsVersion(newVersion));
             }
         }
     }

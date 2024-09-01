@@ -47,11 +47,10 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
 
     private static final int NUM_DOCS = 10;
 
-    private final Codec codec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat());
-
     @Override
     protected Codec getCodec() {
-        return codec;
+        BinaryDVCompressionMode[] modes = BinaryDVCompressionMode.values();
+        return TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat(modes[random().nextInt(modes.length)]));
     }
 
     public void testSortedDocValuesSingleUniqueValue() throws IOException {

@@ -27,7 +27,8 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     static final String META_CODEC = "ES87TSDBDocValuesMetadata";
     static final String META_EXTENSION = "dvm";
     static final int VERSION_START = 0;
-    static final int VERSION_CURRENT = VERSION_START;
+    static final int VERSION_BINARY_DV_COMPRESSION = VERSION_START;
+    static final int VERSION_CURRENT = VERSION_BINARY_DV_COMPRESSION;
     static final byte NUMERIC = 0;
     static final byte BINARY = 1;
     static final byte SORTED = 2;
@@ -42,13 +43,21 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     static final int TERMS_DICT_REVERSE_INDEX_SIZE = 1 << TERMS_DICT_REVERSE_INDEX_SHIFT;
     static final int TERMS_DICT_REVERSE_INDEX_MASK = TERMS_DICT_REVERSE_INDEX_SIZE - 1;
 
+    final BinaryDVCompressionMode binaryDVCompressionMode;
+
     public ES87TSDBDocValuesFormat() {
+        this(BinaryDVCompressionMode.NO_COMPRESS);
+    }
+
+    // allow testing old format
+    ES87TSDBDocValuesFormat(BinaryDVCompressionMode binaryDVCompressionMode) {
         super(CODEC_NAME);
+        this.binaryDVCompressionMode = binaryDVCompressionMode;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ES87TSDBDocValuesConsumer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+        return new ES87TSDBDocValuesConsumer(binaryDVCompressionMode, state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
     }
 
     @Override

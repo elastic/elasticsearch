@@ -38,6 +38,11 @@ public class DocValuesCodecDuelTests extends ESTestCase {
     private static final String FIELD_4 = "number_field_4";
     private static final String FIELD_5 = "binary_field_5";
 
+    private ES87TSDBDocValuesFormat tsdbDocValuesFormat() {
+        BinaryDVCompressionMode[] modes = BinaryDVCompressionMode.values();
+        return new ES87TSDBDocValuesFormat(modes[random().nextInt(modes.length)]);
+    }
+
     public void testDuel() throws IOException {
         try (var baselineDirectory = newDirectory(); var contenderDirectory = newDirectory()) {
             int numDocs = randomIntBetween(256, 32768);
@@ -47,7 +52,7 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             baselineConfig.setMergePolicy(mergePolicy);
             baselineConfig.setCodec(TestUtil.alwaysDocValuesFormat(new Lucene90DocValuesFormat()));
             var contenderConf = newIndexWriterConfig();
-            contenderConf.setCodec(TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat()));
+            contenderConf.setCodec(TestUtil.alwaysDocValuesFormat(tsdbDocValuesFormat()));
             contenderConf.setMergePolicy(mergePolicy);
 
             try (

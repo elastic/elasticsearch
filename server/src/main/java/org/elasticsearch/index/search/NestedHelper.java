@@ -26,7 +26,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 
-import java.io.IOException;
 import java.util.function.Predicate;
 
 /** Utility class to filter parent and children clauses when building nested

@@ -263,103 +263,46 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
 
     @Override
     protected ClusterHealthResponse mutateInstance(ClusterHealthResponse instance) {
-        String mutate = randomFrom(
-            "clusterName",
-            "numberOfPendingTasks",
-            "numberOfInFlightFetch",
-            "delayedUnassignedShards",
-            "taskMaxWaitingTime",
-            "timedOut",
-            "clusterStateHealth"
-        );
-        switch (mutate) {
-            case "clusterName":
-                return new ClusterHealthResponse(
-                    instance.getClusterName() + randomAlphaOfLengthBetween(2, 5),
-                    instance.getNumberOfPendingTasks(),
-                    instance.getNumberOfInFlightFetch(),
-                    instance.getDelayedUnassignedShards(),
-                    instance.getTaskMaxWaitingTime(),
-                    instance.isTimedOut(),
-                    instance.getClusterStateHealth()
-                );
-            case "numberOfPendingTasks":
-                return new ClusterHealthResponse(
-                    instance.getClusterName(),
-                    instance.getNumberOfPendingTasks() + between(1, 10),
-                    instance.getNumberOfInFlightFetch(),
-                    instance.getDelayedUnassignedShards(),
-                    instance.getTaskMaxWaitingTime(),
-                    instance.isTimedOut(),
-                    instance.getClusterStateHealth()
-                );
-            case "numberOfInFlightFetch":
-                return new ClusterHealthResponse(
-                    instance.getClusterName(),
-                    instance.getNumberOfPendingTasks(),
-                    instance.getNumberOfInFlightFetch() + between(1, 10),
-                    instance.getDelayedUnassignedShards(),
-                    instance.getTaskMaxWaitingTime(),
-                    instance.isTimedOut(),
-                    instance.getClusterStateHealth()
-                );
-            case "delayedUnassignedShards":
-                return new ClusterHealthResponse(
-                    instance.getClusterName(),
-                    instance.getNumberOfPendingTasks(),
-                    instance.getNumberOfInFlightFetch(),
-                    instance.getDelayedUnassignedShards() + between(1, 10),
-                    instance.getTaskMaxWaitingTime(),
-                    instance.isTimedOut(),
-                    instance.getClusterStateHealth()
-                );
-            case "taskMaxWaitingTime":
+        String clusterName = instance.getClusterName();
+        int numberOfPendingTasks = instance.getNumberOfPendingTasks();
+        int numberOfInFlightFetch = instance.getNumberOfInFlightFetch();
+        int delayedUnassignedShards = instance.getDelayedUnassignedShards();
+        TimeValue taskMaxWaitingTime = instance.getTaskMaxWaitingTime();
+        boolean timedOut = instance.isTimedOut();
+        ClusterStateHealth clusterStateHealth = instance.getClusterStateHealth();
 
-                return new ClusterHealthResponse(
-                    instance.getClusterName(),
-                    instance.getNumberOfPendingTasks(),
-                    instance.getNumberOfInFlightFetch(),
-                    instance.getDelayedUnassignedShards(),
-                    new TimeValue(instance.getTaskMaxWaitingTime().millis() + between(1, 10)),
-                    instance.isTimedOut(),
-                    instance.getClusterStateHealth()
-                );
-            case "timedOut":
-                return new ClusterHealthResponse(
-                    instance.getClusterName(),
-                    instance.getNumberOfPendingTasks(),
-                    instance.getNumberOfInFlightFetch(),
-                    instance.getDelayedUnassignedShards(),
-                    instance.getTaskMaxWaitingTime(),
-                    instance.isTimedOut() ? false : true,
-                    instance.getClusterStateHealth()
-                );
-            case "clusterStateHealth":
-                ClusterStateHealth state = instance.getClusterStateHealth();
-                ClusterStateHealth newState = new ClusterStateHealth(
-                    state.getActivePrimaryShards() + between(1, 10),
-                    state.getActiveShards(),
-                    state.getRelocatingShards(),
-                    state.getInitializingShards(),
-                    state.getUnassignedShards(),
-                    state.getUnassignedPrimaryShards(),
-                    state.getNumberOfNodes(),
-                    state.getNumberOfDataNodes(),
-                    state.getActiveShardsPercent(),
-                    state.getStatus(),
-                    state.getIndices()
-                );
-                return new ClusterHealthResponse(
-                    instance.getClusterName(),
-                    instance.getNumberOfPendingTasks(),
-                    instance.getNumberOfInFlightFetch(),
-                    instance.getDelayedUnassignedShards(),
-                    instance.getTaskMaxWaitingTime(),
-                    instance.isTimedOut(),
-                    newState
-                );
-            default:
-                throw new UnsupportedOperationException();
+        switch (randomIntBetween(0, 6)) {
+            case 0 -> clusterName = instance.getClusterName() + randomAlphaOfLengthBetween(2, 5);
+            case 1 -> numberOfPendingTasks = instance.getNumberOfPendingTasks() + between(1, 10);
+            case 2 -> numberOfInFlightFetch = instance.getNumberOfInFlightFetch() + between(1, 10);
+            case 3 -> delayedUnassignedShards = instance.getDelayedUnassignedShards() + between(1, 10);
+            case 4 -> taskMaxWaitingTime = new TimeValue(instance.getTaskMaxWaitingTime().millis() + between(1, 10));
+            case 5 -> timedOut = instance.isTimedOut() ? false : true;
+            case 6 -> clusterStateHealth = new ClusterStateHealth(
+                clusterStateHealth.getActivePrimaryShards() + between(1, 10),
+                clusterStateHealth.getActiveShards(),
+                clusterStateHealth.getRelocatingShards(),
+                clusterStateHealth.getInitializingShards(),
+                clusterStateHealth.getUnassignedShards(),
+                clusterStateHealth.getUnassignedPrimaryShards(),
+                clusterStateHealth.getNumberOfNodes(),
+                clusterStateHealth.getNumberOfDataNodes(),
+                clusterStateHealth.getActiveShardsPercent(),
+                clusterStateHealth.getStatus(),
+                clusterStateHealth.getIndices()
+            );
+            default -> throw new UnsupportedOperationException();
         }
+
+        return new ClusterHealthResponse(
+            clusterName,
+            numberOfPendingTasks,
+            numberOfInFlightFetch,
+            delayedUnassignedShards,
+            taskMaxWaitingTime,
+            timedOut,
+            clusterStateHealth
+        );
     }
+
 }

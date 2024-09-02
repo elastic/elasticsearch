@@ -78,13 +78,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     private final MutableObjectStoreUploadTracker objectStoreUploadTracker;
 
     /**
-     * Flag to indicate if opened Lucene generational files must be tracked or not.
-     */
-    private final boolean trackGenerationalFiles;
-
-    /**
      * Map of terms/generations that are currently in use by opened Lucene generational files.
-     * (only populated when {@link #trackGenerationalFiles} is enabled)
      */
     private final Map<PrimaryTermAndGeneration, RefCounted> generationalFilesTermAndGens;
 
@@ -97,14 +91,12 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         StatelessSharedBlobCacheService cacheService,
         CacheBlobReaderService cacheBlobReaderService,
         MutableObjectStoreUploadTracker objectStoreUploadTracker,
-        boolean trackGenerationalFiles,
         ShardId shardId
     ) {
         super(cacheService, shardId);
         this.cacheBlobReaderService = cacheBlobReaderService;
         this.objectStoreUploadTracker = objectStoreUploadTracker;
-        this.trackGenerationalFiles = trackGenerationalFiles;
-        this.generationalFilesTermAndGens = trackGenerationalFiles ? new HashMap<>() : Map.of();
+        this.generationalFilesTermAndGens = new HashMap<>();
     }
 
     public void updateLatestUploadedBcc(PrimaryTermAndGeneration latestUploadedBccTermAndGen) {
@@ -116,7 +108,6 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     private Releasable acquireGenerationalFileTermAndGeneration(PrimaryTermAndGeneration termAndGen, String name) {
-        assert trackGenerationalFiles;
         synchronized (generationalFilesTermAndGens) {
             var refCounted = generationalFilesTermAndGens.get(termAndGen);
             if (refCounted == null || refCounted.tryIncRef() == false) {
@@ -128,7 +119,6 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     private Releasable addGenerationalFileTermAndGeneration(PrimaryTermAndGeneration termAndGen) {
-        assert trackGenerationalFiles;
         RefCounted refCounted;
         synchronized (generationalFilesTermAndGens) {
             refCounted = generationalFilesTermAndGens.get(termAndGen);
@@ -145,7 +135,6 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     private void removeGenerationalFileTermAndGeneration(PrimaryTermAndGeneration termAndGen) {
-        assert trackGenerationalFiles;
         synchronized (generationalFilesTermAndGens) {
             var removed = generationalFilesTermAndGens.remove(termAndGen);
             assert removed != null : termAndGen;
@@ -157,17 +146,14 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * @return the set of {@link PrimaryTermAndGeneration} used by opened Lucene generational files
      */
     public Set<PrimaryTermAndGeneration> getAcquiredGenerationalFileTermAndGenerations() {
-        if (trackGenerationalFiles) {
-            synchronized (generationalFilesTermAndGens) {
-                return Set.copyOf(generationalFilesTermAndGens.keySet());
-            }
+        synchronized (generationalFilesTermAndGens) {
+            return Set.copyOf(generationalFilesTermAndGens.keySet());
         }
-        return Set.of();
     }
 
     @Override
     protected IndexInput doOpenInput(String name, IOContext context, BlobLocation blobLocation) {
-        if (trackGenerationalFiles == false || isGenerationalFile(name) == false) {
+        if (isGenerationalFile(name) == false) {
             return super.doOpenInput(name, context, blobLocation);
         }
         var releasable = acquireGenerationalFileTermAndGeneration(blobLocation.getBatchedCompoundCommitTermAndGeneration(), name);
@@ -184,7 +170,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         assert blobContainer.get() != null : shardId + " must have the blob container set before any commit update";
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
 
-        var previousGenerationalFilesTermAndGen = trackGenerationalFiles ? this.lastAcquiredGenerationalFilesTermAndGen : null;
+        var previousGenerationalFilesTermAndGen = this.lastAcquiredGenerationalFilesTermAndGen;
         try {
             final var updatedMetadata = new HashMap<>(currentMetadata);
             PrimaryTermAndGeneration generationalFilesTermAndGen = null;
@@ -192,7 +178,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             for (var entry : newCommit.commitFiles().entrySet()) {
                 var fileName = entry.getKey();
                 var blobLocation = entry.getValue();
-                if (trackGenerationalFiles && isGenerationalFile(fileName)) {
+                if (isGenerationalFile(fileName)) {
                     // blob locations for generational files are not updated: we pin the file to the first blob location that we know about.
                     // we expect generational files to be opened when the reader is refreshed and picks up the generational files for the
                     // first time and never reopened them after that (as segment core readers are handed over between refreshed reader
@@ -222,7 +208,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 var releasable = addGenerationalFileTermAndGeneration(generationalFilesTermAndGen);
                 // use releaseOnce to decRef only once, either on commit update or directory close
                 this.lastAcquiredGenerationalFilesTermAndGen = Releasables.releaseOnce(releasable);
-            } else if (trackGenerationalFiles) {
+            } else {
                 // commit has no generational files
                 this.lastAcquiredGenerationalFilesTermAndGen = null;
             }

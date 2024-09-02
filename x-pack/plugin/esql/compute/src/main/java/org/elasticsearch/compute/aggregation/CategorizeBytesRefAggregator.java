@@ -14,8 +14,6 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.common.util.LongLongHash;
-import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
@@ -30,7 +28,6 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
 import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
@@ -42,9 +39,11 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * Blah blah
+ * Categorizes text strings.
  */
 @Aggregator({ @IntermediateState(name = "categorize", type = "BYTES_REF_BLOCK") })
 @GroupingAggregator
@@ -58,16 +57,19 @@ class CategorizeBytesRefAggregator {
     }
 
     public static void combineIntermediate(SingleState state, BytesRefBlock values) {
+        combineIntermediate(state, values, 0);
+    }
+
+    public static void combineIntermediate(SingleState state, BytesRefBlock values, int valuesPosition) {
         BytesRef scratch = new BytesRef();
-        int start = values.getFirstValueIndex(0);
-        int end = start + values.getValueCount(0);
+        int start = values.getFirstValueIndex(valuesPosition);
+        int end = start + values.getValueCount(valuesPosition);
+        ByteArrayStreamInput in = new ByteArrayStreamInput();
         for (int i = start; i < end; i++) {
             values.getBytesRef(i, scratch);
-            ByteArrayStreamInput in = new ByteArrayStreamInput();
             in.reset(scratch.bytes, scratch.offset, scratch.length);
             try {
-                SerializableTokenListCategory category = new SerializableTokenListCategory(in);
-                state.categorizer.mergeWireCategory(category);
+                state.categorizer.mergeWireCategory(new SerializableTokenListCategory(in));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -83,30 +85,23 @@ class CategorizeBytesRefAggregator {
     }
 
     public static void combine(GroupingState state, int groupId, BytesRef v) {
-        state.values.add(groupId, BlockHash.hashOrdToGroup(state.bytes.add(v)));
+        state.getState(groupId).add(v);
     }
 
     public static void combineIntermediate(GroupingState state, int groupId, BytesRefBlock values, int valuesPosition) {
-        BytesRef scratch = new BytesRef();
-        int start = values.getFirstValueIndex(valuesPosition);
-        int end = start + values.getValueCount(valuesPosition);
-        for (int i = start; i < end; i++) {
-            combine(state, groupId, values.getBytesRef(i, scratch));
-        }
+        combineIntermediate(state.getState(groupId), values, valuesPosition);
     }
 
     public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        BytesRef scratch = new BytesRef();
-        for (int id = 0; id < state.values.size(); id++) {
-            if (state.values.getKey1(id) == statePosition) {
-                long value = state.values.getKey2(id);
-                combine(current, currentGroupId, state.bytes.get(value, scratch));
-            }
+        TokenListCategorizer currentCategorizer = current.getState(currentGroupId).categorizer;
+        TokenListCategorizer stateCategorizer = state.getState(statePosition).categorizer;
+        for (InternalCategorizationAggregation.Bucket bucket : stateCategorizer.toOrderedBuckets(stateCategorizer.getCategoryCount())) {
+            currentCategorizer.mergeWireCategory(bucket.getSerializableCategory());
         }
     }
 
     public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.toBlock(driverContext.blockFactory(), selected);
+        return state.toFinal(driverContext.blockFactory(), selected);
     }
 
     public static class SingleState implements Releasable {
@@ -143,130 +138,107 @@ class CategorizeBytesRefAggregator {
         }
 
         void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-            blocks[offset] = toBlock(driverContext.blockFactory());
+            BlockFactory blockFactory = driverContext.blockFactory();
+            if (categorizer.getCategoryCount() == 0) {
+                blocks[offset] = blockFactory.newConstantNullBlock(1);
+            }
+            try (BytesRefBlock.Builder block = blockFactory.newBytesRefBlockBuilder(categorizer.getCategoryCount())) {
+                addToBlockIntermediate(block);
+                blocks[offset] = block.build();
+            }
         }
 
-        Block toBlock(BlockFactory blockFactory) {
-            InternalCategorizationAggregation.Bucket[] buckets = categorizer.toOrderedBuckets(categorizer.getCategoryCount());
-            if (buckets.length == 0) {
-                return blockFactory.newConstantNullBlock(1);
-            }
-//            BytesRef scratch = new BytesRef();
-//            if (values.size() == 1) {
-//                return blockFactory.newConstantBytesRefBlockWith(BytesRef.deepCopyOf(values.get(0, scratch)), 1);
-//            }
-            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(buckets.length)) {
-                builder.beginPositionEntry();
-                for (int id = 0; id < buckets.length; id++) {
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    OutputStreamStreamOutput out = new OutputStreamStreamOutput(baos);
-                    try {
-                        System.out.println("***BUCKET["+id+"] = "+buckets[id]);
-                        buckets[id].writeTo(out);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                    builder.appendBytesRef(new BytesRef(baos.toByteArray()));
+        void addToBlockIntermediate(BytesRefBlock.Builder block) {
+            block.beginPositionEntry();
+            for (InternalCategorizationAggregation.Bucket bucket : categorizer.toOrderedBuckets(categorizer.getCategoryCount())) {
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                OutputStreamStreamOutput out = new OutputStreamStreamOutput(baos);
+                try {
+                    bucket.writeTo(out);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
                 }
-                builder.endPositionEntry();
-                return builder.build();
+                block.appendBytesRef(new BytesRef(baos.toByteArray()));
             }
+            block.endPositionEntry();
         }
 
         Block toFinal(BlockFactory blockFactory) {
-            InternalCategorizationAggregation.Bucket[] buckets = categorizer.toOrderedBuckets(categorizer.getCategoryCount());
-            if (buckets.length == 0) {
+            if (categorizer.getCategoryCount() == 0) {
                 return blockFactory.newConstantNullBlock(1);
             }
-            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(buckets.length)) {
-                builder.beginPositionEntry();
-                for (InternalCategorizationAggregation.Bucket bucket : buckets) {
-                    String result = String.join(";",
-                        bucket.getKeyAsString(),
-                        bucket.getSerializableCategory().getRegex(),
-                        Long.toString(bucket.getDocCount())
-                    );
-                    builder.appendBytesRef(new BytesRef(result.getBytes(StandardCharsets.UTF_8)));
-                }
-                builder.endPositionEntry();
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(categorizer.getCategoryCount())) {
+                addToBlockFinal(builder);
                 return builder.build();
             }
         }
 
+        void addToBlockFinal(BytesRefBlock.Builder block) {
+            block.beginPositionEntry();
+            for (InternalCategorizationAggregation.Bucket bucket : categorizer.toOrderedBuckets(categorizer.getCategoryCount())) {
+                // TODO: find something better for this semi-colon-separated string.
+                String result = String.join(";",
+                    bucket.getKeyAsString(),
+                    bucket.getSerializableCategory().getRegex(),
+                    Long.toString(bucket.getDocCount())
+                );
+                block.appendBytesRef(new BytesRef(result.getBytes(StandardCharsets.UTF_8)));
+            }
+            block.endPositionEntry();
+        }
         @Override
         public void close() {
             Releasables.close(bytesRefHash);
         }
     }
 
-    /**
-     * State for a grouped {@code VALUES} aggregation. This implementation
-     * emphasizes collect-time performance over the performance of rendering
-     * results. That's good, but it's a pretty intensive emphasis, requiring
-     * an {@code O(n^2)} operation for collection to support a {@code O(1)}
-     * collector operation. But at least it's fairly simple.
-     */
     public static class GroupingState implements Releasable {
 
-        private final LongLongHash values;
-        private final BytesRefHash bytes;
+        private final BigArrays bigArrays;
+        private final Map<Integer, SingleState> states;
 
         private GroupingState(BigArrays bigArrays) {
-            values = new LongLongHash(1, bigArrays);
-            bytes = new BytesRefHash(1, bigArrays);
+            this.bigArrays = bigArrays;
+            states = new HashMap<>();
+        }
+
+        public SingleState getState(int groupId) {
+            return states.computeIfAbsent(groupId, key -> new SingleState(bigArrays));
         }
 
         void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            blocks[offset] = toBlock(driverContext.blockFactory(), selected);
+            BlockFactory blockFactory = driverContext.blockFactory();
+            if (states.isEmpty()) {
+                blocks[offset] = blockFactory.newConstantNullBlock(selected.getPositionCount());
+            }
+            try (BytesRefBlock.Builder block = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
+                for (int s = 0; s < selected.getPositionCount(); s++) {
+                    states.get(selected.getInt(s)).addToBlockIntermediate(block);
+                }
+                blocks[offset] = block.build();
+            }
         }
 
-        Block toBlock(BlockFactory blockFactory, IntVector selected) {
-            if (values.size() == 0) {
+        Block toFinal(BlockFactory blockFactory, IntVector selected) {
+            if (states.isEmpty()) {
                 return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
-            BytesRef scratch = new BytesRef();
-            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
+            try (BytesRefBlock.Builder block = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
                 for (int s = 0; s < selected.getPositionCount(); s++) {
-                    int selectedGroup = selected.getInt(s);
-                    /*
-                     * Count can effectively be in three states - 0, 1, many. We use those
-                     * states to buffer the first value, so we can avoid calling
-                     * beginPositionEntry on single valued fields.
-                     */
-                    int count = 0;
-                    long first = 0;
-                    for (int id = 0; id < values.size(); id++) {
-                        if (values.getKey1(id) == selectedGroup) {
-                            long value = values.getKey2(id);
-                            switch (count) {
-                                case 0 -> first = value;
-                                case 1 -> {
-                                    builder.beginPositionEntry();
-                                    builder.appendBytesRef(bytes.get(first, scratch));
-                                    builder.appendBytesRef(bytes.get(value, scratch));
-                                }
-                                default -> builder.appendBytesRef(bytes.get(value, scratch));
-                            }
-                            count++;
-                        }
-                    }
-                    switch (count) {
-                        case 0 -> builder.appendNull();
-                        case 1 -> builder.appendBytesRef(bytes.get(first, scratch));
-                        default -> builder.endPositionEntry();
-                    }
+                    states.get(selected.getInt(s)).addToBlockFinal(block);
                 }
-                return builder.build();
+                return block.build();
             }
         }
 
         void enableGroupIdTracking(SeenGroupIds seen) {
-            // we figure out seen values from nulls on the values block
         }
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(values, bytes);
+            for (SingleState state : states.values()) {
+                Releasables.closeExpectNoException(state.bytesRefHash);
+            }
         }
     }
 }

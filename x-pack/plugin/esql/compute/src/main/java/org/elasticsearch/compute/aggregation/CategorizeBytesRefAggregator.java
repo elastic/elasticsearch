@@ -178,15 +178,15 @@ class CategorizeBytesRefAggregator {
             if (buckets.length == 0) {
                 return blockFactory.newConstantNullBlock(1);
             }
-            //            BytesRef scratch = new BytesRef();
-            //            if (values.size() == 1) {
-            //                return blockFactory.newConstantBytesRefBlockWith(BytesRef.deepCopyOf(values.get(0, scratch)), 1);
-            //            }
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(buckets.length)) {
                 builder.beginPositionEntry();
-                for (int id = 0; id < buckets.length; id++) {
-                    byte[] key = (buckets[id].getDocCount() + ":" + buckets[id].getKeyAsString()).getBytes(StandardCharsets.UTF_8);
-                    builder.appendBytesRef(new BytesRef(key));
+                for (InternalCategorizationAggregation.Bucket bucket : buckets) {
+                    String result = String.join(";",
+                        bucket.getKeyAsString(),
+                        bucket.getSerializableCategory().getRegex(),
+                        Long.toString(bucket.getDocCount())
+                    );
+                    builder.appendBytesRef(new BytesRef(result.getBytes(StandardCharsets.UTF_8)));
                 }
                 builder.endPositionEntry();
                 return builder.build();

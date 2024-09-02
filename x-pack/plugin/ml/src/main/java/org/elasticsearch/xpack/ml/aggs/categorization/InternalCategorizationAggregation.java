@@ -187,7 +187,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             return bucketOrd;
         }
 
-        SerializableTokenListCategory getSerializableCategory() {
+        public SerializableTokenListCategory getSerializableCategory() {
             return serializableCategory;
         }
 

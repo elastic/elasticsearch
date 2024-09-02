@@ -375,7 +375,7 @@ public class SharedBlobCacheWarmingService {
             return ActionListener.runBefore(target, () -> {
                 final long duration = threadPool.rawRelativeTimeInMillis() - started;
                 logger.log(
-                    duration >= 5000 ? Level.WARN : Level.DEBUG,
+                    duration >= 5000 ? Level.INFO : Level.DEBUG,
                     "{} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
                     indexShard.shardId(),
                     description,

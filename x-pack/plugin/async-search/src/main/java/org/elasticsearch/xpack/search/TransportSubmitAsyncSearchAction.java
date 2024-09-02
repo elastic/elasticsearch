@@ -95,7 +95,9 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
             ActionListener<AsyncSearchResponse> submitListenerWithHeaders = submitListener.map(response -> {
                 threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, response.isRunning() ? "?1" : "?0");
-                threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, response.getId());
+                if (response.getId() != null) {
+                    threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, response.getId());
+                }
                 return response;
             });
             searchTask.addCompletionListener(new ActionListener<>() {
@@ -175,7 +177,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 public void onFailure(Exception exc) {
                     // this will only ever be called if there is an issue scheduling the thread that executes
                     // the completion listener once the wait for completion timeout expires.
-                    onFatalFailure(searchTask, exc, true, "fatal failure: addCompletionListener", submitListener);
+                    onFatalFailure(searchTask, exc, true, "fatal failure: addCompletionListener", submitListenerWithHeaders);
                 }
             }, request.getWaitForCompletionTimeout());
         }

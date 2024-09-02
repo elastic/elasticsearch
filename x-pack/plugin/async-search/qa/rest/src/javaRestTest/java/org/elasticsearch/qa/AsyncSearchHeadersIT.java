@@ -49,7 +49,9 @@ public class AsyncSearchHeadersIT extends ESRestTestCase {
         var asyncExecutionId = (String) json.get("id");
         var isRunning = (boolean) json.get("is_running");
 
-        assertThat(response.getHeader("X-ElasticSearch-Async-Id"), equalTo(asyncExecutionId));
+        if (asyncExecutionId != null) {
+            assertThat(response.getHeader("X-ElasticSearch-Async-Id"), equalTo(asyncExecutionId));
+        }
         assertThat(response.getHeader("X-ElasticSearch-Async-Is-Running"), equalTo(isRunning ? "?1" : "?0"));
 
         return asyncExecutionId;

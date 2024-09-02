@@ -1,14 +1,14 @@
 categorize
 FROM sample_data
-  | STATS pattern_and_count=CATEGORIZE(message)
-  | MV_EXPAND pattern_and_count 
-  | EVAL pattern=SUBSTRING(pattern_and_count,3), 
-         count=TO_LONG(SUBSTRING(pattern_and_count,1,1))
-  | DROP pattern_and_count
+  | STATS result = CATEGORIZE(message)
+  | MV_EXPAND result 
+  | EVAL result = SPLIT(result, ";")
+  | EVAL key = MV_SLICE(result, 0), regex = MV_SLICE(result, 1), count = TO_LONG(MV_SLICE(result, 2))
+  | DROP result
 ;
 
-pattern:keyword  | count:long
-Connection error | 3
-Connected to     | 3
-Disconnected     | 1
+key:keyword      | regex:keyword            | count:long
+Connection error | .*?Connection.+?error.*? | 3
+Connected to     | .*?Connected.+?to.*?     | 3
+Disconnected     | .*?Disconnected.*?       | 1
 ;

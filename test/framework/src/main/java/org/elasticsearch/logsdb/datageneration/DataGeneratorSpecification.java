@@ -23,6 +23,7 @@ import java.util.List;
  *                              Applies to subobjects.
  * @param maxObjectDepth maximum depth of nested objects
  * @param nestedFieldsLimit how many total nested fields can be present in a produced mapping
+ * @param fullyDynamicMapping if the mapping is fully dynamic, meaning none of the fields are mapped (essentially mapping is empty)
  * @param predefinedFields predefined fields that must be present in mapping and documents. Only top level fields are supported.
  */
 public record DataGeneratorSpecification(
@@ -30,6 +31,7 @@ public record DataGeneratorSpecification(
     int maxFieldCountPerLevel,
     int maxObjectDepth,
     int nestedFieldsLimit,
+    boolean fullyDynamicMapping,
     List<PredefinedField> predefinedFields
 ) {
 
@@ -46,6 +48,7 @@ public record DataGeneratorSpecification(
         private int maxFieldCountPerLevel;
         private int maxObjectDepth;
         private int nestedFieldsLimit;
+        private boolean fullyDynamicMapping;
         private List<PredefinedField> predefinedFields;
 
         public Builder() {
@@ -55,6 +58,7 @@ public record DataGeneratorSpecification(
             this.maxObjectDepth = 2;
             // Default value of index.mapping.nested_fields.limit
             this.nestedFieldsLimit = 50;
+            fullyDynamicMapping = false;
             this.predefinedFields = new ArrayList<>();
         }
 
@@ -78,6 +82,11 @@ public record DataGeneratorSpecification(
             return this;
         }
 
+        public Builder withFullyDynamicMapping(boolean fullyDynamicMapping) {
+            this.fullyDynamicMapping = fullyDynamicMapping;
+            return this;
+        }
+
         public Builder withPredefinedFields(List<PredefinedField> predefinedFields) {
             this.predefinedFields = predefinedFields;
             return this;
@@ -89,6 +98,7 @@ public record DataGeneratorSpecification(
                 maxFieldCountPerLevel,
                 maxObjectDepth,
                 nestedFieldsLimit,
+                fullyDynamicMapping,
                 predefinedFields
             );
         }

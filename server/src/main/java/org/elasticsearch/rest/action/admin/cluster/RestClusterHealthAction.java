@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -109,6 +110,11 @@ public class RestClusterHealthAction extends BaseRestHandler {
     @Override
     public boolean canTripCircuitBreaker() {
         return false;
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Sets.union(Set.of("unassigned_pri_shard_count"), super.supportedCapabilities());
     }
 
 }

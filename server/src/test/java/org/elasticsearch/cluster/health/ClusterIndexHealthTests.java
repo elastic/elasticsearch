@@ -68,6 +68,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
         assertThat(indexHealth.getRelocatingShards(), equalTo(counter.relocating));
         assertThat(indexHealth.getInitializingShards(), equalTo(counter.initializing));
         assertThat(indexHealth.getUnassignedShards(), equalTo(counter.unassigned));
+        assertThat(indexHealth.getUnassignedPrimaryShards(), equalTo(counter.unassignedPrimary));
         assertThat(indexHealth.getShards().size(), equalTo(indexMetadata.getNumberOfShards()));
         int totalShards = 0;
         for (ClusterShardHealth shardHealth : indexHealth.getShards().values()) {
@@ -91,6 +92,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
         }
         return new ClusterIndexHealth(
             indexName,
+            randomInt(1000),
             randomInt(1000),
             randomInt(1000),
             randomInt(1000),
@@ -147,6 +149,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
             "relocatingShards",
             "initializingShards",
             "unassignedShards",
+            "unassignedPrimaryShards",
             "activePrimaryShards",
             "status",
             "shards"
@@ -161,6 +164,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
                     instance.getRelocatingShards(),
                     instance.getInitializingShards(),
                     instance.getUnassignedShards(),
+                    instance.getUnassignedPrimaryShards(),
                     instance.getActivePrimaryShards(),
                     instance.getStatus(),
                     instance.getShards()
@@ -174,6 +178,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
                     instance.getRelocatingShards(),
                     instance.getInitializingShards(),
                     instance.getUnassignedShards(),
+                    instance.getUnassignedPrimaryShards(),
                     instance.getActivePrimaryShards(),
                     instance.getStatus(),
                     instance.getShards()
@@ -187,6 +192,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
                     instance.getRelocatingShards(),
                     instance.getInitializingShards(),
                     instance.getUnassignedShards(),
+                    instance.getUnassignedPrimaryShards(),
                     instance.getActivePrimaryShards(),
                     instance.getStatus(),
                     instance.getShards()
@@ -200,6 +206,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
                     instance.getRelocatingShards(),
                     instance.getInitializingShards(),
                     instance.getUnassignedShards(),
+                    instance.getUnassignedPrimaryShards(),
                     instance.getActivePrimaryShards(),
                     instance.getStatus(),
                     instance.getShards()
@@ -213,6 +220,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
                     instance.getRelocatingShards() + between(1, 10),
                     instance.getInitializingShards(),
                     instance.getUnassignedShards(),
+                    instance.getUnassignedPrimaryShards(),
                     instance.getActivePrimaryShards(),
                     instance.getStatus(),
                     instance.getShards()
@@ -226,6 +234,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
                     instance.getRelocatingShards(),
                     instance.getInitializingShards() + between(1, 10),
                     instance.getUnassignedShards(),
+                    instance.getUnassignedPrimaryShards(),
                     instance.getActivePrimaryShards(),
                     instance.getStatus(),
                     instance.getShards()
@@ -239,6 +248,21 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
                     instance.getRelocatingShards(),
                     instance.getInitializingShards(),
                     instance.getUnassignedShards() + between(1, 10),
+                    instance.getUnassignedPrimaryShards(),
+                    instance.getActivePrimaryShards(),
+                    instance.getStatus(),
+                    instance.getShards()
+                );
+            case "unassignedPrimaryShards":
+                return new ClusterIndexHealth(
+                    instance.getIndex(),
+                    instance.getNumberOfShards(),
+                    instance.getNumberOfReplicas(),
+                    instance.getActiveShards(),
+                    instance.getRelocatingShards(),
+                    instance.getInitializingShards(),
+                    instance.getUnassignedShards(),
+                    instance.getUnassignedPrimaryShards() + between(1, 10),
                     instance.getActivePrimaryShards(),
                     instance.getStatus(),
                     instance.getShards()
@@ -252,6 +276,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
                     instance.getRelocatingShards(),
                     instance.getInitializingShards(),
                     instance.getUnassignedShards(),
+                    instance.getUnassignedPrimaryShards(),
                     instance.getActivePrimaryShards() + between(1, 10),
                     instance.getStatus(),
                     instance.getShards()
@@ -268,6 +293,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
                     instance.getRelocatingShards(),
                     instance.getInitializingShards(),
                     instance.getUnassignedShards(),
+                    instance.getUnassignedPrimaryShards(),
                     instance.getActivePrimaryShards(),
                     status,
                     instance.getShards()
@@ -288,6 +314,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
                     instance.getRelocatingShards(),
                     instance.getInitializingShards(),
                     instance.getUnassignedShards(),
+                    instance.getUnassignedPrimaryShards(),
                     instance.getActivePrimaryShards(),
                     instance.getStatus(),
                     map
@@ -308,6 +335,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
             int relocatingShards = (int) parsedObjects[i++];
             int initializingShards = (int) parsedObjects[i++];
             int unassignedShards = (int) parsedObjects[i++];
+            int unassignedPrimaryShards = (int) parsedObjects[i++];
             int activePrimaryShards = (int) parsedObjects[i++];
             String statusStr = (String) parsedObjects[i++];
             ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
@@ -330,6 +358,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
                 relocatingShards,
                 initializingShards,
                 unassignedShards,
+                unassignedPrimaryShards,
                 activePrimaryShards,
                 status,
                 shards
@@ -349,6 +378,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
         PARSER.declareInt(constructorArg(), new ParseField(ClusterIndexHealth.RELOCATING_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ClusterIndexHealth.INITIALIZING_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ClusterIndexHealth.UNASSIGNED_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterIndexHealth.UNASSIGNED_PRIMARY_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ClusterIndexHealth.ACTIVE_PRIMARY_SHARDS));
         PARSER.declareString(constructorArg(), new ParseField(ClusterIndexHealth.STATUS));
         // Can be absent if LEVEL == 'indices' or 'cluster'

@@ -66,6 +66,7 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
             "include_defaults",
             "timeout",
             "master_timeout",
+            RestRequest.PATH_RESTRICTED,
             IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
             IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
             IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,

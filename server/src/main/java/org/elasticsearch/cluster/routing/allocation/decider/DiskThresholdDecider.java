@@ -14,9 +14,10 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -120,7 +121,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo snapshotShardSizeInfo,
         Metadata metadata,
-        RoutingTable routingTable,
+        GlobalRoutingTable routingTable,
         long sizeOfUnaccountableSearchableSnapshotShards
     ) {
         // Account for reserved space wherever it is available
@@ -138,9 +139,17 @@ public class DiskThresholdDecider extends AllocationDecider {
                 // if we don't yet know the actual path of the incoming shard then conservatively assume
                 // it's going to the path with the least free space
                 if (actualPath == null || actualPath.equals(dataPath)) {
+                    ProjectId projectId = routingTable.getProjectLookup().project(routing.index());
                     totalSize += Math.max(
                         routing.getExpectedShardSize(),
-                        getExpectedShardSize(routing, 0L, clusterInfo, snapshotShardSizeInfo, metadata, routingTable)
+                        getExpectedShardSize(
+                            routing,
+                            0L,
+                            clusterInfo,
+                            snapshotShardSizeInfo,
+                            metadata.getProject(projectId),
+                            routingTable.routingTable(projectId)
+                        )
                     );
                 }
             }
@@ -151,7 +160,15 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (subtractShardsMovingAway) {
             for (ShardRouting routing : node.relocating()) {
                 if (dataPath.equals(clusterInfo.getDataPath(routing))) {
-                    totalSize -= getExpectedShardSize(routing, 0L, clusterInfo, snapshotShardSizeInfo, metadata, routingTable);
+                    ProjectId projectId = routingTable.getProjectLookup().project(routing.index());
+                    totalSize -= getExpectedShardSize(
+                        routing,
+                        0L,
+                        clusterInfo,
+                        snapshotShardSizeInfo,
+                        metadata.getProject(projectId),
+                        routingTable.routingTable(projectId)
+                    );
                 }
             }
         }
@@ -198,7 +215,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 allocation.clusterInfo(),
                 allocation.snapshotShardSizeInfo(),
                 allocation.metadata(),
-                allocation.routingTable(),
+                allocation.globalRoutingTable(),
                 allocation.unaccountedSearchableSnapshotSize(node)
             );
             logger.debug(
@@ -407,7 +424,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 allocation.clusterInfo(),
                 allocation.snapshotShardSizeInfo(),
                 allocation.metadata(),
-                allocation.routingTable(),
+                allocation.globalRoutingTable(),
                 allocation.unaccountedSearchableSnapshotSize(node)
             );
             logger.debug(
@@ -487,7 +504,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 allocation.clusterInfo(),
                 allocation.snapshotShardSizeInfo(),
                 allocation.metadata(),
-                allocation.routingTable(),
+                allocation.globalRoutingTable(),
                 allocation.unaccountedSearchableSnapshotSize(node)
             )
         );

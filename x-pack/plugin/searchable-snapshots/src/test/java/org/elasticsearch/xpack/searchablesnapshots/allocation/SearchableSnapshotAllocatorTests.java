@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -54,6 +56,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.empty;
 
 public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
@@ -139,7 +142,13 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId);
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        routingTableBuilder.addAsRestore(metadata.getProject().index(shardId.getIndex()), randomSnapshotSource(shardId));
+
+        assertThat(metadata.projects(), aMapWithSize(1));
+        var entry = metadata.projects().entrySet().iterator().next();
+        final ProjectMetadata projectMetadata = entry.getValue();
+        final ProjectId projectId = entry.getKey();
+
+        routingTableBuilder.addAsRestore(projectMetadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
 
         final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);
         final RoutingAllocation allocation = buildAllocation(
@@ -166,7 +175,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         allocateAllUnassigned(allocation, allocator);
         assertTrue(allocation.routingNodesChanged());
         assertThat(allocation.routingNodes().assignedShards(shardId), empty());
-        assertTrue(allocation.routingTable().index(shardId.getIndex()).allPrimaryShardsUnassigned());
+        assertTrue(allocation.routingTable(projectId).index(shardId.getIndex()).allPrimaryShardsUnassigned());
     }
 
     public void testNoFetchesForPartialIndex() {
@@ -176,7 +185,13 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId, builder -> builder.put(SNAPSHOT_PARTIAL_SETTING.getKey(), true));
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        routingTableBuilder.addAsRestore(metadata.getProject().index(shardId.getIndex()), randomSnapshotSource(shardId));
+
+        assertThat(metadata.projects(), aMapWithSize(1));
+        var entry = metadata.projects().entrySet().iterator().next();
+        final ProjectMetadata projectMetadata = entry.getValue();
+        final ProjectId projectId = entry.getKey();
+
+        routingTableBuilder.addAsRestore(projectMetadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
 
         final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);
         final RoutingAllocation allocation = buildAllocation(
@@ -202,7 +217,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         }, testFrozenCacheSizeService());
         allocateAllUnassigned(allocation, allocator);
         assertThat(allocation.routingNodes().assignedShards(shardId), empty());
-        assertTrue(allocation.routingTable().index(shardId.getIndex()).allPrimaryShardsUnassigned());
+        assertTrue(allocation.routingTable(projectId).index(shardId.getIndex()).allPrimaryShardsUnassigned());
     }
 
     private static Metadata buildSingleShardIndexMetadata(ShardId shardId) {

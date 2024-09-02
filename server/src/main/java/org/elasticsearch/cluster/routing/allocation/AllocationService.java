@@ -700,7 +700,7 @@ public class AllocationService {
     private ExistingShardsAllocator getAllocatorForShard(ShardRouting shardRouting, RoutingAllocation routingAllocation) {
         assert assertInitialized();
         final String allocatorName = ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
-            routingAllocation.metadata().getProject().getIndexSafe(shardRouting.index()).getSettings()
+            routingAllocation.getProject(shardRouting.index()).getIndexSafe(shardRouting.index()).getSettings()
         );
         final ExistingShardsAllocator existingShardsAllocator = existingShardsAllocators.get(allocatorName);
         return existingShardsAllocator != null ? existingShardsAllocator : new NotFoundAllocator(allocatorName);

@@ -14,8 +14,11 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -25,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -205,8 +209,17 @@ public class RoutingAllocation {
      * Get routing table of current nodes
      * @return current routing table
      */
+    @Deprecated
     public RoutingTable routingTable() {
-        return clusterState.routingTable();
+        return globalRoutingTable().getRoutingTable();
+    }
+
+    public GlobalRoutingTable globalRoutingTable() {
+        return clusterState.globalRoutingTable();
+    }
+
+    public RoutingTable routingTable(ProjectId projectId) {
+        return globalRoutingTable().routingTable(projectId);
     }
 
     /**
@@ -226,6 +239,17 @@ public class RoutingAllocation {
      */
     public Metadata metadata() {
         return clusterState.metadata();
+    }
+
+    /**
+     * @return project-metadata for the project that contains the specified index
+     */
+    public ProjectMetadata getProject(Index index) {
+        var projectId = globalRoutingTable().getProjectLookup().project(index);
+        if (projectId == null) {
+            throw new IllegalArgumentException("cannot find project for index [" + index + "]");
+        }
+        return metadata().getProject(projectId);
     }
 
     /**

@@ -1325,6 +1325,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
                 while (unassignedIterator.hasNext()) {
                     final var shardRouting = unassignedIterator.next();
+                    final var projectId = allocation.globalRoutingTable().getProjectLookup().project(shardRouting.index());
                     if (shardRouting.primary()) {
                         unassignedIterator.initialize("node-0", null, 0L, allocation.changes());
                     } else if (isCorrespondingPrimaryStarted(shardRouting, allocation)) {

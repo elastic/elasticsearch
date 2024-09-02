@@ -25,6 +25,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -32,10 +34,13 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.DiffableTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -51,6 +56,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<GlobalRoutingTable> {
@@ -347,6 +353,79 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
 
         assertThat(updatedRouting.routingTable(project1), not(sameInstance(originalTable.routingTable(project1))));
         assertThat(updatedRouting.routingTable(project2), sameInstance(originalTable.routingTable(project2)));
+    }
+
+    public void testProjectLookupWithSingleProject() {
+        final ProjectId projectId = new ProjectId(randomUUID());
+        final RoutingTable.Builder rtBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+
+        final int numberOfIndices = randomIntBetween(2, 20);
+        final List<IndexMetadata> indices = new ArrayList<>(numberOfIndices);
+        for (int i = 0; i < numberOfIndices; i++) {
+            final String uuid = randomUUID();
+            final IndexMetadata indexMetadata = IndexMetadata.builder(Strings.format("index-%02d", i))
+                .settings(
+                    indexSettings(1, 0).put(IndexMetadata.SETTING_INDEX_UUID, uuid)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                )
+                .build();
+            indices.add(indexMetadata);
+            rtBuilder.addAsNew(indexMetadata);
+        }
+
+        final GlobalRoutingTable routingTable = GlobalRoutingTable.builder().put(projectId, rtBuilder).build();
+        final GlobalRoutingTable.ProjectLookup lookup = routingTable.getProjectLookup();
+        assertThat(lookup, Matchers.instanceOf(GlobalRoutingTable.SingleProjectLookup.class));
+        indices.forEach(im -> {
+            final Index index = im.getIndex();
+            assertThat(lookup.project(index), equalTo(projectId));
+
+            Index alt1 = new Index(index.getName(), randomValueOtherThan(im.getIndexUUID(), ESTestCase::randomUUID));
+            assertThat(lookup.project(alt1), nullValue());
+
+            Index alt2 = new Index(randomAlphaOfLength(8), im.getIndexUUID());
+            assertThat(lookup.project(alt2), nullValue());
+        });
+    }
+
+    public void testProjectLookupWithMultipleProjects() {
+        final int numberOfProjects = randomIntBetween(2, 8);
+        final GlobalRoutingTable.Builder globalRoutingTable = GlobalRoutingTable.builder();
+        final Map<ProjectId, List<IndexMetadata>> indices = Maps.newMapWithExpectedSize(numberOfProjects);
+        for (int p = 1; p <= numberOfProjects; p++) {
+            final ProjectId projectId = new ProjectId(Strings.format("proj_%02d", p));
+            final RoutingTable.Builder rtBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+
+            final int numberOfIndices = randomIntBetween(p, 10);
+            indices.put(projectId, new ArrayList<>(numberOfIndices));
+            for (int i = 0; i < numberOfIndices; i++) {
+                final String uuid = randomUUID();
+                final IndexMetadata indexMetadata = IndexMetadata.builder(Strings.format("index-%02d", i))
+                    .settings(
+                        indexSettings(1, 0).put(IndexMetadata.SETTING_INDEX_UUID, uuid)
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    )
+                    .build();
+                indices.get(projectId).add(indexMetadata);
+                rtBuilder.addAsNew(indexMetadata);
+            }
+            globalRoutingTable.put(projectId, rtBuilder);
+        }
+
+        final GlobalRoutingTable routingTable = globalRoutingTable.build();
+        final GlobalRoutingTable.ProjectLookup lookup = routingTable.getProjectLookup();
+        assertThat(lookup, Matchers.instanceOf(GlobalRoutingTable.MultiProjectLookup.class));
+
+        indices.forEach((project, ix) -> ix.forEach(im -> {
+            final Index index = im.getIndex();
+            assertThat(lookup.project(index), equalTo(project));
+
+            Index alt1 = new Index(index.getName(), randomValueOtherThan(im.getIndexUUID(), ESTestCase::randomUUID));
+            assertThat(lookup.project(alt1), nullValue());
+
+            Index alt2 = new Index(randomAlphaOfLength(8), im.getIndexUUID());
+            assertThat(lookup.project(alt2), nullValue());
+        }));
     }
 
     private ClusterState buildClusterState(Map<ProjectId, Set<String>> projectIndices) {

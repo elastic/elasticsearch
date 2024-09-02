@@ -381,6 +381,8 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
         final long rangeToWriteEnd = rangeToWriteStart + rangeLength;
         final ByteRange rangeToWrite = ByteRange.of(rangeToWriteStart, rangeToWriteEnd);
         final var sequentialRangeMissingHandler = new SearchIndexInput.SequentialRangeMissingHandler(
+            "__test__",
+            "__unknown__",
             rangeToWrite,
             cacheBlobReader,
             () -> null, // ignored
@@ -480,6 +482,8 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
         final long rangeToWriteEnd = rangeToWriteStart + rangeLength;
         final ByteRange rangeToWrite = ByteRange.of(rangeToWriteStart, rangeToWriteEnd);
         final var sequentialRangeMissingHandler = new SearchIndexInput.SequentialRangeMissingHandler(
+            "__test__",
+            "__unknown__",
             rangeToWrite,
             cacheBlobReader,
             () -> null, // ignored

@@ -234,28 +234,15 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                     // Can be executed on different thread pool depending on whether we read from
                     // the ObjectStoreCacheBlobReader (SHARD_READ pool) or the IndexingShardCacheBlobReader (VBCC pool)
                     new SequentialRangeMissingHandler(
+                        SearchIndexInput.this,
+                        cacheFile.getCacheKey().fileName(),
                         rangeToWrite,
                         cacheBlobReader,
                         () -> writeBuffer.get().clear(),
                         bytesCopied -> {},
                         Stateless.SHARD_READ_THREAD_POOL,
                         Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
-                    ) {
-                        @Override
-                        void inputStreamFromCacheBlobReader(long streamStartPosition, int len, ActionListener<InputStream> listener) {
-                            // this length is computed from the rangeToWrite and the sum of "streamStartPosition + len" can real
-                            // length of the blob
-                            logger.debug(
-                                "{}: loading [{}][{}-{}] from [{}]",
-                                SearchIndexInput.this.toString(),
-                                cacheFile.getCacheKey().fileName(),
-                                streamStartPosition,
-                                streamStartPosition + len,
-                                cacheBlobReader.getClass().getSimpleName()
-                            );
-                            super.inputStreamFromCacheBlobReader(streamStartPosition, len, listener);
-                        }
-                    }
+                    )
                 );
                 byteBufferReference.finish(bytesRead);
             } catch (Exception e) {
@@ -294,6 +281,8 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
         private static final Logger logger = LogManager.getLogger(SequentialRangeMissingHandler.class);
 
+        private final Object initiator;
+        private final String blobFileName;
         private final ByteRange rangeToWrite;
         private final CacheBlobReader cacheBlobReader;
         private final Supplier<ByteBuffer> writeBufferSupplier;
@@ -301,20 +290,26 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         private final String[] expectedThreadPoolNames;
 
         /**
-         * @param rangeToWrite the range to read into the cache, see also {@link CacheBlobReader#getRange}
-         * @param cacheBlobReader source reader which is used to fill the range
-         * @param writeBufferSupplier returns byte buffer which is used for copying data from blob reader to cache.
-         *                            Be aware of threaded usage of writeBufferSupplier. Underlying buffer is used exclusively in
-         *                            a gap filling thread, so it should not be shared with other modifying threads.
+         * @param initiator               the caller - used for debug logging
+         * @param blobFileName            the blob file name read from
+         * @param rangeToWrite            the range to read into the cache, see also {@link CacheBlobReader#getRange}
+         * @param cacheBlobReader         source reader which is used to fill the range
+         * @param writeBufferSupplier     returns byte buffer which is used for copying data from blob reader to cache.
+         *                                Be aware of threaded usage of writeBufferSupplier. Underlying buffer is used exclusively in
+         *                                a gap filling thread, so it should not be shared with other modifying threads.
          * @param expectedThreadPoolNames lists threads which can be used to fill the range
          */
         public SequentialRangeMissingHandler(
+            Object initiator,
+            String blobFileName,
             ByteRange rangeToWrite,
             CacheBlobReader cacheBlobReader,
             Supplier<ByteBuffer> writeBufferSupplier,
             IntConsumer bytesCopiedConsumer,
             String... expectedThreadPoolNames
         ) {
+            this.initiator = initiator;
+            this.blobFileName = blobFileName;
             this.rangeToWrite = rangeToWrite;
             this.cacheBlobReader = cacheBlobReader;
             this.writeBufferSupplier = writeBufferSupplier;
@@ -469,7 +464,17 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
             }
         }
 
-        void inputStreamFromCacheBlobReader(long streamStartPosition, int len, ActionListener<InputStream> listener) {
+        private void inputStreamFromCacheBlobReader(long streamStartPosition, int len, ActionListener<InputStream> listener) {
+            // this length is computed from the rangeToWrite and the sum of "streamStartPosition + len" can exceed real
+            // length of the blob
+            logger.debug(
+                "{}: loading [{}][{}-{}] from [{}]",
+                initiator.toString(),
+                blobFileName,
+                streamStartPosition,
+                streamStartPosition + len,
+                cacheBlobReader.getClass().getSimpleName()
+            );
             cacheBlobReader.getRangeInputStream(streamStartPosition, len, listener);
         }
     }

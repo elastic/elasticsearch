@@ -96,7 +96,7 @@ public class AutomatonQueries {
             i += length;
         }
 
-        return Operations.concatenate(automata);
+        return Operations.determinize(Operations.concatenate(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     protected static Automaton toCaseInsensitiveString(BytesRef br) {

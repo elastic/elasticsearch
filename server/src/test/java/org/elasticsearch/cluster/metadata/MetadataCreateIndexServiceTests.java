@@ -967,13 +967,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(
             expectThrows(
                 IllegalStateException.class,
-                () -> clusterStateCreateIndex(
-                    currentClusterState,
-                    Set.of(),
-                    newIndex,
-                    null,
-                    TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
-                )
+                () -> clusterStateCreateIndex(currentClusterState, newIndex, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             ).getMessage(),
             startsWith("alias [alias1] has more than one write index [")
         );
@@ -991,7 +985,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         ClusterState updatedClusterState = clusterStateCreateIndex(
             currentClusterState,
-            Set.of(INDEX_READ_ONLY_BLOCK),
             newIndexMetadata,
             null,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
@@ -1037,7 +1030,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         ClusterState updatedClusterState = clusterStateCreateIndex(
             currentClusterState,
-            Set.of(INDEX_READ_ONLY_BLOCK),
             newIndexMetadata,
             metadataTransformer,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY

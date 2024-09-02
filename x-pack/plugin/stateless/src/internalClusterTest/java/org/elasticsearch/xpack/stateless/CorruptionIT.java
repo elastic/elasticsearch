@@ -185,8 +185,7 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
                         .forEach(
                             i -> bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfLengthBetween(100, 1024)))
                         );
-                    // TODO: enable update once generational file issue is resolved ES-7496
-                    if (false && randomBoolean()) {
+                    if (randomBoolean()) {
                         var updateCount = Math.min(existingDocIds.size(), randomIntBetween(1, MAX_DOCS_PER_BULK / 2));
                         var idsToUpdate = randomSubsetOf(updateCount, existingDocIds);
                         idsToUpdate.forEach(
@@ -196,8 +195,7 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
                         );
                     }
                     Set<String> idsToDelete = new HashSet<>();
-                    // TODO: enable deletion once generational file issue is resolved ES-7496
-                    if (false && randomBoolean()) {
+                    if (randomBoolean()) {
                         var deleteCount = Math.min(existingDocIds.size(), randomIntBetween(1, MAX_DOCS_PER_BULK / 2));
                         idsToDelete = new HashSet<>(randomSubsetOf(deleteCount, existingDocIds));
                         idsToDelete.forEach(id -> bulkRequest.add(new DeleteRequest(indexName, id)));

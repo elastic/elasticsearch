@@ -127,11 +127,8 @@ class CategorizeBytesRefAggregator {
         }
 
         void add(BytesRef v) {
-            TokenStream ts = analyzer.tokenStream("text", v.utf8ToString());
-            try {
-                TokenListCategory category = categorizer.computeCategory(ts, 999, 1);
-                System.out.println(category + " is category of: " + v.utf8ToString());
-                ts.close();
+            try (TokenStream ts = analyzer.tokenStream("text", v.utf8ToString())) {
+                categorizer.computeCategory(ts, 999, 1);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -186,6 +183,7 @@ class CategorizeBytesRefAggregator {
             }
             block.endPositionEntry();
         }
+        
         @Override
         public void close() {
             Releasables.close(bytesRefHash);

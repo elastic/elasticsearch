@@ -424,7 +424,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges(
                         "create_index",
                         "index",
-                        "manage"
+                        "manage",
                         "read",
                         "delete",
                         TransportIndicesAliasesAction.NAME,

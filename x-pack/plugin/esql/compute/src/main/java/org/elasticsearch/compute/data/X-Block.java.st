@@ -63,10 +63,21 @@ $if(BytesRef)$
      * returns null. Callers must not release the returned block as no extra reference is retained by this method.
      */
     OrdinalBytesRefBlock asOrdinals();
-$endif$
 
+$elseif(boolean)$
+    /**
+     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
+     * passing to {@link #keepMask}. Null and multivalued positions will be
+     * converted to {@code false}.
+     */
+    ToMask toMask();
+
+$endif$
     @Override
     $Type$Block filter(int... positions);
+
+    @Override
+    $Type$Block keepMask(BooleanVector mask);
 
     @Override
     ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);

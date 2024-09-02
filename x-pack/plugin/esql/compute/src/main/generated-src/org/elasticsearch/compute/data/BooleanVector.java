@@ -30,6 +30,9 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     BooleanVector filter(int... positions);
 
     @Override
+    BooleanBlock keepMask(BooleanVector mask);
+
+    @Override
     ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**

@@ -54,12 +54,14 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         this(names, DEFAULT_INDICES_OPTIONS);
     }
 
+    @SuppressWarnings("this-escape")
     public ResolveClusterActionRequest(String[] names, IndicesOptions indicesOptions) {
         this.names = names;
         this.localIndicesRequested = localIndicesPresent(names);
         this.indicesOptions = indicesOptions;
     }
 
+    @SuppressWarnings("this-escape")
     public ResolveClusterActionRequest(StreamInput in) throws IOException {
         super(in);
         if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {

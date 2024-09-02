@@ -889,7 +889,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
 
         final Automaton aliasAutomaton = new RegExp(aliasAsRegex).toAutomaton();
 
-        return Operations.union(patternAutomaton, aliasAutomaton);
+        return Operations.determinize(Operations.union(patternAutomaton, aliasAutomaton), DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     /**

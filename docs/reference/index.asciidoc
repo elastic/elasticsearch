@@ -42,8 +42,6 @@ include::eql/eql.asciidoc[]
 
 include::esql/index.asciidoc[]
 
-include::scalability.asciidoc[]
-
 include::sql/index.asciidoc[]
 
 include::scripting.asciidoc[]

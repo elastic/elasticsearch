@@ -1,16 +1,25 @@
 [[elasticsearch-intro]]
-== {es} 101
+== Getting started with Elasticsearch
+++++
+<titleabbrev>Getting started</titleabbrev>
+++++
 
-A 101 course contains the elementary or basic facts about a subject for newcomers.
-{es} 101 covers all the basic information you need to know to get started with {es}.
+This guide covers the essential basics for getting started with {es}.
 
-In this guide, you will learn:
+You can use it in two ways:
 
-* What {es} is, its key features, and how to deploy it.
-* {es}'s most important primitives and how data is stored in {es}.
-* How to ingest data into {es}.
-* How to search and analyze data in {es}.
-* How to plan for scalability and resilience in production.
+* As a concrete guide for getting hands-on with {es} quickly.
+* As a map of the most important {es} information for your use case across the Elastic documentation, Github repos, and blog pages.
+
+This guide covers:
+
+* <<elasticsearch-intro-what-is-es>> Learn about {es} and some of its main use cases.
+* <<elasticsearch-intro-deploy>>. Understand your options for deploying {es} in different environments.
+* <<documents-indices>>. Understand {es}'s most important primitives and how it stores data.
+* <<run-elasticsearch-locally, Local dev setup>>. Learn how to spin up a local dev environment.
+* <<es-ingestion-overview>>. Understand your options for ingesting data into {es}.
+* <<search-analyze>>. Understand your options for searching and analyzing data in {es}.
+* <<scalability>>. Learn the essentials about moving your {es} deployment to production.
 
 [[elasticsearch-intro-what-is-es]]
 === What is {es}?
@@ -53,7 +62,7 @@ You can deploy {es} in various ways.
 
 **Quick start options**
 
-* <<run-elasticsearch-locally,*Local dev*>>. Get started quickly with a minimal local Docker setup. 
+* <<run-elasticsearch-locally,*Local dev*>>. Get started quickly with a minimal local Docker setup. Recommended if you like getting started in a local environment.
 * {cloud}/ec-getting-started-trial.html[*Elastic Cloud*]. {es} is available as part of our hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14 day free trial].
 * {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless* (technical preview)]. Create serverless projects for autoscaled and fully managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14 day free trial].
 
@@ -195,6 +204,35 @@ You can use a combination of dynamic and explicit mapping on the same index.
 This is useful when you have a mix of known and unknown fields in your data.
 ====
 
+[discrete]
+[[elasticsearch-intro-documents-fields-next-step]]
+==== Next step
+
+Now that you understand the basics of {es}, you're ready to spin up an {es} instance.
+We recommend starting with a <<run-elasticsearch-locally,local development setup>>.
+Refer to <<elasticsearch-intro-deploy, deployment options>> if you'd prefer to start with a hosted solution.
+
+Of course, if you already have {es} running, you can skip ahead to <<es-ingestion-overview,ingestion options>>!
+
+// New html page
+[[es-ingestion-overview]]
+=== Ingestion options
+
+There are multiple ways to ingest data into {es}.
+
+Here are a few options for getting started:
+
+* <<docs,*API*>>. Use the {es} REST Document APIs to index documents directly, using the Dev Tools Console in {kib} or a programming language client. Once you get past the very basics, you'll want to use the <<docs-bulk,Bulk API>> for efficiency.
+* {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[*File upload*]. Use the {kib} File Uploader to upload and index CSV, JSON, and log files.
+* {kibana-ref}/connect-to-elasticsearch.html#_add_sample_data[*Sample data*]. Load sample data sets into your {es} cluster using {kib}.
+* {enterprise-search-ref}/crawler.html[*Web Crawler*]. Extract and index web page content into {es} documents.
+* {enterprise-search-ref}/crawler.html[Elastic Web Crawler][*Connectors*]. Sync data from various third-party data sources to create searchable, read-only replicas in {es}.
+
+[TIP]
+====
+If you're interested in data ingestion pipelines for time-series data, use the decision tree in the {cloud}/ec-cloud-ingest-data.html#ec-data-ingest-pipeline[Elastic Cloud docs] to understand your options.
+====
+
 // New html page
 [[search-analyze]]
 === Search and analyze data
@@ -208,7 +246,7 @@ We'll be using the Query DSL for the examples in this guide.
 
 [TIP]
 ====
-{esql} is our new piped query language (and compute engine) that is initally mainly focused on time-series data like logs and metrics.
+<<esql,{esql}>> is our new piped query language (and compute engine) that is initally mainly focused on time-series data like logs and metrics.
 ====
 
 // {es} provides a REST API for managing your cluster and indexing
@@ -226,15 +264,23 @@ We'll be using the Query DSL for the examples in this guide.
 
 [discrete]
 [[search-data]]
-==== Searching your data
+==== Searching and filtering data
 
 {es} support a wide range of search techniques including:
 
 * <<full-text-queries,*Full-text search*>>. Search text that has been analyzed and indexed to support full-text search based on relevance.
 * <<keyword,*Keyword search*>>. Search for exact matches using `keyword` fields.
-* <<semantic-search,*Semantic search*>>. Search `semantic_field` fields using dense or sparse vector search on embeddings generated in your {es} cluster.
+* <<semantic-search-semantic-text,*Semantic search*>>. Search `semantic_field` fields using dense or sparse vector search on embeddings generated in your {es} cluster.
 * <<knn-search,*K-nearest neighbors (kNN) search*>>. Search for similar dense vectors using the kNN algorithm for embeddings generated outside of {es}.
-* <<geo-queries,*Geospatial search*>>. Search for locations and spatial relationship using geospatial queries.
+* <<geo-queries,*Geospatial search*>>. Search for locations and calculate spatial relationships using geospatial queries.
+
+Learn about the full range of queries supported by the <<query-dsl,Query DSL>>.
+
+You can also filter data using the Query DSL.
+Filters enable you to include or exclude documents by retrieving documents that match specific field-level criteria.
+A query that uses the `filter` parameter indicates <<filter-context,filter context>>.
+
+{esql} also has powerful filtering capabilities.
 
 [discrete]
 [[intro-search-query-languages]]
@@ -244,7 +290,7 @@ The following languages can be used to query {es}:
 
 [cols="1,2,2,1", options="header"]
 |===
-| Name | Description | Use Cases | Development Status
+| Name | Description | Use cases | Development status
 
 | <<query-dsl,Query DSL>>
 | Primary query language for {es}. Powerful and flexible JSON-style language that enables complex queries.
@@ -252,9 +298,11 @@ The following languages can be used to query {es}:
 
 | Active development
 
-| <<esql,({esql})>>
+| <<esql,{esql}>>
 | Introduced in *8.11*, the Elasticsearch Query Language ({esql}) is a piped query language language for filtering, transforming, and analyzing data.
-| Initially tailored towards working with time series data like logs and metrics. Robust integration with {kib} for querying, visualizing, and analyzing data.
+| Initially tailored towards working with time series data like logs and metrics. 
+Robust integration with {kib} for querying, visualizing, and analyzing data.
+Does not yet support full-text search.
 | Active development
 
 | https://www.elastic.co/guide/en/elasticsearch/client/index.html[Programming language clients]
@@ -278,7 +326,7 @@ The following languages can be used to query {es}:
 [[analyze-data]]
 ==== Analyzing your data
 
-{es} enables a host of use cases based on aggregations and time series data analysis.
+{es} enables a host of use cases based on aggregations and analytics.
 
 [discrete]
 [[analyze-data-query-dsl]]
@@ -306,3 +354,125 @@ directly executed within {es} itself.
 It comes with a comprehensive set of <<esql-functions-operators,functions and operators>> for working with data and has robust integration with {kib}'s Discover, dashboards and visualizations.
 
 Learn more in <<esql-getting-started,Getting started with {esql}>>, or try https://www.elastic.co/training/introduction-to-esql[our training course].
+
+[discrete]
+[[elasticsearch-intro-search-analyze-next-step]]
+==== Next step
+
+Now that you understand the basics of searching and analyzing data in {es}, you're ready to start ingesting data.
+In this getting started guide, we'll be using Dev Tools Console syntax to call the {es} REST APIs.
+
+[[elasticsearch-intro-start-rest-api]]
+=== Start with the REST API
+
+You send data and other requests to {es} using REST APIs.
+This lets you interact
+with {es} using any client that sends HTTP requests, such as
+https://curl.se[curl] or our https://www.elastic.co/guide/en/elasticsearch/client/index.html[programming language clients].
+
+In this guide we'll use {kib}'s Console to send requests to {es}.
+
+[TIP]
+====
+Elastic docs default to using Console syntax for code samples, but you can also copy these examples as `curl` and other programming languages, using the code sample language selector.
+
+As of 8.16.0 (and earlier on Elastic Cloud Serverless), you can copy requests directly from the Console UI into different programming language syntaxes, including Python, JavaScript, and Ruby.
+====
+
+Test your connection to {es} by sending a request to the root endpoint.
+
+[source,console]
+----
+GET /
+----
+
+This should return a response with information about your {es} cluster.
+
+[[scalability]]
+=== Plan for production
+
+{es} is built to be always available and to scale with your needs. It does this
+by being distributed by nature. You can add servers (nodes) to a cluster to
+increase capacity and {es} automatically distributes your data and query load
+across all of the available nodes. No need to overhaul your application, {es}
+knows how to balance multi-node clusters to provide scale and high availability.
+The more nodes, the merrier.
+
+How does this work? Under the covers, an {es} index is really just a logical
+grouping of one or more physical shards, where each shard is actually a
+self-contained index. By distributing the documents in an index across multiple
+shards, and distributing those shards across multiple nodes, {es} can ensure
+redundancy, which both protects against hardware failures and increases
+query capacity as nodes are added to a cluster. As the cluster grows (or shrinks),
+{es} automatically migrates shards to rebalance the cluster.
+
+There are two types of shards: primaries and replicas. Each document in an index
+belongs to one primary shard. A replica shard is a copy of a primary shard.
+Replicas provide redundant copies of your data to protect against hardware
+failure and increase capacity to serve read requests
+like searching or retrieving a document.
+
+The number of primary shards in an index is fixed at the time that an index is
+created, but the number of replica shards can be changed at any time, without
+interrupting indexing or query operations.
+
+[discrete]
+[[it-depends]]
+==== Shard size and number of shards
+
+There are a number of performance considerations and trade offs with respect
+to shard size and the number of primary shards configured for an index. The more
+shards, the more overhead there is simply in maintaining those indices. The
+larger the shard size, the longer it takes to move shards around when {es}
+needs to rebalance a cluster.
+
+Querying lots of small shards makes the processing per shard faster, but more
+queries means more overhead, so querying a smaller
+number of larger shards might be faster. In short...it depends.
+
+As a starting point:
+
+* Aim to keep the average shard size between a few GB and a few tens of GB. For
+  use cases with time-based data, it is common to see shards in the 20GB to 40GB
+  range.
+
+* Avoid the gazillion shards problem. The number of shards a node can hold is
+  proportional to the available heap space. As a general rule, the number of
+  shards per GB of heap space should be less than 20.
+
+The best way to determine the optimal configuration for your use case is
+through https://www.elastic.co/elasticon/conf/2016/sf/quantitative-cluster-sizing[
+testing with your own data and queries].
+
+[discrete]
+[[disaster-ccr]]
+==== Disaster recovery
+
+A cluster's nodes need good, reliable connections to each other. To provide
+better connections, you typically co-locate the nodes in the same data center or
+nearby data centers. However, to maintain high availability, you
+also need to avoid any single point of failure. In the event of a major outage
+in one location, servers in another location need to be able to take over. The
+answer? {ccr-cap} (CCR).
+
+CCR provides a way to automatically synchronize indices from your primary cluster
+to a secondary remote cluster that can serve as a hot backup. If the primary
+cluster fails, the secondary cluster can take over. You can also use CCR to
+create secondary clusters to serve read requests in geo-proximity to your users.
+
+{ccr-cap} is active-passive. The index on the primary cluster is
+the active leader index and handles all write requests. Indices replicated to
+secondary clusters are read-only followers.
+
+[discrete]
+[[admin]]
+==== Security, management, and monitoring
+
+As with any enterprise system, you need tools to secure, manage, and
+monitor your {es} clusters. Security, monitoring, and administrative features
+that are integrated into {es} enable you to use {kibana-ref}/introduction.html[{kib}]
+as a control center for managing a cluster. Features like <<downsampling,
+downsampling>> and <<index-lifecycle-management, index lifecycle management>>
+help you intelligently manage your data over time.
+
+Refer to <<monitor-elasticsearch-cluster>> for more information.

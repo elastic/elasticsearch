@@ -11,6 +11,7 @@ composed_of:
 - traces@mappings
 - apm@mappings
 - apm@settings
+- traces-apm.sampled-fallback@lifecycle
 - traces@custom
 - traces-apm.sampled@custom
 - ecs@mappings
@@ -20,11 +21,6 @@ ignore_missing_component_templates:
 template:
   lifecycle:
     data_retention: 1h
-  settings:
-    index:
-      lifecycle:
-        name: traces-apm.sampled_traces-default_policy
-        prefer_ilm: false
   mappings:
     properties:
       data_stream.type:

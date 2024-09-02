@@ -12,6 +12,7 @@ composed_of:
 - apm@settings
 - apm-10d@lifecycle
 - logs-apm@settings
+- logs-apm.app-fallback@lifecycle
 - logs@custom
 - logs-apm.app@custom
 - ecs@mappings
@@ -23,6 +24,3 @@ template:
     index:
       default_pipeline: logs-apm.app@default-pipeline
       final_pipeline: apm@pipeline
-      lifecycle:
-        name: logs-apm.app_logs-default_policy
-        prefer_ilm: false

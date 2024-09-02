@@ -13,6 +13,7 @@ composed_of:
 - apm@settings
 - apm-10d@lifecycle
 - traces-apm@mappings
+- traces-apm-fallback@lifecycle
 - traces@custom
 - traces-apm@custom
 - ecs@mappings
@@ -24,9 +25,6 @@ template:
     index:
       default_pipeline: traces-apm@default-pipeline
       final_pipeline: traces-apm@pipeline
-      lifecycle:
-        name: traces-apm.traces-default_policy
-        prefer_ilm: false
   mappings:
     properties:
       data_stream.type:

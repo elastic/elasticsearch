@@ -26,6 +26,26 @@ component-templates:
   - traces@mappings
   - traces-apm@mappings
   - traces-apm.rum@mappings
+  # Fallback to ILM if DSL configurations are not present
+  - logs-apm.app-fallback@lifecycle
+  - logs-apm.error-fallback@lifecycle
+  - metrics-apm.app-fallback@lifecycle
+  - metrics-apm.internal-fallback@lifecycle
+  - metrics-apm.service_destination.10m-fallback@lifecycle
+  - metrics-apm.service_destination.1m-fallback@lifecycle
+  - metrics-apm.service_destination.60m-fallback@lifecycle
+  - metrics-apm.service_summary.10m-fallback@lifecycle
+  - metrics-apm.service_summary.1m-fallback@lifecycle
+  - metrics-apm.service_summary.60m-fallback@lifecycle
+  - metrics-apm.service_transaction.10m-fallback@lifecycle
+  - metrics-apm.service_transaction.1m-fallback@lifecycle
+  - metrics-apm.service_transaction.60m-fallback@lifecycle
+  - metrics-apm.transaction.10m-fallback@lifecycle
+  - metrics-apm.transaction.1m-fallback@lifecycle
+  - metrics-apm.transaction.60m-fallback@lifecycle
+  - traces-apm-fallback@lifecycle
+  - traces-apm.rum-fallback@lifecycle
+  - traces-apm.sampled-fallback@lifecycle
 
 index-templates:
   - logs-apm.app@template

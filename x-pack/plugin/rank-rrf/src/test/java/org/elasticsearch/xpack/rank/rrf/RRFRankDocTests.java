@@ -17,7 +17,12 @@ import static org.elasticsearch.xpack.rank.rrf.RRFRankDoc.NO_RANK;
 public class RRFRankDocTests extends AbstractWireSerializingTestCase<RRFRankDoc> {
 
     static RRFRankDoc createTestRRFRankDoc(int queryCount) {
-        RRFRankDoc instance = new RRFRankDoc(randomNonNegativeInt(), randomBoolean() ? -1 : randomNonNegativeInt(), queryCount);
+        RRFRankDoc instance = new RRFRankDoc(
+            randomNonNegativeInt(),
+            randomBoolean() ? -1 : randomNonNegativeInt(),
+            queryCount,
+            randomIntBetween(1, 100)
+        );
         instance.score = randomFloat();
         instance.rank = randomBoolean() ? NO_RANK : randomIntBetween(1, 10000);
         for (int qi = 0; qi < queryCount; ++qi) {
@@ -46,7 +51,7 @@ public class RRFRankDocTests extends AbstractWireSerializingTestCase<RRFRankDoc>
 
     @Override
     protected RRFRankDoc mutateInstance(RRFRankDoc instance) throws IOException {
-        RRFRankDoc mutated = new RRFRankDoc(instance.doc, instance.shardIndex, instance.positions.length);
+        RRFRankDoc mutated = new RRFRankDoc(instance.doc, instance.shardIndex, instance.positions.length, instance.rankConstant);
         mutated.score = instance.score;
         mutated.rank = instance.rank;
         System.arraycopy(instance.positions, 0, mutated.positions, 0, instance.positions.length);
@@ -68,6 +73,9 @@ public class RRFRankDocTests extends AbstractWireSerializingTestCase<RRFRankDoc>
         }
         if (frequently()) {
             mutated.shardIndex = mutated.shardIndex == -1 ? randomNonNegativeInt() : -1;
+        }
+        if (frequently()) {
+            mutated.rankConstant = randomIntBetween(1, 100);
         }
         return mutated;
     }

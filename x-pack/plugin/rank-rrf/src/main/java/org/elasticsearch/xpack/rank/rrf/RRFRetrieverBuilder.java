@@ -103,8 +103,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     @Override
-    public RRFRetrieverBuilder clone(RRFRetrieverBuilder original, List<RetrieverSource> newRetrievers) {
-        return new RRFRetrieverBuilder(newRetrievers, original.rankWindowSize, original.rankConstant);
+    public RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers) {
+        return new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
     }
 
     @Override
@@ -124,7 +124,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 final int frank = rank;
                 docsToRankResults.compute(new RankDoc.RankKey(scoreDoc.doc, scoreDoc.shardIndex), (key, value) -> {
                     if (value == null) {
-                        value = new RRFRankDoc(scoreDoc.doc, scoreDoc.shardIndex, queries);
+                        value = new RRFRankDoc(scoreDoc.doc, scoreDoc.shardIndex, queries, rankConstant);
                     }
 
                     // calculate the current rrf score for this document

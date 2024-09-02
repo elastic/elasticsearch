@@ -43,6 +43,7 @@ import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankDocsRankBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
@@ -2331,7 +2332,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 validationException = addValidationError("[rank] cannot be used with [rescore]", validationException);
             }
             if (sorts() != null && sorts().isEmpty() == false) {
-                validationException = addValidationError("[rank] cannot be used with [sort]", validationException);
+                if (false == rankBuilder instanceof RankDocsRankBuilder) {
+                    validationException = addValidationError("[rank] cannot be used with [sort]", validationException);
+                }
             }
             if (collapse() != null) {
                 validationException = addValidationError("[rank] cannot be used with [collapse]", validationException);
@@ -2341,9 +2344,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
             if (highlighter() != null) {
                 validationException = addValidationError("[rank] cannot be used with [highlighter]", validationException);
-            }
-            if (pointInTimeBuilder() != null) {
-                validationException = addValidationError("[rank] cannot be used with [point in time]", validationException);
             }
         }
 

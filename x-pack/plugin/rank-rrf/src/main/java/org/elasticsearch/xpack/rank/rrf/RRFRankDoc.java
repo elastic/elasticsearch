@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
@@ -15,6 +16,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.rank.rrf.RRFRankBuilder.DEFAULT_RANK_CONSTANT;
 
 /**
  * {@code RRFRankDoc} supports additional ranking information
@@ -42,11 +46,14 @@ public class RRFRankDoc extends RankDoc {
      */
     public final float[] scores;
 
-    public RRFRankDoc(int doc, int shardIndex, int queryCount) {
+    public int rankConstant;
+
+    public RRFRankDoc(int doc, int shardIndex, int queryCount, int rankConstant) {
         super(doc, 0f, shardIndex);
         positions = new int[queryCount];
         Arrays.fill(positions, NO_RANK);
         scores = new float[queryCount];
+        this.rankConstant = rankConstant;
     }
 
     public RRFRankDoc(StreamInput in) throws IOException {
@@ -54,11 +61,15 @@ public class RRFRankDoc extends RankDoc {
         rank = in.readVInt();
         positions = in.readIntArray();
         scores = in.readFloatArray();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RRF_QUERY_REWRITE)) {
+            this.rankConstant = in.readVInt();
+        } else {
+            this.rankConstant = DEFAULT_RANK_CONSTANT;
+        }
     }
 
     @Override
     public Explanation explain() {
-        // ideally we'd need access to the rank constant to provide score info for this one
         int queries = positions.length;
         Explanation[] details = new Explanation[queries];
         for (int i = 0; i < queries; i++) {
@@ -68,7 +79,22 @@ public class RRFRankDoc extends RankDoc {
                 details[i] = Explanation.noMatch(description);
             } else {
                 final int rank = positions[i] + 1;
-                details[i] = Explanation.match(rank, "rank [" + (rank) + "] in query " + queryIndex);
+                final float rrfScore = (1f / (rank + rankConstant));
+                details[i] = Explanation.match(
+                    rank,
+                    "rrf score: ["
+                        + rrfScore
+                        + "], "
+                        + "for rank ["
+                        + (rank)
+                        + "] in query "
+                        + queryIndex
+                        + " computed as [1 / ("
+                        + (rank)
+                        + " + "
+                        + rankConstant
+                        + "]), for matching query with score"
+                );
             }
         }
         return Explanation.match(
@@ -77,6 +103,8 @@ public class RRFRankDoc extends RankDoc {
                 + score
                 + "] computed for initial ranks "
                 + Arrays.toString(Arrays.stream(positions).map(x -> x + 1).toArray())
+                + " with rankConstant: ["
+                + rankConstant
                 + "] as sum of [1 / (rank + rankConstant)] for each query",
             details
         );
@@ -87,17 +115,22 @@ public class RRFRankDoc extends RankDoc {
         out.writeVInt(rank);
         out.writeIntArray(positions);
         out.writeFloatArray(scores);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RRF_QUERY_REWRITE)) {
+            out.writeVInt(rankConstant);
+        }
     }
 
     @Override
     public boolean doEquals(RankDoc rd) {
         RRFRankDoc rrfrd = (RRFRankDoc) rd;
-        return Arrays.equals(positions, rrfrd.positions) && Arrays.equals(scores, rrfrd.scores);
+        return Arrays.equals(positions, rrfrd.positions)
+            && Arrays.equals(scores, rrfrd.scores)
+            && Objects.equals(rankConstant, rrfrd.rankConstant);
     }
 
     @Override
     public int doHashCode() {
-        int result = Arrays.hashCode(positions);
+        int result = Arrays.hashCode(positions) + Objects.hash(rankConstant);
         result = 31 * result + Arrays.hashCode(scores);
         return result;
     }
@@ -117,6 +150,8 @@ public class RRFRankDoc extends RankDoc {
             + doc
             + ", shardIndex="
             + shardIndex
+            + ", rankConstant="
+            + rankConstant
             + '}';
     }
 
@@ -129,5 +164,6 @@ public class RRFRankDoc extends RankDoc {
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("positions", positions);
         builder.field("scores", scores);
+        builder.field("rankConstant", rankConstant);
     }
 }

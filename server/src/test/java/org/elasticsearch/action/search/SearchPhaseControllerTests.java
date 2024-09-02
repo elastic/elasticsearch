@@ -277,6 +277,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     new TopDocsStats(trackTotalHits),
                     0,
                     true,
+                    false,
                     InternalAggregationTestCase.emptyReduceContextBuilder(),
                     null,
                     true
@@ -369,6 +370,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     new TopDocsStats(trackTotalHits),
                     0,
                     true,
+                    false,
                     InternalAggregationTestCase.emptyReduceContextBuilder(),
                     new QueryPhaseRankCoordinatorContext(windowSize) {
                         @Override

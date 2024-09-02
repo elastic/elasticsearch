@@ -226,7 +226,9 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.rank.RankDocsRankBuilder;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
@@ -859,6 +861,7 @@ public class SearchModule {
             new NamedWriteableRegistry.Entry(RankShardResult.class, RankFeatureShardResult.NAME, RankFeatureShardResult::new)
         );
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, RankDocsQueryBuilder.NAME, RankDocsQueryBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankBuilder.class, RankDocsRankBuilder.NAME, RankDocsRankBuilder::new));
     }
 
     private void registerSorts() {

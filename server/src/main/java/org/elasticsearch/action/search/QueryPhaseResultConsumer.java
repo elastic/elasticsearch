@@ -67,6 +67,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private final PendingMerges pendingMerges;
     private final Consumer<Exception> onPartialMergeFailure;
+    private final boolean isRankQuery;
 
     /**
      * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
@@ -96,6 +97,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.queryPhaseRankCoordinatorContext = source == null || source.rankBuilder() == null
             ? null
             : source.rankBuilder().buildQueryPhaseCoordinatorContext(size, from);
+        this.isRankQuery = source != null && source.rankBuilder() != null;
         this.hasTopDocs = (source == null || size != 0) && queryPhaseRankCoordinatorContext == null;
         this.hasAggs = source != null && source.aggregations() != null;
         this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;
@@ -143,6 +145,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 topDocsStats,
                 pendingMerges.numReducePhases,
                 false,
+                isRankQuery,
                 aggReduceContextBuilder,
                 queryPhaseRankCoordinatorContext,
                 performFinalReduce

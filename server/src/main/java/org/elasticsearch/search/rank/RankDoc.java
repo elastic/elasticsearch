@@ -10,6 +10,7 @@ package org.elasticsearch.search.rank;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,6 +18,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -33,6 +35,7 @@ public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragm
      * If this document has been ranked, this is its final rrf ranking from all the result sets.
      */
     public int rank = NO_RANK;
+    public Object[] sortValues;
 
     @Override
     public String getWriteableName() {
@@ -48,6 +51,9 @@ public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragm
     public RankDoc(StreamInput in) throws IOException {
         super(in.readVInt(), in.readFloat(), in.readVInt());
         rank = in.readVInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RRF_QUERY_REWRITE)) {
+            sortValues = (Object[]) in.readGenericValue();
+        }
     }
 
     @Override
@@ -56,6 +62,9 @@ public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragm
         out.writeFloat(score);
         out.writeVInt(shardIndex);
         out.writeVInt(rank);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RRF_QUERY_REWRITE)) {
+            out.writeGenericValue(sortValues);
+        }
         doWriteTo(out);
     }
 
@@ -74,6 +83,7 @@ public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragm
         builder.field("_doc", doc);
         builder.field("_shard", shardIndex);
         builder.field("_score", score);
+        builder.field("_sortValues", sortValues);
         doToXContent(builder, params);
         return builder;
     }
@@ -85,7 +95,12 @@ public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragm
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RankDoc rd = (RankDoc) o;
-        return doc == rd.doc && score == rd.score && shardIndex == rd.shardIndex && rank == rd.rank && doEquals(rd);
+        return doc == rd.doc
+            && score == rd.score
+            && shardIndex == rd.shardIndex
+            && rank == rd.rank
+            && doEquals(rd)
+            && Arrays.equals(sortValues, rd.sortValues);
     }
 
     protected boolean doEquals(RankDoc rd) {
@@ -94,7 +109,7 @@ public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragm
 
     @Override
     public final int hashCode() {
-        return Objects.hash(doc, score, shardIndex, doHashCode());
+        return Objects.hash(doc, score, shardIndex, Arrays.hashCode(sortValues), doHashCode());
     }
 
     protected int doHashCode() {
@@ -103,6 +118,17 @@ public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragm
 
     @Override
     public String toString() {
-        return "RankDoc{" + "_rank=" + rank + ", _doc=" + doc + ", _shard=" + shardIndex + ", _score=" + score + '}';
+        return "RankDoc{"
+            + "_rank="
+            + rank
+            + ", _doc="
+            + doc
+            + ", _shard="
+            + shardIndex
+            + ", _score="
+            + score
+            + ", _sortValues"
+            + Arrays.toString(sortValues)
+            + "}";
     }
 }

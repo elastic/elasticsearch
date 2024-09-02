@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
@@ -50,7 +53,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+                () -> ssb.parseXContent(parser, true, nf -> true)
+                    .rewrite(new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid"))))
             );
             assertEquals("[search_after] cannot be used in children of compound retrievers", iae.getMessage());
         }
@@ -65,7 +69,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+                () -> ssb.parseXContent(parser, true, nf -> true)
+                    .rewrite(new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid"))))
             );
             assertEquals("[terminate_after] cannot be used in children of compound retrievers", iae.getMessage());
         }
@@ -79,7 +84,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+                () -> ssb.parseXContent(parser, true, nf -> true)
+                    .rewrite(new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid"))))
             );
             assertEquals("[sort] cannot be used in children of compound retrievers", iae.getMessage());
         }
@@ -93,7 +99,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+                () -> ssb.parseXContent(parser, true, nf -> true)
+                    .rewrite(new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid"))))
             );
             assertEquals("[min_score] cannot be used in children of compound retrievers", iae.getMessage());
         }
@@ -108,23 +115,10 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+                () -> ssb.parseXContent(parser, true, nf -> true)
+                    .rewrite(new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid"))))
             );
             assertEquals("[collapse] cannot be used in children of compound retrievers", iae.getMessage());
-        }
-
-        try (
-            XContentParser parser = createParser(
-                JsonXContent.jsonXContent,
-                "{\"retriever\":{\"rrf_nl\":{\"retrievers\":[{\"rrf_nl\":{}}]}}}"
-            )
-        ) {
-            SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(
-                IllegalArgumentException.class,
-                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
-            );
-            assertEquals("[rank] cannot be used in children of compound retrievers", iae.getMessage());
         }
     }
 
@@ -139,7 +133,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+                () -> ssb.parseXContent(parser, true, nf -> true)
+                    .rewrite(new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid"))))
             );
             assertEquals("[1:65] [rrf] failed to parse field [retrievers]", iae.getMessage());
             assertEquals(

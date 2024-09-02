@@ -60,7 +60,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
      * Returns a clone of the original retriever, replacing the sub-retrievers with
      * the provided {@code newChildRetrievers}.
      */
-    public abstract T clone(T original, List<RetrieverSource> newChildRetrievers);
+    public abstract T clone(List<RetrieverSource> newChildRetrievers);
 
     /**
      * Combines the provided {@code rankResults} to return the final top documents.
@@ -90,8 +90,8 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             RetrieverBuilder newRetriever = entry.retriever.rewrite(ctx);
             if (newRetriever != entry.retriever) {
                 newRetrievers.add(new RetrieverSource(newRetriever, null));
-                hasChanged |= newRetriever != entry.retriever;
-            } else if (newRetriever == entry.retriever) {
+                hasChanged |= true;
+            } else {
                 var sourceBuilder = entry.source != null
                     ? entry.source
                     : createSearchSourceBuilder(ctx.getPointInTimeBuilder(), newRetriever);
@@ -101,7 +101,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             }
         }
         if (hasChanged) {
-            return clone((T) this, newRetrievers);
+            return clone(newRetrievers);
         }
 
         // execute searches
@@ -136,7 +136,12 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             });
         });
 
-        return new RankDocsRetrieverBuilder(newRetrievers.stream().map(s -> s.retriever).toList(), results::get, newPreFilters);
+        return new RankDocsRetrieverBuilder(
+            rankWindowSize,
+            newRetrievers.stream().map(s -> s.retriever).toList(),
+            results::get,
+            newPreFilters
+        );
     }
 
     @Override
@@ -169,7 +174,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         if (preFilterQueryBuilders.isEmpty() == false) {
             retrieverBuilder.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
         }
-        retrieverBuilder.extractToSearchSourceBuilder(sourceBuilder, false);
+        retrieverBuilder.extractToSearchSourceBuilder(sourceBuilder, true);
 
         // apply the pre-filters
         if (preFilterQueryBuilders.size() > 0) {
@@ -193,7 +198,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     }
 
     private RankDoc[] getRankDocs(SearchResponse searchResponse) {
-        int size = Math.min(rankWindowSize, searchResponse.getHits().getHits().length);
+        int size = searchResponse.getHits().getHits().length;
         RankDoc[] docs = new RankDoc[size];
         for (int i = 0; i < size; i++) {
             var hit = searchResponse.getHits().getAt(i);

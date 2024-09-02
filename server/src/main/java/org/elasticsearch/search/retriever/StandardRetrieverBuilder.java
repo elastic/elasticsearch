@@ -110,9 +110,11 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
     public QueryBuilder topDocsQuery() {
         // TODO: for compound retrievers this will have to be reworked as queries like knn could be executed twice
         if (preFilterQueryBuilders.isEmpty()) {
-            return queryBuilder;
+            QueryBuilder qb = queryBuilder;
+            qb.queryName(this.retrieverName);
+            return qb;
         }
-        var ret = new BoolQueryBuilder().filter(queryBuilder);
+        var ret = new BoolQueryBuilder().filter(queryBuilder).queryName(this.retrieverName);
         preFilterQueryBuilders.stream().forEach(ret::filter);
         return ret;
     }

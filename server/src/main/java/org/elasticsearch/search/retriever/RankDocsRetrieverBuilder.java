@@ -9,15 +9,12 @@
 package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.rank.RankDocsRankBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -35,14 +32,17 @@ import java.util.function.Supplier;
 public class RankDocsRetrieverBuilder extends RetrieverBuilder {
 
     public static final String NAME = "rank_docs_retriever";
+    final int rankWindowSize;
     final List<RetrieverBuilder> sources;
     final Supplier<RankDoc[]> rankDocs;
 
     public RankDocsRetrieverBuilder(
+        int rankWindowSize,
         List<RetrieverBuilder> sources,
         Supplier<RankDoc[]> rankDocs,
         List<QueryBuilder> preFilterQueryBuilders
     ) {
+        this.rankWindowSize = rankWindowSize;
         this.rankDocs = rankDocs;
         this.sources = sources;
         this.preFilterQueryBuilders = preFilterQueryBuilders;
@@ -71,7 +71,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         assert false == sourceShouldRewrite(ctx) : "retriever sources should be rewritten first";
         var rewrittenFilters = rewritePreFilters(ctx);
         if (rewrittenFilters != preFilterQueryBuilders) {
-            return new RankDocsRetrieverBuilder(sources, rankDocs, rewrittenFilters);
+            return new RankDocsRetrieverBuilder(rankWindowSize, sources, rankDocs, rewrittenFilters);
         }
         return this;
     }
@@ -80,18 +80,18 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
     public QueryBuilder topDocsQuery() {
         // this is used to fetch all documents form the parent retrievers (i.e. sources)
         // so that we can use all the matched documents to compute aggregations, nested hits etc
-        DisMaxQueryBuilder disMax = new DisMaxQueryBuilder().tieBreaker(0f);
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder();
         for (var retriever : sources) {
             var query = retriever.topDocsQuery();
             if (query != null) {
                 if (retriever.retrieverName() != null) {
                     query.queryName(retriever.retrieverName());
                 }
-                disMax.add(query);
+                boolQuery.should(query);
             }
         }
         // ignore prefilters of this level, they are already propagated to children
-        return disMax;
+        return boolQuery;
     }
 
     @Override
@@ -108,18 +108,16 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         RankDocsQueryBuilder rankQuery = new RankDocsQueryBuilder(rankDocs.get());
         // if we have aggregations we need to compute them based on all doc matches, not just the top hits
         // so we just post-filter the top hits based on the rank queries we have
-        if (searchSourceBuilder.aggregations() != null
-            || (searchSourceBuilder.trackTotalHitsUpTo() != null
-                && searchSourceBuilder.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE)) {
+        if (hasAggregations(searchSourceBuilder)
+            || isExplainRequest(searchSourceBuilder)
+            || isProfileRequest(searchSourceBuilder)
+            || shouldTrackTotalHits(searchSourceBuilder)) {
             boolQuery.should(rankQuery);
             // compute a disjunction of all the query sources that were executed to compute the top rank docs
             QueryBuilder disjunctionOfSources = topDocsQuery();
             if (disjunctionOfSources != null) {
                 boolQuery.should(disjunctionOfSources);
             }
-            searchSourceBuilder.aggregation(AggregationBuilders.filter("top_hits_filter", disjunctionOfSources));
-            // post filter the results so that the top docs are still the same
-            searchSourceBuilder.postFilter(rankQuery);
         } else {
             boolQuery.must(rankQuery);
         }
@@ -128,17 +126,39 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
             boolQuery.filter(preFilterQueryBuilder);
         }
         searchSourceBuilder.query(boolQuery);
+        searchSourceBuilder.rankBuilder(
+            new RankDocsRankBuilder(rankWindowSize, sources.stream().map(RetrieverBuilder::retrieverName).toList())
+        );
+    }
+
+    private boolean hasAggregations(SearchSourceBuilder searchSourceBuilder) {
+        return searchSourceBuilder.aggregations() != null;
+    }
+
+    private boolean isExplainRequest(SearchSourceBuilder searchSourceBuilder) {
+        return searchSourceBuilder.explain() != null && searchSourceBuilder.explain();
+    }
+
+    private boolean isProfileRequest(SearchSourceBuilder searchSourceBuilder) {
+        return searchSourceBuilder.profile();
+    }
+
+    private boolean shouldTrackTotalHits(SearchSourceBuilder searchSourceBuilder) {
+        return searchSourceBuilder.trackTotalHitsUpTo() != null
+            && searchSourceBuilder.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE;
     }
 
     @Override
     protected boolean doEquals(Object o) {
         RankDocsRetrieverBuilder other = (RankDocsRetrieverBuilder) o;
-        return Arrays.equals(rankDocs.get(), other.rankDocs.get()) && sources.equals(other.sources);
+        return rankWindowSize == other.rankWindowSize
+            && Arrays.equals(rankDocs.get(), other.rankDocs.get())
+            && sources.equals(other.sources);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(super.hashCode(), Arrays.hashCode(rankDocs.get()), sources);
+        return Objects.hash(super.hashCode(), rankWindowSize, Arrays.hashCode(rankDocs.get()), sources);
     }
 
     @Override

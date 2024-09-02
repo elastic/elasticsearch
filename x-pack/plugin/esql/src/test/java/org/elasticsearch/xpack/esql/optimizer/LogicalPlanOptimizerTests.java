@@ -1926,6 +1926,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertTrue(filter.child() instanceof EsRelation);
     }
 
+    //TODO Lucene 10 upgrade
     @AwaitsFix(bugUrl = "https://github.com/apache/lucene/issues/13706")
     public void testSimplifyRLikeMatchAll() {
         LogicalPlan plan = optimizedPlan("""

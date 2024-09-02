@@ -26,6 +26,8 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
 public class ReplaceRegexMatchTests extends ESTestCase {
 
+    //TODO Lucene 10 upgrade
+    @AwaitsFix(bugUrl = "https://github.com/apache/lucene/issues/13706")
     public void testMatchAllLikeToExist() {
         for (String s : asList("%", "%%", "%%%")) {
             LikePattern pattern = new LikePattern(s, (char) 0);
@@ -38,6 +40,8 @@ public class ReplaceRegexMatchTests extends ESTestCase {
         }
     }
 
+    //TODO Lucene 10 upgrade
+    @AwaitsFix(bugUrl = "https://github.com/apache/lucene/issues/13706")
     public void testMatchAllWildcardLikeToExist() {
         for (String s : asList("*", "**", "***")) {
             WildcardPattern pattern = new WildcardPattern(s);
@@ -50,6 +54,8 @@ public class ReplaceRegexMatchTests extends ESTestCase {
         }
     }
 
+    //TODO Lucene 10 upgrade
+    @AwaitsFix(bugUrl = "https://github.com/apache/lucene/issues/13706")
     public void testMatchAllRLikeToExist() {
         RLikePattern pattern = new RLikePattern(".*");
         FieldAttribute fa = getFieldAttribute();

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.core.type;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -36,13 +38,18 @@ public class MultiTypeEsField extends EsField {
     }
 
     protected MultiTypeEsField(StreamInput in) throws IOException {
-        this(in.readString(), DataType.readFrom(in), in.readBoolean(), in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)));
+        this(
+            ((PlanStreamInput) in).readCachedString(),
+            DataType.readFrom(in),
+            in.readBoolean(),
+            in.readImmutableMap(i -> i.readNamedWriteable(Expression.class))
+        );
     }
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        out.writeString(getName());
-        out.writeString(getDataType().typeName());
+        ((PlanStreamOutput) out).writeCachedString(getName());
+        getDataType().writeTo(out);
         out.writeBoolean(isAggregatable());
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
     }

@@ -69,6 +69,8 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     private EsField[] esFieldsCache = new EsField[64];
 
+    private String[] stringCache = new String[64];
+
     private final PlanNameRegistry registry;
 
     // hook for nameId, where can cache and map, for now just return a NameId of the same long value.
@@ -279,6 +281,22 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         }
     }
 
+    public String readCachedString() throws IOException {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_CACHED_STRING_SERIALIZATION)) {
+            int cacheId = Math.toIntExact(readZLong());
+            if (cacheId < 0) {
+                String string = readString();
+                cacheId = -1 - cacheId;
+                cacheString(cacheId, string);
+                return string;
+            } else {
+                return stringFromCache(cacheId);
+            }
+        } else {
+            return readString();
+        }
+    }
+
     private EsField esFieldFromCache(int id) throws IOException {
         if (esFieldsCache[id] == null) {
             throw new IOException("Attribute ID not found in serialization cache [" + id + "]");
@@ -299,4 +317,18 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         esFieldsCache[id] = field;
     }
 
+    private String stringFromCache(int id) throws IOException {
+        if (stringCache[id] == null) {
+            throw new IOException("String not found in serialization cache [" + id + "]");
+        }
+        return stringCache[id];
+    }
+
+    private void cacheString(int id, String string) {
+        assert id >= 0;
+        if (id >= stringCache.length) {
+            stringCache = ArrayUtil.grow(stringCache);
+        }
+        stringCache[id] = string;
+    }
 }

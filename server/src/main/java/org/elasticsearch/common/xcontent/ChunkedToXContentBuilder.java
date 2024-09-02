@@ -54,7 +54,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     }
 
     public ChunkedToXContentBuilder object(String name, Consumer<ChunkedToXContentBuilder> contents) {
-        return startObject().execute(contents).endObject();
+        return startObject(name).execute(contents).endObject();
     }
 
     public ChunkedToXContentBuilder startArray() {

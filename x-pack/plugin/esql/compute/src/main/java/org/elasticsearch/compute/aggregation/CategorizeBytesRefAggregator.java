@@ -183,7 +183,7 @@ class CategorizeBytesRefAggregator {
             }
             block.endPositionEntry();
         }
-        
+
         @Override
         public void close() {
             Releasables.close(bytesRefHash);

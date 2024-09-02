@@ -897,7 +897,6 @@ public class Stateless extends Plugin
             StatelessCommitService.STATELESS_UPLOAD_MONITOR_INTERVAL,
             StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS,
             StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE,
-            StatelessCommitService.STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED,
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,
@@ -983,13 +982,7 @@ public class Stateless extends Plugin
                 if (shardRouting.isPromotableToPrimary()) {
                     Lucene.cleanLuceneIndex(in);
                     var indexCacheDirectory = createIndexBlobStoreCacheDirectory(sharedBlobCacheService.get(), shardRouting.shardId());
-                    return new IndexDirectory(
-                        in,
-                        indexCacheDirectory,
-                        statelessCommitService.isGenerationalFilesTrackingEnabled()
-                            ? statelessCommitService::onGenerationalFileDeletion
-                            : null
-                    );
+                    return new IndexDirectory(in, indexCacheDirectory, statelessCommitService::onGenerationalFileDeletion);
                 } else {
                     return in;
                 }
@@ -1016,7 +1009,6 @@ public class Stateless extends Plugin
                         sharedBlobCacheService.get(),
                         cacheBlobReaderService.get(),
                         new AtomicMutableObjectStoreUploadTracker(),
-                        statelessCommitService.isGenerationalFilesTrackingEnabled(),
                         shardRouting.shardId()
                     );
                 } else {
@@ -1255,10 +1247,9 @@ public class Stateless extends Plugin
         StatelessSharedBlobCacheService cacheService,
         CacheBlobReaderService cacheBlobReaderService,
         MutableObjectStoreUploadTracker objectStoreUploadTracker,
-        boolean trackGenerationalFiles,
         ShardId shardId
     ) {
-        return new SearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, trackGenerationalFiles, shardId);
+        return new SearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
     }
 
     protected IndexBlobStoreCacheDirectory createIndexBlobStoreCacheDirectory(

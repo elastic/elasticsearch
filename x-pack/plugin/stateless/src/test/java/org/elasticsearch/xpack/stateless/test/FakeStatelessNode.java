@@ -283,19 +283,13 @@ public class FakeStatelessNode implements Closeable {
                 new IndexDirectory(
                     new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath),
                     new IndexBlobStoreCacheDirectory(sharedCacheService, shardId),
-                    commitService.isGenerationalFilesTrackingEnabled() ? commitService::onGenerationalFileDeletion : null
+                    commitService::onGenerationalFileDeletion
                 )
             );
             indexingStore = localCloseables.add(new Store(shardId, indexSettings, indexingDirectory, new DummyShardLock(shardId)));
             indexingDirectory.getBlobStoreCacheDirectory().setBlobContainer(term -> objectStoreService.getBlobContainer(shardId, term));
             searchDirectory = localCloseables.add(
-                createSearchDirectory(
-                    sharedCacheService,
-                    shardId,
-                    cacheBlobReaderService,
-                    new AtomicMutableObjectStoreUploadTracker(),
-                    commitService.isGenerationalFilesTrackingEnabled()
-                )
+                createSearchDirectory(sharedCacheService, shardId, cacheBlobReaderService, new AtomicMutableObjectStoreUploadTracker())
             );
             searchDirectory.setBlobContainer(term -> objectStoreService.getBlobContainer(shardId, term));
             searchStore = localCloseables.add(new Store(shardId, indexSettings, searchDirectory, new DummyShardLock(shardId)));
@@ -312,10 +306,9 @@ public class FakeStatelessNode implements Closeable {
         StatelessSharedBlobCacheService sharedCacheService,
         ShardId shardId,
         CacheBlobReaderService cacheBlobReaderService,
-        MutableObjectStoreUploadTracker objectStoreUploadTracker,
-        boolean trackGenerationalFiles
+        MutableObjectStoreUploadTracker objectStoreUploadTracker
     ) {
-        return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, trackGenerationalFiles, shardId);
+        return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
     }
 
     protected StatelessSharedBlobCacheService createCacheService(
@@ -331,14 +324,23 @@ public class FakeStatelessNode implements Closeable {
     }
 
     public List<StatelessCommitRef> generateIndexCommits(int commitsNumber) throws IOException {
-        return generateIndexCommits(commitsNumber, false, generation -> {});
+        return generateIndexCommits(commitsNumber, false, true, generation -> {});
+    }
+
+    public List<StatelessCommitRef> generateIndexCommitsWithoutMergeOrDeletion(int commitsNumber) throws IOException {
+        return generateIndexCommits(commitsNumber, false, false, generation -> {});
     }
 
     public List<StatelessCommitRef> generateIndexCommits(int commitsNumber, boolean merge) throws IOException {
-        return generateIndexCommits(commitsNumber, merge, generation -> {});
+        return generateIndexCommits(commitsNumber, merge, true, generation -> {});
     }
 
-    public List<StatelessCommitRef> generateIndexCommits(int commitsNumber, boolean merge, LongConsumer onCommitClosed) throws IOException {
+    public List<StatelessCommitRef> generateIndexCommits(
+        int commitsNumber,
+        boolean merge,
+        boolean includeDeletions,
+        LongConsumer onCommitClosed
+    ) throws IOException {
         List<StatelessCommitRef> commits = new ArrayList<>(commitsNumber);
         Set<String> previousCommit;
 
@@ -355,7 +357,7 @@ public class FakeStatelessNode implements Closeable {
                 LuceneDocument document = new LuceneDocument();
                 document.add(new KeywordField("field0", "term", Field.Store.YES));
                 indexWriter.addDocument(document.getFields());
-                if (ESTestCase.randomBoolean()) {
+                if (includeDeletions && ESTestCase.randomBoolean()) {
                     final ParsedDocument tombstone = ParsedDocument.deleteTombstone(deleteId);
                     LuceneDocument delete = tombstone.docs().get(0);
                     NumericDocValuesField field = Lucene.newSoftDeletesField();

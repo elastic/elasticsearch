@@ -48,7 +48,6 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
@@ -92,7 +91,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.Strings.format;
@@ -152,12 +150,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Boolean> STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED = Setting.boolSetting(
-        "stateless.lucene.generational_files_tracking.enabled",
-        true,
-        Setting.Property.NodeScope
-    );
-
     public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_bytes.histogram";
     public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
@@ -186,7 +178,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     private final int bccMaxAmountOfCommits;
     private final long bccUploadMaxSizeInBytes;
-    private final boolean generationalFilesTrackingEnabled;
     private final LongHistogram bccSizeInBytesHistogram;
     private final LongHistogram bccNumberCommitsHistogram;
     private final LongHistogram bccAgeHistogram;
@@ -245,12 +236,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         );
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
         this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
-        this.generationalFilesTrackingEnabled = STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.get(settings);
-        logger.info(
-            "generational files tracking [{}] is [{}]",
-            STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(),
-            this.generationalFilesTrackingEnabled ? "enabled" : "disabled"
-        );
         this.bccSizeInBytesHistogram = telemetryProvider.getMeterRegistry()
             .registerLongHistogram(
                 BCC_TOTAL_SIZE_HISTOGRAM_METRIC,
@@ -274,10 +259,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private static Optional<IndexShardRoutingTable> shardRoutingTableFunction(ClusterService clusterService, ShardId shardId) {
         RoutingTable routingTable = clusterService.state().routingTable();
         return routingTable.hasIndex(shardId.getIndex()) ? Optional.of(routingTable.shardRoutingTable(shardId)) : Optional.empty();
-    }
-
-    public boolean isGenerationalFilesTrackingEnabled() {
-        return generationalFilesTrackingEnabled;
     }
 
     public void markRecoveredBcc(ShardId shardId, BatchedCompoundCommit recoveredBcc, Set<BlobFile> unreferencedFiles) {
@@ -888,16 +869,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .filter(bccBlobReference -> referencedBlobs.containsKey(bccBlobReference.getPrimaryTermAndGeneration()))
                 .collect(Collectors.toUnmodifiableSet());
 
-            final Set<String> includedGenerationalFiles;
-            if (generationalFilesTrackingEnabled) {
-                includedGenerationalFiles = recoveredCommit.commitFiles()
-                    .keySet()
-                    .stream()
-                    .filter(StatelessCommitService::isGenerationalFile)
-                    .collect(Collectors.toSet());
-            } else {
-                includedGenerationalFiles = Set.of();
-            }
+            final Set<String> includedGenerationalFiles = recoveredCommit.commitFiles()
+                .keySet()
+                .stream()
+                .filter(StatelessCommitService::isGenerationalFile)
+                .collect(Collectors.toSet());
+
             var recoveryBCCBlob = new BlobReference(
                 recoveredBcc.primaryTermAndGeneration(),
                 recoveredBCCFilesUsedByRecoveredCommit,
@@ -1200,32 +1177,23 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .flatMap(pc -> pc.getCommitReference().getAdditionalFiles().stream())
                 .collect(Collectors.toUnmodifiableSet());
 
-            final Set<String> trackedGenerationalFiles;
-            final Stream<String> referencedFileNames;
-            if (generationalFilesTrackingEnabled) {
-                var internalFiles = virtualBcc.getPendingCompoundCommits()
-                    .stream()
-                    // StatelessCompoundCommit#internalFiles contains additionalFiles + copied generational files
-                    .flatMap(pendingCompoundCommit -> pendingCompoundCommit.getStatelessCompoundCommit().internalFiles().stream())
-                    .collect(Collectors.toSet());
-                trackedGenerationalFiles = additionalFiles.stream()
-                    .filter(StatelessCommitService::isGenerationalFile)
-                    .collect(Collectors.toUnmodifiableSet());
-                // Generational files lifecycle is tracked independently, meaning that these are kept around until the generational file
-                // is deleted by Lucene. Hence, we don't need to include the BlobReference in the referencedBCCs set that tracks the local
-                // dependencies as we had to do before such tracking was introduced. Additionally, if a VBCC that's being uploaded needs
-                // to read a generational file to copy it into the new blob, the VBCC holds a Lucene commit reference that guarantees that
-                // the file won't be deleted until the upload finishes.
-                referencedFileNames = commitFiles.stream().filter(fileName -> internalFiles.contains(fileName) == false).peek(fileName -> {
-                    assert isGenerationalFile(fileName) == false;
-                });
-            } else {
-                trackedGenerationalFiles = Set.of();
-                // if there are external files the new instance must reference the corresponding commit blob instances
-                referencedFileNames = commitFiles.stream().filter(fileName -> additionalFiles.contains(fileName) == false);
-            }
+            var internalFiles = virtualBcc.getPendingCompoundCommits()
+                .stream()
+                // StatelessCompoundCommit#internalFiles contains additionalFiles + copied generational files
+                .flatMap(pendingCompoundCommit -> pendingCompoundCommit.getStatelessCompoundCommit().internalFiles().stream())
+                .collect(Collectors.toSet());
+            final Set<String> trackedGenerationalFiles = additionalFiles.stream()
+                .filter(StatelessCommitService::isGenerationalFile)
+                .collect(Collectors.toUnmodifiableSet());
 
-            var referencedBCCs = referencedFileNames.map(fileName -> {
+            // Generational files lifecycle is tracked independently, meaning that these are kept around until the generational file
+            // is deleted by Lucene. Hence, we don't need to include the BlobReference in the referencedBCCs set that tracks the local
+            // dependencies as we had to do before such tracking was introduced. Additionally, if a VBCC that's being uploaded needs
+            // to read a generational file to copy it into the new blob, the VBCC holds a Lucene commit reference that guarantees that
+            // the file won't be deleted until the upload finishes.
+            var referencedBCCs = commitFiles.stream().filter(fileName -> internalFiles.contains(fileName) == false).peek(fileName -> {
+                assert isGenerationalFile(fileName) == false;
+            }).map(fileName -> {
                 final var commitAndBlobLocation = blobLocations.get(fileName);
                 if (commitAndBlobLocation == null) {
                     final var message = Strings.format(
@@ -1271,27 +1239,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         assert isGenerationalFile(fileName)
                             && existing.blobLocation.compoundFileGeneration() < blobLocation.compoundFileGeneration()
                             : fileName + ':' + existing + ':' + blobLocation;
-                        if (generationalFilesTrackingEnabled) {
-                            logger.trace(
-                                "{} ignoring generational file [{}] updated location [{}]->[{}], keeping [{}]",
-                                shardId,
-                                fileName,
-                                existing.blobLocation().getBatchedCompoundCommitTermAndGeneration(),
-                                blobLocation.getBatchedCompoundCommitTermAndGeneration(),
-                                existing.blobReference().getPrimaryTermAndGeneration()
-                            );
-                            return existing;
-                        } else {
-                            logger.trace(
-                                "{} re-registering [{}]->[{}}] to ignored [{}] but location [{}]",
-                                shardId,
-                                fileName,
-                                existing.blobReference.primaryTermAndGeneration,
-                                blobReference.primaryTermAndGeneration,
-                                blobLocation
-                            );
-                            return new CommitAndBlobLocation(existing.blobReference, blobLocation);
-                        }
+                        logger.trace(
+                            "{} ignoring generational file [{}] updated location [{}]->[{}], keeping [{}]",
+                            shardId,
+                            fileName,
+                            existing.blobLocation().getBatchedCompoundCommitTermAndGeneration(),
+                            blobLocation.getBatchedCompoundCommitTermAndGeneration(),
+                            existing.blobReference().getPrimaryTermAndGeneration()
+                        );
+                        return existing;
                     }
                 });
             });
@@ -1393,10 +1349,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // From this point onwards the IndexDirectory can delete the local files and rely on the files that are uploaded
             // into the blob store, hence we just provide the Lucene file -> BlobLocation map for files that are already uploaded
             // as it's possible the blobLocations contains files from new commits that are not uploaded yet
-            final Map<String, BlobLocation> uploadedFilesBlobLocations;
-            if (generationalFilesTrackingEnabled) {
+            final Map<String, BlobLocation> uploadedFilesBlobLocations =
                 // all blob locations uploaded since the shard started that are still in use
-                uploadedFilesBlobLocations = blobLocations.entrySet()
+                blobLocations.entrySet()
                     .stream()
                     .filter(
                         blobLocationEntry -> blobLocationEntry.getValue()
@@ -1405,37 +1360,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             .onOrBefore(uploadedBcc.primaryTermAndGeneration())
                     )
                     .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().blobLocation()));
-            } else {
-                uploadedFilesBlobLocations = Maps.newMapWithExpectedSize(blobLocations.size());
-                for (Map.Entry<String, CommitAndBlobLocation> blobLocationEntry : blobLocations.entrySet()) {
-                    CommitAndBlobLocation commitAndBlobLocation = blobLocationEntry.getValue();
-                    if (commitAndBlobLocation.blobReference()
-                        .getPrimaryTermAndGeneration()
-                        .onOrBefore(uploadedBcc.primaryTermAndGeneration())) {
-                        String fileName = blobLocationEntry.getKey();
-                        if (isGenerationalFile(fileName)
-                            && commitAndBlobLocation.blobLocation()
-                                .getBatchedCompoundCommitTermAndGeneration()
-                                .after(uploadedBcc.primaryTermAndGeneration())) {
-                            // BlobLocations for generational files can change while the BlobReference remains the same, hence we have to
-                            // check
-                            // and use the uploaded BCC in that case.
-                            BlobLocation generationalFileBCCBlobLocation = uploadedBcc.last().commitFiles().get(fileName);
-                            assert generationalFileBCCBlobLocation != null
-                                : fileName
-                                    + " vs "
-                                    + uploadedBcc.compoundCommits().stream().toList()
-                                    + " vs "
-                                    + blobLocations
-                                    + " -- "
-                                    + commitAndBlobLocation;
-                            uploadedFilesBlobLocations.put(fileName, generationalFileBCCBlobLocation);
-                        } else {
-                            uploadedFilesBlobLocations.put(fileName, commitAndBlobLocation.blobLocation());
-                        }
-                    }
-                }
-            }
+
             assert uploadedFilesBlobLocations.values()
                 .stream()
                 .allMatch(
@@ -2163,7 +2088,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private void onGenerationalFileDeletion(String filename) {
             assert isGenerationalFile(filename) : filename + " is not a generational file";
-            assert generationalFilesTrackingEnabled;
             logger.trace(() -> format("%s deleted generational file [%s]", shardId, filename));
             var blobLocation = blobLocations.get(filename);
             if (blobLocation != null) { // can be null if the generation file was never commited
@@ -2464,9 +2388,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         var existing = commitAndBlobLocation.blobReference();
                         if (released != existing) {
                             assert isGenerationalFile(file) : file;
-                            assert generationalFilesTrackingEnabled
-                                ? released.primaryTermAndGeneration.generation() > existing.primaryTermAndGeneration.generation()
-                                : released.primaryTermAndGeneration.generation() < existing.primaryTermAndGeneration.generation()
+                            assert released.primaryTermAndGeneration.generation() > existing.primaryTermAndGeneration.generation()
                                 : fileName + ':' + released + " vs " + existing;
                             logger.trace(
                                 "not removing [{}] -> [{}] in [{}]",

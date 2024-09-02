@@ -129,7 +129,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
         try (var fakeNode = createFakeNode(primaryTerm)) {
             var numberOfCommits = randomIntBetween(2, 4);
             List<Long> closedCommitRefGenerations = new ArrayList<>();
-            var commits = fakeNode.generateIndexCommits(numberOfCommits, false, closedCommitRefGenerations::add);
+            var commits = fakeNode.generateIndexCommits(numberOfCommits, false, true, closedCommitRefGenerations::add);
 
             long firstCommitGeneration = commits.get(0).getGeneration();
             var virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
@@ -166,7 +166,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
         var primaryTerm = 1;
         try (var fakeNode = createFakeNode(primaryTerm)) {
             List<Long> closedCommitRefGenerations = new ArrayList<>();
-            var commits = fakeNode.generateIndexCommits(randomIntBetween(1, 4), randomBoolean(), closedCommitRefGenerations::add);
+            var commits = fakeNode.generateIndexCommits(randomIntBetween(1, 4), randomBoolean(), true, closedCommitRefGenerations::add);
             var virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
                 fakeNode.shardId,
                 "node-id",
@@ -268,7 +268,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
         var primaryTerm = 1;
         try (var fakeNode = createFakeNode(primaryTerm)) {
             List<Long> closedCommitRefGenerations = new ArrayList<>();
-            var commits = fakeNode.generateIndexCommits(randomIntBetween(4, 20), randomBoolean(), closedCommitRefGenerations::add);
+            var commits = fakeNode.generateIndexCommits(randomIntBetween(4, 20), randomBoolean(), true, closedCommitRefGenerations::add);
             var virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
                 fakeNode.shardId,
                 "node-id",

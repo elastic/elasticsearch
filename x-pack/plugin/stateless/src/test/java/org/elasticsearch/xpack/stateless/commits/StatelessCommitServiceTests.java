@@ -103,7 +103,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration.ZERO;
@@ -142,28 +141,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
     public void tearDown() throws Exception {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         super.tearDown();
-    }
-
-    public void testStatelessGenerationalFilesTrackingEnabledFlag() throws IOException {
-        final long primaryTerm = randomLongBetween(1L, 1000L);
-        final boolean generationalFilesTrackingEnabled = randomBoolean();
-        // Randomly leave the setting un-configured for its default value
-        final boolean explicitConfiguration = generationalFilesTrackingEnabled == false || randomBoolean();
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-            @Override
-            protected Settings nodeSettings() {
-                if (explicitConfiguration) {
-                    return Settings.builder()
-                        .put(super.nodeSettings())
-                        .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), generationalFilesTrackingEnabled)
-                        .build();
-                } else {
-                    return super.nodeSettings();
-                }
-            }
-        }) {
-            assertThat(testHarness.commitService.isGenerationalFilesTrackingEnabled(), is(generationalFilesTrackingEnabled));
-        }
     }
 
     public void testCloseIdempotentlyChangesStateAndCompletesListeners() throws Exception {
@@ -733,15 +710,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-
-            @Override
-            protected Settings nodeSettings() {
-                return Settings.builder()
-                    .put(super.nodeSettings())
-                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
-                    .build();
-            }
-
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -777,7 +745,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
 
-            var initialCommits = testHarness.generateIndexCommits(10);
+            var initialCommits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(10);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
                 fakeSearchNode.respondWithUsedCommits(
@@ -793,7 +761,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 new PrimaryTermAndGeneration(primaryTerm, lastInitialGeneration)
             );
 
-            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true, false, generation -> {}).get(0);
             commitService.onCommitCreation(mergedCommit);
             commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
             waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
@@ -826,15 +794,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-
-            @Override
-            protected Settings nodeSettings() {
-                return Settings.builder()
-                    .put(super.nodeSettings())
-                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
-                    .build();
-            }
-
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -866,7 +825,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
 
-            var initialCommits = testHarness.generateIndexCommits(10);
+            var initialCommits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(10);
             var firstCommit = initialCommits.get(0);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
@@ -879,7 +838,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 );
             }
 
-            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true, false, generation -> {}).get(0);
             commitService.onCommitCreation(mergedCommit);
             commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
             waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
@@ -915,15 +874,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-
-            @Override
-            protected Settings nodeSettings() {
-                return Settings.builder()
-                    .put(super.nodeSettings())
-                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
-                    .build();
-            }
-
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -950,7 +900,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 0);
             stateRef.set(state);
 
-            var initialCommits = testHarness.generateIndexCommits(10);
+            var initialCommits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(10);
             var firstCommit = initialCommits.get(0);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
@@ -958,7 +908,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 waitUntilBCCIsUploaded(commitService, shardId, initialCommit.getGeneration());
             }
 
-            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true, false, generation -> {}).get(0);
             commitService.onCommitCreation(mergedCommit);
 
             for (StatelessCommitRef indexCommit : initialCommits) {
@@ -1000,15 +950,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-
-            @Override
-            protected Settings nodeSettings() {
-                return Settings.builder()
-                    .put(super.nodeSettings())
-                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
-                    .build();
-            }
-
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -1044,7 +985,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
 
-            var initialCommits = testHarness.generateIndexCommits(10);
+            var initialCommits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(10);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
                 fakeSearchNode.respondWithUsedCommits(
@@ -1059,7 +1000,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             commitService.ensureMaxGenerationToUploadForFlush(shardId, lastInitialCommit.generation());
             waitUntilBCCIsUploaded(commitService, shardId, lastInitialCommit.generation());
 
-            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true, false, generation -> {}).get(0);
             PrimaryTermAndGeneration mergePTG = new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration());
             commitService.onCommitCreation(mergedCommit);
             commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
@@ -1111,15 +1052,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-
-            @Override
-            protected Settings nodeSettings() {
-                return Settings.builder()
-                    .put(super.nodeSettings())
-                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
-                    .build();
-            }
-
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -1151,14 +1083,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
 
-            var initialCommits = testHarness.generateIndexCommits(2);
+            var initialCommits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(2);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
                 commitService.ensureMaxGenerationToUploadForFlush(shardId, initialCommit.getGeneration());
                 waitUntilBCCIsUploaded(commitService, shardId, initialCommit.getGeneration());
             }
 
-            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true, false, generation -> {}).get(0);
             commitService.onCommitCreation(mergedCommit);
             commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
             waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
@@ -1201,15 +1133,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-
-            @Override
-            protected Settings nodeSettings() {
-                return Settings.builder()
-                    .put(super.nodeSettings())
-                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
-                    .build();
-            }
-
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -1255,7 +1178,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 0);
             stateRef.set(state);
 
-            var initialCommits = testHarness.generateIndexCommits(2);
+            var initialCommits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(2);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
             }
@@ -1263,7 +1186,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             commitService.ensureMaxGenerationToUploadForFlush(shardId, initialCommits.get(initialCommits.size() - 1).getGeneration());
             waitUntilBCCIsUploaded(commitService, shardId, initialCommits.get(initialCommits.size() - 1).getGeneration());
 
-            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true, false, generation -> {}).get(0);
             PrimaryTermAndGeneration mergePTG = new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration());
             commitService.onCommitCreation(mergedCommit);
             commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
@@ -1291,15 +1214,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-
-            @Override
-            protected Settings nodeSettings() {
-                return Settings.builder()
-                    .put(super.nodeSettings())
-                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
-                    .build();
-            }
-
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
@@ -1329,7 +1243,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
 
-            var initialCommits = testHarness.generateIndexCommits(10);
+            var initialCommits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(10);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
                 fakeSearchNode.respondWithUsedCommits(
@@ -1357,7 +1271,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 indexingShardState.unreferencedBlobs()
             );
 
-            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true, false, generation -> {}).get(0);
             PrimaryTermAndGeneration mergePTG = new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration());
             commitService.onCommitCreation(mergedCommit);
             commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
@@ -1457,7 +1371,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
 
-            var initialCommits = testHarness.generateIndexCommits(10);
+            var initialCommits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(10);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
                 commitService.ensureMaxGenerationToUploadForFlush(shardId, initialCommit.getGeneration());
@@ -1468,7 +1382,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 );
             }
 
-            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true, false, generation -> {}).get(0);
             commitService.onCommitCreation(mergedCommit);
             commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
             waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
@@ -1500,7 +1414,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // therefore we should retain all commits.
             assertThat(deletedCommits, empty());
 
-            StatelessCommitRef newCommit = testHarness.generateIndexCommits(1, true).get(0);
+            StatelessCommitRef newCommit = testHarness.generateIndexCommits(1, true, false, generation -> {}).get(0);
             StatelessCommitRef retainedBySearch = initialCommits.get(1);
             commitService.onCommitCreation(newCommit);
             commitService.ensureMaxGenerationToUploadForFlush(shardId, newCommit.getGeneration());
@@ -1543,15 +1457,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-
-            @Override
-            protected Settings nodeSettings() {
-                return Settings.builder()
-                    .put(super.nodeSettings())
-                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
-                    .build();
-            }
-
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
@@ -1598,7 +1503,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 uploadedBccInfo -> uploadedCommits.add(uploadedBccInfo.uploadedBcc().primaryTermAndGeneration())
             );
 
-            var initialCommits = testHarness.generateIndexCommits(10);
+            var initialCommits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(10);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
             }
@@ -1631,7 +1536,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             PrimaryTermAndGeneration registeredCommit = registerFuture.actionGet().getCompoundCommit().primaryTermAndGeneration();
             assertThat(registeredCommit, equalTo(new PrimaryTermAndGeneration(commit.getPrimaryTerm(), commit.getGeneration())));
 
-            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true, false, generation -> {}).get(0);
             commitService.onCommitCreation(mergedCommit);
             commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
             waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
@@ -1756,15 +1661,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         };
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-
-            @Override
-            protected Settings nodeSettings() {
-                return Settings.builder()
-                    .put(super.nodeSettings())
-                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
-                    .build();
-            }
-
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
@@ -1799,7 +1695,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             AtomicBoolean running = new AtomicBoolean(true);
             AtomicLong indexingRoundsCompleted = new AtomicLong();
 
-            List<StatelessCommitRef> initialCommits = testHarness.generateIndexCommits(between(1, 5));
+            List<StatelessCommitRef> initialCommits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(between(1, 5));
             initialCommits.forEach(commitService::onCommitCreation);
             Set<PrimaryTermAndGeneration> allCommits = ConcurrentCollections.newConcurrentSet();
             initialCommits.stream()
@@ -1817,7 +1713,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 safeAwait(barrier);
                 try {
                     while (running.get()) {
-                        List<StatelessCommitRef> newCommits = testHarness.generateIndexCommits(between(1, 5));
+                        List<StatelessCommitRef> newCommits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(between(1, 5));
                         newCommits.forEach(commitService::onCommitCreation);
                         newCommits.stream()
                             .map(commit -> new PrimaryTermAndGeneration(commit.getPrimaryTerm(), commit.getGeneration()))
@@ -1835,7 +1731,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         Thread.yield();
                         indexingRoundsCompleted.incrementAndGet();
                     }
-                    var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
+                    var mergedCommit = testHarness.generateIndexCommits(1, true, false, generation -> {}).get(0);
                     commitService.onCommitCreation(mergedCommit);
                     PrimaryTermAndGeneration primaryTermAndGeneration = new PrimaryTermAndGeneration(
                         mergedCommit.getPrimaryTerm(),
@@ -2207,7 +2103,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 return Settings.builder()
                     .put(super.nodeSettings())
                     .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), commitsPerBCC)
-                    .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), false)
                     .build();
             }
 
@@ -2219,7 +2114,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var numberOfBCCs = randomIntBetween(2, 3);
             for (int i = 0; i < numberOfBCCs; i++) {
-                List<StatelessCommitRef> commits = testHarness.generateIndexCommits(commitsPerBCC, false);
+                List<StatelessCommitRef> commits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(commitsPerBCC);
                 nonMergedCommits.addAll(commits);
 
                 commitService.onCommitCreation(commits.get(0));
@@ -2235,7 +2130,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
 
             // Force merge so we can delete all previous commits
-            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true, false, generation -> {}).get(0);
             commitService.onCommitCreation(mergedCommit);
             commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
 

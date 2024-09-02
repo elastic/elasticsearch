@@ -71,9 +71,6 @@ tests:
 - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
   method: testSystemPropertyDisabled
   issue: https://github.com/elastic/elasticsearch/issues/110949
-- class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoPointIT
-  method: testPushedDownQueriesSingleValue
-  issue: https://github.com/elastic/elasticsearch/issues/111084
 - class: org.elasticsearch.multi_node.GlobalCheckpointSyncActionIT
   issue: https://github.com/elastic/elasticsearch/issues/111124
 - class: org.elasticsearch.cluster.PrevalidateShardPathIT
@@ -154,9 +151,6 @@ tests:
 - class: org.elasticsearch.search.retriever.rankdoc.RankDocsSortBuilderTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/112312
-- class: org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTests
-  method: testGetMultiThreaded
-  issue: https://github.com/elastic/elasticsearch/issues/112314
 - class: org.elasticsearch.search.retriever.RankDocRetrieverBuilderIT
   method: testRankDocsRetrieverWithCollapse
   issue: https://github.com/elastic/elasticsearch/issues/112254
@@ -174,6 +168,20 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.shared.NodesCachesStatsIntegTests
   method: testNodesCachesStats
   issue: https://github.com/elastic/elasticsearch/issues/112384
+- class: org.elasticsearch.action.admin.cluster.stats.CCSTelemetrySnapshotTests
+  method: testToXContent
+  issue: https://github.com/elastic/elasticsearch/issues/112325
+- class: org.elasticsearch.lucene.spatial.LatLonShapeDocValuesQueryTests
+  method: testEmptySegment
+  issue: https://github.com/elastic/elasticsearch/issues/112413
+- class: org.elasticsearch.lucene.spatial.CartesianShapeDocValuesQueryTests
+  method: testEmptySegment
+  issue: https://github.com/elastic/elasticsearch/issues/112414
+- class: org.elasticsearch.search.retriever.RankDocRetrieverBuilderIT
+  method: testRankDocsRetrieverWithNestedQuery
+  issue: https://github.com/elastic/elasticsearch/issues/112421
+- class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
+  issue: https://github.com/elastic/elasticsearch/issues/112423
 
 # Examples:
 #

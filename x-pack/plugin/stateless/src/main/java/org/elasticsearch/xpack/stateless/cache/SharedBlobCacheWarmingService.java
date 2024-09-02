@@ -628,6 +628,8 @@ public class SharedBlobCacheWarmingService {
                         // Can be executed on different thread pool depending whether we read from
                         // the SharedBlobCacheWarmingService (PREWARM_THREAD_POOL pool) or the IndexingShardCacheBlobReader (VBCC pool)
                         new SearchIndexInput.SequentialRangeMissingHandler(
+                            WarmingTask.this,
+                            cacheKey.fileName(),
                             range,
                             cacheBlobReader,
                             () -> writeBuffer.get().clear(),
@@ -677,6 +679,11 @@ public class SharedBlobCacheWarmingService {
             @Override
             public void onFailure(Exception e) {
                 logger.error(() -> format("%s %s failed to warm region %s", indexShard.shardId(), description, blobRegion), e);
+            }
+
+            @Override
+            public String toString() {
+                return "WarmingTask{region=" + blobRegion + "}";
             }
         }
     }

@@ -693,8 +693,7 @@ public final class SearchPhaseController {
         RankDoc[] rankedDocs = new RankDoc[originalDocs.scoreDocs.length];
         int rankIndex = -1;
         for (int i = 0; i < originalDocs.sortFields().length; i++) {
-            if (originalDocs.sortFields()[i] instanceof RankDocsSortField
-                || RankDocsSortField.NAME.equals(originalDocs.sortFields[i].getField())) {
+            if (RankDocsSortField.NAME.equals(originalDocs.sortFields[i].getField())) {
                 rankIndex = i;
                 break;
             }

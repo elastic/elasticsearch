@@ -75,7 +75,7 @@ public class UnmappedFieldFetcher {
         for (String child : nestedChildren) {
             automata.add(Operations.concatenate(Automata.makeString(child + "."), Automata.makeAnyString()));
         }
-        return new CharacterRunAutomaton(Operations.union(automata));
+        return new CharacterRunAutomaton(Operations.determinize(Operations.union(automata), AUTOMATON_MAX_DETERMINIZED_STATES));
     }
 
     // Builds an automaton that will match any field that conforms to one of the input patterns

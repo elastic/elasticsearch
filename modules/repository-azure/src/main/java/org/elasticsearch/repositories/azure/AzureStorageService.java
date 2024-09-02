@@ -24,6 +24,7 @@ import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URL;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
@@ -164,5 +165,16 @@ public class AzureStorageService {
     public void refreshSettings(Map<String, AzureStorageSettings> clientsSettings) {
         this.storageSettings = Map.copyOf(clientsSettings);
         // clients are built lazily by {@link client(String, LocationMode)}
+    }
+
+    /**
+     * For Azure repositories, we report the different kinds of credentials in use in the telemetry.
+     */
+    public Set<String> getExtraUsageFeatures(String clientName) {
+        try {
+            return getClientSettings(clientName).credentialsUsageFeatures();
+        } catch (Exception e) {
+            return Set.of();
+        }
     }
 }

@@ -154,10 +154,10 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
             executeAsyncWithOrigin(client, INFERENCE_ORIGIN, GetTrainedModelsAction.INSTANCE, getRequest, getModelsResponseListener);
         } else {
             listener.onFailure(
-                new IllegalArgumentException(
-                    "Unable to determine supported model for ["
+                new IllegalStateException(
+                    "Can not check the download status of the model used by ["
                         + model.getConfigurations().getInferenceEntityId()
-                        + "] please verify the request and submit a bug report if necessary."
+                        + "] as the model_id cannot be found."
                 )
             );
         }

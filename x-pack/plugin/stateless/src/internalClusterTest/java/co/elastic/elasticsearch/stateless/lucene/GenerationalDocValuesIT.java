@@ -154,16 +154,9 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             StatelessSharedBlobCacheService cacheService,
             CacheBlobReaderService cacheBlobReaderService,
             MutableObjectStoreUploadTracker objectStoreUploadTracker,
-            boolean trackGenerationalFiles,
             ShardId shardId
         ) {
-            return new GenerationalFilesTrackingSearchDirectory(
-                cacheService,
-                cacheBlobReaderService,
-                objectStoreUploadTracker,
-                trackGenerationalFiles,
-                shardId
-            );
+            return new GenerationalFilesTrackingSearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
         }
 
         @Override
@@ -355,10 +348,9 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             StatelessSharedBlobCacheService cacheService,
             CacheBlobReaderService cacheBlobReaderService,
             MutableObjectStoreUploadTracker objectStoreUploadTracker,
-            boolean trackGenerationalFiles,
             ShardId shardId
         ) {
-            super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, trackGenerationalFiles, shardId);
+            super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
         }
 
         @Override
@@ -1227,9 +1219,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testOnGenerationalFileDeletion() throws Exception {
-        var indexNode = startMasterAndIndexNode(
-            Settings.builder().put(StatelessCommitService.STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), true).build()
-        );
+        var indexNode = startMasterAndIndexNode();
         final var indexName = createIndex(1, 0);
 
         var indexingShard = findIndexShard(resolveIndex(indexName), 0);

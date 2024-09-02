@@ -101,8 +101,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 StatelessSharedBlobCacheService sharedCacheService,
                 ShardId shardId,
                 CacheBlobReaderService cacheBlobReaderService,
-                MutableObjectStoreUploadTracker objectStoreUploadTracker,
-                boolean trackGenerationalFiles
+                MutableObjectStoreUploadTracker objectStoreUploadTracker
             ) {
                 var customCacheBlobReaderService = new CacheBlobReaderService(nodeSettings, sharedCacheService, client, threadPool) {
                     @Override
@@ -142,13 +141,7 @@ public class SearchDirectoryTests extends ESTestCase {
                         };
                     }
                 };
-                return super.createSearchDirectory(
-                    sharedCacheService,
-                    shardId,
-                    customCacheBlobReaderService,
-                    objectStoreUploadTracker,
-                    trackGenerationalFiles
-                );
+                return super.createSearchDirectory(sharedCacheService, shardId, customCacheBlobReaderService, objectStoreUploadTracker);
             }
 
             @Override

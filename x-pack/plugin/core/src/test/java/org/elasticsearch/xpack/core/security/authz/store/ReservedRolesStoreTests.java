@@ -1643,7 +1643,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-cloud_security_posture.findings_latest-default-" + Version.CURRENT,
             "logs-cloud_security_posture.scores-default-" + Version.CURRENT,
             "logs-cloud_security_posture.vulnerabilities_latest-default" + Version.CURRENT,
-            "security_solution-wiz.vulnerability_latest-" + Version.CURRENT
+            "security_solution-*.vulnerability_latest-" + Version.CURRENT
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);

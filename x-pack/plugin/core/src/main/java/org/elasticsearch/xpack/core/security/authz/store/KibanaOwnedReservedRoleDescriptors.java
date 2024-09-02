@@ -420,7 +420,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("read", "view_index_metadata")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("security_solution-wiz.vulnerability_latest-*")
+                    .indices("security_solution-*.vulnerability_latest-*")
                     .privileges(
                         "create_index",
                         "index",

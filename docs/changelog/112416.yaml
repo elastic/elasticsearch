@@ -1,0 +1,5 @@
+pr: 112416
+summary: Reintroduce compression for binary `doc_values`
+area: Codec
+type: enhancement
+issues: []

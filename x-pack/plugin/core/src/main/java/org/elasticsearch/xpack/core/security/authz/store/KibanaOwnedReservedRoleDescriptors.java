@@ -423,8 +423,9 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices("security_solution-wiz.vulnerability_latest-*")
                     .privileges(
                         "create_index",
-                        "read",
                         "index",
+                        "manage"
+                        "read",
                         "delete",
                         TransportIndicesAliasesAction.NAME,
                         TransportUpdateSettingsAction.TYPE.name()

@@ -192,7 +192,7 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
 
         @Override
         public long nextOrd() {
-            assert index == documentOrds.length;
+            assertTrue(index < documentOrds.length);
             return documentOrds[index++];
         }
 

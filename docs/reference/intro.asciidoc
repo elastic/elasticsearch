@@ -87,7 +87,8 @@ Shards are the internal building blocks of an index, and each shard is a single 
 .What you need to know
 *******************************
 Nodes, clusters and shards are what make Elasticsearch distributed and scalable.
-// TODO: Learn more in production guide
+Learn more in <<scalability,Plan for production>>.
+
 These concepts aren't essential if you're just getting started.
 How you <<elasticsearch-intro-deploy,deploy Elasticsearch>> in production determines what you need to know:
 

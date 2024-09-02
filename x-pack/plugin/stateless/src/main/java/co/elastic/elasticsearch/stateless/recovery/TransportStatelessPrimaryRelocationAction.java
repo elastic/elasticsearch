@@ -343,7 +343,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                                     handOffDuration.millis()
                                 )
                             );
-                            logger.log(Level.WARN, message);
+                            logger.log(Level.INFO, message);
                         }
 
                         try {

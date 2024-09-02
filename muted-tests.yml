@@ -183,6 +183,8 @@ tests:
 - class: org.elasticsearch.search.retriever.RankDocRetrieverBuilderIT
   method: testRankDocsRetrieverWithNestedQuery
   issue: https://github.com/elastic/elasticsearch/issues/112421
+- class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
+  issue: https://github.com/elastic/elasticsearch/issues/112423
 
 # Examples:
 #

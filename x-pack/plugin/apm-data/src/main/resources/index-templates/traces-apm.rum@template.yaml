@@ -14,6 +14,7 @@ composed_of:
 - apm-90d@lifecycle
 - traces-apm@mappings
 - traces-apm.rum@mappings
+- traces-apm.rum-fallback@lifecycle
 - traces@custom
 - traces-apm.rum@custom
 - ecs@mappings

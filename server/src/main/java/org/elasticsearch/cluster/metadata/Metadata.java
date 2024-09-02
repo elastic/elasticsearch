@@ -443,6 +443,17 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return metadata;
     }
 
+    /**
+     * @return The total number of shards across all projects in this cluster
+     */
+    public int getTotalNumberOfShards() {
+        int shards = 0;
+        for (ProjectMetadata project : projects().values()) {
+            shards += project.getTotalNumberOfShards();
+        }
+        return shards;
+    }
+
     public NodesShutdownMetadata nodeShutdowns() {
         return custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
     }

@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -1250,13 +1249,10 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 lessThanOrEqualTo(1)
             );
 
-            // TODO Remove this once RoutingAllocation works with the global routing table
-            GlobalRoutingTable globalRoutingTable = GlobalRoutingTable.builder()
-                .version(allocation.routingTable().version())
-                .put(allocation.metadata().getProject().id(), allocation.routingTable())
-                .build();
             totalOutgoingMoves.keySet().removeIf(nodeId -> isReconciled(allocation.routingNodes().node(nodeId), balance));
-            clusterState = ClusterState.builder(clusterState).routingTable(globalRoutingTable.rebuild(allocation.routingNodes())).build();
+            clusterState = ClusterState.builder(clusterState)
+                .routingTable(allocation.globalRoutingTable().rebuild(allocation.routingNodes()))
+                .build();
         }
     }
 

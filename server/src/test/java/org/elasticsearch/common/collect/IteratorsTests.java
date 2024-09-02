@@ -28,6 +28,8 @@ import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class IteratorsTests extends ESTestCase {
     public void testConcatentation() {
         List<Integer> threeTwoOne = Arrays.asList(3, 2, 1);
@@ -288,6 +290,19 @@ public class IteratorsTests extends ESTestCase {
         final var queue = new LinkedList<>(Arrays.asList(array));
         Iterators.fromSupplier(queue::pollFirst).forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
         assertEquals(array.length, index.get());
+    }
+
+    public void testCycle() {
+        final List<Integer> source = List.of(1, 5, 100, 20);
+        final Iterator<Integer> iterator = Iterators.cycling(source);
+        assertThat(iterator.hasNext(), equalTo(true));
+        for (int i = 0; i < 10; i++) {
+            assertThat(iterator.hasNext(), equalTo(true));
+            assertThat(iterator.next(), equalTo(1));
+            assertThat(iterator.next(), equalTo(5));
+            assertThat(iterator.next(), equalTo(100));
+            assertThat(iterator.next(), equalTo(20));
+        }
     }
 
     public void testEquals() {

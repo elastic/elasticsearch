@@ -20,7 +20,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -36,6 +40,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -53,6 +58,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
     private final SnapshotsInfoService snapshotsInfoService;
     private final AllocationDeciders allocationDeciders;
     private final AllocationService allocationService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportClusterAllocationExplainAction(
@@ -64,7 +70,8 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         AllocationDeciders allocationDeciders,
-        AllocationService allocationService
+        AllocationService allocationService,
+        ProjectResolver projectResolver
     ) {
         super(
             TYPE.name(),
@@ -82,6 +89,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
         this.snapshotsInfoService = snapshotsInfoService;
         this.allocationDeciders = allocationDeciders;
         this.allocationService = allocationService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -97,6 +105,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
         final ActionListener<ClusterAllocationExplainResponse> listener
     ) {
         final ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
+        final Collection<ProjectId> projectIds = projectResolver.getProjectIds(state);
         final RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
             state,
@@ -105,7 +114,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
             System.nanoTime()
         );
 
-        ShardRouting shardRouting = findShardToExplain(request, allocation);
+        ShardRouting shardRouting = findShardToExplain(request, allocation, projectIds);
         logger.debug("explaining the allocation for [{}], found shard [{}]", request, shardRouting);
 
         ClusterAllocationExplanation cae = explainShard(
@@ -149,16 +158,23 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
     }
 
     // public for testing
-    public static ShardRouting findShardToExplain(ClusterAllocationExplainRequest request, RoutingAllocation allocation) {
+    public static ShardRouting findShardToExplain(
+        ClusterAllocationExplainRequest request,
+        RoutingAllocation allocation,
+        Collection<ProjectId> projectIds
+    ) {
+        final GlobalRoutingTable.ProjectLookup lookup = allocation.globalRoutingTable().getProjectLookup();
         ShardRouting foundShard = null;
         if (request.useAnyUnassignedShard()) {
             // If we can use any shard, return the first unassigned primary (if there is one) or the first unassigned replica (if not)
             for (ShardRouting unassigned : allocation.routingNodes().unassigned()) {
-                if (foundShard == null || unassigned.primary()) {
-                    foundShard = unassigned;
-                }
-                if (foundShard.primary()) {
-                    break;
+                if (projectIds.contains(lookup.project(unassigned.index()))) {
+                    if (foundShard == null || unassigned.primary()) {
+                        foundShard = unassigned;
+                    }
+                    if (foundShard.primary()) {
+                        break;
+                    }
                 }
             }
             if (foundShard == null) {
@@ -168,11 +184,16 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
                     target shard in the request. See %s for more information.""", ReferenceDocs.ALLOCATION_EXPLAIN_API));
             }
         } else {
+            if (projectIds.size() != 1) {
+                throw new IllegalArgumentException("an explain action for a named index must target exactly one project");
+            }
+            final ProjectId projectId = projectIds.iterator().next();
             String index = request.getIndex();
             int shard = request.getShard();
+            final IndexShardRoutingTable indexShardRoutingTable = allocation.routingTable(projectId).shardRoutingTable(index, shard);
             if (request.isPrimary()) {
                 // If we're looking for the primary shard, there's only one copy, so pick it directly
-                foundShard = allocation.routingTable().shardRoutingTable(index, shard).primaryShard();
+                foundShard = indexShardRoutingTable.primaryShard();
                 if (request.getCurrentNode() != null) {
                     DiscoveryNode primaryNode = allocation.nodes().resolveNode(request.getCurrentNode());
                     // the primary is assigned to a node other than the node specified in the request
@@ -184,7 +205,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
                 }
             } else {
                 // If looking for a replica, go through all the replica shards
-                List<ShardRouting> replicaShardRoutings = allocation.routingTable().shardRoutingTable(index, shard).replicaShards();
+                List<ShardRouting> replicaShardRoutings = indexShardRoutingTable.replicaShards();
                 if (request.getCurrentNode() != null) {
                     // the request is to explain a replica shard already assigned on a particular node,
                     // so find that shard copy

@@ -12,10 +12,13 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -45,6 +48,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
     public void testShouldFallbackToDefaultExpectedShardSize() {
 
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
+        state = buildRoutingTable(state);
         var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
             .withRecoverySource(
                 randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE, RecoverySource.ExistingStoreRecoverySource.INSTANCE)
@@ -63,6 +67,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
 
         var shardSize = randomLongBetween(100, 1000);
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
+        state = buildRoutingTable(state);
         var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
             .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
             .build();
@@ -78,6 +83,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
 
         var shardSize = randomLongBetween(100, 1000);
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
+        state = buildRoutingTable(state);
         var primary = newShardRouting("my-index", 0, randomIdentifier(), true, ShardRoutingState.STARTED);
         var replica = newShardRouting("my-index", 0, randomIdentifier(), false, ShardRoutingState.INITIALIZING);
 
@@ -109,6 +115,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
             default -> throw new AssertionError("unexpected index type");
         };
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index)).build();
+        state = buildRoutingTable(state);
 
         var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
         var indexId = new IndexId("my-index", "_na_");
@@ -153,7 +160,11 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
                         )
                 )
             )
-            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(source.index()).addShard(source)))
+            .routingTable(
+                RoutingTable.builder()
+                    .add(IndexRoutingTable.builder(source.index()).addShard(source))
+                    .add(IndexRoutingTable.builder(target.index()).addShard(target))
+            )
             .build();
 
         var clusterInfo = createClusterInfo(source, sourceShardSize);
@@ -196,4 +207,18 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
             Map.of()
         );
     }
+
+    private ClusterState buildRoutingTable(ClusterState state) {
+        ImmutableOpenMap.Builder<ProjectId, RoutingTable> projectRouting = ImmutableOpenMap.builder();
+        for (var entry : state.metadata().projects().entrySet()) {
+            RoutingTable.Builder builder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+            for (var index : entry.getValue()) {
+                builder.addAsNew(index);
+            }
+            projectRouting.put(entry.getKey(), builder.build());
+        }
+        GlobalRoutingTable routingTable = new GlobalRoutingTable(0L, projectRouting.build());
+        return ClusterState.builder(state).routingTable(routingTable).build();
+    }
+
 }

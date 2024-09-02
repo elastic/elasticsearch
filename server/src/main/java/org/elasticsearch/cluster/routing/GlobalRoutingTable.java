@@ -20,6 +20,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 
@@ -40,6 +41,7 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
     private final long version;
 
     private final ImmutableOpenMap<ProjectId, RoutingTable> routingTables;
+    private volatile ProjectLookup projectLookup = null;
 
     public GlobalRoutingTable(long version, ImmutableOpenMap<ProjectId, RoutingTable> routingTables) {
         this.version = version;
@@ -54,7 +56,7 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
     public GlobalRoutingTable rebuild(RoutingNodes routingNodes) {
         // Step 1: Iterable over all ShardRouting entries in the nodes and split them by owning project-id
         final Map<ProjectId, List<ShardRouting>> byProject = Maps.transformValues(this.routingTables, ignore -> new ArrayList<>());
-        final var lookup = new ProjectLookup();
+        final var lookup = getProjectLookup();
         for (RoutingNode routingNode : routingNodes) {
             final String nodeContext = "Node [" + routingNode + "]";
             for (ShardRouting shardRoutingEntry : routingNode) {
@@ -89,7 +91,7 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
     }
 
     /**
-     * For the provided {@link ShardRouting}, determine the correct project (using the {@link ProjectLookup}),
+     * For the provided {@link ShardRouting}, determine the correct project (using the {@link MultiProjectLookup}),
      * and then add the {@link ShardRouting} to the correct list within the provided {@code Map}.
      *
      * @param shardRouting        The shard to add
@@ -121,6 +123,18 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
             );
         }
         routingSet.add(shardRouting);
+    }
+
+    public ProjectLookup getProjectLookup() {
+        if (this.projectLookup == null) {
+            if (this.routingTables.size() == 1) {
+                final var singleEntry = this.routingTables.entrySet().iterator().next();
+                projectLookup = new SingleProjectLookup(singleEntry.getKey(), singleEntry.getValue());
+            } else {
+                projectLookup = new MultiProjectLookup();
+            }
+        }
+        return projectLookup;
     }
 
     public GlobalRoutingTable withIncrementedVersion() {
@@ -310,6 +324,10 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
         return true;
     }
 
+    public Iterable<IndexRoutingTable> indexRouting() {
+        return Iterables.flatten(this);
+    }
+
     private static class GlobalRoutingTableDiff implements Diff<GlobalRoutingTable> {
 
         private static final KeySerializer<ProjectId> PROJECT_ID_KEY_SERIALIZER = DiffableUtils.getWriteableKeySerializer(ProjectId.READER);
@@ -448,13 +466,45 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
     }
 
     /**
-     * Builds a lookup table from {@link Index} to {@link ProjectId}.
-     * This relies on {@link Index#getUUID()} being unique across the cluster.
+     * A lookup table from {@link Index} to {@link ProjectId}
      */
-    private class ProjectLookup {
+    public interface ProjectLookup {
+        /**
+         * Return the {@link ProjectId} for the provided {@link Index}.
+         * Returns {@code null} if the index does not existing in the routing table
+         */
+        @Nullable
+        ProjectId project(Index index);
+    }
+
+    /**
+     * An implementation of {@link ProjectLookup} that is optimized for the case where there is a single project.
+     *
+     */
+    static class SingleProjectLookup implements ProjectLookup {
+
+        final ProjectId projectId;
+        final RoutingTable routingTable;
+
+        SingleProjectLookup(ProjectId projectId, RoutingTable routingTable) {
+            this.projectId = projectId;
+            this.routingTable = routingTable;
+        }
+
+        @Override
+        public ProjectId project(Index index) {
+            if (routingTable.hasIndex(index)) {
+                return projectId;
+            } else {
+                return null;
+            }
+        }
+    }
+
+    class MultiProjectLookup implements ProjectLookup {
         private final Map<String, ProjectId> lookup;
 
-        ProjectLookup() {
+        private MultiProjectLookup() {
             this.lookup = Maps.newMapWithExpectedSize(totalIndexCount());
             for (var entry : routingTables.entrySet()) {
                 final ProjectId projectId = entry.getKey();
@@ -470,11 +520,8 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
             }
         }
 
-        /**
-         * Return the {@link ProjectId} for the provided {@link Index}.
-         * This requires that the {@link Index} exists within a project {@link RoutingTable} within the owning {@link GlobalRoutingTable}.
-         */
         @Nullable
+        @Override
         public ProjectId project(Index index) {
             final ProjectId projectId = lookup.get(index.getUUID());
             if (projectId != null && routingTables.get(projectId).hasIndex(index)) {
@@ -484,4 +531,5 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
             }
         }
     }
+
 }

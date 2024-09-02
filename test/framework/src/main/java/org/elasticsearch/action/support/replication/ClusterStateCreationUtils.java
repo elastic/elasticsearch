@@ -14,18 +14,22 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTable.Builder;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskParams;
@@ -39,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -382,10 +387,10 @@ public class ClusterStateCreationUtils {
         }
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
-        Builder routingTableBuilder = RoutingTable.builder();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         Metadata.Builder metadataBuilder = Metadata.builder();
-
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID);
         for (String index : indices) {
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
                 .settings(
@@ -397,7 +402,7 @@ public class ClusterStateCreationUtils {
                 .timestampRange(IndexLongFieldRange.UNKNOWN)
                 .eventIngestedRange(IndexLongFieldRange.UNKNOWN, null)
                 .build();
-            metadataBuilder.put(indexMetadata, false).generateClusterUuidIfNeeded();
+            projectBuilder.put(indexMetadata, false);
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
             for (int i = 0; i < numberOfShards; i++) {
                 final ShardId shardId = new ShardId(index, "_na_", i);
@@ -416,9 +421,73 @@ public class ClusterStateCreationUtils {
             }
             routingTableBuilder.add(indexRoutingTableBuilder.build());
         }
+
+        metadataBuilder.put(projectBuilder).generateClusterUuidIfNeeded();
+
         state.metadata(metadataBuilder);
-        state.routingTable(routingTableBuilder.build());
+        state.routingTable(GlobalRoutingTable.builder().put(Metadata.DEFAULT_PROJECT_ID, routingTableBuilder).build());
         return state.build();
+    }
+
+    public static Tuple<ProjectMetadata.Builder, RoutingTable.Builder> projectWithAssignedPrimariesAndReplicas(
+        ProjectId projectId,
+        String[] indices,
+        int numberOfShards,
+        int numberOfReplicas,
+        DiscoveryNodes nodes
+
+    ) {
+        return projectWithAssignedPrimariesAndReplicas(
+            projectId,
+            indices,
+            numberOfShards,
+            Collections.nCopies(numberOfReplicas, ShardRouting.Role.DEFAULT),
+            nodes
+        );
+    }
+
+    private static Tuple<ProjectMetadata.Builder, RoutingTable.Builder> projectWithAssignedPrimariesAndReplicas(
+        ProjectId projectId,
+        String[] indices,
+        int numberOfShards,
+        List<ShardRouting.Role> replicaRoles,
+        DiscoveryNodes nodes
+    ) {
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        final Iterator<DiscoveryNode> nodeIterator = Iterators.cycling(nodes);
+        for (String index : indices) {
+            final String uuid = UUIDs.base64UUID();
+            IndexMetadata indexMetadata = IndexMetadata.builder(index)
+                .settings(
+                    indexSettings(IndexVersion.current(), numberOfShards, replicaRoles.size()).put(
+                        SETTING_CREATION_DATE,
+                        System.currentTimeMillis()
+                    ).put(IndexMetadata.SETTING_INDEX_UUID, uuid)
+                )
+                .timestampRange(IndexLongFieldRange.UNKNOWN)
+                .eventIngestedRange(IndexLongFieldRange.UNKNOWN, null)
+                .build();
+            projectBuilder.put(indexMetadata, false);
+            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
+            for (int i = 0; i < numberOfShards; i++) {
+                final ShardId shardId = new ShardId(index, uuid, i);
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
+                indexShardRoutingBuilder.addShard(
+                    TestShardRouting.newShardRouting(shardId, nodeIterator.next().getId(), null, true, ShardRoutingState.STARTED)
+                );
+                for (int replica = 0; replica < replicaRoles.size(); replica++) {
+                    indexShardRoutingBuilder.addShard(
+                        shardRoutingBuilder(shardId, nodeIterator.next().getId(), false, ShardRoutingState.STARTED).withRole(
+                            replicaRoles.get(replica)
+                        ).build()
+                    );
+                }
+                indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);
+            }
+            routingTableBuilder.add(indexRoutingTableBuilder.build());
+        }
+        return new Tuple<>(projectBuilder, routingTableBuilder);
     }
 
     /**

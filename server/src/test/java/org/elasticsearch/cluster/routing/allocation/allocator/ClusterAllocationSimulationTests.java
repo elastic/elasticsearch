@@ -321,11 +321,12 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 final var unassignedIterator = routingNodes.unassigned().iterator();
                 while (unassignedIterator.hasNext()) {
                     final var shardRouting = unassignedIterator.next();
-                    final var badNodes = routingAllocation.routingTable()
-                        .index(shardRouting.index())
-                        .shard(shardRouting.id())
-                        .assignedShards()
+                    final var badNodes = routingAllocation.globalRoutingTable()
+                        .routingTables()
+                        .values()
                         .stream()
+                        .filter(table -> table.hasIndex(shardRouting.index()))
+                        .flatMap(table -> table.index(shardRouting.index()).shard(shardRouting.id()).assignedShards().stream())
                         .map(ShardRouting::currentNodeId)
                         .collect(Collectors.toSet());
                     unassignedIterator.initialize(

@@ -11,6 +11,8 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -25,13 +27,15 @@ public class ExpectedShardSizeEstimator {
     }
 
     public static long getExpectedShardSize(ShardRouting shard, long defaultSize, RoutingAllocation allocation) {
+        ProjectId projectId = allocation.globalRoutingTable().getProjectLookup().project(shard.index());
+        assert projectId != null : "No project for " + shard;
         return getExpectedShardSize(
             shard,
             defaultSize,
             allocation.clusterInfo(),
             allocation.snapshotShardSizeInfo(),
-            allocation.metadata(),
-            allocation.routingTable()
+            allocation.metadata().getProject(projectId),
+            allocation.routingTable(projectId)
         );
     }
 
@@ -67,15 +71,15 @@ public class ExpectedShardSizeEstimator {
         long defaultValue,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo snapshotShardSizeInfo,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         RoutingTable routingTable
     ) {
-        final IndexMetadata indexMetadata = metadata.getProject().getIndexSafe(shard.index());
+        final IndexMetadata indexMetadata = projectMetadata.getIndexSafe(shard.index());
         if (indexMetadata.getResizeSourceIndex() != null
             && shard.active() == false
             && shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             assert shard.primary() : "All replica shards are recovering from " + RecoverySource.Type.PEER;
-            return getExpectedSizeOfResizedShard(shard, defaultValue, indexMetadata, clusterInfo, metadata, routingTable);
+            return getExpectedSizeOfResizedShard(shard, defaultValue, indexMetadata, clusterInfo, projectMetadata, routingTable);
         } else if (shard.active() == false && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
             assert shard.primary() : "All replica shards are recovering from " + RecoverySource.Type.PEER;
             return snapshotShardSizeInfo.getShardSize(shard, defaultValue);
@@ -94,13 +98,13 @@ public class ExpectedShardSizeEstimator {
         long defaultValue,
         IndexMetadata indexMetadata,
         ClusterInfo clusterInfo,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         RoutingTable routingTable
     ) {
         // in the shrink index case we sum up the source index shards since we basically make a copy of the shard in the worst case
         long targetShardSize = 0;
         final Index mergeSourceIndex = indexMetadata.getResizeSourceIndex();
-        final IndexMetadata sourceIndexMetadata = metadata.getProject().index(mergeSourceIndex);
+        final IndexMetadata sourceIndexMetadata = projectMetadata.index(mergeSourceIndex);
         if (sourceIndexMetadata != null) {
             final Set<ShardId> shardIds = IndexMetadata.selectRecoverFromShards(
                 shard.id(),

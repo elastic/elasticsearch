@@ -355,14 +355,16 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return routingTable;
     }
 
-    public RoutingTable routingTable() {
-        return routingTable.getRoutingTable();
-    }
-
     public RoutingTable routingTable(ProjectId projectId) {
         return routingTable.routingTable(projectId);
     }
 
+    @Deprecated
+    public RoutingTable routingTable() {
+        return routingTable.getRoutingTable();
+    }
+
+    @Deprecated
     public RoutingTable getRoutingTable() {
         return routingTable();
     }

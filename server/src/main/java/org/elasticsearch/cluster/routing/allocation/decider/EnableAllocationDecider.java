@@ -116,7 +116,7 @@ public class EnableAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
         }
 
-        final IndexMetadata indexMetadata = allocation.metadata().getProject().getIndexSafe(shardRouting.index());
+        final IndexMetadata indexMetadata = allocation.getProject(shardRouting.index()).getIndexSafe(shardRouting.index());
         final Allocation enable;
         final boolean usedIndexSetting;
         if (INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.exists(indexMetadata.getSettings())) {

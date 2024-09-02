@@ -61,6 +61,7 @@ import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAll
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -255,7 +256,8 @@ public class AllocationServiceTests extends ESTestCase {
         nodesBuilder.add(DiscoveryNodeUtils.create("node1"));
         nodesBuilder.add(DiscoveryNodeUtils.create("node2"));
 
-        final Metadata.Builder metadata = Metadata.builder()
+        var projectId = Metadata.DEFAULT_PROJECT_ID;
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId)
             .put(
                 indexMetadata(
                     "index",
@@ -264,13 +266,15 @@ public class AllocationServiceTests extends ESTestCase {
             );
 
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsRecovery(metadata.get("index"));
+            .addAsRecovery(projectBuilder.get("index"));
 
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(nodesBuilder)
-            .metadata(metadata)
+            .metadata(Metadata.builder().put(projectBuilder).build())
             .routingTable(routingTableBuilder.build())
             .build();
+
+        assertThat(clusterState.metadata().projects(), aMapWithSize(1));
 
         final RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.emptyList()),
@@ -282,7 +286,7 @@ public class AllocationServiceTests extends ESTestCase {
         allocation.setDebugMode(randomBoolean() ? RoutingAllocation.DebugMode.ON : RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
 
         final ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(
-            clusterState.routingTable().index("index").shard(0).primaryShard(),
+            clusterState.globalRoutingTable().routingTable(projectId).index("index").shard(0).primaryShard(),
             allocation
         );
 

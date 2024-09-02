@@ -591,7 +591,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             allocation.clusterInfo(),
             allocation.snapshotShardSizeInfo(),
             allocation.metadata(),
-            allocation.routingTable(),
+            allocation.globalRoutingTable(),
             allocation.unaccountedSearchableSnapshotSize(node)
         );
     }

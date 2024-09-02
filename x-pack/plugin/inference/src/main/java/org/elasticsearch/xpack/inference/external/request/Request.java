@@ -31,4 +31,12 @@ public interface Request {
      * @return the unique identifier for the inference entity configuration
      */
     String getInferenceEntityId();
+
+    /**
+     * Streams the result in bytes to the {@link org.elasticsearch.inference.InferenceServiceResults}.
+     * Defaults to false.
+     */
+    default boolean isStreaming() {
+        return false;
+    }
 }

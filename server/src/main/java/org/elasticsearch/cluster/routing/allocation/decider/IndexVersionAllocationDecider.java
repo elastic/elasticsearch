@@ -35,7 +35,7 @@ public class IndexVersionAllocationDecider extends AllocationDecider {
                     return isVersionCompatible((SnapshotRecoverySource) shardRouting.recoverySource(), node, allocation);
                 } else {
                     // existing or fresh primary on the node
-                    return allocation.decision(Decision.YES, NAME, "the primary shard is new or already existed on the node");
+                    return allocation.decision(Decision.YES, NAME, "no existing allocation, assuming compatible");
                 }
             } else {
                 // relocating primary, only migrate to newer host
@@ -69,7 +69,7 @@ public class IndexVersionAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.YES,
                 NAME,
-                "can relocate primary shard from a node with maximum index version [%s] to a node with equal-or-newer index version [%s]",
+                "can relocate primary shard from a node with index version [%s] to a node with equal-or-newer index version [%s]",
                 source.node().getMaxIndexVersion().toReleaseVersion(),
                 target.node().getMaxIndexVersion().toReleaseVersion()
             );
@@ -77,7 +77,7 @@ public class IndexVersionAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "cannot relocate primary shard from a node with maximum index version [%s] to a node with older index version [%s]",
+                "cannot relocate primary shard from a node with index version [%s] to a node with older index version [%s]",
                 source.node().getMaxIndexVersion().toReleaseVersion(),
                 target.node().getMaxIndexVersion().toReleaseVersion()
             );
@@ -98,7 +98,7 @@ public class IndexVersionAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.YES,
                 NAME,
-                "can allocate replica shard to a node with maximum index version [%s]"
+                "can allocate replica shard to a node with index version [%s]"
                     + " since this is equal-or-newer than the primary index version [%s]",
                 target.node().getMaxIndexVersion().toReleaseVersion(),
                 source.node().getMaxIndexVersion().toReleaseVersion()
@@ -107,7 +107,7 @@ public class IndexVersionAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "cannot allocate replica shard to a node with maximum index version [%s]"
+                "cannot allocate replica shard to a node with index version [%s]"
                     + " since this is older than the primary index version [%s]",
                 target.node().getMaxIndexVersion().toReleaseVersion(),
                 source.node().getMaxIndexVersion().toReleaseVersion()

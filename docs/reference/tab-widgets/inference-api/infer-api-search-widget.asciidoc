@@ -37,6 +37,12 @@
             id="infer-api-search-azure-ai-studio">
       Azure AI Studio
     </button>
+     <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-search-google-vertex-ai-tab"
+            id="infer-api-search-google-vertex-ai">
+      Google Vertex AI
+    </button>
     <button role="tab"
             aria-selected="false"
             aria-controls="infer-api-search-mistral-tab"
@@ -118,6 +124,17 @@ include::infer-api-search.asciidoc[tag=azure-openai]
 ++++
 
 include::infer-api-search.asciidoc[tag=azure-ai-studio]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-search-google-vertex-ai-tab"
+       aria-labelledby="infer-api-search-google-vertex-ai"
+       hidden="">
+++++
+
+include::infer-api-search.asciidoc[tag=google-vertex-ai]
 
 ++++
   </div>

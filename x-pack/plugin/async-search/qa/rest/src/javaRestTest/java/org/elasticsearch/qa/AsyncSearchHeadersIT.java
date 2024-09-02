@@ -20,9 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AsyncSearchHeadersIT extends ESRestTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .plugin("x-pack-async-search")
-        .build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().plugin("x-pack-async-search").build();
 
     @Override
     protected String getTestRestCluster() {

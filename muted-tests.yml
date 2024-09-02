@@ -171,12 +171,6 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.stats.CCSTelemetrySnapshotTests
   method: testToXContent
   issue: https://github.com/elastic/elasticsearch/issues/112325
-- class: org.elasticsearch.lucene.spatial.LatLonShapeDocValuesQueryTests
-  method: testEmptySegment
-  issue: https://github.com/elastic/elasticsearch/issues/112413
-- class: org.elasticsearch.lucene.spatial.CartesianShapeDocValuesQueryTests
-  method: testEmptySegment
-  issue: https://github.com/elastic/elasticsearch/issues/112414
 - class: org.elasticsearch.search.retriever.RankDocRetrieverBuilderIT
   method: testRankDocsRetrieverWithNestedQuery
   issue: https://github.com/elastic/elasticsearch/issues/112421

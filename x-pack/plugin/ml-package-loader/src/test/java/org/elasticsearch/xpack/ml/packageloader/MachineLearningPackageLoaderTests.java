@@ -90,6 +90,6 @@ public class MachineLearningPackageLoaderTests extends ESTestCase {
         List<Setting<?>> settings = fixedThreadPool.getRegisteredSettings();
         var sizeSettting = settings.stream().filter(s -> s.getKey().startsWith("xpack.ml.model_download_thread_pool")).findFirst();
         assertTrue(sizeSettting.isPresent());
-        assertEquals(1, sizeSettting.get().get(Settings.EMPTY));
+        assertEquals(5, sizeSettting.get().get(Settings.EMPTY));
     }
 }

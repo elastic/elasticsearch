@@ -25,6 +25,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.core.ml.packageloader.action.GetTrainedModelPackageConfigAction;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction;
 import org.elasticsearch.xpack.ml.packageloader.action.ModelDownloadTask;
+import org.elasticsearch.xpack.ml.packageloader.action.ModelImporter;
 import org.elasticsearch.xpack.ml.packageloader.action.TransportGetTrainedModelPackageConfigAction;
 import org.elasticsearch.xpack.ml.packageloader.action.TransportLoadTrainedModelPackage;
 
@@ -95,7 +96,7 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
         return new FixedExecutorBuilder(
             settings,
             MODEL_DOWNLOAD_THREADPOOL_NAME,
-            1,  // 1 thread
+            ModelImporter.MAX_IN_FLIGHT_REQUESTS,
             50, // max items in queue
             "xpack.ml.model_download_thread_pool",
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK

@@ -17,6 +17,8 @@ dependencies {
 
   testImplementation project(':test:framework')
   testImplementation(project(xpackModule('esql-core')))
+  testImplementation(project(xpackModule('core')))
+  testImplementation(project(xpackModule('ml')))
 }
 
 def projectDirectory = project.layout.projectDirectory

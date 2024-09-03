@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeech
 import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.ml.aggs.categorization.SerializableTokenListCategory;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
-import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategory;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.ByteArrayOutputStream;
@@ -114,19 +113,20 @@ class CategorizeBytesRefAggregator {
             // TODO: add correct analyzer, see also: CategorizationAnalyzerConfig::buildStandardCategorizationAnalyzer
             analyzer = new CategorizationAnalyzer(
                 new CustomAnalyzer(
-                TokenizerFactory.newFactory("whitespace", WhitespaceTokenizer::new),
-                new CharFilterFactory[0],
-                new TokenFilterFactory[0]
-            ), true);
-            bytesRefHash = new CategorizationBytesRefHash(new BytesRefHash(2048, bigArrays));
-            categorizer = new TokenListCategorizer(
-                bytesRefHash,
-                CategorizationPartOfSpeechDictionary.getInstance(),
-                0.70f
+                    TokenizerFactory.newFactory("whitespace", WhitespaceTokenizer::new),
+                    new CharFilterFactory[0],
+                    new TokenFilterFactory[0]
+                ),
+                true
             );
+            bytesRefHash = new CategorizationBytesRefHash(new BytesRefHash(2048, bigArrays));
+            categorizer = new TokenListCategorizer(bytesRefHash, CategorizationPartOfSpeechDictionary.getInstance(), 0.70f);
         }
 
         void add(BytesRef v) {
+            if (v == null || v.length == 0) {
+                return;
+            }
             try (TokenStream ts = analyzer.tokenStream("text", v.utf8ToString())) {
                 categorizer.computeCategory(ts, 999, 1);
             } catch (IOException e) {
@@ -135,13 +135,16 @@ class CategorizeBytesRefAggregator {
         }
 
         void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-            BlockFactory blockFactory = driverContext.blockFactory();
+            blocks[offset] = toBlock(driverContext.blockFactory());
+        }
+
+        Block toBlock(BlockFactory blockFactory) {
             if (categorizer.getCategoryCount() == 0) {
-                blocks[offset] = blockFactory.newConstantNullBlock(1);
+                return blockFactory.newConstantNullBlock(1);
             }
             try (BytesRefBlock.Builder block = blockFactory.newBytesRefBlockBuilder(categorizer.getCategoryCount())) {
                 addToBlockIntermediate(block);
-                blocks[offset] = block.build();
+                return block.build();
             }
         }
 
@@ -174,7 +177,8 @@ class CategorizeBytesRefAggregator {
             block.beginPositionEntry();
             for (InternalCategorizationAggregation.Bucket bucket : categorizer.toOrderedBuckets(categorizer.getCategoryCount())) {
                 // TODO: find something better for this semi-colon-separated string.
-                String result = String.join(";",
+                String result = String.join(
+                    ";",
                     bucket.getKeyAsString(),
                     bucket.getSerializableCategory().getRegex(),
                     Long.toString(bucket.getDocCount())
@@ -200,20 +204,23 @@ class CategorizeBytesRefAggregator {
             states = new HashMap<>();
         }
 
-        public SingleState getState(int groupId) {
+        SingleState getState(int groupId) {
             return states.computeIfAbsent(groupId, key -> new SingleState(bigArrays));
         }
 
         void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            BlockFactory blockFactory = driverContext.blockFactory();
+            blocks[offset] = toBlock(driverContext.blockFactory(), selected);
+        }
+
+        Block toBlock(BlockFactory blockFactory, IntVector selected) {
             if (states.isEmpty()) {
-                blocks[offset] = blockFactory.newConstantNullBlock(selected.getPositionCount());
+                return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
             try (BytesRefBlock.Builder block = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
                 for (int s = 0; s < selected.getPositionCount(); s++) {
                     states.get(selected.getInt(s)).addToBlockIntermediate(block);
                 }
-                blocks[offset] = block.build();
+                return block.build();
             }
         }
 
@@ -229,13 +236,12 @@ class CategorizeBytesRefAggregator {
             }
         }
 
-        void enableGroupIdTracking(SeenGroupIds seen) {
-        }
+        void enableGroupIdTracking(SeenGroupIds seen) {}
 
         @Override
         public void close() {
             for (SingleState state : states.values()) {
-                Releasables.closeExpectNoException(state.bytesRefHash);
+                Releasables.closeExpectNoException(state);
             }
         }
     }

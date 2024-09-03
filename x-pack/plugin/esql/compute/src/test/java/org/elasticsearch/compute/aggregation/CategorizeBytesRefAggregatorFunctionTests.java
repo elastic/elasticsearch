@@ -14,20 +14,25 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.operator.SequenceBytesRefBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
-import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.TreeSet;
-import java.util.stream.Collectors;
+import java.util.Objects;
 import java.util.stream.IntStream;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class CategorizeBytesRefAggregatorFunctionTests extends AggregatorFunctionTestCase {
+
+    private static final int NUM_PREFIXES = 10;
+
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        List<String> prefixes = IntStream.range(0, NUM_PREFIXES)
+            .mapToObj(i -> randomAlphaOfLength(5) + " " + randomAlphaOfLength(5) + " " + randomAlphaOfLength(5) + " ")
+            .toList();
         return new SequenceBytesRefBlockSourceOperator(
             blockFactory,
-            IntStream.range(0, size).mapToObj(l -> new BytesRef(randomAlphaOfLengthBetween(0, 100)))
+            IntStream.range(0, size).mapToObj(i -> new BytesRef((prefixes.get(i % NUM_PREFIXES) + i).getBytes(StandardCharsets.UTF_8)))
         );
     }
 
@@ -43,15 +48,8 @@ public class CategorizeBytesRefAggregatorFunctionTests extends AggregatorFunctio
 
     @Override
     public void assertSimpleOutput(List<Block> input, Block result) {
-        TreeSet<?> set = new TreeSet<>((List<?>) BlockUtils.toJavaObject(result, 0));
-        Object[] values = input.stream()
-            .flatMap(AggregatorFunctionTestCase::allBytesRefs)
-            .filter(bytesRef -> bytesRef.length == 0)
-            .map(bytesRef -> new BytesRef("1:" + bytesRef.utf8ToString()))
-            .collect(Collectors.toSet())
-            .toArray(Object[]::new);
-        if (false == set.containsAll(Arrays.asList(values))) {
-            assertThat(set, containsInAnyOrder(values));
-        }
+        long resultSize = ((List<?>) Objects.requireNonNull(BlockUtils.toJavaObject(result, 0))).size();
+        long inputSize = input.stream().flatMap(AggregatorFunctionTestCase::allBytesRefs).count();
+        assertThat(resultSize, equalTo(Math.min(inputSize, NUM_PREFIXES)));
     }
 }

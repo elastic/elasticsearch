@@ -445,7 +445,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             if (shardRoutingTable.isEmpty() || commitState.isInitializingNoSearch() || commitAfterRelocationStarted) {
                 // for initializing shards, the applied state may not yet be available in `ClusterService.state()`.
                 // however, except for peer recovery, we can safely assume no search shards.
-                commitState.notifyCommitSuccessListeners(generation);
+                commitState.notifyCommitNotificationSuccessListeners(generation);
             } else {
                 // Fetch these values up front for consistent relative values: `virtualBcc` and `commitState` may be modified later in
                 // parallel with the network request handling.
@@ -453,16 +453,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 var batchedCompoundCommitGeneration = virtualBcc.getPrimaryTermAndGeneration().generation();
                 var maxUploadedBccTermAndGen = commitState.getMaxUploadedBccTermAndGen();
 
-                // A concurrent flush may have already uploaded this commit and sent out a notification. In that case, there is no need
-                // to send out another notification, and notification will be skipped here.
-                if (shouldNotifyOfCommit(maxUploadedBccTermAndGen, batchedCompoundCommitGeneration)) {
-                    commitState.sendNewCommitNotification(
-                        shardRoutingTable.get(),
-                        lastCompoundCommit,
-                        batchedCompoundCommitGeneration,
-                        maxUploadedBccTermAndGen
-                    );
-                }
+                commitState.sendNewCommitNotification(
+                    shardRoutingTable.get(),
+                    lastCompoundCommit,
+                    batchedCompoundCommitGeneration,
+                    maxUploadedBccTermAndGen
+                );
             }
 
             if (commitState.shouldUploadVirtualBcc(virtualBcc)) {
@@ -477,15 +473,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 IOUtils.closeWhileHandlingException(reference);
             }
         }
-    }
-
-    /**
-     * Checks whether the notification has already been sent for a shard. If the {@code maxUploadedBccTermAndGen} matches the shard's
-     * latest commit upload generation, then the commit has already been uploaded by a parallel thread and there is no need to resend a
-     * notification.
-     */
-    private boolean shouldNotifyOfCommit(PrimaryTermAndGeneration maxUploadedBccTermAndGen, long commitGeneration) {
-        return maxUploadedBccTermAndGen == null || maxUploadedBccTermAndGen.generation() != commitGeneration;
     }
 
     private void createAndRunCommitUpload(
@@ -1516,12 +1503,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     // Do NOT update uploadedGenerationNotified since it is used for file deleting tracking
                     // TODO: Process the response for old commits that are no-longer-in-use similar to how it is done on upload
                     // notification
-                    notifyCommitSuccessListeners(lastCompoundCommit.generation());
+                    notifyCommitNotificationSuccessListeners(lastCompoundCommit.generation());
                 }, e -> logNotificationException(lastCompoundCommit.generation(), batchedCompoundCommitGeneration, "create", e))
             );
         }
 
-        private void notifyCommitSuccessListeners(long compoundCommitGeneration) {
+        private void notifyCommitNotificationSuccessListeners(long compoundCommitGeneration) {
             var consumer = commitNotificationSuccessListeners.get(shardId);
             if (consumer != null) {
                 consumer.accept(compoundCommitGeneration);
@@ -2502,13 +2489,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * In this case, the commit is not uploaded yet. Hence when the listener is called, the commit is _not_ guaranteed
      * to be persisted.
      */
-    public void registerNewCommitSuccessListener(ShardId shardId, Consumer<Long> listener) {
+    public void registerCommitNotificationSuccessListener(ShardId shardId, Consumer<Long> listener) {
         var previous = commitNotificationSuccessListeners.put(shardId, listener);
         // For now only the LiveVersionMapArchive uses this
         assert previous == null;
     }
 
-    public void unregisterNewCommitSuccessListener(ShardId shardId) {
+    public void unregisterCommitNotificationSuccessListener(ShardId shardId) {
         var removed = commitNotificationSuccessListeners.remove(shardId);
         assert removed != null;
     }

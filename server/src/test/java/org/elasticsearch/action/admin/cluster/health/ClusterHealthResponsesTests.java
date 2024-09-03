@@ -61,6 +61,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
             int activePrimaryShards = (int) parsedObjects[i++];
             int initializingShards = (int) parsedObjects[i++];
             int unassignedShards = (int) parsedObjects[i++];
+            int unassignedPrimaryShards = (int) parsedObjects[i++];
             double activeShardsPercent = (double) parsedObjects[i++];
             String statusStr = (String) parsedObjects[i++];
             ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
@@ -81,6 +82,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
                 relocatingShards,
                 initializingShards,
                 unassignedShards,
+                unassignedPrimaryShards,
                 numberOfNodes,
                 numberOfDataNodes,
                 activeShardsPercent,
@@ -121,6 +123,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
         PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.ACTIVE_PRIMARY_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.INITIALIZING_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.UNASSIGNED_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.UNASSIGNED_PRIMARY_SHARDS));
         PARSER.declareDouble(constructorArg(), new ParseField(ClusterHealthResponse.ACTIVE_SHARDS_PERCENT_AS_NUMBER));
         PARSER.declareString(constructorArg(), new ParseField(ClusterHealthResponse.STATUS));
         // Can be absent if LEVEL == 'cluster'
@@ -211,6 +214,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
             }
         }
         ClusterStateHealth stateHealth = new ClusterStateHealth(
+            randomInt(100),
             randomInt(100),
             randomInt(100),
             randomInt(100),
@@ -327,7 +331,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
                     instance.getNumberOfInFlightFetch(),
                     instance.getDelayedUnassignedShards(),
                     instance.getTaskMaxWaitingTime(),
-                    instance.isTimedOut() == false,
+                    instance.isTimedOut() ? false : true,
                     instance.getClusterStateHealth()
                 );
             case "clusterStateHealth":
@@ -338,6 +342,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
                     state.getRelocatingShards(),
                     state.getInitializingShards(),
                     state.getUnassignedShards(),
+                    state.getUnassignedPrimaryShards(),
                     state.getNumberOfNodes(),
                     state.getNumberOfDataNodes(),
                     state.getActiveShardsPercent(),

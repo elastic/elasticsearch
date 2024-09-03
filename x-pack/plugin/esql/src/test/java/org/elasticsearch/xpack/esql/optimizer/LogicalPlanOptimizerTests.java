@@ -148,14 +148,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -250,7 +248,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping, Set.of("test"));
+        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
         analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
@@ -259,7 +257,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         // Some tests use data from the airports index, so we load it here, and use it in the plan_airports() function.
         mappingAirports = loadMapping("mapping-airports.json");
-        EsIndex airports = new EsIndex("airports", mappingAirports, Set.of("airports"));
+        EsIndex airports = new EsIndex("airports", mappingAirports, Map.of("airports", IndexMode.STANDARD));
         IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
         analyzerAirports = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),
@@ -268,7 +266,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         // Some tests need additional types, so we load that index here and use it in the plan_types() function.
         mappingTypes = loadMapping("mapping-all-types.json");
-        EsIndex types = new EsIndex("types", mappingTypes, Set.of("types"));
+        EsIndex types = new EsIndex("types", mappingTypes, Map.of("types", IndexMode.STANDARD));
         IndexResolution getIndexResultTypes = IndexResolution.valid(types);
         analyzerTypes = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultTypes, enrichResolution),
@@ -277,7 +275,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         // Some tests use mappings from mapping-extra.json to be able to test more types so we load it here
         mappingExtra = loadMapping("mapping-extra.json");
-        EsIndex extra = new EsIndex("extra", mappingExtra, Set.of("extra"));
+        EsIndex extra = new EsIndex("extra", mappingExtra, Map.of("extra", IndexMode.STANDARD));
         IndexResolution getIndexResultExtra = IndexResolution.valid(extra);
         analyzerExtra = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultExtra, enrichResolution),
@@ -285,7 +283,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
 
         metricMapping = loadMapping("k8s-mappings.json");
-        var metricsIndex = IndexResolution.valid(new EsIndex("k8s", metricMapping, Set.of("k8s")));
+        var metricsIndex = IndexResolution.valid(new EsIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
         metricsAnalyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), metricsIndex, enrichResolution),
             TEST_VERIFIER
@@ -4125,7 +4123,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testEmptyMappingIndex() {
-        EsIndex empty = new EsIndex("empty_test", emptyMap(), emptySet());
+        EsIndex empty = new EsIndex("empty_test", emptyMap(), Map.of());
         IndexResolution getIndexResultAirports = IndexResolution.valid(empty);
         var analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),

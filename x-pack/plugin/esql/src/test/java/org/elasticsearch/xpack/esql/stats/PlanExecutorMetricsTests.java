@@ -13,6 +13,8 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -97,7 +99,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             return null;
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
-        var planExecutor = new PlanExecutor(indexResolver);
+        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP);
         var enrichResolver = mockEnrichResolver();
 
         var request = new EsqlQueryRequest();
@@ -151,7 +153,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                         Map.entry("foo", new IndexFieldCapabilities("foo", "integer", false, true, true, false, null, Map.of())),
                         Map.entry("bar", new IndexFieldCapabilities("bar", "long", false, true, true, false, null, Map.of()))
                     ),
-                    true
+                    true,
+                    IndexMode.STANDARD
                 )
             );
         }

@@ -394,12 +394,14 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportUpdateSettingsAction.TYPE.name()
                     )
                     .build(),
-                // For src/dest indices of the Cloud Security Posture packages that ships a
+                // For source indices of the Cloud Security Posture packages that ships a
                 // transform
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-cloud_security_posture.findings-*", "logs-cloud_security_posture.vulnerabilities-*")
                     .privileges("read", "view_index_metadata")
                     .build(),
+                // For destination indices of the Cloud Security Posture packages that ships a
+                // transform
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         "logs-cloud_security_posture.findings_latest-default*",
@@ -415,17 +417,23 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportUpdateSettingsAction.TYPE.name()
                     )
                     .build(),
+                // For source indices of the Cloud Detection & Response (CDR) packages that ships a
+                // transform
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-wiz.vulnerability-*")
+                    .indices("logs-wiz.vulnerability-*", "logs-wiz.cloud_configuration_finding-*")
                     .privileges("read", "view_index_metadata")
                     .build(),
+                // For alias indices of the Cloud Detection & Response (CDR) packages that ships a
+                // transform
                 RoleDescriptor.IndicesPrivileges.builder()
                     // manage privilege required by the index alias
-                    .indices("security_solution-*.vulnerability_latest")
+                    .indices("security_solution-*.vulnerability_latest", "security_solution-*.misconfiguration_latest")
                     .privileges("manage", TransportIndicesAliasesAction.NAME, TransportUpdateSettingsAction.TYPE.name())
                     .build(),
+                // For destination indices of the Cloud Detection & Response (CDR) packages that ships a
+                // transform
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("security_solution-*.vulnerability_latest-*")
+                    .indices("security_solution-*.vulnerability_latest-*", "security_solution-*.misconfiguration_latest-*")
                     .privileges(
                         "create_index",
                         "index",

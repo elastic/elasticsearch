@@ -1609,8 +1609,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
 
-        Arrays.asList("logs-wiz.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((cspIndex) -> {
-            final IndexAbstraction indexAbstraction = mockIndexAbstraction(cspIndex);
+        Arrays.asList(
+            "logs-wiz.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-wiz.cloud_configuration_finding-" + randomAlphaOfLength(randomIntBetween(0, 13))
+        ).forEach(indexName -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
             assertThat(
@@ -1643,7 +1646,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-cloud_security_posture.findings_latest-default-" + Version.CURRENT,
             "logs-cloud_security_posture.scores-default-" + Version.CURRENT,
             "logs-cloud_security_posture.vulnerabilities_latest-default" + Version.CURRENT,
-            "security_solution-*.vulnerability_latest-" + Version.CURRENT
+            "security_solution-*.vulnerability_latest-" + Version.CURRENT,
+            "security_solution-*.misconfiguration_latest-" + Version.CURRENT
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);

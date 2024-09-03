@@ -22,10 +22,6 @@ public class FrequencyCappedAction {
 
     private long next;
 
-    public FrequencyCappedAction(LongSupplier currentTimeMillisSupplier) {
-        this(currentTimeMillisSupplier, TimeValue.ZERO);
-    }
-
     public FrequencyCappedAction(LongSupplier currentTimeMillisSupplier, TimeValue initialDelay) {
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.minInterval = TimeValue.MAX_VALUE;

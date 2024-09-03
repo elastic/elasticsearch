@@ -188,6 +188,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ManyShardsIT
   method: testRejection
   issue: https://github.com/elastic/elasticsearch/issues/112406
+- class: org.elasticsearch.xpack.esql.action.ManyShardsIT
+  method: testConcurrentQueries
+  issue: https://github.com/elastic/elasticsearch/issues/112424
 
 # Examples:
 #

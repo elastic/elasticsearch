@@ -189,6 +189,14 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         verifyEcsMappings(indexName);
     }
 
+    public void testWithDateDetectionDisabled() throws IOException {
+        String indexName = "test_date_detection_false";
+        createTestIndex(indexName, Map.of("date_detection", false));
+        Map<String, Object> flattenedFieldsMap = createTestDocument(true);
+        indexDocument(indexName, flattenedFieldsMap);
+        verifyEcsMappings(indexName);
+    }
+
     public void testNestedFields() throws IOException {
         String indexName = "test-nested-fields";
         createTestIndex(indexName);

@@ -161,7 +161,7 @@ if (OS.current() == OS.WINDOWS) {
   }
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+tasks.named("yamlRestCompatTestTransform").configure { task ->
     task.skipTest("reindex/20_validation/reindex without source gives useful error message", "exception with a type. Not much benefit adding _doc there.")
     task.skipTest("update_by_query/20_validation/update_by_query without source gives useful error message", "exception with a type. Not much benefit adding _doc there.")
 
@@ -179,7 +179,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
     task.addAllowedWarningRegex("\\[types removal\\].*")
 }
 
-tasks.named("yamlRestTestV7CompatTest").configure {
+tasks.named("yamlRestCompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
     'update_by_query/80_scripting/Can\'t change _id',
     'update_by_query/80_scripting/Set unsupported operation type',

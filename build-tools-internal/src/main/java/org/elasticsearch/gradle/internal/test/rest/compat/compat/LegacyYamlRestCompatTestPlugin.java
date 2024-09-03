@@ -34,7 +34,7 @@ public class LegacyYamlRestCompatTestPlugin extends AbstractYamlRestCompatTestPl
 
     @Override
     public TaskProvider<? extends Test> registerTestTask(Project project, SourceSet sourceSet) {
-        return RestTestUtil.registerTestTask(project, sourceSet, sourceSet.getTaskName(null, "test"));
+        return RestTestUtil.registerTestTask(project, sourceSet, sourceSet.getName());
     }
 
     @Override

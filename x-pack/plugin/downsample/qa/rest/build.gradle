@@ -29,7 +29,7 @@ artifacts {
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()
 }
-tasks.named('yamlRestTestV7CompatTest') {
+tasks.named('yamlRestCompatTest') {
   usesDefaultDistribution()
 }
 if (BuildParams.inFipsJvm){
@@ -37,6 +37,6 @@ if (BuildParams.inFipsJvm){
   tasks.named("yamlRestTest").configure{enabled = false }
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+tasks.named("yamlRestCompatTestTransform").configure { task ->
   task.skipTest("rollup/10_basic/Rollup index", "Downsample for TSDB changed the configuration")
 }

@@ -61,7 +61,7 @@ tasks.named("test").configure {
     jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'
 }
 
-tasks.named("yamlRestTestV7CompatTest").configure {
+tasks.named("yamlRestCompatTest").configure {
     systemProperty 'tests.rest.blacklist', [
             'painless/20_scriptfield/Scripted Field Doing Compare (fields api)',
             'painless/70_execute_painless_scripts/Execute with double field context (single-value, fields api)',

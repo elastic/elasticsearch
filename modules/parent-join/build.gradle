@@ -20,6 +20,6 @@ restResources {
   }
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+tasks.named("yamlRestCompatTestTransform").configure { task ->
   task.skipTest("/30_inner_hits/profile fetch", "profile output has changed")
 }

@@ -41,7 +41,7 @@ dependencies {
   clusterModules project(':modules:data-streams')
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+tasks.named("yamlRestCompatTestTransform").configure { task ->
 
   task.skipTestsByFilePattern("**/cat*/*.yml", "Cat API are meant to be consumed by humans, so will not be supported by Compatible REST API")
   task.skipTestsByFilePattern("**/indices.upgrade/*.yml", "upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex")

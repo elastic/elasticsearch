@@ -22,8 +22,7 @@ dependencies {
 
 // let the yamlRestTests see the classpath of test
 GradleUtils.extendSourceSet(project, "test", "yamlRestTest", tasks.named("yamlRestTest"))
-int compatVersion = VersionProperties.getElasticsearchVersion().getMajor() - 1;
-GradleUtils.extendSourceSet(project, "test", "yamlRestTestV${compatVersion}Compat")
+GradleUtils.extendSourceSet(project, "test", "yamlRestCompatTest")
 
 restResources {
   restApi {
@@ -59,7 +58,7 @@ tasks.named("yamlRestTest").configure {
   systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
 }
 
-tasks.named("yamlRestTestV7CompatTest").configure {
+tasks.named("yamlRestCompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
     'unsigned_long/50_script_values/Scripted sort values',
     'unsigned_long/50_script_values/script_score query',
@@ -80,7 +79,7 @@ tasks.named("yamlRestTestV7CompatTest").configure {
   ].join(',')
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+tasks.named("yamlRestCompatTestTransform").configure { task ->
   task.skipTest(
     "vectors/10_dense_vector_basic/Deprecated function signature",
     "to support it, it would require to almost revert back the #48725 and complicate the code"

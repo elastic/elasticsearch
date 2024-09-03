@@ -93,9 +93,11 @@ dependencies {
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
 }
 
-def mlCppVersion(){
+def mlCppVersion() {
+  def mlVersion = "8.16.0" // Just use the latest 8.x builds until we have 9.0 snapshots
   return (project.gradle.parent != null && BuildParams.isSnapshotBuild() == false) ?
-      (project.version + "-SNAPSHOT") : project.version;
+      // (project.version + "-SNAPSHOT") : project.version;
+      (mlVersion + "-SNAPSHOT") : mlVersion;
 }
 
 artifacts {

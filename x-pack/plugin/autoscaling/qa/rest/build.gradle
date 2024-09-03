@@ -13,7 +13,7 @@ restResources {
   }
 }
 
-tasks.named("yamlRestTestV7CompatTest").configure {
+tasks.named("yamlRestCompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
     "autoscaling/get_autoscaling_capacity/Test get fixed autoscaling capacity",
   ].join(',')

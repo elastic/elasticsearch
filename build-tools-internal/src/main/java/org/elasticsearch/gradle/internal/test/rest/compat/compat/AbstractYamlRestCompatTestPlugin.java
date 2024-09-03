@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gradle.internal.test.rest.compat.compat;
 
-import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask;
@@ -40,7 +38,6 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Map;
-
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupYamlRestTestDependenciesDefaults;
@@ -59,8 +56,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
     private static final Path RELATIVE_REST_CORE = Path.of("rest-api-spec");
     private static final Path RELATIVE_REST_XPACK = Path.of("x-pack/plugin");
     private static final Path RELATIVE_REST_PROJECT_RESOURCES = Path.of("src/yamlRestTest/resources");
-    private static final int COMPATIBLE_VERSION = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
-    private static final String SOURCE_SET_NAME = "yamlRestTestV" + COMPATIBLE_VERSION + "Compat";
+    private static final String SOURCE_SET_NAME = "yamlRestCompatTest";
     private ProjectLayout projectLayout;
     private FileOperations fileOperations;
 
@@ -73,7 +69,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
     @Override
     public void apply(Project project) {
 
-        final Path compatRestResourcesDir = Path.of("restResources").resolve("v" + COMPATIBLE_VERSION);
+        final Path compatRestResourcesDir = Path.of("restResources");
         final Path compatSpecsDir = compatRestResourcesDir.resolve("yamlSpecs");
         final Path compatTestsDir = compatRestResourcesDir.resolve("yamlTests");
         project.getPluginManager().apply(getBasePlugin());
@@ -182,7 +178,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
 
         // transform the copied tests task
         TaskProvider<RestCompatTestTransformTask> transformCompatTestTask = project.getTasks()
-            .register("yamlRestTestV" + COMPATIBLE_VERSION + "CompatTransform", RestCompatTestTransformTask.class, task -> {
+            .register("yamlRestCompatTestTransform", RestCompatTestTransformTask.class, task -> {
                 task.getSourceDirectory().set(copyCompatYamlTestTask.flatMap(CopyRestTestsTask::getOutputResourceDir));
                 task.getOutputDirectory()
                     .set(project.getLayout().getBuildDirectory().dir(compatTestsDir.resolve("transformed").toString()));

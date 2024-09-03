@@ -17,6 +17,8 @@ import java.util.function.Predicate;
  */
 public enum RestApiVersion {
 
+    V_9(9),
+
     V_8(8),
 
     @UpdateForV9 // v9 will not need to support the v7 REST API
@@ -24,8 +26,8 @@ public enum RestApiVersion {
 
     public final byte major;
 
-    private static final RestApiVersion CURRENT = V_8;
-    private static final RestApiVersion PREVIOUS = V_7;
+    private static final RestApiVersion CURRENT = V_9;
+    private static final RestApiVersion PREVIOUS = V_8;
 
     RestApiVersion(int major) {
         this.major = (byte) major;
@@ -49,6 +51,7 @@ public enum RestApiVersion {
 
     public static Predicate<RestApiVersion> equalTo(RestApiVersion restApiVersion) {
         return switch (restApiVersion) {
+            case V_9 -> r -> r.major == V_9.major;
             case V_8 -> r -> r.major == V_8.major;
             case V_7 -> r -> r.major == V_7.major;
         };
@@ -56,6 +59,7 @@ public enum RestApiVersion {
 
     public static Predicate<RestApiVersion> onOrAfter(RestApiVersion restApiVersion) {
         return switch (restApiVersion) {
+            case V_9 -> r -> r.major >= V_9.major;
             case V_8 -> r -> r.major >= V_8.major;
             case V_7 -> r -> r.major >= V_7.major;
         };
@@ -68,6 +72,9 @@ public enum RestApiVersion {
             }
             case 8 -> {
                 return V_8;
+            }
+            case 9 -> {
+                return V_9;
             }
             default -> throw new IllegalArgumentException("Unknown REST API version " + major);
         }

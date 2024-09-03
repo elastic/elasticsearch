@@ -48,6 +48,6 @@ tasks.named("thirdPartyAudit").configure {
   )
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+tasks.named("yamlRestCompatTestTransform").configure { task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
 }

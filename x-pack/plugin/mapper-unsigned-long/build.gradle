@@ -37,7 +37,7 @@ restResources {
     }
 }
 
-tasks.named("yamlRestTestV7CompatTest").configure {
+tasks.named("yamlRestCompatTest").configure {
     systemProperty 'tests.rest.blacklist', [
         '50_script_values/Scripted fields values return Long',
         '50_script_values/Scripted sort values',

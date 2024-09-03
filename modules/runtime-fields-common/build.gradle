@@ -22,7 +22,7 @@ dependencies {
   api project(':libs:elasticsearch-dissect')
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+tasks.named("yamlRestCompatTestTransform").configure { task ->
   task.skipTest("runtime_fields/100_geo_point/fetch fields from source", "Format changed. Old format was a bug.")
   task.skipTest("runtime_fields/101_geo_point_from_source/fetch fields from source", "Format changed. Old format was a bug.")
   task.skipTest("runtime_fields/102_geo_point_source_in_query/fetch fields from source", "Format changed. Old format was a bug.")

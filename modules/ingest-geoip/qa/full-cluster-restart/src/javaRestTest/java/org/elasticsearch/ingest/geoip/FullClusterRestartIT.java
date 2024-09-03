@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -59,6 +60,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         return cluster;
     }
 
+    @UpdateForV9
     public void testGeoIpSystemFeaturesMigration() throws Exception {
         if (isRunningAgainstOldCluster()) {
             Request enableDownloader = new Request("PUT", "/_cluster/settings");

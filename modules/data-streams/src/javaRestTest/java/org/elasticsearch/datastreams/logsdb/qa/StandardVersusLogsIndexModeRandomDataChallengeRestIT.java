@@ -8,9 +8,11 @@
 
 package org.elasticsearch.datastreams.logsdb.qa;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.DataGenerator;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
@@ -36,12 +38,14 @@ import java.util.Map;
  */
 public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends StandardVersusLogsIndexModeChallengeRestIT {
     private final ObjectMapper.Subobjects subobjects;
+    private final boolean storeArraySource;
 
     private final DataGenerator dataGenerator;
 
     public StandardVersusLogsIndexModeRandomDataChallengeRestIT() {
         super();
         this.subobjects = randomFrom(ObjectMapper.Subobjects.values());
+        this.storeArraySource = usually();
 
         var specificationBuilder = DataGeneratorSpecification.builder().withFullyDynamicMapping(randomBoolean());
         if (subobjects != ObjectMapper.Subobjects.ENABLED) {
@@ -117,6 +121,13 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
             dataGenerator.writeMapping(builder, Map.of("subobjects", subobjects.toString()));
         } else {
             dataGenerator.writeMapping(builder);
+        }
+    }
+
+    @Override
+    public void contenderSettings(Settings.Builder builder) {
+        if (storeArraySource) {
+            builder.put(Mapper.STORE_ARRAY_SOURCE_SETTING.getKey(), true);
         }
     }
 

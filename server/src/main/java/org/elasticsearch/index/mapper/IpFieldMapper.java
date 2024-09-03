@@ -185,7 +185,9 @@ public class IpFieldMapper extends FieldMapper {
             }
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.getValue();
-            defaultStoreSourceMode = Optional.of(StoreSourceMode.FULL);
+            if (context.isSourceSynthetic() && storeSourceMode.isEmpty()) {
+                storeSourceMode = Optional.of(StoreSourceMode.FULL);
+            }
             return new IpFieldMapper(
                 leafName(),
                 new IpFieldType(

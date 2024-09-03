@@ -25,18 +25,16 @@ At query time, {es} can use the same NLP model to convert a query into embedding
 [[using-nlp-models]]
 === Using NLP models
 
-The easiest and recommended way to use NLP models in the {stack} is the <<semantic-search-semantic-text, `semantic_text` workflow>>.
-If you want to use ELSER for semantic search or you already have a service you use, create an {infer} endpoint and an index mapping to start ingesting and querying data.
-You don't need to define model-related settings and parameters, or create {infer} ingest pipelines.
+The easiest and recommended way to use NLP models in the {stack} is through the <<semantic-search-semantic-text, `semantic_text` workflow>>.
+If you want to use ELSER for semantic search or already have a service you use, create an {infer} endpoint and an index mapping to start ingesting and querying data.
+There is no need to define model-related settings and parameters, or to create {infer} ingest pipelines.
 Refer to the <<put-inference-api, Create an {infer} endpoint API>> documentation for a list of supported services.
 
-The <<semantic-search-inference, {infer} API workflow>> more complex but enables you to have more control over the {infer} endpoint configuration.
-You need to create an {infer} endpoint and provide various model-related settings and parameters, define an index mapping, and set up an {infer} ingest pipeline with the correct settings.
+The <<semantic-search-inference, {infer} API workflow>> more complex but offers greater control over the {infer} endpoint configuration.
+You need to create an {infer} endpoint, provide various model-related settings and parameters, define an index mapping, and set up an {infer} ingest pipeline with the appropriate settings.
 
-You can also deploy NLP models directly in {es}.
-This is the most complex way to perform semantic search in the {stack}.
-You need to select an NLP model from the {ml-docs}/ml-nlp-model-ref.html#ml-nlp-model-ref-text-embedding[list of supported NLP models] that includes both dense and sparse vector models.
-Then deploy the selected model by using the Eland client, create an index mapping and a sufficient ingest pipeline to start ingesting and querying data.
+You can also deploy NLP models directly in {es}, which is the most complex way to perform semantic search in the {stack}.
+You need to select an NLP model from the {ml-docs}/ml-nlp-model-ref.html#ml-nlp-model-ref-text-embedding[list of supported dense and sparse vector models], deploy it using the Eland client, create an index mapping, and set up a suitable ingest pipeline to start ingesting and querying data.
 
 
 [discrete]

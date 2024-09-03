@@ -14,6 +14,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -21,7 +22,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,40 +29,24 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.settings.Setting.boolSetting;
+
 public class IncrementalBulkService {
 
+    public static final Setting<Boolean> INCREMENTAL_BULK = boolSetting(
+        "rest.incremental_bulk",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
     private final Client client;
     private final IndexingPressure indexingPressure;
     private final ThreadContext threadContext;
-    private final Supplier<Boolean> enabled;
 
     public IncrementalBulkService(Client client, IndexingPressure indexingPressure, ThreadContext threadContext) {
-        this(client, indexingPressure, threadContext, new Enabled());
-    }
-
-    public IncrementalBulkService(
-        Client client,
-        IndexingPressure indexingPressure,
-        ThreadContext threadContext,
-        ClusterSettings clusterSettings
-    ) {
-        this(client, indexingPressure, threadContext, new Enabled(clusterSettings));
-    }
-
-    public IncrementalBulkService(
-        Client client,
-        IndexingPressure indexingPressure,
-        ThreadContext threadContext,
-        Supplier<Boolean> enabled
-    ) {
         this.client = client;
         this.indexingPressure = indexingPressure;
         this.threadContext = threadContext;
-        this.enabled = enabled;
-    }
-
-    public boolean incrementalBulkEnabled() {
-        return enabled.get();
     }
 
     public Handler newBulkRequest() {
@@ -80,8 +64,8 @@ public class IncrementalBulkService {
         public Enabled() {}
 
         public Enabled(ClusterSettings clusterSettings) {
-            incrementalBulksEnabled.set(clusterSettings.get(RestBulkAction.INCREMENTAL_BULK));
-            clusterSettings.addSettingsUpdateConsumer(RestBulkAction.INCREMENTAL_BULK, incrementalBulksEnabled::set);
+            incrementalBulksEnabled.set(clusterSettings.get(INCREMENTAL_BULK));
+            clusterSettings.addSettingsUpdateConsumer(INCREMENTAL_BULK, incrementalBulksEnabled::set);
         }
 
         @Override

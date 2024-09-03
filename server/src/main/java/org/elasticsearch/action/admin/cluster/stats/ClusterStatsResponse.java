@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.action.search.TransportSearchAction.CCS_TELEMETRY_FEATURE_FLAG;
 
@@ -160,24 +161,46 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         private final String clusterUUID;
         private final String mode;
         private final boolean skipUnavailable;
-        private final boolean transportCompress;
-        private final List<String> versions;
+        private final String transportCompress;
+        private final Set<String> versions;
         private final String status;
+        private final long nodesCount;
+        private final long shardsCount;
+        private final long indicesCount;
+        private final long indicesBytes;
+        private final long heapBytes;
+        private final long memBytes;
 
         public RemoteClusterStats(
-            String clusterUUID,
+            RemoteClusterStatsResponse remoteResponse,
             String mode,
             boolean skipUnavailable,
-            boolean transportCompress,
-            List<String> versions,
-            String status
+            String transportCompress
         ) {
-            this.clusterUUID = clusterUUID;
             this.mode = mode;
             this.skipUnavailable = skipUnavailable;
-            this.transportCompress = transportCompress;
-            this.versions = versions;
-            this.status = status;
+            this.transportCompress = transportCompress.toLowerCase(Locale.ROOT);
+            if (remoteResponse != null) {
+                this.clusterUUID = remoteResponse.getClusterUUID();
+                this.versions = remoteResponse.getVersions();
+                this.status = remoteResponse.getStatus().name().toLowerCase(Locale.ROOT);
+                this.nodesCount = remoteResponse.getNodesCount();
+                this.shardsCount = remoteResponse.getShardsCount();
+                this.indicesCount = remoteResponse.getIndicesCount();
+                this.indicesBytes = remoteResponse.getIndicesBytes();
+                this.heapBytes = remoteResponse.getHeapBytes();
+                this.memBytes = remoteResponse.getMemBytes();
+            } else {
+                this.status = "unavailable";
+                this.clusterUUID = "unavailable";
+                this.versions = Set.of();
+                this.nodesCount = 0;
+                this.shardsCount = 0;
+                this.indicesCount = 0;
+                this.indicesBytes = 0;
+                this.heapBytes = 0;
+                this.memBytes = 0;
+            }
         }
 
         @Override
@@ -187,8 +210,14 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             builder.field("mode", mode);
             builder.field("skip_unavailable", skipUnavailable);
             builder.field("transport.compress", transportCompress);
-            builder.field("version", versions);
             builder.field("status", status);
+            builder.field("version", versions);
+            builder.field("nodes_count", nodesCount);
+            builder.field("shards_count", shardsCount);
+            builder.field("indices_count", indicesCount);
+            builder.field("indices_total_size_bytes", indicesBytes);
+            builder.field("max_heap_bytes", heapBytes);
+            builder.field("mem_total_bytes", memBytes);
             builder.endObject();
             return builder;
         }

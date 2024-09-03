@@ -77,16 +77,18 @@ public abstract class FieldMapper extends Mapper {
     static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];
 
     /**
-     * @param multiFields       sub fields of this mapper
-     * @param copyTo            copyTo fields of this mapper
-     * @param storeSourceMode   mode for storing the field source in synthetic source mode
-     * @param hasScript         whether a script is defined for the field
-     * @param onScriptError     the behaviour for when the defined script fails at runtime
+     * @param multiFields              sub-fields of this mapper
+     * @param copyTo                   copyTo fields of this mapper
+     * @param storeSourceMode          mode for storing the field source in synthetic source mode
+     * @param defaultStoreSourceMode   default mode for storing the field source in synthetic source mode, if different than NONE
+     * @param hasScript                whether a script is defined for the field
+     * @param onScriptError            the behaviour for when the defined script fails at runtime
      */
     protected record BuilderParams(
         MultiFields multiFields,
         CopyTo copyTo,
         Optional<StoreSourceMode> storeSourceMode,
+        Optional<StoreSourceMode> defaultStoreSourceMode,
         boolean hasScript,
         OnScriptError onScriptError
     ) {
@@ -94,7 +96,14 @@ public abstract class FieldMapper extends Mapper {
             return empty;
         }
 
-        private static final BuilderParams empty = new BuilderParams(MultiFields.empty(), CopyTo.empty(), Optional.empty(), false, null);
+        private static final BuilderParams empty = new BuilderParams(
+            MultiFields.empty(),
+            CopyTo.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            false,
+            null
+        );
     }
 
     protected final MappedFieldType mappedFieldType;
@@ -140,7 +149,10 @@ public abstract class FieldMapper extends Mapper {
     }
 
     public Optional<StoreSourceMode> storeSourceMode() {
-        return builderParams.storeSourceMode;
+        if (builderParams.storeSourceMode.isPresent()) {
+            return builderParams.storeSourceMode;
+        }
+        return builderParams.defaultStoreSourceMode;
     }
 
     /**
@@ -1294,6 +1306,7 @@ public abstract class FieldMapper extends Mapper {
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
         protected CopyTo copyTo = CopyTo.EMPTY;
         protected Optional<StoreSourceMode> storeSourceMode = Optional.empty();
+        protected Optional<StoreSourceMode> defaultStoreSourceMode = Optional.empty();
         protected boolean hasScript = false;
         protected OnScriptError onScriptError = null;
 
@@ -1322,6 +1335,7 @@ public abstract class FieldMapper extends Mapper {
                 multiFieldsBuilder.build(mainFieldBuilder, context),
                 copyTo,
                 storeSourceMode,
+                defaultStoreSourceMode,
                 hasScript,
                 onScriptError
             );
@@ -1337,6 +1351,7 @@ public abstract class FieldMapper extends Mapper {
             }
             this.copyTo = in.builderParams.copyTo;
             this.storeSourceMode = in.builderParams.storeSourceMode;
+            this.defaultStoreSourceMode = in.builderParams.defaultStoreSourceMode;
             validate();
         }
 

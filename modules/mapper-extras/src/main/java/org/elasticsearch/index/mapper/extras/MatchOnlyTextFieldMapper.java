@@ -139,9 +139,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         @Override
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
             MatchOnlyTextFieldType tft = buildFieldType(context);
-            if (storeSourceMode.isEmpty() && context.isSourceSynthetic()) {
-                storeSourceMode = Optional.of(StoreSourceMode.FULL);
-            }
+            defaultStoreSourceMode = Optional.of(StoreSourceMode.FULL);
             return new MatchOnlyTextFieldMapper(leafName(), Defaults.FIELD_TYPE, tft, builderParams(this, context), this);
         }
     }

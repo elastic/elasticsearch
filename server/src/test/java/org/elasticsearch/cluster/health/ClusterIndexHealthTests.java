@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -153,7 +152,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
         ClusterHealthStatus status = instance.getStatus();
         Map<Integer, ClusterShardHealth> shards = instance.getShards();
 
-        switch (randomIntBetween(0, 9)) {
+        switch (randomIntBetween(0, 10)) {
             case 0 -> index = instance.getIndex() + randomAlphaOfLengthBetween(2, 5);
             case 1 -> numberOfShards = instance.getNumberOfShards() + between(1, 10);
             case 2 -> numberOfReplicas = instance.getNumberOfReplicas() + between(1, 10);
@@ -163,9 +162,14 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
             case 6 -> unassignedShards = instance.getUnassignedShards() + between(1, 10);
             case 7 -> unassignedPrimaryShards = instance.getUnassignedPrimaryShards() + between(1, 10);
             case 8 -> activePrimaryShards = instance.getActivePrimaryShards() + between(1, 10);
-            case 9 -> status = randomFrom(
-                Arrays.stream(ClusterHealthStatus.values()).filter(value -> value != instance.getStatus()).toList()
-            );
+            case 9 -> status = randomValueOtherThan(instance.getStatus(), () -> randomFrom(ClusterHealthStatus.values()));
+            case 10 -> {
+                if (instance.getShards().isEmpty()) {
+                    shards = Collections.singletonMap(0, ClusterShardHealthTests.randomShardHealth(0));
+                } else {
+                    shards.entrySet().iterator().remove();
+                }
+            }
             default -> throw new UnsupportedOperationException();
         }
 

@@ -14,7 +14,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -116,9 +115,7 @@ public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase
 
         switch (randomIntBetween(0, 7)) {
             case 0 -> shardId = instance.getShardId() + between(1, 10);
-            case 1 -> status = randomFrom(
-                Arrays.stream(ClusterHealthStatus.values()).filter(value -> value != instance.getStatus()).toList()
-            );
+            case 1 -> status = randomValueOtherThan(status, () -> randomFrom(ClusterHealthStatus.values()));
             case 2 -> activeShards = instance.getActiveShards() + between(1, 10);
             case 3 -> relocatingShards = instance.getRelocatingShards() + between(1, 10);
             case 4 -> initializingShards = instance.getInitializingShards() + between(1, 10);

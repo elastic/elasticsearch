@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -88,7 +89,7 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
         tryRegistration(task, request, state, listener.delegateResponse((l, e) -> {
             var cause = ExceptionsHelper.unwrapCause(e);
             logger.debug("recovery commit registration failed", cause);
-            if (cause instanceof ShardNotFoundException || cause instanceof RecoveryCommitTooNewException) {
+            if (isRetryable(cause, request)) {
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
@@ -109,6 +110,17 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
                 l.onFailure(e);
             }
         }));
+    }
+
+    private boolean isRetryable(Throwable e, RegisterCommitRequest request) {
+        if (e instanceof ShardNotFoundException || e instanceof RecoveryCommitTooNewException) {
+            return true;
+        } else if (e instanceof IndexNotFoundException) {
+            var state = clusterService.state();
+            return state.metadata().hasIndex(request.getShardId().getIndexName());
+        } else {
+            return false;
+        }
     }
 
     private void tryRegistration(

@@ -16,7 +16,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
@@ -64,6 +63,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -918,8 +918,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (value.length() > fieldType().ignoreAbove()) {
             context.addIgnoredField(fullPath());
             if (isSyntheticSource) {
-                // Save a copy of the field so synthetic source can load it
-                context.doc().add(new StoredField(originalName(), new BytesRef(value)));
+                try {
+                    XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent()).value(value);
+                    context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), builder));
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             }
             return;
         }
@@ -1079,16 +1083,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 protected BytesRef preserve(BytesRef value) {
                     // Preserve must make a deep copy because convert gets a shallow copy from the iterator
                     return BytesRef.deepCopyOf(value);
-                }
-            });
-        }
-
-        if (fieldType().ignoreAbove != Defaults.IGNORE_ABOVE) {
-            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
-                @Override
-                protected void writeValue(Object value, XContentBuilder b) throws IOException {
-                    BytesRef ref = (BytesRef) value;
-                    b.utf8Value(ref.bytes, ref.offset, ref.length);
                 }
             });
         }

@@ -26,9 +26,6 @@ template:
       processor.event:
         type: constant_keyword
         value: error
-      log.level:
-        type: constant_keyword
-        value: error
   settings:
     index:
       default_pipeline: logs-apm.error@default-pipeline

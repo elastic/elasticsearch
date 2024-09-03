@@ -1,5 +1,5 @@
 pr: 112440
-summary: "Apm: Set log.level: error on all apm error logs"
+summary: "logs-apm.error-*: define log.level field as keyword"
 area: Data streams
 type: bug
 issues: []

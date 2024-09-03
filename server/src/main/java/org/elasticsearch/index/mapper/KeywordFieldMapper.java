@@ -32,10 +32,12 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
@@ -63,6 +65,8 @@ import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -71,6 +75,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -892,8 +897,90 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        final String value = context.parser().textOrNull();
-        indexValue(context, value == null ? fieldType().nullValue : value);
+        var parser = context.parser();
+        if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+            int maxLength = 0;
+            List<String> values = new ArrayList<>();
+            while (true) {
+                XContentParser.Token token = parser.nextToken();
+                if (token == XContentParser.Token.END_ARRAY) {
+                    break;
+                }
+                if (token.isValue() || parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                    String value = context.parser().textOrNull();
+                    if (value == null) {
+                        value = fieldType().nullValue;
+                    }
+                    values.add(value);
+
+                    if (value != null) {
+                        maxLength = Math.max(maxLength, value.length());
+                    }
+                } else {
+                    throw new IllegalArgumentException("Encountered unexpected token [" + token + "].");
+                }
+            }
+            if (maxLength > fieldType().ignoreAbove()) {
+                context.addIgnoredField(fullPath());
+                if (isSyntheticSource) {
+                    try {
+                        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent()).startArray();
+                        for (String s : values) {
+                            builder.value(s);
+                        }
+                        builder.endArray();
+                        var p = XContentHelper.createParserNotCompressed(
+                            XContentParserConfiguration.EMPTY,
+                            BytesReference.bytes(builder),
+                            builder.contentType().xContent().type()
+                        );
+                        p.nextToken();
+                        context.addIgnoredField(
+                            IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath(), XContentDataHelper.encodeToken(p))
+                        );
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            } else {
+                for (String value : values) {
+                    indexValue(context, value);
+                }
+            }
+        } else if (parser.currentToken().isValue() || parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            String value = context.parser().textOrNull();
+            if (value == null) {
+                value = fieldType().nullValue;
+            }
+            if (value != null && value.length() > fieldType().ignoreAbove()) {
+                context.addIgnoredField(fullPath());
+                if (isSyntheticSource) {
+                    try {
+                        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent()).value(value);
+                        var p = XContentHelper.createParserNotCompressed(
+                            XContentParserConfiguration.EMPTY,
+                            BytesReference.bytes(builder),
+                            builder.contentType().xContent().type()
+                        );
+                        p.nextToken();
+                        context.addIgnoredField(
+                            IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath(), XContentDataHelper.encodeToken(p))
+                        );
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            } else {
+                indexValue(context, value);
+            }
+        } else {
+            throw new IllegalArgumentException("Encountered unexpected token [" + parser.currentToken() + "].");
+        }
+    }
+
+    @Override
+    public boolean parsesArrayValue() {
+        return true;
     }
 
     @Override
@@ -912,19 +999,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
         // if field is disabled, skip indexing
         if ((fieldType.indexOptions() == IndexOptions.NONE) && (fieldType.stored() == false) && (fieldType().hasDocValues() == false)) {
-            return;
-        }
-
-        if (value.length() > fieldType().ignoreAbove()) {
-            context.addIgnoredField(fullPath());
-            if (isSyntheticSource) {
-                try {
-                    XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent()).value(value);
-                    context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), builder));
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
             return;
         }
 

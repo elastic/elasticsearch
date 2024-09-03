@@ -73,7 +73,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         List<String> outputFromDocValues = new HashSet<>(validValues).stream().sorted().collect(Collectors.toList());
 
         Object out;
-        if (preservesExactSource()) {
+        if (preservesExactSource() || ignoredValues.isEmpty() == false) {
             out = in;
         } else {
             var validValuesInCorrectOrder = store ? validValues : outputFromDocValues;

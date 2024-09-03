@@ -323,8 +323,8 @@ doc values keyword with ignore_above:
       hits.hits.2._source:
         s: 3
         kwd:
+          - jumped over the lazy dog
           - short
-          - jumped over the lazy dog # fields saved by ignore_above are returned after doc values fields
 
 ---
 stored keyword with ignore_above:
@@ -393,8 +393,8 @@ stored keyword with ignore_above:
       hits.hits.2._source:
         s: 3
         kwd:
+          - jumped over the lazy dog
           - short
-          - jumped over the lazy dog # fields saved by ignore_above are returned after doc values fields
 
 ---
 _source filtering:

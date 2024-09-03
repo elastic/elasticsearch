@@ -67,10 +67,12 @@ required_capability: st_contains_within
 required_capability: st_disjoint
 
 FROM multivalue_geometries
-| EVAL st_intersects=ST_INTERSECTS(shape, TO_GEOSHAPE("GEOMETRYCOLLECTION(POLYGON ((-9 -9, -1 -9, -1 -1, -9 -1, -9 -9)),POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1)))"))
-| EVAL st_contains=ST_CONTAINS(shape, TO_GEOSHAPE("GEOMETRYCOLLECTION(POLYGON ((-9 -9, -1 -9, -1 -1, -9 -1, -9 -9)),POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1)))"))
-| EVAL st_within=ST_WITHIN(shape, TO_GEOSHAPE("GEOMETRYCOLLECTION(POLYGON ((-11 -11, 1 -11, 1 1, -11 1, -11 -11)),POLYGON ((-1 -1, 11 -1, 11 11, -1 11, -1 -1)))"))
-| EVAL st_disjoint=ST_DISJOINT(shape, TO_GEOSHAPE("GEOMETRYCOLLECTION(POLYGON ((-9 -9, -1 -9, -1 -1, -9 -1, -9 -9)),POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1)))"))
+| EVAL twoSmallPolygons=TO_GEOSHAPE("GEOMETRYCOLLECTION(POLYGON ((-9 -9, -1 -9, -1 -1, -9 -1, -9 -9)),POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1)))")
+| EVAL twoBiggerPolygons=TO_GEOSHAPE("GEOMETRYCOLLECTION(POLYGON ((-11 -11, 1 -11, 1 1, -11 1, -11 -11)),POLYGON ((-1 -1, 11 -1, 11 11, -1 11, -1 -1)))")
+| EVAL st_intersects=ST_INTERSECTS(shape, twoSmallPolygons)
+| EVAL st_contains=ST_CONTAINS(shape, twoSmallPolygons)
+| EVAL st_within=ST_WITHIN(shape, twoBiggerPolygons)
+| EVAL st_disjoint=ST_DISJOINT(shape, twoSmallPolygons)
 | KEEP id, intersects, st_intersects, contains, st_contains, st_within, st_disjoint, shape
 | SORT id
 ;
@@ -216,4 +218,56 @@ FROM multivalue_geometries
 
 id:l | intersects:boolean | disjoint:boolean | shape:geo_shape
 9    | false              | true             | ["POLYGON ((-25 -25\, -15 -25\, -15 -15\, -25 -15\, -25 -25))", "POLYGON ((15 15\, 25 15\, 25 25\, 15 25\, 15 15))"]
+;
+
+literalGeometryCollection
+required_capability: st_intersects
+required_capability: st_contains_within
+required_capability: st_disjoint
+
+ROW shape = TO_GEOSHAPE("GEOMETRYCOLLECTION(POLYGON ((-9 -9, -1 -9, -1 -1, -9 -1, -9 -9)),POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1)))")
+| EVAL st_intersects=ST_INTERSECTS(shape, TO_GEOSHAPE("GEOMETRYCOLLECTION(POLYGON ((-8 -8, -2 -8, -2 -2, -8 -2, -8 -8)),POLYGON ((2 2, 8 2, 8 8, 2 8, 2 2)))"))
+| EVAL st_contains=ST_CONTAINS(shape, TO_GEOSHAPE("GEOMETRYCOLLECTION(POLYGON ((-8 -8, -2 -8, -2 -2, -8 -2, -8 -8)),POLYGON ((2 2, 8 2, 8 8, 2 8, 2 2)))"))
+| EVAL st_within=ST_WITHIN(shape, TO_GEOSHAPE("GEOMETRYCOLLECTION(POLYGON ((-10 -10, 0 -10, 0 0, -10 0, -10 -10)),POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0)))"))
+| EVAL st_disjoint=ST_DISJOINT(shape, TO_GEOSHAPE("GEOMETRYCOLLECTION(POLYGON ((-8 -8, -2 -8, -2 -2, -8 -2, -8 -8)),POLYGON ((2 2, 8 2, 8 8, 2 8, 2 2)))"))
+| KEEP st_intersects, st_contains, st_within, st_disjoint
+;
+
+st_intersects:boolean | st_contains:boolean | st_within:boolean | st_disjoint:boolean
+true                  | true                | true              | false
+;
+
+literalMultiPolygon
+required_capability: st_intersects
+required_capability: st_contains_within
+required_capability: st_disjoint
+
+ROW shape = TO_GEOSHAPE("MULTIPOLYGON(((-9 -9, -1 -9, -1 -1, -9 -1, -9 -9)), ((1 1, 9 1, 9 9, 1 9, 1 1)))")
+| EVAL st_intersects=ST_INTERSECTS(shape, TO_GEOSHAPE("MULTIPOLYGON(((-8 -8, -2 -8, -2 -2, -8 -2, -8 -8)), ((2 2, 8 2, 8 8, 2 8, 2 2)))"))
+| EVAL st_contains=ST_CONTAINS(shape, TO_GEOSHAPE("MULTIPOLYGON(((-8 -8, -2 -8, -2 -2, -8 -2, -8 -8)), ((2 2, 8 2, 8 8, 2 8, 2 2)))"))
+| EVAL st_within=ST_WITHIN(shape, TO_GEOSHAPE("MULTIPOLYGON(((-10 -10, 0 -10, 0 0, -10 0, -10 -10)), ((0 0, 10 0, 10 10, 0 10, 0 0)))"))
+| EVAL st_disjoint=ST_DISJOINT(shape, TO_GEOSHAPE("MULTIPOLYGON(((-8 -8, -2 -8, -2 -2, -8 -2, -8 -8)), ((2 2, 8 2, 8 8, 2 8, 2 2)))"))
+| KEEP st_intersects, st_contains, st_within, st_disjoint
+;
+
+st_intersects:boolean | st_contains:boolean | st_within:boolean | st_disjoint:boolean
+true                  | true                | true              | false
+;
+
+literalPolygonArray
+required_capability: st_intersects
+required_capability: st_contains_within
+required_capability: st_disjoint
+
+ROW wkt = ["POLYGON((-9 -9, -1 -9, -1 -1, -9 -1, -9 -9))","POLYGON((1 1, 9 1, 9 9, 1 9, 1 1))"]
+| EVAL shape = TO_GEOSHAPE(wkt)
+| EVAL st_intersects=ST_INTERSECTS(shape, TO_GEOSHAPE("MULTIPOLYGON(((-8 -8, -2 -8, -2 -2, -8 -2, -8 -8)), ((2 2, 8 2, 8 8, 2 8, 2 2)))"))
+| EVAL st_contains=ST_CONTAINS(shape, TO_GEOSHAPE("MULTIPOLYGON(((-8 -8, -2 -8, -2 -2, -8 -2, -8 -8)), ((2 2, 8 2, 8 8, 2 8, 2 2)))"))
+| EVAL st_within=ST_WITHIN(shape, TO_GEOSHAPE("MULTIPOLYGON(((-10 -10, 0 -10, 0 0, -10 0, -10 -10)), ((0 0, 10 0, 10 10, 0 10, 0 0)))"))
+| EVAL st_disjoint=ST_DISJOINT(shape, TO_GEOSHAPE("MULTIPOLYGON(((-8 -8, -2 -8, -2 -2, -8 -2, -8 -8)), ((2 2, 8 2, 8 8, 2 8, 2 2)))"))
+| KEEP st_intersects, st_contains, st_within, st_disjoint
+;
+
+st_intersects:boolean | st_contains:boolean | st_within:boolean | st_disjoint:boolean
+true                  | true                | true              | false
 ;

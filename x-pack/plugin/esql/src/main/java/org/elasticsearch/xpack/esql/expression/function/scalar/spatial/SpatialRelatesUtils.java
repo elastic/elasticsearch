@@ -15,6 +15,7 @@ import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.ShapeIndexer;
@@ -24,9 +25,12 @@ import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 
@@ -111,13 +115,23 @@ public class SpatialRelatesUtils {
      * we do lucene-pushdown of spatial functions.
      */
     public static Geometry makeGeometryFromLiteral(Expression expr) {
-        Object value = valueOf(expr);
+        return makeGeometryFromLiteralValue(valueOf(expr), expr.dataType());
+    }
 
+    private static Geometry makeGeometryFromLiteralValue(Object value, DataType dataType) {
         if (value instanceof BytesRef bytesRef) {
+            // Single value expression
             return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
+        } else if (value instanceof List<?> bytesRefList) {
+            // Multi-value expression
+            ArrayList<Geometry> geometries = new ArrayList<>();
+            for (Object obj : bytesRefList) {
+                geometries.add(makeGeometryFromLiteralValue(obj, dataType));
+            }
+            return new GeometryCollection<>(geometries);
         } else {
             throw new IllegalArgumentException(
-                "Unsupported combination of literal [" + value.getClass().getSimpleName() + "] of type [" + expr.dataType() + "]"
+                "Unsupported combination of literal [" + value.getClass().getSimpleName() + "] of type [" + dataType + "]"
             );
         }
     }

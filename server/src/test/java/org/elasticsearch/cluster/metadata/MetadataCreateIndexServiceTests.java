@@ -1421,6 +1421,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     private void validateSplitIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
-        MetadataCreateIndexService.validateSplitIndex(state.metadata(), state.blocks(), "target", "source", targetIndexSettings);
+        MetadataCreateIndexService.validateSplitIndex(state.metadata(), state.blocks(), sourceIndex, targetIndexName, targetIndexSettings);
     }
 }

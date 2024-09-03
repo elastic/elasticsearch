@@ -935,7 +935,7 @@ public final class IndexSettings {
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         storeSourceMode = scopedSettings.get(Mapper.STORE_ARRAY_SOURCE_SETTING)
             ? Mapper.StoreSourceMode.ARRAYS
-            : Mapper.StoreSourceMode.DISABLED;
+            : Mapper.StoreSourceMode.NONE;
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(

@@ -68,6 +68,11 @@ public class CsvTestsDataLoader {
         "mapping-sample_data_ts_long.json",
         "sample_data_ts_long.csv"
     );
+    private static final TestsDataset MISSING_IP_SAMPLE_DATA = new TestsDataset(
+        "missing_ip_sample_data",
+        "mapping-missing_ip_sample_data.json",
+        "missing_ip_sample_data.csv"
+    );
     private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips", "mapping-clientips.json", "clientips.csv");
     private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr", "mapping-client_cidr.json", "client_cidr.csv");
     private static final TestsDataset AGES = new TestsDataset("ages", "mapping-ages.json", "ages.csv");
@@ -117,6 +122,7 @@ public class CsvTestsDataLoader {
         Map.entry(ALERTS.indexName, ALERTS),
         Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
         Map.entry(SAMPLE_DATA_TS_LONG.indexName, SAMPLE_DATA_TS_LONG),
+        Map.entry(MISSING_IP_SAMPLE_DATA.indexName, MISSING_IP_SAMPLE_DATA),
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
         Map.entry(CLIENT_CIDR.indexName, CLIENT_CIDR),
         Map.entry(AGES.indexName, AGES),

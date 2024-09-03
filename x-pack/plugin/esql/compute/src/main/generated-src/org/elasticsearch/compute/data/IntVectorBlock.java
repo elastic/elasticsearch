@@ -52,6 +52,11 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     }
 
     @Override
+    public IntBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
     public ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return vector.lookup(positions, targetBlockSize);
     }

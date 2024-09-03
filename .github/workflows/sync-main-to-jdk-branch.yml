@@ -1,0 +1,20 @@
+# Daily update of JDK update branch with changes from main
+name: "Merge main to es-9.0-bump branch"
+on:
+  schedule:
+    - cron: '0 5 * * *'
+
+jobs:
+  merge-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@master
+
+      - name: merge
+        uses: devmasx/merge-branch@1.4.0
+        with:
+          type: 'now'
+          from_branch: main
+          target_branch: es-9.0-bump
+          github_token: ${{ secrets.ELASTICSEARCHMACHINE_TOKEN }}

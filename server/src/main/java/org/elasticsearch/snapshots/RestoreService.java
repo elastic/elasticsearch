@@ -1344,7 +1344,11 @@ public final class RestoreService implements ClusterStateApplier {
                     // Index doesn't exist - create it and start recovery
                     // Make sure that the index we are about to create has a valid name
                     ensureValidIndexName(currentState, snapshotIndexMetadata, renamedIndexName);
-                    shardLimitValidator.validateShardLimit(snapshotIndexMetadata.getSettings(), currentState);
+                    shardLimitValidator.validateShardLimit(
+                        snapshotIndexMetadata.getSettings(),
+                        currentState.nodes(),
+                        currentState.metadata()
+                    );
 
                     final IndexMetadata.Builder indexMdBuilder = restoreToCreateNewIndex(
                         snapshotIndexMetadata,

@@ -118,9 +118,17 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     ) {
         if (request.isStreaming()) {
             return listener.delegateFailureAndWrap((l, inferenceResults) -> {
-                var taskProcessor = streamingTaskManager.<ChunkedToXContent>create(STREAMING_INFERENCE_TASK_TYPE, STREAMING_TASK_ACTION);
-                inferenceResults.publisher().subscribe(taskProcessor);
-                l.onResponse(new InferenceAction.Response(inferenceResults, taskProcessor));
+                if (inferenceResults.isStreaming()) {
+                    var taskProcessor = streamingTaskManager.<ChunkedToXContent>create(
+                        STREAMING_INFERENCE_TASK_TYPE,
+                        STREAMING_TASK_ACTION
+                    );
+                    inferenceResults.publisher().subscribe(taskProcessor);
+                    l.onResponse(new InferenceAction.Response(inferenceResults, taskProcessor));
+                } else {
+                    // if we asked for streaming but the provider doesn't support it, for now we're going to get back the single response
+                    l.onResponse(new InferenceAction.Response(inferenceResults));
+                }
             });
         }
         return listener.delegateFailureAndWrap((l, inferenceResults) -> l.onResponse(new InferenceAction.Response(inferenceResults)));

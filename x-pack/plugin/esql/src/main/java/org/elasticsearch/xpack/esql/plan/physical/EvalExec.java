@@ -66,7 +66,7 @@ public class EvalExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected AttributeSet computeReferences() {
-        return Eval.requiredAttributesFromChild(fields);
+        return Eval.computeReferences(fields);
     }
 
     @Override

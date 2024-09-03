@@ -73,10 +73,10 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval> {
 
     @Override
     protected AttributeSet computeReferences() {
-        return requiredAttributesFromChild(fields);
+        return computeReferences(fields);
     }
 
-    public static AttributeSet requiredAttributesFromChild(List<Alias> fields) {
+    public static AttributeSet computeReferences(List<Alias> fields) {
         AttributeSet generated = new AttributeSet(asAttributes(fields));
         return Expressions.references(fields).subtract(generated);
     }

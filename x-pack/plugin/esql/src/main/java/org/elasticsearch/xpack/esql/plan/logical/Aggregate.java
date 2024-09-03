@@ -141,21 +141,21 @@ public class Aggregate extends UnaryPlan implements Stats {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = outputAttributes(aggregates);
+            lazyOutput = output(aggregates);
         }
         return lazyOutput;
     }
 
-    public static List<Attribute> outputAttributes(List<? extends NamedExpression> aggregates) {
+    public static List<Attribute> output(List<? extends NamedExpression> aggregates) {
         return mergeOutputAttributes(Expressions.asAttributes(aggregates), emptyList());
     }
 
     @Override
     protected AttributeSet computeReferences() {
-        return requiredInputAttributes(aggregates, groupings);
+        return computeReferences(aggregates, groupings);
     }
 
-    public static AttributeSet requiredInputAttributes(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
+    public static AttributeSet computeReferences(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
         return Expressions.references(groupings).combine(Expressions.references(aggregates));
     }
 

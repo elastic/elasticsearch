@@ -432,7 +432,6 @@ class KibanaOwnedReservedRoleDescriptors {
                         "manage",
                         "read",
                         "delete",
-                        "retention_policy",
                         TransportIndicesAliasesAction.NAME,
                         TransportUpdateSettingsAction.TYPE.name()
                     )

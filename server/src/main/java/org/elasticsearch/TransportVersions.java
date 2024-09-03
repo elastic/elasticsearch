@@ -202,7 +202,10 @@ public class TransportVersions {
     public static final TransportVersion REPOSITORIES_TELEMETRY = def(8_732_00_0);
     public static final TransportVersion ML_INFERENCE_ALIBABACLOUD_SEARCH_ADDED = def(8_733_00_0);
     public static final TransportVersion FIELD_CAPS_RESPONSE_INDEX_MODE = def(8_734_00_0);
-    public static final TransportVersion ESQL_AGGREGATE_EXEC_TRACKS_INTERMEDIATE_ATTRS = def(8_735_00_0);
+    public static final TransportVersion GET_DATA_STREAMS_VERBOSE = def(8_735_00_0);
+    public static final TransportVersion ESQL_ADD_INDEX_MODE_CONCRETE_INDICES = def(8_736_00_0);
+    public static final TransportVersion UNASSIGNED_PRIMARY_COUNT_ON_CLUSTER_HEALTH = def(8_737_00_0);
+    public static final TransportVersion ESQL_AGGREGATE_EXEC_TRACKS_INTERMEDIATE_ATTRS = def(8_738_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

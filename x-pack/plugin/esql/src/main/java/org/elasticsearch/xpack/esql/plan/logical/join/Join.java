@@ -191,6 +191,11 @@ public class Join extends BinaryPlan {
     }
 
     @Override
+    public String commandName() {
+        return "JOIN";
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(config, left(), right());
     }

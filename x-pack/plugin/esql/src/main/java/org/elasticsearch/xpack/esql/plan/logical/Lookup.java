@@ -117,6 +117,10 @@ public class Lookup extends UnaryPlan {
         return new AttributeSet(matchFields);
     }
 
+    public String commandName() {
+        return "LOOKUP";
+    }
+
     @Override
     public boolean expressionsResolved() {
         return tableName.resolved() && Resolvables.resolved(matchFields) && localRelation != null;

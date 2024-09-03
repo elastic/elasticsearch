@@ -126,6 +126,14 @@ public class Aggregate extends UnaryPlan implements Stats {
     }
 
     @Override
+    public String commandName() {
+        return switch (aggregateType) {
+            case STANDARD -> "STATS";
+            case METRICS -> "METRICS";
+        };
+    }
+
+    @Override
     public boolean expressionsResolved() {
         return Resolvables.resolved(groupings) && Resolvables.resolved(aggregates);
     }

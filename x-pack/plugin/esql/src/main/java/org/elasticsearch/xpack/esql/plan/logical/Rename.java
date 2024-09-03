@@ -58,6 +58,11 @@ public class Rename extends UnaryPlan {
     }
 
     @Override
+    public String commandName() {
+        return "RENAME";
+    }
+
+    @Override
     public boolean expressionsResolved() {
         for (var alias : renamings) {
             // don't call dataType() - it will fail on UnresolvedAttribute

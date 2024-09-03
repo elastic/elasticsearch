@@ -15,6 +15,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -109,11 +110,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
 
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
-                final ScorerSupplier scorerSupplier = scorerSupplier(context);
-                if (scorerSupplier == null) {
-                    return null;
-                }
-                return scorerSupplier.get(Long.MAX_VALUE);
+                return scorerSupplier(context).get(Long.MAX_VALUE);
             }
 
             @Override
@@ -127,7 +124,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
                         // binary doc values allocate an array upfront, lets only allocate it if we are going to use it
                         final BinaryDocValues values = context.reader().getBinaryDocValues(field);
                         if (values == null) {
-                            return null;
+                            return new ConstantScoreScorer(weight, 0f, scoreMode, DocIdSetIterator.empty());
                         }
                         final GeometryDocValueReader reader = new GeometryDocValueReader();
                         final Component2DVisitor visitor = Component2DVisitor.getVisitor(component2D, relation, encoder);
@@ -171,11 +168,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
 
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
-                final ScorerSupplier scorerSupplier = scorerSupplier(context);
-                if (scorerSupplier == null) {
-                    return null;
-                }
-                return scorerSupplier.get(Long.MAX_VALUE);
+                return scorerSupplier(context).get(Long.MAX_VALUE);
             }
 
             @Override
@@ -189,7 +182,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
                         // binary doc values allocate an array upfront, lets only allocate it if we are going to use it
                         final BinaryDocValues values = context.reader().getBinaryDocValues(field);
                         if (values == null) {
-                            return null;
+                            return new ConstantScoreScorer(weight, 0f, scoreMode, DocIdSetIterator.empty());
                         }
                         final Component2DVisitor[] visitors = new Component2DVisitor[components2D.size()];
                         for (int i = 0; i < components2D.size(); i++) {

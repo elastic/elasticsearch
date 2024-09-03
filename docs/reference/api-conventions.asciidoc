@@ -334,6 +334,7 @@ All REST API parameters (both request parameters and JSON body) support
 providing boolean "false" as the value `false` and boolean "true" as the
 value `true`. All other values will raise an error.
 
+[[api-conventions-number-values]]
 [discrete]
 === Number Values
 

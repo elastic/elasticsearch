@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
@@ -94,7 +95,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -309,7 +309,7 @@ public class CsvTests extends ESTestCase {
 
     private static IndexResolution loadIndexResolution(String mappingName, String indexName) {
         var mapping = new TreeMap<>(loadMapping(mappingName));
-        return IndexResolution.valid(new EsIndex(indexName, mapping, Set.of(indexName)));
+        return IndexResolution.valid(new EsIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD)));
     }
 
     private static EnrichResolution loadEnrichPolicies() {
@@ -415,10 +415,10 @@ public class CsvTests extends ESTestCase {
 
         PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();
 
-        session.executeAnalyzedPlan(
+        session.executeOptimizedPlan(
             new EsqlQueryRequest(),
             runPhase(bigArrays, physicalOperationProviders),
-            analyzed,
+            session.optimizedPlan(analyzed),
             listener.delegateFailureAndWrap(
                 // Wrap so we can capture the warnings in the calling thread
                 (next, result) -> next.onResponse(

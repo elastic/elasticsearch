@@ -67,18 +67,23 @@ public class BwcVersions {
     private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)?.*\\);"
     );
-    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.17.0");
+    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("8.16.0");
     private static final String GLIBC_VERSION_ENV_VAR = "GLIBC_VERSION";
 
     private final Version currentVersion;
     private final List<Version> versions;
     private final Map<Version, UnreleasedVersionInfo> unreleased;
+    private final Version minimumWireCompatibleVersion;
 
     public BwcVersions(List<String> versionLines) {
-        this(versionLines, Version.fromString(VersionProperties.getElasticsearch()));
+        this(versionLines, Version.fromString(VersionProperties.getElasticsearch()), MINIMUM_WIRE_COMPATIBLE_VERSION);
     }
 
     public BwcVersions(Version currentVersionProperty, List<Version> allVersions) {
+        this(currentVersionProperty, allVersions, MINIMUM_WIRE_COMPATIBLE_VERSION);
+    }
+
+    public BwcVersions(Version currentVersionProperty, List<Version> allVersions, Version minimumWireCompatibleVersion) {
         if (allVersions.isEmpty()) {
             throw new IllegalArgumentException("Could not parse any versions");
         }
@@ -88,11 +93,12 @@ public class BwcVersions {
         assertCurrentVersionMatchesParsed(currentVersionProperty);
 
         this.unreleased = computeUnreleased();
+        this.minimumWireCompatibleVersion = MINIMUM_WIRE_COMPATIBLE_VERSION;
     }
 
     // Visible for testing
-    BwcVersions(List<String> versionLines, Version currentVersionProperty) {
-        this(currentVersionProperty, parseVersionLines(versionLines));
+    BwcVersions(List<String> versionLines, Version currentVersionProperty, Version minimumWireCompatibleVersion) {
+        this(currentVersionProperty, parseVersionLines(versionLines), minimumWireCompatibleVersion);
     }
 
     private static List<Version> parseVersionLines(List<String> versionLines) {
@@ -155,6 +161,7 @@ public class BwcVersions {
 
         List<Version> unreleasedList = unreleased.stream().sorted(Comparator.reverseOrder()).toList();
         Map<Version, UnreleasedVersionInfo> result = new TreeMap<>();
+        boolean newMinor = false;
         for (int i = 0; i < unreleasedList.size(); i++) {
             Version esVersion = unreleasedList.get(i);
             // This is either a new minor or staged release
@@ -162,11 +169,17 @@ public class BwcVersions {
                 result.put(esVersion, new UnreleasedVersionInfo(esVersion, getBranchFor(esVersion), ":distribution"));
             } else if (esVersion.getRevision() == 0) {
                 // If there are two upcoming unreleased minors then this one is the new minor
-                if (unreleasedList.get(i + 1).getRevision() == 0) {
-                    result.put(esVersion, new UnreleasedVersionInfo(esVersion, getBranchFor(esVersion), ":distribution:bwc:minor"));
-                } else {
-                    result.put(esVersion, new UnreleasedVersionInfo(esVersion, getBranchFor(esVersion), ":distribution:bwc:staged"));
-                }
+                if (newMinor == false && unreleasedList.get(i + 1).getRevision() == 0) {
+                    result.put(esVersion, new UnreleasedVersionInfo(esVersion, esVersion.getMajor() + ".x", ":distribution:bwc:minor"));
+                    newMinor = true;
+                } else if (newMinor == false
+                    && unreleasedList.stream().filter(v -> v.getMajor() == esVersion.getMajor() && v.getRevision() == 0).count() == 1) {
+                        // This is the only unreleased new minor which means we've not yet staged it for release
+                        result.put(esVersion, new UnreleasedVersionInfo(esVersion, esVersion.getMajor() + ".x", ":distribution:bwc:minor"));
+                        newMinor = true;
+                    } else {
+                        result.put(esVersion, new UnreleasedVersionInfo(esVersion, getBranchFor(esVersion), ":distribution:bwc:staged"));
+                    }
             } else {
                 // If this is the oldest unreleased version and we have a maintenance release
                 if (i == unreleasedList.size() - 1 && hasMaintenanceRelease) {
@@ -286,7 +299,7 @@ public class BwcVersions {
     }
 
     public Version getMinimumWireCompatibleVersion() {
-        return MINIMUM_WIRE_COMPATIBLE_VERSION;
+        return minimumWireCompatibleVersion;
     }
 
     public record UnreleasedVersionInfo(Version version, String branch, String gradleProjectPath) {}

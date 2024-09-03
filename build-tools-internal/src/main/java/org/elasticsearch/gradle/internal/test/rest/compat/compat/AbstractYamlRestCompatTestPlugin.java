@@ -8,7 +8,10 @@
 
 package org.elasticsearch.gradle.internal.test.rest.compat.compat;
 
+import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask;
 import org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin;
@@ -37,7 +40,9 @@ import org.gradle.api.tasks.testing.Test;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Map;
+
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupYamlRestTestDependenciesDefaults;
@@ -84,10 +89,19 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
         SourceSet yamlTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.YAML_REST_TEST);
         GradleUtils.extendSourceSet(project, YamlRestTestPlugin.YAML_REST_TEST, SOURCE_SET_NAME);
 
+        // determine the previous rest compatibility version and BWC project path
+        int currenMajor = VersionProperties.getElasticsearchVersion().getMajor();
+        Version lastMinor = BuildParams.getBwcVersions()
+            .getUnreleased()
+            .stream()
+            .filter(v -> v.getMajor() == currenMajor - 1)
+            .min(Comparator.reverseOrder())
+            .get();
+        String lastMinorProjectPath = BuildParams.getBwcVersions().unreleasedInfo(lastMinor).gradleProjectPath();
+
         // copy compatible rest specs
         Configuration bwcMinorConfig = project.getConfigurations().create(BWC_MINOR_CONFIG_NAME);
-        Dependency bwcMinor = project.getDependencies()
-            .project(Map.of("path", ":distribution:bwc:maintenance", "configuration", "checkout"));
+        Dependency bwcMinor = project.getDependencies().project(Map.of("path", lastMinorProjectPath, "configuration", "checkout"));
         project.getDependencies().add(bwcMinorConfig.getName(), bwcMinor);
 
         String projectPath = project.getPath();

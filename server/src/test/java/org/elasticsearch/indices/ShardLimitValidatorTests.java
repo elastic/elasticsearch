@@ -168,11 +168,11 @@ public class ShardLimitValidatorTests extends ESTestCase {
 
         final Index[] indices = getIndices(state);
         final ShardLimitValidator shardLimitValidator = createTestShardLimitService(shardsPerNode, group);
-        shardLimitValidator.validateShardLimitOnReplicaUpdate(state, indices, nodesInCluster - 1);
+        shardLimitValidator.validateShardLimitOnReplicaUpdate(state.nodes(), state.metadata(), indices, nodesInCluster - 1);
 
         ValidationException exception = expectThrows(
             ValidationException.class,
-            () -> shardLimitValidator.validateShardLimitOnReplicaUpdate(state, indices, nodesInCluster)
+            () -> shardLimitValidator.validateShardLimitOnReplicaUpdate(state.nodes(), state.metadata(), indices, nodesInCluster)
         );
         assertEquals(
             "Validation Failed: 1: this action would add ["

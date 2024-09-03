@@ -53,7 +53,6 @@ import org.junit.BeforeClass;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
@@ -89,7 +88,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         parser = new EsqlParser();
 
         mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping, Set.of("test"));
+        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
 
@@ -242,6 +241,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         @Override
         public UnaryPlan replaceChild(LogicalPlan newChild) {
             return new MockFieldAttributeCommand(source(), newChild, field);
+        }
+
+        @Override
+        public String commandName() {
+            return "MOCK";
         }
 
         @Override
@@ -424,7 +428,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         SearchStats searchStats = statsForExistingField("field000", "field001", "field002", "field003", "field004");
 
-        EsIndex index = new EsIndex("large", large, Set.of("large"));
+        EsIndex index = new EsIndex("large", large, Map.of("large", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(index);
         var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
 

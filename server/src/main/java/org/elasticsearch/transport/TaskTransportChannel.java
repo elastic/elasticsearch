@@ -9,7 +9,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Releasable;
 
 public class TaskTransportChannel implements TransportChannel {
@@ -58,6 +57,6 @@ public class TaskTransportChannel implements TransportChannel {
 
     @Override
     public String toString() {
-        return Strings.format("TaskTransportChannel{task=%d}{%s}", taskId, channel);
+        return "TaskTransportChannel{task=" + taskId + "}{" + channel + "}";
     }
 }

@@ -240,7 +240,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         EnrichResolution enrichResolution
     ) {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
-        EsIndex index = new EsIndex(indexName, mapping, Set.of("test"));
+        EsIndex index = new EsIndex(indexName, mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(index);
         Analyzer analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), TEST_VERIFIER);
         return new TestDataSource(mapping, index, analyzer);
@@ -4603,7 +4603,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // handle local reduction alignment
         return l.transformUp(ExchangeExec.class, exg -> {
             PhysicalPlan pl = exg;
-            if (exg.isInBetweenAggs() && exg.child() instanceof LocalSourceExec lse) {
+            if (exg.inBetweenAggs() && exg.child() instanceof LocalSourceExec lse) {
                 var output = exg.output();
                 if (lse.output().equals(output) == false) {
                     pl = exg.replaceChild(new LocalSourceExec(lse.source(), output, lse.supplier()));

@@ -111,7 +111,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             }
             return new ConstantKeywordFieldMapper(
                 leafName(),
-                new ConstantKeywordFieldType(context.buildFullName(leafName()), value.getValue(), meta.getValue())
+                new ConstantKeywordFieldType(context.buildFullName(leafName()), value.getValue(), meta.getValue()),
+                builderParams(this, context)
             );
         }
     }
@@ -301,8 +302,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     }
 
-    ConstantKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    ConstantKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+        super(simpleName, mappedFieldType, builderParams);
     }
 
     @Override
@@ -321,7 +322,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         if (fieldType().value == null) {
             ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
-            Mapper update = new ConstantKeywordFieldMapper(leafName(), newFieldType);
+            Mapper update = new ConstantKeywordFieldMapper(leafName(), newFieldType, builderParams);
             boolean dynamicMapperAdded = context.addDynamicMapper(update);
             // the mapper is already part of the mapping, we're just updating it with the new value
             assert dynamicMapperAdded;

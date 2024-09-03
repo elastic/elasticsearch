@@ -213,8 +213,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             return new UnsignedLongFieldMapper(
                 leafName(),
                 fieldType,
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 context.isSourceSynthetic(),
                 this
             );
@@ -577,12 +576,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     private UnsignedLongFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         boolean isSourceSynthetic,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, builderParams);
         this.isSourceSynthetic = isSourceSynthetic;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -776,7 +774,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
-        if (copyTo.copyToFields().isEmpty() != true) {
+        if (copyTo().copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
                 "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );

@@ -28,6 +28,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     static final String STORE_SOURCE_PARAM = "store_source";
 
+    // Only relevant for synthetic source mode.
     public enum StoreSourceMode {
         NONE("none"),      // No source recording
         ARRAYS("arrays"),  // Store source for arrays of mapped fields

@@ -120,6 +120,16 @@ public class FilterPathBasedFilter extends TokenFilter {
         return !inclusive && !contentsFiltered;
     }
 
+    /**
+     * This is overridden in order to keep empty objects in nested exclusions - see #109668.
+     * <p>
+     * The same logic applies to this as to {@link #includeEmptyArray(boolean)}, only for nested objects instead of nested arrays.
+     */
+    @Override
+    public boolean includeEmptyObject(boolean contentsFiltered) {
+        return !inclusive && !contentsFiltered;
+    }
+
     @Override
     protected boolean _includeScalar() {
         return inclusive == false;

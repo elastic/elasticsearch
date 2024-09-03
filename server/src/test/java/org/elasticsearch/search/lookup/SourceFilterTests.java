@@ -122,7 +122,16 @@ public class SourceFilterTests extends ESTestCase {
         assertEquals(filteredBytes.source(), Map.of("myArray", List.of()));
     }
 
-    public void testIncludeParentAndExcludeChildSubFields() {
+    public void testIncludeParentAndExcludeChildEmptyObject() {
+        Source fromMap = Source.fromMap(Map.of("myObject", Map.of()), XContentType.JSON);
+        Source filteredMap = fromMap.filter(new SourceFilter(new String[] {"myObject"}, new String[]{"myObject.myField"}));
+        assertEquals(filteredMap.source(), Map.of("myObject", Map.of()));
+        Source fromBytes = Source.fromBytes(new BytesArray("{\"myObject\": {}}"), XContentType.JSON);
+        Source filteredBytes = fromBytes.filter(new SourceFilter(new String[] {"myObject"}, new String[]{"myObject.myField"}));
+        assertEquals(filteredBytes.source(), Map.of("myObject", Map.of()));
+    }
+
+    public void testIncludeParentAndExcludeChildSubFieldsArrays() {
         Source fromMap = Source.fromMap(Map.of("myArray", List.of(Map.<String, Object>of("myField", "myValue", "other", "otherValue"))), XContentType.JSON);
         Source filteredMap = fromMap.filter(new SourceFilter(new String[] {"myArray"}, new String[]{"myArray.myField"}));
         assertEquals(filteredMap.source(), Map.of("myArray", List.of(Map.of("other", "otherValue"))));
@@ -130,5 +139,15 @@ public class SourceFilterTests extends ESTestCase {
             { "myArray": [ { "myField": "myValue", "other": "otherValue" } ] }"""), XContentType.JSON);
         Source filteredBytes = fromBytes.filter(new SourceFilter(new String[] {"myArray"}, new String[]{"myArray.myField"}));
         assertEquals(filteredBytes.source(), Map.of("myArray", List.of(Map.of("other", "otherValue"))));
+    }
+
+    public void testIncludeParentAndExcludeChildSubFieldsObjects() {
+        Source fromMap = Source.fromMap(Map.of("myObject", Map.<String, Object>of("myField", "myValue", "other", "otherValue")), XContentType.JSON);
+        Source filteredMap = fromMap.filter(new SourceFilter(new String[] {"myObject"}, new String[]{"myObject.myField"}));
+        assertEquals(filteredMap.source(), Map.of("myObject", Map.of("other", "otherValue")));
+        Source fromBytes = Source.fromBytes(new BytesArray("""
+            { "myObject": { "myField": "myValue", "other": "otherValue" } }"""), XContentType.JSON);
+        Source filteredBytes = fromBytes.filter(new SourceFilter(new String[] {"myObject"}, new String[]{"myObject.myField"}));
+        assertEquals(filteredBytes.source(), Map.of("myObject", Map.of("other", "otherValue")));
     }
 }

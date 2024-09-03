@@ -186,7 +186,7 @@ public class IpFieldMapper extends FieldMapper {
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.getValue();
             if (context.isSourceSynthetic() && storeSourceMode.isEmpty()) {
-                storeSourceMode = Optional.of(StoreSourceMode.ENABLED);
+                storeSourceMode = Optional.of(StoreSourceMode.FULL);
             }
             return new IpFieldMapper(
                 leafName(),
@@ -545,7 +545,7 @@ public class IpFieldMapper extends FieldMapper {
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed) {
                 context.addIgnoredField(fieldType().name());
-                if (storeSourceMode().isPresent() && storeSourceMode().get() == StoreSourceMode.ENABLED) {
+                if (storeSourceMode().isPresent() && storeSourceMode().get() == StoreSourceMode.FULL) {
                     // Save a copy of the field so synthetic source can load it
                     context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
                 }

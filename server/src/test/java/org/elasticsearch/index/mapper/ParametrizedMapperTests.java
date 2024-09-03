@@ -427,6 +427,28 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             {"field":{"type":"test_mapper","variable":"updated","required":"value"}}""", Strings.toString(noCopyTo));
     }
 
+    public void testStoredSource() {
+        String mapping = """
+            {"type":"test_mapper","variable":"foo","required":"value","store_source":"none"}""";
+        TestMapper mapper = fromMapping(mapping);
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
+
+        mapping = """
+            {"type":"test_mapper","variable":"foo","required":"value","store_source":"arrays"}""";
+        mapper = fromMapping(mapping);
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
+
+        mapping = """
+            {"type":"test_mapper","variable":"foo","required":"value","store_source":"full"}""";
+        mapper = fromMapping(mapping);
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
+
+        String mappingThrows = """
+            {"type":"test_mapper","variable":"foo","required":"value","store_source":"no-such-value"}""";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fromMapping(mappingThrows));
+        assertEquals("Unknown store_source value [no-such-value]", e.getMessage());
+    }
+
     public void testNullables() {
         String mapping = """
             {"type":"test_mapper","fixed":null,"required":"value"}""";

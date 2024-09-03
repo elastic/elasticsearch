@@ -28,9 +28,9 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     static final String STORE_SOURCE_PARAM = "store_source";
 
     public enum StoreSourceMode {
-        DISABLED("disabled"),  // No source recording
-        ARRAYS("arrays"),      // Store source for arrays of mapped fields
-        ENABLED("enabled");    // Store source for both singletons and arrays of mapped fields
+        NONE("none"),      // No source recording
+        ARRAYS("arrays"),  // Store source for arrays of mapped fields
+        FULL("full");      // Store source for both singletons and arrays of mapped fields
 
         StoreSourceMode(String name) {
             this.name = name;
@@ -40,11 +40,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             if (input == null) {
                 input = "null";
             }
-            if (input.equals(DISABLED.name)) {
-                return DISABLED;
+            if (input.equals(NONE.name)) {
+                return NONE;
             }
-            if (input.equals(ENABLED.name)) {
-                return ENABLED;
+            if (input.equals(FULL.name)) {
+                return FULL;
             }
             if (input.equals(ARRAYS.name)) {
                 return ARRAYS;

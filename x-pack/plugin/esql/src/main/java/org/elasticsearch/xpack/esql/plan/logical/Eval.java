@@ -114,6 +114,11 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval> {
     }
 
     @Override
+    public String commandName() {
+        return "EVAL";
+    }
+
+    @Override
     public boolean expressionsResolved() {
         return Resolvables.resolved(fields);
     }

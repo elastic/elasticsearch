@@ -223,8 +223,8 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         return Measurement.combine(plugin.getLongCounterMeasurement(metricKey));
     }
 
-    private static Set<String> featureNames(List<Measurement> funcitonMeasurements) {
-        return funcitonMeasurements.stream()
+    private static Set<String> featureNames(List<Measurement> functionMeasurements) {
+        return functionMeasurements.stream()
             .map(x -> x.attributes().get(PlanningMetricsManager.FEATURE_NAME))
             .map(String.class::cast)
             .collect(Collectors.toSet());

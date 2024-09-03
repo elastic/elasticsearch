@@ -30,6 +30,11 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
     private final List<Attribute> metadataFields;
     private final IndexMode indexMode;
     private final String unresolvedMsg;
+
+    /**
+     * Used by telemetry to say if this is the result of a FROM command
+     * or a METRICS command (or maybe something else in the future)
+     */
     private final String commandName;
 
     public UnresolvedRelation(
@@ -78,6 +83,16 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
         return false;
     }
 
+    /**
+     *
+     * This is used by {@link org.elasticsearch.xpack.esql.stats.PlanningMetrics} to collect query statistics
+     * It can return
+     * <ul>
+     *     <li>"FROM" if this a <code>|FROM idx</code> command</li>
+     *     <li>"FROM TS" if it is the result of a <code>| METRICS idx some_aggs() BY fields</code> command</li>
+     *     <li>"METRICS" if it is the result of a <code>| METRICS idx</code> (no aggs, no groupings)</li>
+     * </ul>
+     */
     @Override
     public String commandName() {
         return commandName;

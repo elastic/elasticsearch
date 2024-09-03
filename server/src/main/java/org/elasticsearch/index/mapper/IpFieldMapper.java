@@ -53,7 +53,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.buildIpPrefixAutomaton;
@@ -185,9 +184,6 @@ public class IpFieldMapper extends FieldMapper {
             }
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.getValue();
-            if (context.isSourceSynthetic() && storeSourceMode.isEmpty()) {
-                storeSourceMode = Optional.of(StoreSourceMode.FULL);
-            }
             return new IpFieldMapper(
                 leafName(),
                 new IpFieldType(
@@ -201,6 +197,7 @@ public class IpFieldMapper extends FieldMapper {
                     dimension.getValue()
                 ),
                 builderParams(this, context),
+                context.isSourceSynthetic(),
                 this
             );
         }
@@ -494,6 +491,7 @@ public class IpFieldMapper extends FieldMapper {
     private final boolean hasDocValues;
     private final boolean stored;
     private final boolean ignoreMalformed;
+    private final boolean storeIgnored;
     private final boolean dimension;
 
     private final InetAddress nullValue;
@@ -506,7 +504,13 @@ public class IpFieldMapper extends FieldMapper {
     private final FieldValues<InetAddress> scriptValues;
     private final ScriptCompiler scriptCompiler;
 
-    private IpFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
+    private IpFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        BuilderParams builderParams,
+        boolean storeIgnored,
+        Builder builder
+    ) {
         super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformedByDefault = builder.ignoreMalformedByDefault;
         this.indexed = builder.indexed.getValue();
@@ -520,6 +524,7 @@ public class IpFieldMapper extends FieldMapper {
         this.scriptValues = builder.scriptValues();
         this.scriptCompiler = builder.scriptCompiler;
         this.dimension = builder.dimension.getValue();
+        this.storeIgnored = storeIgnored;
     }
 
     @Override
@@ -545,7 +550,7 @@ public class IpFieldMapper extends FieldMapper {
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed) {
                 context.addIgnoredField(fieldType().name());
-                if (storeSourceMode().isPresent() && storeSourceMode().get() == StoreSourceMode.FULL) {
+                if (storeIgnored) {
                     // Save a copy of the field so synthetic source can load it
                     context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
                 }

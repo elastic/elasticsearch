@@ -265,10 +265,12 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
         assertThat(actual, instanceOf(BooleanQuery.class));
         final BooleanQuery actualBooleanQuery = (BooleanQuery) actual;
         assertThat(actualBooleanQuery.clauses(), hasSize(expectedClauseQueries.size()));
-        assertThat(actualBooleanQuery.clauses(), everyItem(hasProperty("occur", equalTo(BooleanClause.Occur.SHOULD))));
 
         for (int i = 0; i < actualBooleanQuery.clauses().size(); i++) {
-            final Query clauseQuery = actualBooleanQuery.clauses().get(i).query();
+            BooleanClause clause = actualBooleanQuery.clauses().get(i);
+            assertEquals(BooleanClause.Occur.SHOULD, clause.occur());
+            final Query clauseQuery = clause.query();
+
             assertThat(clauseQuery, equalTo(expectedClauseQueries.get(i)));
         }
     }

@@ -796,7 +796,9 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
         LuceneDocument document = new LuceneDocument();
 
         KeywordFieldMapper.KeywordFieldType keyword = new KeywordFieldMapper.KeywordFieldType("category");
-        document.add(new KeywordFieldMapper.KeywordField(keyword.name(), new BytesRef("category1"), new FieldType()));
+        document.add(
+            new KeywordFieldMapper.KeywordField(keyword.name(), new BytesRef("category1"), KeywordFieldMapper.Defaults.FIELD_TYPE)
+        );
         // Ignore doc values
         document.add(new SortedSetDocValuesField(keyword.name(), new BytesRef("category1")));
         Set<String> context = mapping.parseContext(document);

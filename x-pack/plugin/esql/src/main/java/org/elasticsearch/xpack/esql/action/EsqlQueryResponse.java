@@ -221,6 +221,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             )
             : ResponseXContentUtils.allColumns(columns, "columns");
         Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns);
+
+        Iterator<ToXContent> executionInfoRender = executionInfo == null || executionInfo.isCrossClusterSearch() == false
+            ? List.<ToXContent>of().iterator()
+            : ChunkedToXContentHelper.field("_clusters", executionInfo, params);
+
         Iterator<ToXContent> profileRender = profile == null
             ? List.<ToXContent>of().iterator()
             : ChunkedToXContentHelper.field("profile", profile, params);
@@ -230,6 +235,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             tookTime,
             columnHeadings,
             ChunkedToXContentHelper.array("values", valuesIt),
+            executionInfoRender,
             profileRender,
             ChunkedToXContentHelper.endObject()
         );

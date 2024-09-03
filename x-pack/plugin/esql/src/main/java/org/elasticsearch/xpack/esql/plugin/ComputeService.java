@@ -835,6 +835,9 @@ public class ComputeService {
                 return;
             }
             String clusterAlias = request.clusterAlias();
+            // this runs on a remote cluster coordinator, so it creates a new local EsqlExecutionInfo object to record
+            // execution metadata as the ES|QL processing occurs on this cluster, which will be returned in the ComputeResponse
+            // to the coordinating cluster
             EsqlExecutionInfo execInfo = new EsqlExecutionInfo();
             execInfo.swapCluster(clusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(clusterAlias, Arrays.toString(request.indices())));
             try (var computeListener = new ComputeListener(transportService, (CancellableTask) task, clusterAlias, execInfo, listener)) {

@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.RestActions;
@@ -24,11 +27,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -37,7 +40,8 @@ import java.util.function.Predicate;
  * The Cluster object is patterned after the SearchResponse.Cluster object.
  */
 
-public class EsqlExecutionInfo implements ToXContentFragment, Writeable {
+// MP TODO: remove ToXContentFragment
+public class EsqlExecutionInfo implements ToXContentFragment, ChunkedToXContentObject, Writeable {
     // for cross-cluster scenarios where cluster names are shown in API responses, use this string
     // rather than empty string (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) we use internally
     public static final String LOCAL_CLUSTER_NAME_REPRESENTATION = "(local)";
@@ -58,7 +62,6 @@ public class EsqlExecutionInfo implements ToXContentFragment, Writeable {
     // not Writeable since it is only needed on the primary CCS coordinator
     private final transient Predicate<String> skipUnavailablePredicate;
     private TimeValue overallTook;  // TODO may not want this here long term, but recording here for now
-    private final long id;  // MP FIXME - TMP for my debugging
 
     public EsqlExecutionInfo() {
         this(Predicates.always());  // default all clusters to skip_unavailable=true
@@ -71,8 +74,6 @@ public class EsqlExecutionInfo implements ToXContentFragment, Writeable {
     public EsqlExecutionInfo(Predicate<String> skipUnavailablePredicate) {
         this.clusterInfo = ConcurrentCollections.newConcurrentMap();  // MP TODO: does this need to be a ConcurrentHashMap?
         this.skipUnavailablePredicate = skipUnavailablePredicate;
-        id = ThreadLocalRandom.current().nextLong(0, 888888);
-        System.err.println("ID ID ID for new EsqlExecutionInfo: [" + id + "]     ==============================");
     }
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {
@@ -92,12 +93,6 @@ public class EsqlExecutionInfo implements ToXContentFragment, Writeable {
             this.clusterInfo = m;
         }
         this.skipUnavailablePredicate = Predicates.always();
-        this.id = -100;  // MP FIXME - remove
-    }
-
-    // MP FIXME - remove
-    public long id() {
-        return id;
     }
 
     public void setOverallTookTime(TimeValue took) {
@@ -149,7 +144,6 @@ public class EsqlExecutionInfo implements ToXContentFragment, Writeable {
      * @return the new Cluster object
      */
     public Cluster swapCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
-        System.err.printf("SWAP SWAP SWAP [%s] cluster with ID: [%d]\n", clusterAlias, id());
         return clusterInfo.compute(clusterAlias, remappingFunction);
     }
 
@@ -165,24 +159,55 @@ public class EsqlExecutionInfo implements ToXContentFragment, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        if (clusterInfo.size() > 0) {
-            builder.startObject(_CLUSTERS_FIELD.getPreferredName());
-            builder.field(TOTAL_FIELD.getPreferredName(), clusterInfo.size());
-            builder.field(SUCCESSFUL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SUCCESSFUL));
-            builder.field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED));
-            builder.field(RUNNING_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.RUNNING));
-            builder.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL));
-            builder.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED));
-            if (clusterInfo.size() > 0) {
-                builder.startObject("details");
-                for (Cluster cluster : clusterInfo.values()) {
-                    cluster.toXContent(builder, params);
-                }
-                builder.endObject();
-            }
-            builder.endObject();
-        }
+        // if (clusterInfo.size() > 0) {
+        // builder.startObject(_CLUSTERS_FIELD.getPreferredName());
+        // builder.field(TOTAL_FIELD.getPreferredName(), clusterInfo.size());
+        // builder.field(SUCCESSFUL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SUCCESSFUL));
+        // builder.field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED));
+        // builder.field(RUNNING_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.RUNNING));
+        // builder.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL));
+        // builder.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED));
+        // builder.endObject();
+        // }
         return builder;
+    }
+
+    @Override
+    public Iterator<? extends ToXContent> toXContentChunked(Params params) {
+        if (isCrossClusterSearch() == false) {
+            return Iterators.concat();
+        }
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            ChunkedToXContentHelper.field(TOTAL_FIELD.getPreferredName(), clusterInfo.size()),
+            ChunkedToXContentHelper.field(SUCCESSFUL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SUCCESSFUL)),
+            ChunkedToXContentHelper.field(RUNNING_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.RUNNING)),
+            ChunkedToXContentHelper.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL)),
+            ChunkedToXContentHelper.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED)),
+            ChunkedToXContentHelper.xContentFragmentValuesMapCreateOwnName("details", clusterInfo),
+            ChunkedToXContentHelper.endObject()
+        );
+    }
+
+    // MP TODO: should I still try to use this?
+    private <T> Iterator<? extends ToXContent> optional(
+        String name,
+        Map<String, T> values,
+        BiFunction<String, Map<String, T>, Iterator<? extends ToXContent>> supplier
+    ) {
+        return (values != null && values.size() > 0) ? supplier.apply(name, values) : Collections.emptyIterator();
+    }
+
+    @Override
+    public Iterator<? extends ToXContent> toXContentChunkedV7(Params params) {
+        // MP TODO: what am I supposed to do here?
+        return ChunkedToXContentObject.super.toXContentChunkedV7(params);
+    }
+
+    @Override
+    public boolean isFragment() {
+        // MP TODO: what am I supposed to do here?
+        return ToXContentFragment.super.isFragment();
     }
 
     /**
@@ -470,6 +495,11 @@ public class EsqlExecutionInfo implements ToXContentFragment, Writeable {
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean isFragment() {
+            return ToXContentFragment.super.isFragment();
         }
 
         public String getClusterAlias() {

@@ -33,13 +33,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 3. Collects response headers from sub tasks, specifically warnings emitted during compute
  * 4. Collects failures and returns the most appropriate exception to the caller.
  *
- * MP TODO: update docs around changes for CCS telemetry collection
+ * MP TODO: update javadoc to include changes for CCS telemetry collection
  */
 final class ComputeListener implements Releasable {
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
 
     private final RefCountingListener refs;
-    // MP TODO: what is this failureCollector for? how can I use it for CCS metadata?
+    // MP TODO: what is this failureCollector for? should I use it for CCS metadata?
     private final FailureCollector failureCollector = new FailureCollector();
     private final AtomicBoolean cancelled = new AtomicBoolean();
     private final CancellableTask task;
@@ -87,11 +87,7 @@ final class ComputeListener implements Releasable {
         this.refs = new RefCountingListener(1, ActionListener.wrap(ignored -> {
             responseHeaders.finish();
             EsqlExecutionInfo.Cluster cluster = esqlExecutionInfo.getCluster(clusterAlias);
-            System.err.printf(
-                "* * * * * * * Creating ComputeResponse in ComputeListener refs from execInfo [%d] for cluster: [%s]\n",
-                esqlExecutionInfo.id(),
-                cluster
-            );
+            System.err.printf("* * * * * * * Creating ComputeResponse in ComputeListener refs for cluster: [%s]\n", cluster);
             var result = new ComputeResponse(
                 collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList(),
                 cluster.getTook(),
@@ -147,7 +143,6 @@ final class ComputeListener implements Releasable {
         assert clusterAlias != null : "Must provide non-null cluster alias to acquireCompute";
         assert esqlExecutionInfo != null : "When providing cluster alias to acquireCompute, EsqlExecutionInfo must not be null";
         return acquireAvoid().map(resp -> {
-            System.err.println("CCC acquireCCSCompute: esqlExecutionInfo instance var ID: " + esqlExecutionInfo.id());
             responseHeaders.collect();
             var profiles = resp.getProfiles();
             if (profiles != null && profiles.isEmpty() == false) {
@@ -172,14 +167,9 @@ final class ComputeListener implements Releasable {
                     .setFailedShards(resp.getFailedShards())
                     .build()
             );
-            System.err.printf(
-                "CCC acquireCCSCompute:: execid:[%d] Cluster AFTER swapping: [%s]\n",
-                esqlExecutionInfo.id(),
-                esqlExecutionInfo.getCluster(clusterAlias)
-            );
+            System.err.printf("CCC acquireCCSCompute:: Cluster AFTER swapping: [%s]\n", esqlExecutionInfo.getCluster(clusterAlias));
             return null;
         });
-
     }
 
     /**
@@ -190,7 +180,6 @@ final class ComputeListener implements Releasable {
     ActionListener<ComputeResponse> acquireComputeForDataNodes(String clusterAlias, Configuration configuration) {
         assert clusterAlias != null : "Must provide non-null cluster alias to acquireCompute";
         return acquireAvoid().map(resp -> {
-            System.err.println("VVV acquireCompute: esqlExecutionInfo instance var ID: " + esqlExecutionInfo.id());
             responseHeaders.collect();
             var profiles = resp.getProfiles();
             if (profiles != null && profiles.isEmpty() == false) {
@@ -220,11 +209,7 @@ final class ComputeListener implements Releasable {
                     }
                 }
             );
-            System.err.printf(
-                "VVV acquireCompute:: execid:[%d] Cluster AFTER swapping: [%s]\n",
-                esqlExecutionInfo.id(),
-                esqlExecutionInfo.getCluster(clusterAlias)
-            );
+            System.err.printf("VVV acquireCompute:: Cluster AFTER swapping: [%s]\n", esqlExecutionInfo.getCluster(clusterAlias));
             return null;
         });
     }

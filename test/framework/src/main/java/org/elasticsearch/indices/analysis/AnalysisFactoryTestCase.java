@@ -118,6 +118,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         entry("portugueselightstem", MovedToAnalysisCommon.class),
         entry("portugueseminimalstem", MovedToAnalysisCommon.class),
         entry("reversestring", MovedToAnalysisCommon.class),
+        entry("romaniannormalization", MovedToAnalysisCommon.class),
         entry("russianlightstem", MovedToAnalysisCommon.class),
         entry("scandinavianfolding", MovedToAnalysisCommon.class),
         entry("scandinaviannormalization", MovedToAnalysisCommon.class),

@@ -194,6 +194,17 @@ public class TransportVersions {
     public static final TransportVersion RANDOM_RERANKER_RETRIEVER = def(8_724_00_0);
     public static final TransportVersion ESQL_PROFILE_SLEEPS = def(8_725_00_0);
     public static final TransportVersion ZDT_NANOS_SUPPORT = def(8_726_00_0);
+    public static final TransportVersion LTR_SERVERLESS_RELEASE = def(8_727_00_0);
+    public static final TransportVersion ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT = def(8_728_00_0);
+    public static final TransportVersion RANK_DOCS_RETRIEVER = def(8_729_00_0);
+    public static final TransportVersion ESQL_ES_FIELD_CACHED_SERIALIZATION = def(8_730_00_0);
+    public static final TransportVersion ADD_MANAGE_ROLES_PRIVILEGE = def(8_731_00_0);
+    public static final TransportVersion REPOSITORIES_TELEMETRY = def(8_732_00_0);
+    public static final TransportVersion ML_INFERENCE_ALIBABACLOUD_SEARCH_ADDED = def(8_733_00_0);
+    public static final TransportVersion FIELD_CAPS_RESPONSE_INDEX_MODE = def(8_734_00_0);
+    public static final TransportVersion GET_DATA_STREAMS_VERBOSE = def(8_735_00_0);
+    public static final TransportVersion ESQL_ADD_INDEX_MODE_CONCRETE_INDICES = def(8_736_00_0);
+    public static final TransportVersion UNASSIGNED_PRIMARY_COUNT_ON_CLUSTER_HEALTH = def(8_737_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -315,7 +326,7 @@ public class TransportVersions {
         return VERSION_IDS.values();
     }
 
-    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class);
+    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class, LATEST_DEFINED.id());
 
     // no instance
     private TransportVersions() {}

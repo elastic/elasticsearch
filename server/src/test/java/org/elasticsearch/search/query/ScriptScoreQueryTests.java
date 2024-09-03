@@ -15,9 +15,14 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -26,13 +31,16 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptTermStats;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -40,6 +48,8 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.collection.IsArrayWithSize.arrayWithSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ScriptScoreQueryTests extends ESTestCase {
@@ -62,7 +72,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
         w.commit();
         reader = DirectoryReader.open(w);
         searcher = newSearcher(reader);
-        leafReaderContext = reader.leaves().get(0);
+        leafReaderContext = searcher.getTopReaderContext().leaves().get(0);
     }
 
     @After
@@ -74,22 +84,13 @@ public class ScriptScoreQueryTests extends ESTestCase {
 
     public void testExplain() throws IOException {
         Script script = new Script("script using explain");
-        ScoreScript.LeafFactory factory = newFactory(script, true, explanation -> {
+        ScoreScript.LeafFactory factory = newFactory(script, true, false, explanation -> {
             assertNotNull(explanation);
             explanation.set("this explains the score");
             return 1.0;
         });
 
-        ScriptScoreQuery query = new ScriptScoreQuery(
-            Queries.newMatchAllQuery(),
-            script,
-            factory,
-            lookup,
-            null,
-            "index",
-            0,
-            IndexVersion.current()
-        );
+        ScriptScoreQuery query = createScriptScoreQuery(Queries.newMatchAllQuery(), script, factory);
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
         assertNotNull(explanation);
@@ -99,18 +100,9 @@ public class ScriptScoreQueryTests extends ESTestCase {
 
     public void testExplainDefault() throws IOException {
         Script script = new Script("script without setting explanation");
-        ScoreScript.LeafFactory factory = newFactory(script, true, explanation -> 1.5);
+        ScoreScript.LeafFactory factory = newFactory(script, true, false, explanation -> 1.5);
 
-        ScriptScoreQuery query = new ScriptScoreQuery(
-            Queries.newMatchAllQuery(),
-            script,
-            factory,
-            lookup,
-            null,
-            "index",
-            0,
-            IndexVersion.current()
-        );
+        ScriptScoreQuery query = createScriptScoreQuery(Queries.newMatchAllQuery(), script, factory);
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
         assertNotNull(explanation);
@@ -124,18 +116,9 @@ public class ScriptScoreQueryTests extends ESTestCase {
 
     public void testExplainDefaultNoScore() throws IOException {
         Script script = new Script("script without setting explanation and no score");
-        ScoreScript.LeafFactory factory = newFactory(script, false, explanation -> 2.0);
+        ScoreScript.LeafFactory factory = newFactory(script, false, false, explanation -> 2.0);
 
-        ScriptScoreQuery query = new ScriptScoreQuery(
-            Queries.newMatchAllQuery(),
-            script,
-            factory,
-            lookup,
-            null,
-            "index",
-            0,
-            IndexVersion.current()
-        );
+        ScriptScoreQuery query = createScriptScoreQuery(Queries.newMatchAllQuery(), script, factory);
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
         assertNotNull(explanation);
@@ -148,29 +131,77 @@ public class ScriptScoreQueryTests extends ESTestCase {
 
     public void testScriptScoreErrorOnNegativeScore() {
         Script script = new Script("script that returns a negative score");
-        ScoreScript.LeafFactory factory = newFactory(script, false, explanation -> -1000.0);
-        ScriptScoreQuery query = new ScriptScoreQuery(
-            Queries.newMatchAllQuery(),
-            script,
-            factory,
-            lookup,
-            null,
-            "index",
-            0,
-            IndexVersion.current()
-        );
+        ScoreScript.LeafFactory factory = newFactory(script, false, false, explanation -> -1000.0);
+        ScriptScoreQuery query = createScriptScoreQuery(Queries.newMatchAllQuery(), script, factory);
+
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> searcher.search(query, 1));
         assertTrue(e.getMessage().contains("Must be a non-negative score!"));
+    }
+
+    public void testScriptTermStatsAvailable() throws IOException {
+        Script script = new Script("termStats script without setting explanation");
+        ScoreScript scoreScriptMock = mock(ScoreScript.class);
+        ScoreScript.LeafFactory factory = newFactory(false, true, (lookup, docReader) -> scoreScriptMock);
+
+        ScriptScoreQuery query = createScriptScoreQuery(
+            new BooleanQuery.Builder().add(new TermQuery(new Term("field", "text")), BooleanClause.Occur.MUST)
+                .add(new TermQuery(new Term("field", "missing")), BooleanClause.Occur.SHOULD)
+                .build(),
+            script,
+            factory
+        );
+
+        query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f).scorer(leafReaderContext);
+
+        ArgumentCaptor<ScriptTermStats> scriptTermStats = ArgumentCaptor.forClass(ScriptTermStats.class);
+        verify(scoreScriptMock)._setTermStats(scriptTermStats.capture());
+        assertThat(scriptTermStats.getValue().uniqueTermsCount(), equalTo(2));
+    }
+
+    public void testScriptTermStatsNotAvailable() throws IOException {
+        Script script = new Script("termStats script without setting explanation");
+        ScoreScript scoreScriptMock = mock(ScoreScript.class);
+        ScoreScript.LeafFactory factory = newFactory(false, false, (lookup, docReader) -> scoreScriptMock);
+
+        ScriptScoreQuery query = createScriptScoreQuery(
+            new BooleanQuery.Builder().add(new TermQuery(new Term("field", "text")), BooleanClause.Occur.MUST)
+                .add(new TermQuery(new Term("field", "missing")), BooleanClause.Occur.SHOULD)
+                .build(),
+            script,
+            factory
+        );
+
+        query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f).scorer(leafReaderContext);
+        verify(scoreScriptMock, never())._setTermStats(any());
+    }
+
+    private ScriptScoreQuery createScriptScoreQuery(Query subQuery, Script script, ScoreScript.LeafFactory factory) {
+        return new ScriptScoreQuery(subQuery, script, factory, lookup, null, "index", 0, IndexVersion.current());
     }
 
     private ScoreScript.LeafFactory newFactory(
         Script script,
         boolean needsScore,
+        boolean needsTermStats,
         Function<ScoreScript.ExplanationHolder, Double> function
+    ) {
+        return newFactory(needsScore, needsTermStats, (lookup, docReader) -> new ScoreScript(script.getParams(), lookup, docReader) {
+            @Override
+            public double execute(ExplanationHolder explanation) {
+                return function.apply(explanation);
+            }
+        });
+    }
+
+    private ScoreScript.LeafFactory newFactory(
+        boolean needsScore,
+        boolean needsTermStats,
+        BiFunction<SearchLookup, DocReader, ScoreScript> scopreScriptProvider
     ) {
         SearchLookup lookup = mock(SearchLookup.class);
         LeafSearchLookup leafLookup = mock(LeafSearchLookup.class);
         when(lookup.getLeafSearchLookup(any())).thenReturn(leafLookup);
+
         return new ScoreScript.LeafFactory() {
             @Override
             public boolean needs_score() {
@@ -178,13 +209,13 @@ public class ScriptScoreQueryTests extends ESTestCase {
             }
 
             @Override
+            public boolean needs_termStats() {
+                return needsTermStats;
+            }
+
+            @Override
             public ScoreScript newInstance(DocReader docReader) {
-                return new ScoreScript(script.getParams(), lookup, docReader) {
-                    @Override
-                    public double execute(ExplanationHolder explanation) {
-                        return function.apply(explanation);
-                    }
-                };
+                return scopreScriptProvider.apply(lookup, docReader);
             }
         };
     }

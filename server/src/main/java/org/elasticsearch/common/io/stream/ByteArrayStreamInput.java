@@ -117,4 +117,15 @@ public final class ByteArrayStreamInput extends StreamInput {
         System.arraycopy(bytes, pos, b, offset, len);
         pos += len;
     }
+
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+        final int available = limit - pos;
+        if (available <= 0) {
+            return -1;
+        }
+        int toRead = Math.min(len, available);
+        readBytes(b, off, toRead);
+        return toRead;
+    }
 }

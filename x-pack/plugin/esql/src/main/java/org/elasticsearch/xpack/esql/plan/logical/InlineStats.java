@@ -98,8 +98,8 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
     }
 
     @Override
-    public InlineStats with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new InlineStats(source(), child(), newGroupings, newAggregates);
+    public InlineStats with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
+        return new InlineStats(source(), child, newGroupings, newAggregates);
     }
 
     @Override
@@ -121,11 +121,13 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
     public List<Attribute> output() {
         if (this.lazyOutput == null) {
             List<NamedExpression> addedFields = new ArrayList<>();
-            AttributeSet childOutput = child().outputSet();
+            AttributeSet set = child().outputSet();
 
             for (NamedExpression agg : aggregates) {
-                if (childOutput.contains(agg) == false) {
+                Attribute att = agg.toAttribute();
+                if (set.contains(att) == false) {
                     addedFields.add(agg);
+                    set.add(att);
                 }
             }
 
@@ -207,7 +209,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
             if (g instanceof Attribute a) {
                 groupingAttributes.add(a);
             } else {
-                throw new UnsupportedOperationException("INLINESTATS doesn't support expressions in grouping position yet");
+                throw new IllegalStateException("optimized plans should only have attributes in groups, but got [" + g + "]");
             }
         }
         List<Attribute> leftFields = new ArrayList<>(groupingAttributes.size());

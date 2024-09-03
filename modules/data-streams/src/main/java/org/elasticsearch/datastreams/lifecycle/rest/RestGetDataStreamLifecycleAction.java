@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams.lifecycle.rest;
 import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -19,6 +20,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -53,5 +55,10 @@ public class RestGetDataStreamLifecycleAction extends BaseRestHandler {
     @Override
     public boolean allowSystemIndexAccessByDefault() {
         return true;
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY, "data_stream_global_retention");
     }
 }

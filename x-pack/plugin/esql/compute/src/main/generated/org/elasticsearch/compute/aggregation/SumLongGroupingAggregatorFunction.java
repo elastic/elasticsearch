@@ -97,7 +97,7 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
 
   private void addRawInput(int positionOffset, IntVector groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (state.hasFailed(groupId)) {
         continue;
       }
@@ -119,7 +119,7 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
 
   private void addRawInput(int positionOffset, IntVector groups, LongVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (state.hasFailed(groupId)) {
         continue;
       }
@@ -140,7 +140,7 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         if (state.hasFailed(groupId)) {
           continue;
         }
@@ -169,7 +169,7 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         if (state.hasFailed(groupId)) {
           continue;
         }
@@ -204,7 +204,7 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
     BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
     assert sum.getPositionCount() == seen.getPositionCount() && sum.getPositionCount() == failed.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (failed.getBoolean(groupPosition + positionOffset)) {
         state.setFailed(groupId);
       } else if (seen.getBoolean(groupPosition + positionOffset)) {

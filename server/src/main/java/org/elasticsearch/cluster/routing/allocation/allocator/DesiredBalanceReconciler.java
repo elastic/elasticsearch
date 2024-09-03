@@ -89,7 +89,10 @@ public class DesiredBalanceReconciler {
     private final DoubleGauge undesiredAllocationsRatio;
 
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool, MeterRegistry meterRegistry) {
-        this.undesiredAllocationLogInterval = new FrequencyCappedAction(threadPool);
+        this.undesiredAllocationLogInterval = new FrequencyCappedAction(
+            threadPool.relativeTimeInMillisSupplier(),
+            TimeValue.timeValueMinutes(5)
+        );
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, this.undesiredAllocationLogInterval::setMinInterval);
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,

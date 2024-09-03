@@ -233,7 +233,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         final SystemIndices systemIndices,
         Set<IndexSettingProvider> indexSettingProviders
     ) throws Exception {
-        var metadata = simulatedState.getMetadata();
+        // TODO multi-project get the right project here
+        var projectMetadata = simulatedState.getMetadata().getProject();
         Settings templateSettings = resolveSettings(simulatedState.metadata(), matchingTemplate);
 
         List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(
@@ -265,8 +266,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             Settings result = provider.getAdditionalIndexSettings(
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
-                template.getDataStreamTemplate() != null && metadata.getProject().isTimeSeriesTemplate(template),
-                simulatedState.getMetadata(),
+                template.getDataStreamTemplate() != null && projectMetadata.isTimeSeriesTemplate(template),
+                projectMetadata,
                 now,
                 templateSettings,
                 mappings

@@ -697,18 +697,19 @@ public class MetadataIndexTemplateService {
         var finalTemplate = Optional.ofNullable(indexTemplate.template());
         var finalSettings = Settings.builder();
         final var now = Instant.now();
-        final var metadata = currentState.getMetadata();
+        // TODO multi-project get the right project here
+        final var projectMetadata = currentState.getMetadata().getProject();
 
-        final var combinedMappings = collectMappings(indexTemplate, metadata.getProject().componentTemplates(), "tmp_idx");
-        final var combinedSettings = resolveSettings(indexTemplate, metadata.getProject().componentTemplates());
+        final var combinedMappings = collectMappings(indexTemplate, projectMetadata.componentTemplates(), "tmp_idx");
+        final var combinedSettings = resolveSettings(indexTemplate, projectMetadata.componentTemplates());
         // First apply settings sourced from index setting providers:
         for (var provider : indexSettingProviders) {
             finalSettings.put(
                 provider.getAdditionalIndexSettings(
                     "validate-index-name",
                     indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
-                    indexTemplate.getDataStreamTemplate() != null && metadata.getProject().isTimeSeriesTemplate(indexTemplate),
-                    currentState.getMetadata(),
+                    indexTemplate.getDataStreamTemplate() != null && projectMetadata.isTimeSeriesTemplate(indexTemplate),
+                    projectMetadata,
                     now,
                     combinedSettings,
                     combinedMappings

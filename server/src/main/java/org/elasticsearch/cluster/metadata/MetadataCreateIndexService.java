@@ -954,7 +954,8 @@ public class MetadataCreateIndexService {
         Set<IndexSettingProvider> indexSettingProviders
     ) {
         final boolean isDataStreamIndex = request.dataStreamName() != null;
-        final var metadata = currentState.getMetadata();
+        // TODO multi-project get the right project here (based on the request)
+        final var projectMetadata = currentState.getMetadata().getProject();
 
         // Create builders for the template and request settings. We transform these into builders
         // because we may want settings to be "removed" from these prior to being set on the new
@@ -969,7 +970,7 @@ public class MetadataCreateIndexService {
 
             final boolean timeSeriesTemplate = Optional.of(request)
                 .map(CreateIndexClusterStateUpdateRequest::matchingTemplate)
-                .map(metadata.getProject()::isTimeSeriesTemplate)
+                .map(projectMetadata::isTimeSeriesTemplate)
                 .orElse(false);
 
             // Loop through all the explicit index setting providers, adding them to the
@@ -981,7 +982,7 @@ public class MetadataCreateIndexService {
                         request.index(),
                         request.dataStreamName(),
                         timeSeriesTemplate,
-                        currentState.getMetadata(),
+                        projectMetadata,
                         resolvedAt,
                         templateAndRequestSettings,
                         combinedTemplateMappings

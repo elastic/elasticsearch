@@ -27,7 +27,6 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
 public class IncrementalBulkRestIT extends HttpSmokeTestCase {
 
-    @SuppressWarnings("unchecked")
     public void testIncrementalBulk() throws IOException {
         Request createRequest = new Request("PUT", "/index_name");
         createRequest.setJsonEntity("""
@@ -60,7 +59,6 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
         sendLargeBulk();
     }
 
-    @SuppressWarnings("unchecked")
     public void testBulkWithIncrementalDisabled() throws IOException {
         Request createRequest = new Request("PUT", "/index_name");
         createRequest.setJsonEntity("""
@@ -94,9 +92,12 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
             .setPersistentSettings(Settings.builder().put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), false).build())
             .get();
 
+        internalCluster().getInstances(IncrementalBulkService.class).forEach(i -> i.setForTests(false));
+
         try {
             sendLargeBulk();
         } finally {
+            internalCluster().getInstances(IncrementalBulkService.class).forEach(i -> i.setForTests(true));
             clusterAdmin().prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder().put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), (String) null).build())
                 .get();
@@ -132,6 +133,7 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
         expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulkRequest));
     }
 
+    @SuppressWarnings("unchecked")
     private static void sendLargeBulk() throws IOException {
         Request bulkRequest = new Request("POST", "/index_name/_bulk");
 

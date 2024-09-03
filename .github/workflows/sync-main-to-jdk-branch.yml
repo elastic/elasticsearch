@@ -16,6 +16,5 @@ jobs:
         uses: devmasx/merge-branch@1.4.0
         with:
           type: 'now'
-          from_branch: main
           target_branch: openjdk23-bundle
           github_token: ${{ secrets.ELASTICSEARCHMACHINE_TOKEN }}

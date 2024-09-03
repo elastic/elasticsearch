@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -167,7 +168,9 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
                 if (instance.getShards().isEmpty()) {
                     shards = Collections.singletonMap(0, ClusterShardHealthTests.randomShardHealth(0));
                 } else {
-                    shards.entrySet().iterator().remove();
+                    var iterator = shards.entrySet().iterator();
+                    iterator.next();
+                    iterator.remove();
                 }
             }
             default -> throw new UnsupportedOperationException();

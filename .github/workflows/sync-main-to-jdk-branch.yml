@@ -3,6 +3,7 @@ name: "Merge main to es-9.0-bump branch"
 on:
   schedule:
     - cron: '0 5 * * *'
+  workflow_dispatch: {}
 
 jobs:
   merge-branch:

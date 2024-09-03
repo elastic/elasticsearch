@@ -229,10 +229,6 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         return shards;
     }
 
-    public List<ShardSearchRequest> createShardSearchRequests() {
-        return shards.stream().map(this::createShardSearchRequest).toList();
-    }
-
     public ShardSearchRequest createShardSearchRequest(Shard r) {
         ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
             new OriginalIndices(r.indices, indicesOptions),

@@ -121,7 +121,7 @@ Some key facts about indices:
 
 * An index is a collection of documents
 * An index has a unique name
-* An index can also be referred to by an <aliases,alias>
+* An index can also be referred to by an <<aliases,alias>>
 * An index has a mapping that defines the schema of its documents
 
 [discrete]

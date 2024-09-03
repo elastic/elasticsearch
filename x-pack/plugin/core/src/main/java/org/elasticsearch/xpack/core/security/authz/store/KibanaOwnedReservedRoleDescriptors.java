@@ -420,6 +420,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("read", "view_index_metadata")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
+                    // manage privilege required by the index alias
                     .indices("security_solution-*.vulnerability_latest")
                     .privileges("manage", TransportIndicesAliasesAction.NAME, TransportUpdateSettingsAction.TYPE.name())
                     .build(),
@@ -431,6 +432,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "manage",
                         "read",
                         "delete",
+                        "retention_policy",
                         TransportIndicesAliasesAction.NAME,
                         TransportUpdateSettingsAction.TYPE.name()
                     )

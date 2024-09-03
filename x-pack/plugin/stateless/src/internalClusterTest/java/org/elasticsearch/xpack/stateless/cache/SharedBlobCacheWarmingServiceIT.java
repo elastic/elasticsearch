@@ -413,7 +413,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), "1g")
-            .put(TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            // Fetch size must be smaller or equal to the minimized pre-warm range (default to 1/4 region size). See also ES-9185
+            .put(TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(PAGE_SIZE))
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
         final var indexNode = startMasterAndIndexNode(cacheSettings);

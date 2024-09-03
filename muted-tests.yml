@@ -179,6 +179,18 @@ tests:
 - class: org.elasticsearch.xpack.spatial.index.query.LegacyGeoShapeWithDocValuesQueryTests
   method: testIndexPointsFromLine
   issue: https://github.com/elastic/elasticsearch/issues/112438
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
+  method: "testAggregateIntermediate {TestCase=<geo_point> #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/112461
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
+  method: testAggregateIntermediate {TestCase=<geo_point>}
+  issue: https://github.com/elastic/elasticsearch/issues/112463
+- class: org.elasticsearch.xpack.esql.action.ManyShardsIT
+  method: testRejection
+  issue: https://github.com/elastic/elasticsearch/issues/112406
+- class: org.elasticsearch.xpack.esql.action.ManyShardsIT
+  method: testConcurrentQueries
+  issue: https://github.com/elastic/elasticsearch/issues/112424
 
 # Examples:
 #

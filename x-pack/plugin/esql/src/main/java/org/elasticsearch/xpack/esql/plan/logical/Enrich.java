@@ -192,6 +192,11 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
     }
 
     @Override
+    public String commandName() {
+        return "ENRICH";
+    }
+
+    @Override
     public boolean expressionsResolved() {
         return policyName.resolved()
             && matchField instanceof EmptyAttribute == false // matchField not defined in the query, needs to be resolved from the policy

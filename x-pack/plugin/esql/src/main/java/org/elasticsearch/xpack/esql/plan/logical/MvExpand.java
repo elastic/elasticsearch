@@ -78,6 +78,11 @@ public class MvExpand extends UnaryPlan {
     }
 
     @Override
+    public String commandName() {
+        return "MV_EXPAND";
+    }
+
+    @Override
     public boolean expressionsResolved() {
         return target.resolved();
     }

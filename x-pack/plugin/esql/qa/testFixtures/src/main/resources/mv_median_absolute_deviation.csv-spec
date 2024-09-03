@@ -17,18 +17,20 @@ fromIndex
 required_capability: fn_mv_median_absolute_deviation
 
 FROM employees
-| WHERE emp_no <= 10002
+| WHERE emp_no IN (10001, 10002, 10007, 10009)
 | SORT emp_no ASC
 | EVAL
     int = MV_MEDIAN_ABSOLUTE_DEVIATION(salary_change.int),
     long = MV_MEDIAN_ABSOLUTE_DEVIATION(salary_change.long),
     double = MV_MEDIAN_ABSOLUTE_DEVIATION(salary_change)
-| KEEP emp_no, int, long, double
+| KEEP emp_no, salary_change, int, long, double
 ;
 
-emp_no:integer | int:integer | long:long | double:double
-10001          | 0           | 0         | 0
-10002          | 9           | 9         | 9.2
+emp_no:integer | salary_change:double | int:integer | long:long | double:double
+10001          | 1.19                 | 0           | 0         | 0
+10002          | [-7.23, 11.17]       | 9           | 9         | 9.2
+10007          | [-7.06,0.57,1.99]    | 1           | 1         | 1.42
+10009          | null                 | null        | null      | null
 ;
 
 allTypes

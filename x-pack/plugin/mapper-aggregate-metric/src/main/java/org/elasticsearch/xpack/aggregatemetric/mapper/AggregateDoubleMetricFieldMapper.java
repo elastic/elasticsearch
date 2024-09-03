@@ -268,7 +268,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             metricFieldType.setMetricFields(metricFields);
             metricFieldType.setDefaultMetric(defaultMetric.getValue());
 
-            return new AggregateDoubleMetricFieldMapper(leafName(), metricFieldType, metricMappers, this);
+            return new AggregateDoubleMetricFieldMapper(leafName(), metricFieldType, metricMappers, builderParams(this, context), this);
         }
     }
 
@@ -544,9 +544,10 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         String simpleName,
         MappedFieldType mappedFieldType,
         EnumMap<Metric, NumberFieldMapper> metricFieldMappers,
+        BuilderParams builderParams,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue();
         this.metrics = builder.metrics.getValue();

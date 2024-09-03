@@ -81,9 +81,14 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                 ) },
             new Object[] {
                 new Test(
-                    "FROM idx | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host) "
-                        + "| WHERE id > 100 AND host RLIKE \".*foo\" | eval a = 10 | drop host | rename a as foo | DROP foo", // lowercase
-                                                                                                                              // on purpose
+                    """
+                        FROM idx | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
+                        | WHERE id is not null AND id > 100 AND host RLIKE \".*foo\"
+                        | eval a = 10
+                        | drop host
+                        | rename a as foo
+                        | DROP foo
+                        """, // lowercase on purpose
                     Map.ofEntries(
                         Map.entry("FROM", 1),
                         Map.entry("EVAL", 2),
@@ -113,6 +118,17 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                     "METRICS idx max(id) BY host | LIMIT 10",
                     Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1), Map.entry("FROM TS", 1)),
                     Map.ofEntries(Map.entry("MAX", 1)),
+                    true
+                ) },
+            new Object[] {
+                new Test(
+                    """
+                        FROM idx
+                        | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
+                        | INLINESTATS max(id)
+                        """,
+                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1), Map.entry("INLINESTATS", 1)),
+                    Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2)),
                     true
                 ) }
         );

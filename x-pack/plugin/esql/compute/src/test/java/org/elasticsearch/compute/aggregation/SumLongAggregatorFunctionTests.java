@@ -18,10 +18,13 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.LongStream;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
@@ -45,6 +48,41 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     public void assertSimpleOutput(List<Block> input, Block result) {
         long sum = input.stream().flatMapToLong(b -> allLongs(b)).sum();
         assertThat(((LongBlock) result).getLong(0), equalTo(sum));
+    }
+
+    public void testOverflowFails() {
+        List<Page> results = new ArrayList<>();
+        DriverContext driverContext = driverContext();
+        List<String> warnings = new ArrayList<>();
+        try (
+            Driver d = new Driver(
+                driverContext,
+                new SequenceLongBlockSourceOperator(driverContext.blockFactory(), LongStream.of(Long.MAX_VALUE - 1, 2)),
+                List.of(simple().get(driverContext)),
+                new TestResultPageSinkOperator(results::add),
+                () -> {
+                    warnings.addAll(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()));
+                }
+            )
+        ) {
+            runDriver(d);
+        }
+
+        assertDriverContext(driverContext);
+
+        assertThat(results.size(), equalTo(1));
+        assertThat(results.get(0).getBlockCount(), equalTo(1));
+        assertThat(results.get(0).getPositionCount(), equalTo(1));
+        assertThat(results.get(0).getBlock(0).isNull(0), equalTo(true));
+
+        assertThat(
+            warnings,
+            contains(
+                "299 Elasticsearch-8.16.0-unknown \"Line -1:-2: evaluation of [] failed, treating result as null. "
+                    + "Only first 20 failures recorded.\"",
+                "299 Elasticsearch-8.16.0-unknown \"Line -1:-2: java.lang.ArithmeticException: long overflow\""
+            )
+        );
     }
 
     public void testRejectsDouble() {

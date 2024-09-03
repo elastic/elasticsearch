@@ -121,7 +121,7 @@ Some key facts about indices:
 
 * An index is a collection of documents
 * An index has a unique name
-* An index can also be referred to by an alias
+* An index can also be referred to by an <aliases,alias>
 * An index has a mapping that defines the schema of its documents
 
 [discrete]
@@ -166,7 +166,7 @@ A simple {es} document might look like this:
 ==== Data and metadata
 
 An indexed document contains data and metadata.
-In {es}, metadata fields are prefixed with an underscore.
+In {es}, <<mapping-fields,metadata fields>> are prefixed with an underscore.
 
 The most important metadata fields are:
 

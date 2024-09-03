@@ -124,6 +124,11 @@ public class Dissect extends RegexExtract {
     }
 
     @Override
+    public String commandName() {
+        return "DISSECT";
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), parser);
     }

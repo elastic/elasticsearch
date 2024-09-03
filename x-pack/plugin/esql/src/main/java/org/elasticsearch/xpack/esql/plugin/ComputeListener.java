@@ -32,8 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 2. Collects driver profiles from sub tasks.
  * 3. Collects response headers from sub tasks, specifically warnings emitted during compute
  * 4. Collects failures and returns the most appropriate exception to the caller.
- *
- * MP TODO: update javadoc to include changes for CCS telemetry collection
+ * 5. Updates {@link EsqlExecutionInfo} for display in the response for cross-cluster searches
  */
 final class ComputeListener implements Releasable {
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
@@ -49,7 +48,7 @@ final class ComputeListener implements Releasable {
 
     private final EsqlExecutionInfo esqlExecutionInfo;
 
-    // for use by top level ComputeListener (spanning all clusters) (???)
+    // for use by top level ComputeListener
     ComputeListener(
         TransportService transportService,
         CancellableTask task,
@@ -66,10 +65,9 @@ final class ComputeListener implements Releasable {
             var result = new ComputeResponse(collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList());
             delegate.onResponse(result);
         }, e -> delegate.onFailure(failureCollector.getFailure())));
-        // MP TODO: ^^ do we need to instrument the above onFailure handler?
     }
 
-    // this ctor is for use on remote nodes only
+    // this constructor is for use on remote nodes only
     ComputeListener(
         TransportService transportService,
         CancellableTask task,
@@ -87,7 +85,6 @@ final class ComputeListener implements Releasable {
         this.refs = new RefCountingListener(1, ActionListener.wrap(ignored -> {
             responseHeaders.finish();
             EsqlExecutionInfo.Cluster cluster = esqlExecutionInfo.getCluster(clusterAlias);
-            System.err.printf("* * * * * * * Creating ComputeResponse in ComputeListener refs for cluster: [%s]\n", cluster);
             var result = new ComputeResponse(
                 collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList(),
                 cluster.getTook(),
@@ -98,7 +95,6 @@ final class ComputeListener implements Releasable {
             );
             delegate.onResponse(result);
         }, e -> delegate.onFailure(failureCollector.getFailure())));
-        // MP TODO: ^^ do we need to instrument the above onFailure handler?
     }
 
     /**
@@ -148,17 +144,11 @@ final class ComputeListener implements Releasable {
             if (profiles != null && profiles.isEmpty() == false) {
                 collectedProfiles.addAll(profiles);
             }
-            System.err.println("CCC acquireCCSCompute: TOTAL SHARDS n acquireCompute: " + resp.getTotalShards());
-            System.err.printf(
-                "CCC acquireCCSCompute: Cluster [%s] before swapping: %s\n",
-                clusterAlias,
-                esqlExecutionInfo.getCluster(clusterAlias)
-            );
             esqlExecutionInfo.swapCluster(
                 clusterAlias,
                 (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
                     // MP TODO: if we get here does that mean that the remote search is finished and was SUCCESSFUL?
-                    // MP TODO: if yes, where does the failure path go - how do we update the ExecutionInfo with failure info?
+                    // for now ESQL doesn't return partial results, so set status to SUCCESSFUL
                     .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
                     .setTook(resp.getTook())
                     .setTotalShards(resp.getTotalShards())
@@ -167,7 +157,6 @@ final class ComputeListener implements Releasable {
                     .setFailedShards(resp.getFailedShards())
                     .build()
             );
-            System.err.printf("CCC acquireCCSCompute:: Cluster AFTER swapping: [%s]\n", esqlExecutionInfo.getCluster(clusterAlias));
             return null;
         });
     }
@@ -185,31 +174,18 @@ final class ComputeListener implements Releasable {
             if (profiles != null && profiles.isEmpty() == false) {
                 collectedProfiles.addAll(profiles);
             }
-            System.err.println("VVV acquireCompute: TOTAL SHARDS n acquireCompute: " + resp.getTotalShards());
-            System.err.printf(
-                "VVV acquireCompute: Cluster [%s] before swapping: %s\n",
-                clusterAlias,
-                esqlExecutionInfo.getCluster(clusterAlias)
-            );
             long tookTimeMillis = System.currentTimeMillis() - configuration.getQueryStartTimeMillis();
             TimeValue tookOnDataNode = new TimeValue(tookTimeMillis);
-            System.err.println("VVV acquireCompute: tookOnDataNode: " + tookOnDataNode + "  <---------------");
-            esqlExecutionInfo.swapCluster(
-                clusterAlias,
-                // MP TODO: Not sure this is right - is this called only after the can_match? If yes, then this is not done running
-                // MP TODO: how do we get a callback that it is finished overall after the DataNodeRequestHandler part has run?
-                (k, v) -> {
-                    if (v.getTook() == null || v.getTook().millis() < tookOnDataNode.millis()) {
-                        return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
-                            .setTook(tookOnDataNode)
-                            .build();
-                    } else {
-                        // other data node had higher took time, so keep the current value
-                        return v;
-                    }
+            esqlExecutionInfo.swapCluster(clusterAlias, (k, v) -> {
+                if (v.getTook() == null || v.getTook().millis() < tookOnDataNode.millis()) {
+                    return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                        .setTook(tookOnDataNode)
+                        .build();
+                } else {
+                    // other data node had higher took time, so keep the current value
+                    return v;
                 }
-            );
-            System.err.printf("VVV acquireCompute:: Cluster AFTER swapping: [%s]\n", esqlExecutionInfo.getCluster(clusterAlias));
+            });
             return null;
         });
     }

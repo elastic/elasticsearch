@@ -218,16 +218,6 @@ public class IndexResolver {
         return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices));
     }
 
-    private boolean isCrossClusterQuery(FieldCapabilitiesResponse fieldCapsResponse) {
-        for (FieldCapabilitiesIndexResponse indexResponse : fieldCapsResponse.getIndexResponses()) {
-            System.err.println("____ indexResponse.getIndexName(): " + indexResponse.getIndexName());
-            if (parseClusterAlias(indexResponse.getIndexName()).equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private boolean allNested(List<IndexFieldCapabilities> caps) {
         for (IndexFieldCapabilities cap : caps) {
             if (false == cap.type().equalsIgnoreCase("nested")) {
@@ -346,7 +336,7 @@ public class IndexResolver {
         return req;
     }
 
-    // MP TODO - copied/modified from PainlessExecuteAction
+    // copied/modified from PainlessExecuteAction
     /**
      * @param indexExpression expects a single index expression at a time
      * @return cluster alias in the index expression. If none is present, returns RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
@@ -372,7 +362,7 @@ public class IndexResolver {
         }
     }
 
-    // MP TODO: - copied from TransportResolveClusterAction/CCSUsage - probably needs to go into ExceptionHelper?
+    // MP TODO: - copied from TransportResolveClusterAction and CCSUsage - probably needs to go into ExceptionHelper?
     private static boolean isRemoteUnavailableException(Exception e) {
         Throwable unwrap = ExceptionsHelper.unwrap(
             e,

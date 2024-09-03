@@ -40,8 +40,7 @@ import java.util.function.Predicate;
  * The Cluster object is patterned after the SearchResponse.Cluster object.
  */
 
-// MP TODO: remove ToXContentFragment
-public class EsqlExecutionInfo implements ToXContentFragment, ChunkedToXContentObject, Writeable {
+public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // for cross-cluster scenarios where cluster names are shown in API responses, use this string
     // rather than empty string (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) we use internally
     public static final String LOCAL_CLUSTER_NAME_REPRESENTATION = "(local)";
@@ -68,11 +67,10 @@ public class EsqlExecutionInfo implements ToXContentFragment, ChunkedToXContentO
     }
 
     /**
-     * TODO: DOCUMENT this param and why needed
-     * @param skipUnavailablePredicate
+     * @param skipUnavailablePredicate provide lookup for whether a given cluster has skip_unavailable set to true or false
      */
     public EsqlExecutionInfo(Predicate<String> skipUnavailablePredicate) {
-        this.clusterInfo = ConcurrentCollections.newConcurrentMap();  // MP TODO: does this need to be a ConcurrentHashMap?
+        this.clusterInfo = ConcurrentCollections.newConcurrentMap();
         this.skipUnavailablePredicate = skipUnavailablePredicate;
     }
 
@@ -103,7 +101,7 @@ public class EsqlExecutionInfo implements ToXContentFragment, ChunkedToXContentO
         return overallTook;
     }
 
-    // MP TODO: is there a better way to supply this info? Awkward to have it here
+    // MP TODO: is there a better way to supply this info? Awkward to have it here?
     /**
      * @param clusterAlias to lookup skip_unavailable from
      * @return skip_unavailable setting (true/false)
@@ -158,22 +156,7 @@ public class EsqlExecutionInfo implements ToXContentFragment, ChunkedToXContentO
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        // if (clusterInfo.size() > 0) {
-        // builder.startObject(_CLUSTERS_FIELD.getPreferredName());
-        // builder.field(TOTAL_FIELD.getPreferredName(), clusterInfo.size());
-        // builder.field(SUCCESSFUL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SUCCESSFUL));
-        // builder.field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED));
-        // builder.field(RUNNING_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.RUNNING));
-        // builder.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL));
-        // builder.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED));
-        // builder.endObject();
-        // }
-        return builder;
-    }
-
-    @Override
-    public Iterator<? extends ToXContent> toXContentChunked(Params params) {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         if (isCrossClusterSearch() == false) {
             return Iterators.concat();
         }
@@ -187,27 +170,6 @@ public class EsqlExecutionInfo implements ToXContentFragment, ChunkedToXContentO
             ChunkedToXContentHelper.xContentFragmentValuesMapCreateOwnName("details", clusterInfo),
             ChunkedToXContentHelper.endObject()
         );
-    }
-
-    // MP TODO: should I still try to use this?
-    private <T> Iterator<? extends ToXContent> optional(
-        String name,
-        Map<String, T> values,
-        BiFunction<String, Map<String, T>, Iterator<? extends ToXContent>> supplier
-    ) {
-        return (values != null && values.size() > 0) ? supplier.apply(name, values) : Collections.emptyIterator();
-    }
-
-    @Override
-    public Iterator<? extends ToXContent> toXContentChunkedV7(Params params) {
-        // MP TODO: what am I supposed to do here?
-        return ChunkedToXContentObject.super.toXContentChunkedV7(params);
-    }
-
-    @Override
-    public boolean isFragment() {
-        // MP TODO: what am I supposed to do here?
-        return ToXContentFragment.super.isFragment();
     }
 
     /**

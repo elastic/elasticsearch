@@ -165,7 +165,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             System.currentTimeMillis()
         );
         String sessionId = sessionID(task);
-        // MP TODO: should EsqlExecutionInfo be added to the Configuration object?
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias));
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase = (physicalPlan, resultListener) -> computeService.execute(
             sessionId,

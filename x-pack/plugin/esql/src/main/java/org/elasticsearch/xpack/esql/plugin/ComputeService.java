@@ -139,16 +139,6 @@ public class ComputeService {
         EsqlExecutionInfo executionInfo,
         ActionListener<Result> listener
     ) {
-        System.err.println("-------------------------------------");
-        System.err.printf(
-            "====== Configuration: [%s]; query-start-time-millis:[%s]; now:[%s]",
-            configuration.clusterName(),
-            configuration.getQueryStartTimeMillis(),
-            configuration.now().toString()
-        );
-        System.err.println("====== ComputeService execute: START: " + executionInfo);  // info here was set by field-caps call
-        System.err.println("-------------------------------------");
-
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
             configuration
@@ -213,24 +203,9 @@ public class ComputeService {
         try (
             Releasable ignored = exchangeSource.addEmptySink();
             // this is the top level ComputeListener called once at the end (e.g., once all clusters have finished for a CCS)
-            // MP TODO: does this ComputeListener really need the executionInfo passed in? Or do we already have proper reference?
-            // MP TODO: I'm going to leave off adding it until proven it is needed
             var computeListener = new ComputeListener(transportService, rootTask, executionInfo, listener.map(r -> {
-                System.err.printf(
-                    "DEBUG 12: total shards: [%d]; skipped shards: [%d]; took: [%s]\n",
-                    r.getTotalShards(),
-                    r.getSkippedShards(),
-                    r.getTook()
-                );
-                System.err.println(
-                    "DEBUG 13: CREATING RESULT .......: "
-                        + new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo)
-                );
                 long tookTimeMillis = System.currentTimeMillis() - configuration.getQueryStartTimeMillis();
                 executionInfo.setOverallTookTime(new TimeValue(tookTimeMillis));
-                System.err.println("-------------------------------------");
-                System.err.println("====== ComputeService FINAL: executionInfo: " + executionInfo);
-                System.err.println("-------------------------------------");
                 return new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo);
             }))
         ) {
@@ -305,15 +280,6 @@ public class ComputeService {
         EsqlExecutionInfo exin,
         ComputeListener computeListener
     ) {
-        // MP TODO -- start TMP
-        System.err.printf(
-            "PPPP startComputeOnDataNodes sessionId:[%s], clusterAlias:[%s],concreateIndices:[%s]; executionInfo:[%s]\n",
-            sessionId,
-            clusterAlias,
-            concreteIndices,
-            exin
-        );
-        // MP TODO -- end TMP
         var planWithReducer = configuration.pragmas().nodeLevelReduction() == false
             ? dataNodePlan
             : dataNodePlan.transformUp(FragmentExec.class, f -> {
@@ -347,7 +313,6 @@ public class ComputeService {
                                 clusterAlias,
                                 configuration
                             );
-                            System.err.println("@@@@@ DataNodeRequest being sent");
                             var dataNodeListener = ActionListener.runBefore(computeResponseListener, () -> l.onResponse(null));
                             transportService.sendChildRequest(
                                 node.connection,
@@ -571,7 +536,6 @@ public class ComputeService {
         ActionListener<List<DataNode>> listener
     ) {
         ActionListener<SearchShardsResponse> searchShardsListener = listener.map(resp -> {
-            System.err.println("### ### : Received SearchShardsResponse for cluster: " + clusterAlias);
             Map<String, DiscoveryNode> nodes = new HashMap<>();
             for (DiscoveryNode node : resp.getNodes()) {
                 nodes.put(node.getId(), node);
@@ -617,14 +581,8 @@ public class ComputeService {
                     .setFailedShards(0)
                     .build()
             );
-            System.err.printf(
-                "### ### DEBUG 100: SearchShardsRequest executionInfo summary for cluster[%s] : [%s]\n",
-                clusterAlias,
-                executionInfo
-            );
             return dataNodes;
         });
-        System.err.println("### ### : Sending SearchShardsRequest for cluster: " + clusterAlias);
         SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
             originalIndices.indices(),
             originalIndices.indicesOptions(),
@@ -876,9 +834,6 @@ public class ComputeService {
         EsqlExecutionInfo executionInfo,
         ComputeListener computeListener
     ) {
-        System.err.println(
-            "@@@ @@@ runComputeOnRemoteCluster: configuration.getQueryStartTimeMillis(): " + configuration.getQueryStartTimeMillis()
-        );
         final var exchangeSink = exchangeService.getSinkHandler(globalSessionId);
         parentTask.addListener(
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))

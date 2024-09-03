@@ -1,0 +1,5 @@
+pr: 112440
+summary: "Apm: Set log.level: error on all apm error logs"
+area: Data streams
+type: bug
+issues: []

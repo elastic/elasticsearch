@@ -620,7 +620,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testValidateDotIndex() {
         List<SystemIndexDescriptor> systemIndexDescriptors = new ArrayList<>();
         systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".test-one*", "test"));
-        //TODO Lucene 10 upgrade
+        // TODO Lucene 10 upgrade
         // The "~" operator in Rexeg Automata doesn't seem to work as expected any more without minimization
         Automaton patternAutomaton = new RegExp("\\.test-~(one.*)").toAutomaton();
         assertTrue(

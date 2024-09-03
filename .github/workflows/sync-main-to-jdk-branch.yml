@@ -1,5 +1,5 @@
 # Daily update of JDK update branch with changes from main
-name: "Merge main to es-9.0-bump branch"
+name: "Merge main to openjdk23-bundle branch"
 on:
   schedule:
     - cron: '0 5 * * *'
@@ -17,5 +17,5 @@ jobs:
         with:
           type: 'now'
           from_branch: main
-          target_branch: es-9.0-bump
+          target_branch: openjdk23-bundle
           github_token: ${{ secrets.ELASTICSEARCHMACHINE_TOKEN }}

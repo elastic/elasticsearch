@@ -116,7 +116,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 nullValue.get(),
                 meta.get()
             );
-            return new PointFieldMapper(leafName(), ft,builderParams(this, context), parser, this);
+            return new PointFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
         }
 
     }

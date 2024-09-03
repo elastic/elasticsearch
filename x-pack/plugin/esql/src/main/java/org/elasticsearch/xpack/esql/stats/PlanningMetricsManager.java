@@ -45,7 +45,7 @@ public class PlanningMetricsManager {
      * Number of times a function is used.
      * If the function is used N times in a single query, this counter will be incremented by N
      */
-    public static final String FUNCTION_METRICS_ALL = ESQL_PREFIX + FUNCTIONS_PREFIX + "total";
+    public static final String FUNCTION_METRICS_ALL = ESQL_PREFIX + FUNCTIONS_PREFIX + "usages.total";
 
     /**
      * Queries that use a command.

@@ -14,8 +14,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ParseField;
@@ -27,6 +31,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * Context used to fetch the {@code _source}.
@@ -37,13 +43,13 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
     public static final ParseField INCLUDE_VECTORS = new ParseField("include_vectors");
 
-    public static final Boolean DEFAULT_INCLUDE_VECTORS = null;
+    public static final boolean DEFAULT_INCLUDE_VECTORS = Boolean.TRUE;
     public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, DEFAULT_INCLUDE_VECTORS);
     public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(false, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, DEFAULT_INCLUDE_VECTORS);
     private final boolean fetchSource;
     private final String[] includes;
     private final String[] excludes;
-    private final Boolean includeVectors;
+    private final boolean includeVectors;
 
     public static FetchSourceContext of(boolean fetchSource) {
         return fetchSource ? FETCH_SOURCE : DO_NOT_FETCH_SOURCE;
@@ -56,7 +62,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return new FetchSourceContext(fetchSource, includes, excludes, DEFAULT_INCLUDE_VECTORS);
     }
 
-    public static FetchSourceContext of(boolean fetchSource, @Nullable String[] includes, @Nullable String[] excludes, @Nullable Boolean includeVectors) {
+    public static FetchSourceContext of(boolean fetchSource, @Nullable String[] includes, @Nullable String[] excludes, boolean includeVectors) {
         if ((includes == null || includes.length == 0) && (excludes == null || excludes.length == 0) && includeVectors == DEFAULT_INCLUDE_VECTORS) {
             return of(fetchSource);
         }
@@ -70,7 +76,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return of(fetchSource, includes, excludes);
     }
 
-    private FetchSourceContext(boolean fetchSource, @Nullable String[] includes, @Nullable String[] excludes, @Nullable Boolean includeVectors) {
+    private FetchSourceContext(boolean fetchSource, @Nullable String[] includes, @Nullable String[] excludes, boolean includeVectors) {
         this.fetchSource = fetchSource;
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
@@ -96,8 +102,12 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return this.excludes;
     }
 
-    public Boolean includeVectors() {
+    public boolean includeVectors() {
         return this.includeVectors;
+    }
+
+    public boolean filterVectors() {
+        return this.includeVectors == Boolean.FALSE;
     }
 
     public boolean hasFilter() {
@@ -105,6 +115,52 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     }
 
     public SourceFilter filter() {
+//        if (includeVectors() == null) {
+//            String[] inferenceFields = mappingLookup
+//                .get()
+//                .inferenceFields()
+//                .keySet()
+//                .stream()
+//                .map(s -> s + ".inference.chunks.embedding")
+//                .toArray(String[]::new);
+//            return new SourceFilter(this.includes, ArrayUtils.concat(this.excludes, inferenceFields));
+//        } else if (includeVectors()) {
+//            return new SourceFilter(this.includes, this.excludes);
+//        } else {
+//            String[] excludeFields = excludes();
+//            String[] inferenceFields = mappingLookup
+//                .get()
+//                .inferenceFields()
+//                .keySet()
+//                .stream()
+//                .map(s -> s + ".inference.chunks.embedding")
+//                .toArray(String[]::new);
+//
+//            excludeFields = ArrayUtils.concat(excludeFields, inferenceFields);
+//
+//            String[] denseVectors = mappingLookup
+//                .get()
+//                .getFullNameToFieldType()
+//                .entrySet()
+//                .stream()
+//                .filter(entry -> entry.getValue() instanceof DenseVectorFieldMapper.DenseVectorFieldType)
+//                .map(Map.Entry::getKey)
+//                .toArray(String[]::new);
+//            excludeFields = ArrayUtils.concat(excludeFields, denseVectors);
+//
+//            String[] sparseVectors = mappingLookup
+//                .get()
+//                .getFullNameToFieldType()
+//                .entrySet()
+//                .stream()
+//                .filter(entry -> entry.getValue() instanceof SparseVectorFieldMapper.SparseVectorFieldType)
+//                .map(Map.Entry::getKey)
+//                .toArray(String[]::new);
+//            excludeFields = ArrayUtils.concat(excludeFields, sparseVectors);
+//
+//            return new SourceFilter(this.includes, excludeFields);
+//        }
+
         return new SourceFilter(includes, excludes);
     }
 
@@ -149,7 +205,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         boolean fetchSource = true;
         String[] includes = Strings.EMPTY_ARRAY;
         String[] excludes = Strings.EMPTY_ARRAY;
-        Boolean includeVectors = null;
+        boolean includeVectors = Boolean.TRUE;
         if (token == XContentParser.Token.VALUE_BOOLEAN) {
             fetchSource = parser.booleanValue();
         } else if (token == XContentParser.Token.VALUE_STRING) {

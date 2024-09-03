@@ -950,7 +950,7 @@ public class Stateless extends Plugin
                     // how we respond to get requests that are not in the live version map (what generation we send back
                     // for the search shard to wait for), it could be safe to trigger the pruning earlier, e.g., once the
                     // commit upload is successful.
-                    statelessCommitService.registerNewCommitSuccessListener(indexShard.shardId(), (gen) -> {
+                    statelessCommitService.registerCommitNotificationSuccessListener(indexShard.shardId(), (gen) -> {
                         var engine = (IndexEngine) indexShard.getEngineOrNull();
                         if (engine != null) {
                             engine.commitSuccess(gen);
@@ -961,7 +961,7 @@ public class Stateless extends Plugin
                 @Override
                 public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
                     if (indexShard != null) {
-                        statelessCommitService.unregisterNewCommitSuccessListener(shardId);
+                        statelessCommitService.unregisterCommitNotificationSuccessListener(shardId);
                         statelessCommitService.closeShard(shardId);
                     }
                 }

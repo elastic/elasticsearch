@@ -90,8 +90,6 @@ public class StatelessCommitNotificationPublisher {
             localNodeId
         );
 
-        assert request.isUploaded() == false;
-
         client.execute(
             TransportNewCommitNotificationAction.TYPE,
             request,

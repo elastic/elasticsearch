@@ -1,0 +1,16 @@
+{
+  "properties": {
+    "id": {
+      "type": "long"
+    },
+    "intersects": {
+      "type": "boolean"
+    },
+    "contains": {
+      "type": "boolean"
+    },
+    "shape": {
+      "type": "geo_shape"
+    }
+  }
+}

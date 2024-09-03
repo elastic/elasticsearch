@@ -16,7 +16,6 @@ This guide covers:
 * <<elasticsearch-intro-what-is-es>> Learn about {es} and some of its main use cases.
 * <<elasticsearch-intro-deploy>>. Understand your options for deploying {es} in different environments.
 * <<documents-indices>>. Understand {es}'s most important primitives and how it stores data.
-* <<run-elasticsearch-locally, Local dev setup>>. Learn how to spin up a local dev environment.
 * <<es-ingestion-overview>>. Understand your options for ingesting data into {es}.
 * <<search-analyze>>. Understand your options for searching and analyzing data in {es}.
 * <<scalability>>. Learn the essentials about moving your {es} deployment to production.
@@ -201,11 +200,11 @@ There are multiple ways to ingest data into {es}.
 
 Here are a few options for getting started:
 
-* <<docs,*API*>>. Use the {es} REST Document APIs to index documents directly, using the Dev Tools Console in {kib} or a programming language client. Once you get past the very basics, you'll want to use the <<docs-bulk,Bulk API>> for efficiency.
+* <<docs,*API*>>. Use the {es} Document APIs to index documents directly, using the Dev Tools Console in {kib} or a programming language client. Once you get past the very basics, you'll want to use the <<docs-bulk,Bulk API>> for efficiency.
 * {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[*File upload*]. Use the {kib} File Uploader to upload and index CSV, JSON, and log files.
 * {kibana-ref}/connect-to-elasticsearch.html#_add_sample_data[*Sample data*]. Load sample data sets into your {es} cluster using {kib}.
 * {enterprise-search-ref}/crawler.html[*Web Crawler*]. Extract and index web page content into {es} documents.
-* {enterprise-search-ref}/crawler.html[Elastic Web Crawler][*Connectors*]. Sync data from various third-party data sources to create searchable, read-only replicas in {es}.
+* {enterprise-search-ref}/connectors.html[*Connectors*]. Sync data from various third-party data sources to create searchable, read-only replicas in {es}.
 
 [TIP]
 ====

@@ -149,6 +149,8 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             Settings.builder()
                 .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
                 .put(IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE.getKey(), TimeValue.timeValueSeconds(1))
+                // Use a higher alpha than the default so that the observed ingestion load converges faster towards the expected value.
+                .put(ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING.getKey(), 0.1)
                 .build()
         );
 
@@ -175,7 +177,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         ensureGreen(indexName);
 
         // some write so that the WRITE EWMA is not zero
-        IntStream.range(0, between(10, 20)).forEach(i -> indexDocs(indexName, randomIntBetween(1000, 2000)));
+        indexDocs(indexName, randomIntBetween(5000, 6000));
         assertBusy(() -> {
             var metricsAfter = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class)
                 .getIndexTierMetrics(ClusterState.EMPTY_STATE);
@@ -197,7 +199,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
                 }
             });
         }
-        var writeRequests = randomIntBetween(200, 300);
+        var writeRequests = randomIntBetween(100, 200);
         for (int i = 0; i < writeRequests; i++) {
             client().prepareBulk().add(new IndexRequest(indexName).source("field", i)).execute();
         }

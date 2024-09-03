@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
@@ -19,7 +20,10 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -767,7 +771,13 @@ public class Strings {
      * @param xContentBuilder builder containing an object to converted to a string
      */
     public static String toString(XContentBuilder xContentBuilder) {
-        return BytesReference.bytes(xContentBuilder).utf8ToString();
+        xContentBuilder.close();
+        OutputStream stream = xContentBuilder.getOutputStream();
+        if (stream instanceof ByteArrayOutputStream baos) {
+            return baos.toString(StandardCharsets.UTF_8);
+        } else {
+            return ((BytesStream) stream).bytes().utf8ToString();
+        }
     }
 
     /**

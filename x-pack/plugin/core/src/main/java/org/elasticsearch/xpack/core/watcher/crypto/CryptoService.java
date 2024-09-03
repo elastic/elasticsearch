@@ -25,6 +25,7 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.function.Function;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -57,7 +58,7 @@ public class CryptoService {
     private static final Setting<String> ENCRYPTION_ALGO_SETTING = new Setting<>(
         SecurityField.setting("encryption.algorithm"),
         s -> DEFAULT_ENCRYPTION_ALGORITHM,
-        s -> s,
+        Function.identity(),
         Property.NodeScope
     );
     private static final Setting<Integer> ENCRYPTION_KEY_LENGTH_SETTING = Setting.intSetting(
@@ -68,7 +69,7 @@ public class CryptoService {
     private static final Setting<String> ENCRYPTION_KEY_ALGO_SETTING = new Setting<>(
         SecurityField.setting("encryption_key.algorithm"),
         DEFAULT_KEY_ALGORITH,
-        s -> s,
+        Function.identity(),
         Property.NodeScope
     );
     private static final Logger logger = LogManager.getLogger(CryptoService.class);

@@ -456,7 +456,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
     public static final Setting.AffixSetting<List<String>> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING = Setting.prefixKeySetting(
         "index.routing.allocation.initial_recovery.",
-        key -> Setting.stringListSetting(key)
+        Setting::stringListSetting
     );
 
     /**

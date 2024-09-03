@@ -288,7 +288,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             false,
             List.of(metadataMap.values().toArray(Attribute[]::new)),
             IndexMode.STANDARD,
-            null
+            null,
+            "FROM"
         );
     }
 
@@ -497,7 +498,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
 
         if (ctx.aggregates == null && ctx.grouping == null) {
-            return new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null);
+            return new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null, "METRICS");
         }
         final Stats stats = stats(source, ctx.grouping, ctx.aggregates);
         var relation = new UnresolvedRelation(
@@ -506,7 +507,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             false,
             List.of(new MetadataAttribute(source, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false)),
             IndexMode.TIME_SERIES,
-            null
+            null,
+            "FROM TS"
         );
         return new Aggregate(source, relation, Aggregate.AggregateType.METRICS, stats.groupings, stats.aggregates);
     }

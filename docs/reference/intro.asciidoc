@@ -256,35 +256,35 @@ The following languages can be used to query {es}:
 
 [cols="1,2,2,1", options="header"]
 |===
-| Name | Description | Use cases | Development status
+| Name | Description | Use cases | API endpoint
 
 | <<query-dsl,Query DSL>>
 | Primary query language for {es}. Powerful and flexible JSON-style language that enables complex queries.
 | Supports full-text search, semantic search, keyword search, filtering, aggregations, and more.
+| <<search-search,`_search`>>
 
-| Active development
 
 | <<esql,{esql}>>
 | Introduced in *8.11*, the Elasticsearch Query Language ({esql}) is a piped query language language for filtering, transforming, and analyzing data.
 | Initially tailored towards working with time series data like logs and metrics. 
 Robust integration with {kib} for querying, visualizing, and analyzing data.
 Does not yet support full-text search.
-| Active development
+| <<esql-rest,`_query`>>
 
-| https://www.elastic.co/guide/en/elasticsearch/client/index.html[Programming language clients]
-| Libraries and APIs for interacting with Elasticsearch using your programming language of choice. Includes Java, Python, JavaScript, Rust, and more.
+| https://www.elastic.co/guide/en/elasticsearch/client/index.html[Programming languages]
+| Client libraries and APIs for interacting with Elasticsearch using your programming language of choice. Includes Java, Python, JavaScript, Rust, and more.
 | For application development. Enables data indexing, searching, updating, and aggregation directly from your application code.
-| Active development
+| N/A
 
 | <<eql,EQL>>
 | Event Query Language (EQL) is a query language for event-based time series data. Data must contain an `@timestamp` field to use EQL.
 | Designed for the threat hunting security use case.
-| Supported
+| <<eql-apis,`_eql`>>
 
 | <<xpack-sql,Elasticsearch SQL>>
 | Allows native, real-time SQL-like querying against {es} data. JDBC and ODBC drivers are available for integration with business intelligence (BI) tools.
 | Enables users familiar with SQL to query {es} data using familiar syntax for BI and reporting.
-| Supported
+| <<sql-apis,`_sql`>>
 
 |===
 

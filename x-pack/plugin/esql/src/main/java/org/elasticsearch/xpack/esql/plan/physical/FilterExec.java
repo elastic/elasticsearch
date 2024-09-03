@@ -7,9 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -42,11 +40,6 @@ public class FilterExec extends UnaryExec {
     @Override
     public List<Attribute> output() {
         return child().output();
-    }
-
-    @Override
-    protected AttributeSet computeReferences() {
-        return Expressions.references(expressions());
     }
 
     @Override

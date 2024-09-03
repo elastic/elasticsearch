@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -86,11 +85,6 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
     @Override
     public String getWriteableName() {
         return ENTRY.name;
-    }
-
-    @Override
-    protected AttributeSet computeReferences() {
-        return Expressions.references(expressions());
     }
 
     @Override

@@ -11,9 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -77,11 +75,6 @@ public class TopN extends UnaryPlan {
     @Override
     public TopN replaceChild(LogicalPlan newChild) {
         return new TopN(source(), newChild, order, limit);
-    }
-
-    @Override
-    protected AttributeSet computeReferences() {
-        return Expressions.references(expressions());
     }
 
     public Expression limit() {

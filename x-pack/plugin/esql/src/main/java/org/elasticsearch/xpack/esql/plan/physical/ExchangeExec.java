@@ -11,8 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -69,11 +67,6 @@ public class ExchangeExec extends UnaryExec {
     @Override
     public List<Attribute> output() {
         return output.isEmpty() ? super.output() : output;
-    }
-
-    @Override
-    protected AttributeSet computeReferences() {
-        return Expressions.references(expressions());
     }
 
     public boolean inBetweenAggs() {

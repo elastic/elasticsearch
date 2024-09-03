@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -79,7 +80,12 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         return lazyReferences;
     }
 
-    protected abstract AttributeSet computeReferences();
+    /**
+     * This very likely needs to be overridden for {@link QueryPlan#references} to be correct when inheriting.
+     */
+    protected AttributeSet computeReferences() {
+        return Expressions.references(expressions());
+    }
 
     //
     // pass Object.class as a type token to pick Collections of expressions not just expressions

@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -32,11 +30,6 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         this.order = order;
         this.limit = limit;
         this.estimatedRowSize = estimatedRowSize;
-    }
-
-    @Override
-    protected AttributeSet computeReferences() {
-        return Expressions.references(expressions());
     }
 
     @Override

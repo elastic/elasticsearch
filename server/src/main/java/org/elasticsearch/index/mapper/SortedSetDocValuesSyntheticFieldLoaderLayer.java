@@ -19,13 +19,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
-import java.util.stream.Stream;
 
 /**
  * Load {@code _source} fields from {@link SortedSetDocValues}.
  */
-public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.Layer {
+public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
     private static final Logger logger = LogManager.getLogger(SortedSetDocValuesSyntheticFieldLoaderLayer.class);
 
     private final String name;
@@ -42,11 +40,6 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
     @Override
     public String fieldName() {
         return name;
-    }
-
-    @Override
-    public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        return Stream.of();
     }
 
     @Override

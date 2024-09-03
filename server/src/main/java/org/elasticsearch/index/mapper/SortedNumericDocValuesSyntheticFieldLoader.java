@@ -107,6 +107,11 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
         }
     }
 
+    @Override
+    public void reset() {
+        ignoreMalformedValues.reset();
+    }
+
     private interface Values {
         int count();
 

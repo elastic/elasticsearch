@@ -303,7 +303,7 @@ mv_first      |Converts a multivalued expression into a single valued column con
 mv_last       |Converts a multivalue expression into a single valued column containing the last value. This is most useful when reading from a function that emits multivalued columns in a known order like <<esql-split>>.  The order that <<esql-multivalued-fields, multivalued fields>> are read from underlying storage is not guaranteed. It is *frequently* ascending, but don't rely on that. If you need the maximum value use <<esql-mv_max>> instead of `MV_LAST`. `MV_MAX` has optimizations for sorted values so there isn't a performance benefit to `MV_LAST`.
 mv_max        |Converts a multivalued expression into a single valued column containing the maximum value.
 mv_median     |Converts a multivalued field into a single valued field containing the median value.
-mv_median_abso|Converts a multivalued field into a single valued field containing the median absolute deviation.
+mv_median_abso|"Converts a multivalued field into a single valued field containing the median absolute deviation.  It is calculated as the median of each data point's deviation from the median of the entire sample. That is, for a random variable `X`, the median absolute deviation is `median(|median(X) - X|)`."
 mv_min        |Converts a multivalued expression into a single valued column containing the minimum value.
 mv_percentile |Converts a multivalued field into a single valued field containing the value at which a certain percentage of observed values occur.
 mv_pseries_wei|Converts a multivalued expression into a single-valued column by multiplying every element on the input list by its corresponding term in P-Series and computing the sum.

@@ -53,13 +53,13 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
             ====""",
         isAggregation = true,
         examples = {
-            @Example(file = "stats_percentile", tag = "median-absolute-deviation"),
+            @Example(file = "median_absolute_deviation", tag = "median-absolute-deviation"),
             @Example(
                 description = "The expression can use inline functions. For example, to calculate the the "
                     + "median absolute deviation of the maximum values of a multivalued column, first "
                     + "use `MV_MAX` to get the maximum value per row, and use the result with the "
                     + "`MEDIAN_ABSOLUTE_DEVIATION` function",
-                file = "stats_percentile",
+                file = "median_absolute_deviation",
                 tag = "docsStatsMADNestedExpression"
             ), }
     )

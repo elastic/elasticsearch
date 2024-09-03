@@ -225,13 +225,4 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
     protected boolean ignoreLons(double[] lons) {
         return Arrays.stream(lons).anyMatch(v -> v == 180);
     }
-
-    public void testIndexPointsFromLine() throws Exception {
-        super.testIndexPointsFromLine();
-    }
-
-    @Override
-    public void testIndexPointsFromPolygon() throws Exception {
-        super.testIndexPointsFromPolygon();
-    }
 }

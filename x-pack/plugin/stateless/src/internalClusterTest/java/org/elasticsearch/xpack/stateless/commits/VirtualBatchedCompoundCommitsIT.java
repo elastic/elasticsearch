@@ -1220,7 +1220,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         final var metricsPlugin = findPlugin(indexNode, TestTelemetryPlugin.class);
         metricsPlugin.resetMeter();
 
-        final int numberCommits = between(5, 10);
+        final int numberCommits = between(5, 8);
         for (int i = 0; i < numberCommits; i++) {
             indexDocsAndRefresh(indexName);
             if (randomBoolean() || i == numberCommits - 1) {

@@ -11,7 +11,7 @@ import java.util.Map;
  */
 public class ExampleRepeatProcessor extends AbstractProcessor {
     public static final String TYPE = "repeat";
-    public static final String FILED_TO_REPEAT = "to_repeat";
+    public static final String FIELD_TO_REPEAT = "to_repeat";
 
     ExampleRepeatProcessor(String tag, String description) {
         super(tag, description);
@@ -19,11 +19,11 @@ public class ExampleRepeatProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) {
-        Object val = document.getFieldValue(FILED_TO_REPEAT, Object.class, true);
+        Object val = document.getFieldValue(FIELD_TO_REPEAT, Object.class, true);
 
         if (val instanceof String string) {
             String repeated = string.concat(string);
-            document.setFieldValue(FILED_TO_REPEAT, repeated);
+            document.setFieldValue(FIELD_TO_REPEAT, repeated);
         }
         return document;
     }

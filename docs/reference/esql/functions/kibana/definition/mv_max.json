@@ -20,13 +20,13 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Multivalue expression."
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [

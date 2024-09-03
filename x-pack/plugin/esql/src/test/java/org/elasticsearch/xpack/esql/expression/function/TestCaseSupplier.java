@@ -1289,7 +1289,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         throw new UnsupportedOperationException();
     }
 
-    private static String castToDoubleEvaluator(String original, DataType current) {
+    public static String castToDoubleEvaluator(String original, DataType current) {
         if (current == DataType.DOUBLE) {
             return original;
         }

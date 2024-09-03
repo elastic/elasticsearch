@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
@@ -31,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -56,11 +54,11 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
+import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -86,6 +84,7 @@ public class EsqlSession {
 
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
+    private final PlanningMetrics planningMetrics;
 
     public EsqlSession(
         String sessionId,
@@ -96,7 +95,8 @@ public class EsqlSession {
         EsqlFunctionRegistry functionRegistry,
         LogicalPlanOptimizer logicalPlanOptimizer,
         Mapper mapper,
-        Verifier verifier
+        Verifier verifier,
+        PlanningMetrics planningMetrics
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -108,6 +108,7 @@ public class EsqlSession {
         this.mapper = mapper;
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
+        this.planningMetrics = planningMetrics;
     }
 
     public String sessionId() {
@@ -125,7 +126,9 @@ public class EsqlSession {
         LOGGER.debug("ESQL query:\n{}", request.query());
         analyzedPlan(
             parse(request.query(), request.params()),
-            listener.delegateFailureAndWrap((next, analyzedPlan) -> executeAnalyzedPlan(request, runPhase, analyzedPlan, next))
+            listener.delegateFailureAndWrap(
+                (next, analyzedPlan) -> executeOptimizedPlan(request, runPhase, optimizedPlan(analyzedPlan), next)
+            )
         );
     }
 
@@ -133,17 +136,17 @@ public class EsqlSession {
      * Execute an analyzed plan. Most code should prefer calling {@link #execute} but
      * this is public for testing. See {@link Phased} for the sequence of operations.
      */
-    public void executeAnalyzedPlan(
+    public void executeOptimizedPlan(
         EsqlQueryRequest request,
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
-        LogicalPlan analyzedPlan,
+        LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
-        LogicalPlan firstPhase = Phased.extractFirstPhase(analyzedPlan);
+        LogicalPlan firstPhase = Phased.extractFirstPhase(optimizedPlan);
         if (firstPhase == null) {
-            runPhase.accept(logicalPlanToPhysicalPlan(analyzedPlan, request), listener);
+            runPhase.accept(logicalPlanToPhysicalPlan(optimizedPlan, request), listener);
         } else {
-            executePhased(new ArrayList<>(), analyzedPlan, request, firstPhase, runPhase, listener);
+            executePhased(new ArrayList<>(), optimizedPlan, request, firstPhase, runPhase, listener);
         }
     }
 
@@ -155,11 +158,11 @@ public class EsqlSession {
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
         ActionListener<Result> listener
     ) {
-        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(firstPhase, request);
+        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan(firstPhase), request);
         runPhase.accept(physicalPlan, listener.delegateFailureAndWrap((next, result) -> {
             try {
                 profileAccumulator.addAll(result.profiles());
-                LogicalPlan newMainPlan = Phased.applyResultsFromFirstPhase(mainPlan, physicalPlan.output(), result.pages());
+                LogicalPlan newMainPlan = optimizedPlan(Phased.applyResultsFromFirstPhase(mainPlan, physicalPlan.output(), result.pages()));
                 LogicalPlan newFirstPhase = Phased.extractFirstPhase(newMainPlan);
                 if (newFirstPhase == null) {
                     PhysicalPlan finalPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request);
@@ -189,6 +192,7 @@ public class EsqlSession {
         }
 
         preAnalyze(parsed, (indices, policies) -> {
+            planningMetrics.gatherPreAnalysisMetrics(parsed);
             Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
             var plan = analyzer.analyze(parsed);
             plan.setAnalyzed();
@@ -235,7 +239,7 @@ public class EsqlSession {
         }));
     }
 
-    private <T> void preAnalyzeIndices(LogicalPlan parsed, ActionListener<IndexResolution> listener, Set<String> enrichPolicyMatchFields) {
+    private void preAnalyzeIndices(LogicalPlan parsed, ActionListener<IndexResolution> listener, Set<String> enrichPolicyMatchFields) {
         PreAnalyzer.PreAnalysis preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         if (preAnalysis.indices.size() > 1) {
@@ -352,8 +356,8 @@ public class EsqlSession {
         return names.stream().filter(name -> name.endsWith(WILDCARD) == false).map(name -> name + ".*").collect(Collectors.toSet());
     }
 
-    private PhysicalPlan logicalPlanToPhysicalPlan(LogicalPlan logicalPlan, EsqlQueryRequest request) {
-        PhysicalPlan physicalPlan = optimizedPhysicalPlan(logicalPlan);
+    private PhysicalPlan logicalPlanToPhysicalPlan(LogicalPlan optimizedPlan, EsqlQueryRequest request) {
+        PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan);
         physicalPlan = physicalPlan.transformUp(FragmentExec.class, f -> {
             QueryBuilder filter = request.filter();
             if (filter != null) {
@@ -371,53 +375,26 @@ public class EsqlSession {
     }
 
     public LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
-        assert logicalPlan.analyzed();
+        if (logicalPlan.analyzed() == false) {
+            throw new IllegalStateException("Expected analyzed plan");
+        }
         var plan = logicalPlanOptimizer.optimize(logicalPlan);
         LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
         return plan;
     }
 
-    public PhysicalPlan physicalPlan(LogicalPlan logicalPlan) {
-        var plan = mapper.map(optimizedPlan(logicalPlan));
+    public PhysicalPlan physicalPlan(LogicalPlan optimizedPlan) {
+        if (optimizedPlan.optimized() == false) {
+            throw new IllegalStateException("Expected optimized plan");
+        }
+        var plan = mapper.map(optimizedPlan);
         LOGGER.debug("Physical plan:\n{}", plan);
         return plan;
     }
 
-    public PhysicalPlan optimizedPhysicalPlan(LogicalPlan logicalPlan) {
-        var plan = physicalPlanOptimizer.optimize(physicalPlan(logicalPlan));
+    public PhysicalPlan optimizedPhysicalPlan(LogicalPlan optimizedPlan) {
+        var plan = physicalPlanOptimizer.optimize(physicalPlan(optimizedPlan));
         LOGGER.debug("Optimized physical plan:\n{}", plan);
         return plan;
     }
-
-    public static InvalidMappedField specificValidity(String fieldName, Map<String, FieldCapabilities> types) {
-        boolean hasUnmapped = types.containsKey(IndexResolver.UNMAPPED);
-        boolean hasTypeConflicts = types.size() > (hasUnmapped ? 2 : 1);
-        String metricConflictsTypeName = null;
-        boolean hasMetricConflicts = false;
-
-        if (hasTypeConflicts == false) {
-            for (Map.Entry<String, FieldCapabilities> type : types.entrySet()) {
-                if (IndexResolver.UNMAPPED.equals(type.getKey())) {
-                    continue;
-                }
-                if (type.getValue().metricConflictsIndices() != null && type.getValue().metricConflictsIndices().length > 0) {
-                    hasMetricConflicts = true;
-                    metricConflictsTypeName = type.getKey();
-                    break;
-                }
-            }
-        }
-
-        InvalidMappedField result = null;
-        if (hasMetricConflicts) {
-            StringBuilder errorMessage = new StringBuilder();
-            errorMessage.append(
-                "mapped as different metric types in indices: ["
-                    + String.join(", ", types.get(metricConflictsTypeName).metricConflictsIndices())
-                    + "]"
-            );
-            result = new InvalidMappedField(fieldName, errorMessage.toString());
-        }
-        return result;
-    };
 }

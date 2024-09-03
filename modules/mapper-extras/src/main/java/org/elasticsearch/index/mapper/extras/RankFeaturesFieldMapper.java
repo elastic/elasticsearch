@@ -66,8 +66,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
             return new RankFeaturesFieldMapper(
                 leafName(),
                 new RankFeaturesFieldType(context.buildFullName(leafName()), meta.getValue(), positiveScoreImpact.getValue()),
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 positiveScoreImpact.getValue()
             );
         }
@@ -122,11 +121,10 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     private RankFeaturesFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         boolean positiveScoreImpact
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, builderParams);
         this.positiveScoreImpact = positiveScoreImpact;
     }
 

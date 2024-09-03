@@ -91,7 +91,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         @Override
         public PlaceHolderFieldMapper build(MapperBuilderContext context) {
             PlaceHolderFieldType mappedFieldType = new PlaceHolderFieldType(context.buildFullName(leafName()), type, Map.of());
-            return new PlaceHolderFieldMapper(leafName(), mappedFieldType, multiFieldsBuilder.build(this, context), copyTo, unknownParams);
+            return new PlaceHolderFieldMapper(leafName(), mappedFieldType, builderParams(this, context), unknownParams);
         }
     }
 
@@ -262,11 +262,10 @@ public class PlaceHolderFieldMapper extends FieldMapper {
     public PlaceHolderFieldMapper(
         String simpleName,
         PlaceHolderFieldType fieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         Map<String, Object> unknownParams
     ) {
-        super(simpleName, fieldType, multiFields, copyTo);
+        super(simpleName, fieldType, builderParams);
         this.unknownParams.putAll(unknownParams);
     }
 

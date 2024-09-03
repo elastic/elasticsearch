@@ -69,7 +69,7 @@ public class NonDynamicFieldMapperTests extends NonDynamicFieldMapperTestCase {
         }
 
         private NonDynamicFieldMapper(String simpleName, MappedFieldType mappedFieldType) {
-            super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+            super(simpleName, mappedFieldType, BuilderParams.empty());
         }
 
         @Override

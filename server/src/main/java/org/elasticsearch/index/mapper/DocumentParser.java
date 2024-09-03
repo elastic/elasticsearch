@@ -920,8 +920,7 @@ public final class DocumentParser {
                 throw new UnsupportedOperationException();
             }
         },
-        FieldMapper.MultiFields.empty(),
-        FieldMapper.CopyTo.empty()
+        FieldMapper.BuilderParams.empty()
     ) {
 
         @Override

@@ -88,7 +88,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     protected ParentIdFieldMapper(String name, boolean eagerGlobalOrdinals) {
-        super(name, new ParentIdFieldType(name, eagerGlobalOrdinals), MultiFields.empty(), CopyTo.empty(), false, null);
+        super(name, new ParentIdFieldType(name, eagerGlobalOrdinals), BuilderParams.empty());
     }
 
     @Override

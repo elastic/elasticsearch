@@ -76,30 +76,14 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
     protected AbstractShapeGeometryFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
+        BuilderParams builderParams,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> coerce,
         Explicit<Boolean> ignoreZValue,
         Explicit<Orientation> orientation,
-        MultiFields multiFields,
-        CopyTo copyTo,
         Parser<T> parser
     ) {
-        super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
-        this.coerce = coerce;
-        this.orientation = orientation;
-    }
-
-    protected AbstractShapeGeometryFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        Explicit<Boolean> coerce,
-        Explicit<Orientation> orientation,
-        CopyTo copyTo,
-        Parser<T> parser,
-        OnScriptError onScriptError
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, parser, onScriptError);
+        super(simpleName, mappedFieldType, builderParams, ignoreMalformed, ignoreZValue, parser);
         this.coerce = coerce;
         this.orientation = orientation;
     }

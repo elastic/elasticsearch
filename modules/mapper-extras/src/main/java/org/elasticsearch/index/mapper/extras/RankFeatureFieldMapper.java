@@ -98,8 +98,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
                     positiveScoreImpact.getValue(),
                     nullValue.getValue()
                 ),
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 positiveScoreImpact.getValue(),
                 nullValue.getValue()
             );
@@ -172,12 +171,11 @@ public class RankFeatureFieldMapper extends FieldMapper {
     private RankFeatureFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         boolean positiveScoreImpact,
         Float nullValue
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, builderParams);
         this.positiveScoreImpact = positiveScoreImpact;
         this.nullValue = nullValue;
     }

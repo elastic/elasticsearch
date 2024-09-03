@@ -48,7 +48,7 @@ public class CompositeRuntimeField implements RuntimeField {
         });
 
         private final FieldMapper.Parameter<OnScriptError> onScriptError = FieldMapper.Parameter.onScriptErrorParam(
-            m -> m.onScriptError,
+            m -> m.builderParams.onScriptError(),
             script
         );
 

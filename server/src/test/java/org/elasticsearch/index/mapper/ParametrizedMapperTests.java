@@ -176,7 +176,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         @Override
         public FieldMapper build(MapperBuilderContext context) {
-            return new TestMapper(leafName(), context.buildFullName(leafName()), multiFieldsBuilder.build(this, context), copyTo, this);
+            return new TestMapper(leafName(), context.buildFullName(leafName()), builderParams(this, context), this);
         }
     }
 
@@ -205,14 +205,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         private final DummyEnumType enumField;
         private final DummyEnumType restrictedEnumField;
 
-        protected TestMapper(
-            String simpleName,
-            String fullName,
-            MultiFields multiFields,
-            CopyTo copyTo,
-            ParametrizedMapperTests.Builder builder
-        ) {
-            super(simpleName, new KeywordFieldMapper.KeywordFieldType(fullName), multiFields, copyTo);
+        protected TestMapper(String simpleName, String fullName, BuilderParams builderParams, ParametrizedMapperTests.Builder builder) {
+            super(simpleName, new KeywordFieldMapper.KeywordFieldType(fullName), builderParams);
             this.fixed = builder.fixed.getValue();
             this.fixed2 = builder.fixed2.getValue();
             this.variable = builder.variable.getValue();

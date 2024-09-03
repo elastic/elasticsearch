@@ -247,7 +247,10 @@ public final class DateFieldMapper extends FieldMapper {
         private final Parameter<Boolean> ignoreMalformed;
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(
+            m -> toType(m).builderParams.onScriptError(),
+            script
+        );
 
         private final Resolution resolution;
         private final IndexVersion indexCreatedVersion;
@@ -316,7 +319,17 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { index, docValues, store, format, locale, nullValue, ignoreMalformed, script, onScriptError, meta };
+            return new Parameter<?>[] {
+                index,
+                docValues,
+                store,
+                format,
+                locale,
+                nullValue,
+                ignoreMalformed,
+                script,
+                onScriptErrorParam,
+                meta };
         }
 
         private Long parseNullValue(DateFieldType fieldType) {
@@ -364,12 +377,12 @@ public final class DateFieldMapper extends FieldMapper {
                 && ignoreMalformed.isConfigured() == false) {
                 ignoreMalformed.setValue(false);
             }
-
+            hasScript = script.get() != null;
+            onScriptError = onScriptErrorParam.get();
             return new DateFieldMapper(
                 leafName(),
                 ft,
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 nullTimestamp,
                 resolution,
                 context.isSourceSynthetic(),
@@ -874,14 +887,13 @@ public final class DateFieldMapper extends FieldMapper {
     private DateFieldMapper(
         String leafName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         Long nullValue,
         Resolution resolution,
         boolean isSourceSynthetic,
         Builder builder
     ) {
-        super(leafName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.get());
+        super(leafName, mappedFieldType, builderParams);
         this.store = builder.store.getValue();
         this.indexed = builder.index.getValue();
         this.hasDocValues = builder.docValues.getValue();
@@ -998,7 +1010,7 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasScript) {
+        if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
         if (hasDocValues == false) {
@@ -1010,7 +1022,7 @@ public final class DateFieldMapper extends FieldMapper {
                     + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
-        if (copyTo.copyToFields().isEmpty() != true) {
+        if (copyTo().copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
                 "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );

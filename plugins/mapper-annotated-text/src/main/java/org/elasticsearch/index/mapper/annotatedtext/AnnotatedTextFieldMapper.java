@@ -150,7 +150,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         @Override
         public AnnotatedTextFieldMapper build(MapperBuilderContext context) {
-            MultiFields multiFields = multiFieldsBuilder.build(this, context);
             FieldType fieldType = TextParams.buildFieldType(() -> true, store, indexOptions, norms, termVectors);
             if (fieldType.indexOptions() == IndexOptions.NONE) {
                 throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields must be indexed");
@@ -162,12 +161,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                     );
                 }
             }
+            BuilderParams builderParams = builderParams(this, context);
             return new AnnotatedTextFieldMapper(
                 leafName(),
                 fieldType,
-                buildFieldType(fieldType, context, multiFields),
-                multiFields,
-                copyTo,
+                buildFieldType(fieldType, context, builderParams.multiFields()),
+                builderParams,
                 this
             );
         }
@@ -523,11 +522,10 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         String simpleName,
         FieldType fieldType,
         AnnotatedTextFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, builderParams);
         assert fieldType.tokenized();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.builder = builder;
@@ -578,7 +576,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (copyTo.copyToFields().isEmpty() != true) {
+        if (copyTo().copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
                 "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );

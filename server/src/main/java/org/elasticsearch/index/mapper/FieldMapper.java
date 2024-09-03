@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -75,46 +76,42 @@ public abstract class FieldMapper extends Mapper {
     @SuppressWarnings("rawtypes")
     static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];
 
-    protected final MappedFieldType mappedFieldType;
-    protected final MultiFields multiFields;
-    protected final CopyTo copyTo;
-    protected final boolean hasScript;
-    protected final OnScriptError onScriptError;
-
     /**
-     * @param simpleName        the leaf name of the mapper
-     * @param mappedFieldType   the MappedFieldType associated with this mapper
      * @param multiFields       sub fields of this mapper
      * @param copyTo            copyTo fields of this mapper
-     */
-    protected FieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
-        this(simpleName, mappedFieldType, multiFields, copyTo, false, null);
-    }
-
-    /**
-     * @param simpleName        the leaf name of the mapper
-     * @param mappedFieldType   the MappedFieldType associated with this mapper
-     * @param multiFields       sub fields of this mapper
-     * @param copyTo            copyTo fields of this mapper
+     * @param storeSourceMode   mode for storing the field source in synthetic source mode
      * @param hasScript         whether a script is defined for the field
      * @param onScriptError     the behaviour for when the defined script fails at runtime
      */
-    protected FieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
+    protected record BuilderParams(
         MultiFields multiFields,
         CopyTo copyTo,
+        Optional<StoreSourceMode> storeSourceMode,
         boolean hasScript,
         OnScriptError onScriptError
     ) {
+        public static BuilderParams empty() {
+            return empty;
+        }
+
+        private static final BuilderParams empty = new BuilderParams(MultiFields.empty(), CopyTo.empty(), Optional.empty(), false, null);
+    }
+
+    protected final MappedFieldType mappedFieldType;
+    protected final BuilderParams builderParams;
+
+    /**
+     * @param simpleName        the leaf name of the mapper
+     * @param params            initialization params for this field mapper
+     */
+    protected FieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams params) {
         super(simpleName);
+        this.mappedFieldType = mappedFieldType;
+        this.builderParams = params;
+
         // could be blank but not empty on indices created < 8.6.0
         assert mappedFieldType.name().isEmpty() == false;
-        this.mappedFieldType = mappedFieldType;
-        this.multiFields = multiFields;
-        this.copyTo = Objects.requireNonNull(copyTo);
-        this.hasScript = hasScript;
-        this.onScriptError = onScriptError;
+        assert params.copyTo != null;
     }
 
     @Override
@@ -135,11 +132,15 @@ public abstract class FieldMapper extends Mapper {
      * List of fields where this field should be copied to
      */
     public CopyTo copyTo() {
-        return copyTo;
+        return builderParams.copyTo;
     }
 
     public MultiFields multiFields() {
-        return multiFields;
+        return builderParams.multiFields;
+    }
+
+    public Optional<StoreSourceMode> storeSourceMode() {
+        return builderParams.storeSourceMode;
     }
 
     /**
@@ -178,7 +179,7 @@ public abstract class FieldMapper extends Mapper {
      */
     public void parse(DocumentParserContext context) throws IOException {
         try {
-            if (hasScript) {
+            if (builderParams.hasScript) {
                 throwIndexingWithScriptParam();
             }
 
@@ -188,14 +189,14 @@ public abstract class FieldMapper extends Mapper {
         }
         // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
         // of the mappings
-        if (multiFields.mappers.length != 0) {
+        if (builderParams.multiFields.mappers.length != 0) {
             doParseMultiFields(context);
         }
     }
 
     private void doParseMultiFields(DocumentParserContext context) throws IOException {
         context.path().add(leafName());
-        for (FieldMapper mapper : multiFields.mappers) {
+        for (FieldMapper mapper : builderParams.multiFields.mappers) {
             mapper.parse(context);
         }
         context.path().remove();
@@ -255,7 +256,7 @@ public abstract class FieldMapper extends Mapper {
      * @return whether this field mapper uses a script to generate its values
      */
     public final boolean hasScript() {
-        return hasScript;
+        return builderParams.hasScript;
     }
 
     /**
@@ -276,7 +277,7 @@ public abstract class FieldMapper extends Mapper {
         try {
             indexScriptValues(searchLookup, readerContext, doc, documentParserContext);
         } catch (Exception e) {
-            if (onScriptError == OnScriptError.CONTINUE) {
+            if (builderParams.onScriptError == OnScriptError.CONTINUE) {
                 documentParserContext.addIgnoredField(fullPath());
             } else {
                 throw new DocumentParsingException(XContentLocation.UNKNOWN, "Error executing script on field [" + fullPath() + "]", e);
@@ -308,7 +309,7 @@ public abstract class FieldMapper extends Mapper {
     }
 
     protected Iterator<Mapper> multiFieldsIterator() {
-        return Iterators.forArray(multiFields.mappers);
+        return Iterators.forArray(builderParams.multiFields.mappers);
     }
 
     /**
@@ -424,15 +425,18 @@ public abstract class FieldMapper extends Mapper {
     protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("type", contentType());
         getMergeBuilder().toXContent(builder, params);
-        multiFields.toXContent(builder, params);
-        copyTo.toXContent(builder);
+        builderParams.multiFields.toXContent(builder, params);
+        builderParams.copyTo.toXContent(builder);
+        if (builderParams.storeSourceMode.isPresent()) {
+            builderParams.storeSourceMode.get().toXContent(builder);
+        }
     }
 
     protected abstract String contentType();
 
     @Override
     public int getTotalFieldsCount() {
-        return 1 + Stream.of(multiFields.mappers).mapToInt(FieldMapper::getTotalFieldsCount).sum();
+        return 1 + Stream.of(builderParams.multiFields.mappers).mapToInt(FieldMapper::getTotalFieldsCount).sum();
     }
 
     public Map<String, NamedAnalyzer> indexAnalyzers() {
@@ -487,7 +491,7 @@ public abstract class FieldMapper extends Mapper {
         // If mapper supports synthetic source natively, it overrides this method,
         // so we won't see those here.
         if (syntheticSourceMode() == SyntheticSourceMode.FALLBACK) {
-            if (copyTo.copyToFields().isEmpty() != true) {
+            if (builderParams.copyTo.copyToFields().isEmpty() != true) {
                 throw new IllegalArgumentException(
                     "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
                 );
@@ -1289,6 +1293,9 @@ public abstract class FieldMapper extends Mapper {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
         protected CopyTo copyTo = CopyTo.EMPTY;
+        protected Optional<StoreSourceMode> storeSourceMode = Optional.empty();
+        protected boolean hasScript = false;
+        protected OnScriptError onScriptError = null;
 
         /**
          * Creates a new Builder with a field name
@@ -1304,10 +1311,20 @@ public abstract class FieldMapper extends Mapper {
             for (Parameter<?> param : getParameters()) {
                 param.init(initializer);
             }
-            for (FieldMapper subField : initializer.multiFields.mappers) {
+            for (FieldMapper subField : initializer.builderParams.multiFields.mappers) {
                 multiFieldsBuilder.add(subField);
             }
             return this;
+        }
+
+        protected BuilderParams builderParams(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
+            return new BuilderParams(
+                multiFieldsBuilder.build(mainFieldBuilder, context),
+                copyTo,
+                storeSourceMode,
+                hasScript,
+                onScriptError
+            );
         }
 
         protected void merge(FieldMapper in, Conflicts conflicts, MapperMergeContext mapperMergeContext) {
@@ -1315,10 +1332,11 @@ public abstract class FieldMapper extends Mapper {
                 param.merge(in, conflicts);
             }
             MapperMergeContext childContext = mapperMergeContext.createChildContext(in.leafName(), null);
-            for (FieldMapper newSubField : in.multiFields.mappers) {
+            for (FieldMapper newSubField : in.builderParams.multiFields.mappers) {
                 multiFieldsBuilder.update(newSubField, childContext);
             }
-            this.copyTo = in.copyTo;
+            this.copyTo = in.builderParams.copyTo;
+            this.storeSourceMode = in.builderParams.storeSourceMode;
             validate();
         }
 
@@ -1410,6 +1428,11 @@ public abstract class FieldMapper extends Mapper {
                             "Parameter [boost] on field [{}] is deprecated and has no effect",
                             name
                         );
+                        iterator.remove();
+                        continue;
+                    }
+                    case STORE_SOURCE_PARAM -> {
+                        storeSourceMode = Optional.of(StoreSourceMode.from(XContentMapValues.nodeStringValue(propNode)));
                         iterator.remove();
                         continue;
                     }

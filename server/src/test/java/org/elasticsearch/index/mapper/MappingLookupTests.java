@@ -257,7 +257,7 @@ public class MappingLookupTests extends ESTestCase {
         final String indexedValue;
 
         FakeFieldMapper(FakeFieldType fieldType, String indexedValue) {
-            super(fieldType.name(), fieldType, MultiFields.empty(), CopyTo.empty());
+            super(fieldType.name(), fieldType, BuilderParams.empty());
             this.indexedValue = indexedValue;
         }
 

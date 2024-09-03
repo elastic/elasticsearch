@@ -167,7 +167,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public RangeFieldMapper build(MapperBuilderContext context) {
             RangeFieldType ft = setupFieldType(context);
-            return new RangeFieldMapper(leafName(), ft, multiFieldsBuilder.build(this, context), copyTo, type, this);
+            return new RangeFieldMapper(leafName(), ft, builderParams(this, context), type, this);
         }
     }
 
@@ -342,12 +342,11 @@ public class RangeFieldMapper extends FieldMapper {
     private RangeFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         RangeType type,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, builderParams);
         this.type = type;
         this.index = builder.index.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -478,7 +477,7 @@ public class RangeFieldMapper extends FieldMapper {
                     + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
-        if (copyTo.copyToFields().isEmpty() != true) {
+        if (copyTo().copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
                 "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );

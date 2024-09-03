@@ -10,17 +10,68 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
+
+    static final String STORE_SOURCE_PARAM = "store_source";
+
+    public enum StoreSourceMode {
+        DISABLED("disabled"),  // No source recording
+        ARRAYS("arrays"),      // Store source for arrays of mapped fields
+        ENABLED("enabled");    // Store source for both singletons and arrays of mapped fields
+
+        StoreSourceMode(String name) {
+            this.name = name;
+        }
+
+        static StoreSourceMode from(String input) {
+            if (input == null) {
+                input = "null";
+            }
+            if (input.equals(DISABLED.name)) {
+                return DISABLED;
+            }
+            if (input.equals(ENABLED.name)) {
+                return ENABLED;
+            }
+            if (input.equals(ARRAYS.name)) {
+                return ARRAYS;
+            }
+            throw new IllegalArgumentException("Unknown " + STORE_SOURCE_PARAM + " value [" + input + "]");
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+
+        public void toXContent(XContentBuilder builder) throws IOException {
+            builder.field(STORE_SOURCE_PARAM, name);
+        }
+
+        private final String name;
+    }
+
+    // Setting StoreSourceMode to ENABLED at the index level is equivalent to disabling synthetic source, which is not desired.
+    // Since the only valid option is to track array source by default, we use a boolean index setting for it.
+    public static final Setting<Boolean> STORE_ARRAY_SOURCE_SETTING = Setting.boolSetting(
+        "index.mapping.store_array_source",
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.ServerlessPublic
+    );
 
     public abstract static class Builder {
 

@@ -69,8 +69,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             return new SparseVectorFieldMapper(
                 leafName(),
                 new SparseVectorFieldType(context.buildFullName(leafName()), meta.getValue()),
-                multiFieldsBuilder.build(this, context),
-                copyTo
+                builderParams(this, context)
             );
         }
     }
@@ -131,8 +130,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+        super(simpleName, mappedFieldType, builderParams);
     }
 
     @Override

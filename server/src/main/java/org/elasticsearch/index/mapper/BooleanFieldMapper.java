@@ -89,7 +89,10 @@ public class BooleanFieldMapper extends FieldMapper {
         ).acceptsNull();
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(
+            m -> toType(m).builderParams.onScriptError(),
+            script
+        );
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -133,7 +136,16 @@ public class BooleanFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { meta, docValues, indexed, nullValue, stored, script, onScriptError, ignoreMalformed, dimension };
+            return new Parameter<?>[] {
+                meta,
+                docValues,
+                indexed,
+                nullValue,
+                stored,
+                script,
+                onScriptErrorParam,
+                ignoreMalformed,
+                dimension };
         }
 
         @Override
@@ -151,14 +163,9 @@ public class BooleanFieldMapper extends FieldMapper {
                 meta.getValue(),
                 dimension.getValue()
             );
-            return new BooleanFieldMapper(
-                leafName(),
-                ft,
-                multiFieldsBuilder.build(this, context),
-                copyTo,
-                context.isSourceSynthetic(),
-                this
-            );
+            hasScript = script.get() != null;
+            onScriptError = onScriptErrorParam.getValue();
+            return new BooleanFieldMapper(leafName(), ft, builderParams(this, context), context.isSourceSynthetic(), this);
         }
 
         private FieldValues<Boolean> scriptValues() {
@@ -427,12 +434,11 @@ public class BooleanFieldMapper extends FieldMapper {
     protected BooleanFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         boolean storeMalformedFields,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
+        super(simpleName, mappedFieldType, builderParams);
         this.nullValue = builder.nullValue.getValue();
         this.stored = builder.stored.getValue();
         this.indexed = builder.indexed.getValue();
@@ -561,7 +567,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
-        if (copyTo.copyToFields().isEmpty() != true) {
+        if (copyTo().copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
                 "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );

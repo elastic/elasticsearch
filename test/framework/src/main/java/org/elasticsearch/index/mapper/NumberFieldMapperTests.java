@@ -75,7 +75,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                 minimalMapping(b);
                 b.field("script", "test");
                 b.field("on_script_error", "continue");
-            }, m -> assertThat((m).onScriptError, is(OnScriptError.CONTINUE)));
+            }, m -> assertThat((m).builderParams.onScriptError(), is(OnScriptError.CONTINUE)));
         }
     }
 

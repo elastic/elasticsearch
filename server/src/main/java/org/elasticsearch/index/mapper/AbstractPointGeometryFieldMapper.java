@@ -40,27 +40,14 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
     protected AbstractPointGeometryFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
+        BuilderParams builderParams,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> ignoreZValue,
         T nullValue,
-        CopyTo copyTo,
         Parser<T> parser
     ) {
-        super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
+        super(simpleName, mappedFieldType, builderParams, ignoreMalformed, ignoreZValue, parser);
         this.nullValue = nullValue;
-    }
-
-    protected AbstractPointGeometryFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Parser<T> parser,
-        OnScriptError onScriptError
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, parser, onScriptError);
-        this.nullValue = null;
     }
 
     public T getNullValue() {

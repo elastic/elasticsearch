@@ -13,8 +13,8 @@ import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -220,19 +220,25 @@ public class Version implements VersionId<Version>, ToXContentFragment {
                 }
             }
         }
-        assert RestApiVersion.current().major == CURRENT.major && RestApiVersion.previous().major == CURRENT.major - 1
-            : "RestApiVersion must be upgraded "
-                + "to reflect major from Version.CURRENT ["
-                + CURRENT.major
-                + "]"
-                + " but is still set to ["
-                + RestApiVersion.current().major
-                + "]";
+        assertRestApiVersion();
         builder.put(V_EMPTY_ID, V_EMPTY);
         builderByString.put(V_EMPTY.toString(), V_EMPTY);
 
         VERSION_IDS = Collections.unmodifiableNavigableMap(builder);
         VERSION_STRINGS = Map.copyOf(builderByString);
+    }
+
+    @UpdateForV9
+    // Re-enable this assertion once the rest api version is bumped
+    private static void assertRestApiVersion() {
+        // assert RestApiVersion.current().major == CURRENT.major && RestApiVersion.previous().major == CURRENT.major - 1
+        // : "RestApiVersion must be upgraded "
+        // + "to reflect major from Version.CURRENT ["
+        // + CURRENT.major
+        // + "]"
+        // + " but is still set to ["
+        // + RestApiVersion.current().major
+        // + "]";
     }
 
     public static Version readVersion(StreamInput in) throws IOException {

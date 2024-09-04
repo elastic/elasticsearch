@@ -166,7 +166,9 @@ public class IndexVersions {
      * In branches 8.7-8.11 see server/src/main/java/org/elasticsearch/index/IndexVersion.java for the equivalent definitions.
      */
 
-    public static final IndexVersion MINIMUM_COMPATIBLE = V_8_0_0;
+    @UpdateForV9
+    // This needs to be bumped to V8_0_0 and all old references removed
+    public static final IndexVersion MINIMUM_COMPATIBLE = V_7_0_0;
 
     static final NavigableMap<Integer, IndexVersion> VERSION_IDS = getAllVersionIds(IndexVersions.class);
     static final IndexVersion LATEST_DEFINED;

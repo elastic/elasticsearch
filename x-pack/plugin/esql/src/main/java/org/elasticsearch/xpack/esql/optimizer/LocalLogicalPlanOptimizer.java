@@ -24,11 +24,10 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.cleanu
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operators;
 
 /**
- * <p>This class is part of the planner. Data node level logical optimizations.  At this point we have access to
- * {@link org.elasticsearch.xpack.esql.stats.SearchStats} which provides access to metadata about the index. </p>
+ * This class is part of the planner. Data node level logical optimizations.  At this point we have access to
+ * {@link org.elasticsearch.xpack.esql.stats.SearchStats} which provides access to metadata about the index.
  *
  * <p>NB: This class also reapplies all the rules from {@link LogicalPlanOptimizer#operators()} and {@link LogicalPlanOptimizer#cleanup()}
- * </p>
  */
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
 

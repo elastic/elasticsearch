@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.Metrics;
+import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
+import org.elasticsearch.xpack.esql.stats.PlanningMetricsManager;
 import org.elasticsearch.xpack.esql.stats.QueryMetric;
 
 import java.util.function.BiConsumer;
@@ -36,14 +39,16 @@ public class PlanExecutor {
     private final Mapper mapper;
     private final Metrics metrics;
     private final Verifier verifier;
+    private final PlanningMetricsManager planningMetricsManager;
 
-    public PlanExecutor(IndexResolver indexResolver) {
+    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
         this.mapper = new Mapper(functionRegistry);
         this.metrics = new Metrics();
         this.verifier = new Verifier(metrics);
+        this.planningMetricsManager = new PlanningMetricsManager(meterRegistry);
     }
 
     public void esql(
@@ -54,6 +59,7 @@ public class PlanExecutor {
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
         ActionListener<Result> listener
     ) {
+        final PlanningMetrics planningMetrics = new PlanningMetrics();
         final var session = new EsqlSession(
             sessionId,
             cfg,
@@ -63,13 +69,18 @@ public class PlanExecutor {
             functionRegistry,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg)),
             mapper,
-            verifier
+            verifier,
+            planningMetrics
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);
-        session.execute(request, runPhase, wrap(listener::onResponse, ex -> {
+        session.execute(request, runPhase, wrap(x -> {
+            planningMetricsManager.publish(planningMetrics, true);
+            listener.onResponse(x);
+        }, ex -> {
             // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
             metrics.failed(clientId);
+            planningMetricsManager.publish(planningMetrics, false);
             listener.onFailure(ex);
         }));
     }

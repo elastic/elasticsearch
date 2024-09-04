@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -75,6 +76,15 @@ public class MvExpand extends UnaryPlan {
 
     public Attribute expanded() {
         return expanded;
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        return target.references();
+    }
+
+    public String commandName() {
+        return "MV_EXPAND";
     }
 
     @Override

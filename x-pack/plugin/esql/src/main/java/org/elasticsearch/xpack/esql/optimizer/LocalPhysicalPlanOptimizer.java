@@ -552,6 +552,10 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                             singletonList(agg),
                             emptyList()
                         );
+                        // TODO: the attributes have been recreated here; they will have wrong name ids, and the dependency check will
+                        // probably fail when we fix https://github.com/elastic/elasticsearch/issues/105436.
+                        // We may need to refactor AbstractPhysicalOperationProviders.intermediateAttributes so it doesn't return just
+                        // a list of attributes, but a mapping from the logical to the physical attributes.
                         tuple.v1().addAll(intermediateAttributes);
                         tuple.v2().add(stat);
                     }
@@ -604,6 +608,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                             agg.groupings(),
                             orderedAggregates,
                             agg.getMode(),
+                            agg.intermediateAttributes(),
                             agg.estimatedRowSize()
                         );
                     }

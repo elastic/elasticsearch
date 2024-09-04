@@ -55,6 +55,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.xpack.esql.core.expression.FieldAttributeTestUtils.newFieldAttributeWithType;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PlanNamedTypesTests extends ESTestCase {
@@ -127,7 +128,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     static FieldAttribute randomFieldAttribute() {
-        return new FieldAttribute(
+        return newFieldAttributeWithType(
             Source.EMPTY,
             randomFieldAttributeOrNull(), // parent
             randomAlphaOfLength(randomIntBetween(1, 25)), // name

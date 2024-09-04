@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.type.AbstractEsFieldTypeTests;
 
+import static org.elasticsearch.xpack.esql.core.expression.FieldAttributeTestUtils.newFieldAttributeWithType;
+
 public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribute> {
     public static FieldAttribute createFieldAttribute(int maxDepth, boolean onlyRepresentable) {
         Source source = Source.EMPTY;
@@ -26,7 +28,7 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
         EsField field = AbstractEsFieldTypeTests.randomAnyEsField(maxDepth);
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();
-        return new FieldAttribute(source, parent, name, type, field, nullability, new NameId(), synthetic);
+        return newFieldAttributeWithType(source, parent, name, type, field, nullability, new NameId(), synthetic);
     }
 
     @Override
@@ -51,6 +53,6 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
             case 4 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
             case 5 -> synthetic = false == synthetic;
         }
-        return new FieldAttribute(source, parent, name, type, field, nullability, new NameId(), synthetic);
+        return newFieldAttributeWithType(source, parent, name, type, field, nullability, new NameId(), synthetic);
     }
 }

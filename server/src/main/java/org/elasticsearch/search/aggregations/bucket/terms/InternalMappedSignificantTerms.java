@@ -71,7 +71,7 @@ public abstract class InternalMappedSignificantTerms<
     }
 
     @Override
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public Iterator<SignificantTerms.Bucket> iterator() {
         return (Iterator) buckets.iterator();
     }

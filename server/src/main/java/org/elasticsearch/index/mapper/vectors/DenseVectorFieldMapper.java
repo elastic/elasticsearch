@@ -2110,7 +2110,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         return new DocValuesSyntheticFieldLoader(indexCreatedVersion);
     }
 
-    private class IndexedSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    private class IndexedSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
         private FloatVectorValues values;
         private ByteVectorValues byteVectorValues;
         private boolean hasValue;
@@ -2123,11 +2123,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private IndexedSyntheticFieldLoader(IndexVersion indexCreatedVersion, VectorSimilarity vectorSimilarity) {
             this.indexCreatedVersion = indexCreatedVersion;
             this.vectorSimilarity = vectorSimilarity;
-        }
-
-        @Override
-        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of();
         }
 
         @Override
@@ -2191,18 +2186,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private class DocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    private class DocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
         private BinaryDocValues values;
         private boolean hasValue;
         private final IndexVersion indexCreatedVersion;
 
         private DocValuesSyntheticFieldLoader(IndexVersion indexCreatedVersion) {
             this.indexCreatedVersion = indexCreatedVersion;
-        }
-
-        @Override
-        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of();
         }
 
         @Override

@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.inference.external.alibabacloudsearch.AlibabaClou
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.alibabacloudsearch.completion.AlibabaCloudSearchCompletionRequest;
-import org.elasticsearch.xpack.inference.external.response.alibabacloudsearch.completion.AlibabaCloudSearchCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.alibabacloudsearch.AlibabaCloudSearchCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModel;
 
 import java.util.List;

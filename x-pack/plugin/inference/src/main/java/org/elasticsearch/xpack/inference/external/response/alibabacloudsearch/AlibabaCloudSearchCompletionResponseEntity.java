@@ -5,13 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.response.alibabacloudsearch.completion;
+package org.elasticsearch.xpack.inference.external.response.alibabacloudsearch;
 
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.alibabacloudsearch.AlibabaCloudSearchResponseEntity;
 
 import java.io.IOException;
 import java.util.List;

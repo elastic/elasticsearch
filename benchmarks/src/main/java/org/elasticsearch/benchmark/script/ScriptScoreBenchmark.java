@@ -186,6 +186,11 @@ public class ScriptScoreBenchmark {
                 public boolean needs_score() {
                     return false;
                 }
+
+                @Override
+                public boolean needs_termStats() {
+                    return false;
+                }
             };
         };
     }

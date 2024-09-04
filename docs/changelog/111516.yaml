@@ -1,0 +1,5 @@
+pr: 111516
+summary: Adding support for `allow_partial_search_results` in PIT
+area: Search
+type: enhancement
+issues: []

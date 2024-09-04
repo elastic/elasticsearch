@@ -1,14 +1,14 @@
 [role="xpack"]
 [[tutorial-migrate-data-stream-from-ilm-to-dsl]]
-=== Tutorial: Migrate ILM managed data stream to data stream lifecycle 
+=== Tutorial: Migrate ILM managed data stream to data stream lifecycle
 
-In this tutorial we'll look at migrating an existing data stream from Index Lifecycle Management ({ilm-init}) to
-data stream lifecycle. The existing {ilm-init} managed backing indices will continue 
+In this tutorial we'll look at migrating an existing data stream from <<index-lifecycle-management,Index Lifecycle Management ({ilm-init})>> to
+<<data-stream-lifecycle,data stream lifecycle>>. The existing {ilm-init} managed backing indices will continue
 to be managed by {ilm-init} until they age out and get deleted by {ilm-init}; however,
-the new backing indices will be managed by data stream lifecycle. 
-This way, a data stream is gradually migrated away from being managed by {ilm-init} to 
+the new backing indices will be managed by data stream lifecycle.
+This way, a data stream is gradually migrated away from being managed by {ilm-init} to
 being managed by data stream lifecycle. As we'll see, {ilm-init} and data stream lifecycle
-can co-manage a data stream; however, an index can only be managed by one system at 
+can co-manage a data stream; however, an index can only be managed by one system at
 a time.
 
 [discrete]
@@ -17,7 +17,7 @@ a time.
 To migrate a data stream from {ilm-init} to data stream lifecycle we'll have to execute
 two steps:
 
-1. Update the index template that's backing the data stream to set <<index-lifecycle-prefer-ilm, prefer_ilm>> 
+1. Update the index template that's backing the data stream to set <<index-lifecycle-prefer-ilm, prefer_ilm>>
 to `false`, and to configure data stream lifecycle.
 2. Configure the data stream lifecycle for the _existing_ data stream using
 the <<data-streams-put-lifecycle, lifecycle API>>.
@@ -174,8 +174,8 @@ in the index template).
 To migrate the `dsl-data-stream` to data stream lifecycle we'll have to execute
 two steps:
 
-1. Update the index template that's backing the data stream to set <<index-lifecycle-prefer-ilm, prefer_ilm>> 
-to `false`, and to configure data stream lifecycle. 
+1. Update the index template that's backing the data stream to set <<index-lifecycle-prefer-ilm, prefer_ilm>>
+to `false`, and to configure data stream lifecycle.
 2. Configure the data stream lifecycle for the _existing_ `dsl-data-stream` using
 the <<data-streams-put-lifecycle, lifecycle API>>.
 
@@ -209,9 +209,9 @@ PUT _index_template/dsl-data-stream-template
 // TEST[continued]
 
 <1> The `prefer_ilm` setting will now be configured on the **new** backing indices
-(created by rolling over the data stream) such that {ilm-init} does _not_ take 
+(created by rolling over the data stream) such that {ilm-init} does _not_ take
 precedence over data stream lifecycle.
-<2> We're configuring the data stream lifecycle so _new_ data streams will be 
+<2> We're configuring the data stream lifecycle so _new_ data streams will be
 managed by data stream lifecycle.
 
 We've now made sure that new data streams will be managed by data stream lifecycle.
@@ -227,7 +227,7 @@ PUT _data_stream/dsl-data-stream/_lifecycle
 ----
 // TEST[continued]
 
-We can inspect the data stream to check that the next generation will indeed be 
+We can inspect the data stream to check that the next generation will indeed be
 managed by data stream lifecycle:
 
 [source,console]
@@ -266,7 +266,9 @@ GET _data_stream/dsl-data-stream
       "template": "dsl-data-stream-template",
       "lifecycle": {
         "enabled": true,
-        "data_retention": "7d"
+        "data_retention": "7d",
+        "effective_retention": "7d",
+        "retention_determined_by": "data_stream_configuration"
       },
       "ilm_policy": "pre-dsl-ilm-policy",
       "next_generation_managed_by": "Data stream lifecycle",         <3>
@@ -292,7 +294,7 @@ GET _data_stream/dsl-data-stream
 <4> The `prefer_ilm` setting value we configured in the index template is reflected
 and will be configured accordingly for new backing indices.
 
-We'll now rollover the data stream to see the new generation index being managed by 
+We'll now rollover the data stream to see the new generation index being managed by
 data stream lifecycle:
 
 [source,console]
@@ -344,7 +346,9 @@ GET _data_stream/dsl-data-stream
       "template": "dsl-data-stream-template",
       "lifecycle": {
         "enabled": true,
-        "data_retention": "7d"
+        "data_retention": "7d",
+        "effective_retention": "7d",
+        "retention_determined_by": "data_stream_configuration"
       },
       "ilm_policy": "pre-dsl-ilm-policy",
       "next_generation_managed_by": "Data stream lifecycle",
@@ -375,9 +379,9 @@ in the index template
 [discrete]
 [[migrate-from-dsl-to-ilm]]
 ==== Migrate data stream back to ILM
-We can easily change this data stream to be managed by {ilm-init} because we didn't remove 
-the {ilm-init} policy when we <<update-index-template-for-dsl, updated 
-the index template>>. 
+We can easily change this data stream to be managed by {ilm-init} because we didn't remove
+the {ilm-init} policy when we <<update-index-template-for-dsl, updated
+the index template>>.
 
 We can achieve this in two ways:
 

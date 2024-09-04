@@ -16,6 +16,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
@@ -87,12 +88,18 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (numAllocations == null && adaptiveAllocationsSettings == null) {
-            validationException.addValidationError(
-                ServiceUtils.missingOneOfSettingsErrorMsg(
-                    List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
-                    ModelConfigurations.SERVICE_SETTINGS
-                )
-            );
+            if (AdaptiveAllocationsFeatureFlag.isEnabled()) {
+                validationException.addValidationError(
+                    ServiceUtils.missingOneOfSettingsErrorMsg(
+                        List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
+                        ModelConfigurations.SERVICE_SETTINGS
+                    )
+                );
+            } else {
+                validationException.addValidationError(
+                    ServiceUtils.missingSettingErrorMsg(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS)
+                );
+            }
         }
 
         // if an error occurred while parsing, we'll set these to an invalid value, so we don't accidentally get a

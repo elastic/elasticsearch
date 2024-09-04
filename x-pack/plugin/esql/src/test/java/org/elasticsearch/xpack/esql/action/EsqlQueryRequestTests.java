@@ -93,7 +93,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         String paramsString = """
             ,"params":[ {"n1" : "8.15.0" }, { "n2" : 0.05 }, {"n3" : -799810013 },
-             {"n4" : "127.0.0.1"}, {"n5" : "esql"}, {"n_6" : null}, {"n7_" : false}] }""";
+             {"n4" : "127.0.0.1"}, {"n5" : "esql"}, {"n_6" : null}, {"n7_" : false},
+             {"_n1" : "8.15.0" }, { "__n2" : 0.05 }, {"__3" : -799810013 },
+             {"__4n" : "127.0.0.1"}, {"_n5" : "esql"}, {"_n6" : null}, {"_n7" : false}] }""";
         List<QueryParam> params = new ArrayList<>(4);
         params.add(new QueryParam("n1", "8.15.0", DataType.KEYWORD));
         params.add(new QueryParam("n2", 0.05, DataType.DOUBLE));
@@ -102,6 +104,13 @@ public class EsqlQueryRequestTests extends ESTestCase {
         params.add(new QueryParam("n5", "esql", DataType.KEYWORD));
         params.add(new QueryParam("n_6", null, DataType.NULL));
         params.add(new QueryParam("n7_", false, DataType.BOOLEAN));
+        params.add(new QueryParam("_n1", "8.15.0", DataType.KEYWORD));
+        params.add(new QueryParam("__n2", 0.05, DataType.DOUBLE));
+        params.add(new QueryParam("__3", -799810013, DataType.INTEGER));
+        params.add(new QueryParam("__4n", "127.0.0.1", DataType.KEYWORD));
+        params.add(new QueryParam("_n5", "esql", DataType.KEYWORD));
+        params.add(new QueryParam("_n6", null, DataType.NULL));
+        params.add(new QueryParam("_n7", false, DataType.BOOLEAN));
         String json = String.format(Locale.ROOT, """
             {
                 "query": "%s",
@@ -131,7 +140,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         QueryBuilder filter = randomQueryBuilder();
 
         String paramsString1 = """
-            "params":[ {"1" : "v1" }, {"1x" : "v1" }, {"_a" : "v1" }, {"@-#" : "v1" }, 1, 2]""";
+            "params":[ {"1" : "v1" }, {"1x" : "v1" }, {"@a" : "v1" }, {"@-#" : "v1" }, 1, 2, {"_1" : "v1" }, {"Å" : 0}, {"x " : 0}]""";
         String json1 = String.format(Locale.ROOT, """
             {
                 %s
@@ -146,16 +155,20 @@ public class EsqlQueryRequestTests extends ESTestCase {
             e1.getCause().getMessage(),
             containsString(
                 "Failed to parse params: [2:16] [1] is not a valid parameter name, "
-                    + "a valid parameter name starts with a letter and contains letters, digits and underscores only"
+                    + "a valid parameter name starts with a letter or underscore, and contains letters, digits and underscores only"
             )
         );
         assertThat(e1.getCause().getMessage(), containsString("[2:31] [1x] is not a valid parameter name"));
-        assertThat(e1.getCause().getMessage(), containsString("[2:47] [_a] is not a valid parameter name"));
+        assertThat(e1.getCause().getMessage(), containsString("[2:47] [@a] is not a valid parameter name"));
         assertThat(e1.getCause().getMessage(), containsString("[2:63] [@-#] is not a valid parameter name"));
+        assertThat(e1.getCause().getMessage(), containsString("[2:102] [Å] is not a valid parameter name"));
+        assertThat(e1.getCause().getMessage(), containsString("[2:113] [x ] is not a valid parameter name"));
+
         assertThat(
             e1.getCause().getMessage(),
             containsString(
-                "Params cannot contain both named and unnamed parameters; got [{1:v1}, {1x:v1}, {_a:v1}, {@-#:v1}] and [{1}, {2}]"
+                "Params cannot contain both named and unnamed parameters; "
+                    + "got [{1:v1}, {1x:v1}, {@a:v1}, {@-#:v1}, {_1:v1}, {Å:0}, {x :0}] and [{1}, {2}]"
             )
         );
 
@@ -175,7 +188,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             e2.getCause().getMessage(),
             containsString(
                 "Failed to parse params: [2:22] [1] is not a valid parameter name, "
-                    + "a valid parameter name starts with a letter and contains letters, digits and underscores only"
+                    + "a valid parameter name starts with a letter or underscore, and contains letters, digits and underscores only"
             )
         );
         assertThat(e2.getCause().getMessage(), containsString("[2:37] [1x] is not a valid parameter name"));
@@ -302,6 +315,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
         request.onSnapshotBuild(false);
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("[pragma] only allowed in snapshot builds"));
+
+        request.acceptedPragmaRisks(true);
+        assertNull(request.validate());
     }
 
     public void testTablesKeyword() throws IOException {

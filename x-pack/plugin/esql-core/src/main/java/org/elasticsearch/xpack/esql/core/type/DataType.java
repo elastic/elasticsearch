@@ -448,6 +448,14 @@ public enum DataType {
     }
 
     /**
+     * Return the Elasticsearch field name of this type if there is one,
+     * otherwise return the ESQL specific name.
+     */
+    public String esNameIfPossible() {
+        return esType != null ? esType : typeName;
+    }
+
+    /**
      * The name we give to types on the response.
      */
     public String outputType() {

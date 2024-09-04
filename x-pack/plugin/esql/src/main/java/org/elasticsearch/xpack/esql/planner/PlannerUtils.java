@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
@@ -73,9 +74,9 @@ public class PlannerUtils {
         PhysicalPlan coordinatorPlan = plan.transformUp(ExchangeExec.class, e -> {
             // remember the datanode subplan and wire it to a sink
             var subplan = e.child();
-            dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), e.isInBetweenAggs(), subplan));
+            dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), e.inBetweenAggs(), subplan));
 
-            return new ExchangeSourceExec(e.source(), e.output(), e.isInBetweenAggs());
+            return new ExchangeSourceExec(e.source(), e.output(), e.inBetweenAggs());
         });
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }
@@ -97,7 +98,7 @@ public class PlannerUtils {
                 Mapper mapper = new Mapper(true);
                 var physicalPlan = EstimatesRowSize.estimateRowSize(0, mapper.map(plan));
                 var aggregate = (AggregateExec) physicalPlan.collectFirstChildren(AggregateExec.class::isInstance).get(0);
-                return aggregate.withMode(AggregateExec.Mode.PARTIAL);
+                return aggregate.withMode(AggregatorMode.INITIAL);
             } else {
                 throw new EsqlIllegalArgumentException("unsupported unary physical plan node [" + pipelineBreaker.nodeName() + "]");
             }

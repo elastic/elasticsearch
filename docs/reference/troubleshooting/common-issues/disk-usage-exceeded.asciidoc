@@ -44,13 +44,11 @@ GET _cluster/allocation/explain
 {
   "index": "my-index",
   "shard": 0,
-  "primary": false,
-  "current_node": "my-node"
+  "primary": false
 }
 ----
 // TEST[s/^/PUT my-index\n/]
 // TEST[s/"primary": false,/"primary": false/]
-// TEST[s/"current_node": "my-node"//]
 
 [[fix-watermark-errors-temporary]]
 ==== Temporary Relief

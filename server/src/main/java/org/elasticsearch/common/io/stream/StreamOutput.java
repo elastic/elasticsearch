@@ -767,8 +767,13 @@ public abstract class StreamOutput extends OutputStream {
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
             o.writeString(zonedDateTime.getZone().getId());
             Instant instant = zonedDateTime.toInstant();
-            if (o.getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT)) {
-                o.writeVLong(instant.getEpochSecond());
+            if (o.getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT_BROKEN)) {
+                // epoch seconds can be negative, but it was incorrectly first written as vlong
+                if (o.getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT)) {
+                    o.writeZLong(instant.getEpochSecond());
+                } else {
+                    o.writeVLong(instant.getEpochSecond());
+                }
                 o.writeInt(instant.getNano());
             } else {
                 o.writeLong(instant.toEpochMilli());
@@ -1010,10 +1015,31 @@ public abstract class StreamOutput extends OutputStream {
         writeOptionalArray(StreamOutput::writeWriteable, array);
     }
 
+    /**
+     * Writes a boolean value indicating whether the given object is {@code null}, followed by the object's serialization if it is not
+     * {@code null}.
+     *
+     * @see StreamInput#readOptionalWriteable
+     */
     public void writeOptionalWriteable(@Nullable Writeable writeable) throws IOException {
         if (writeable != null) {
             writeBoolean(true);
             writeable.writeTo(this);
+        } else {
+            writeBoolean(false);
+        }
+    }
+
+    /**
+     * Writes a boolean value indicating whether the given object is {@code null}, followed by the object's serialization if it is not
+     * {@code null}.
+     *
+     * @see StreamInput#readOptional
+     */
+    public <T> void writeOptional(Writer<T> writer, @Nullable T maybeItem) throws IOException {
+        if (maybeItem != null) {
+            writeBoolean(true);
+            writer.write(this, maybeItem);
         } else {
             writeBoolean(false);
         }

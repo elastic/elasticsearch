@@ -1575,11 +1575,11 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(mapper.mapping().getRoot().getMapper("o"));
     }
 
-    public void testStoreArraySourceThrowsInNonSyntheticSourceMode() {
-        var exception = expectThrows(MapperParsingException.class, () -> createDocumentMapper(mapping(b -> {
+    public void testStoreArraySourceNoopInNonSyntheticSourceMode() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("o").field("type", "nested").field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true).endObject();
-        })));
-        assertEquals("Parameter [store_array_source] can only be set in synthetic source mode.", exception.getMessage());
+        }));
+        assertNotNull(mapper.mapping().getRoot().getMapper("o"));
     }
 
     public void testSyntheticNestedWithObject() throws IOException {

@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 
 import java.nio.file.Path;
 import java.util.regex.Pattern;
@@ -38,9 +39,9 @@ public enum RepositoryFileType {
                     // decimal numbers
                     .replace("NUM", "(0|[1-9][0-9]*)")
                     // 15-byte UUIDS from TimeBasedUUIDGenerator
-                    .replace("SHORTUUID", "[0-9a-zA-Z_-]{20}")
+                    .replace("SHORTUUID", "[0-9a-zA-Z_-]{" + UUIDs.TIME_BASED_UUID_STRING_LENGTH + "}")
                     // 16-byte UUIDs from RandomBasedUUIDGenerator
-                    .replace("UUID", "[0-9a-zA-Z_-]{22}")
+                    .replace("UUID", "[0-9a-zA-Z_-]{" + UUIDs.RANDOM_BASED_UUID_STRING_LENGTH + "}")
                 + ")$"
         );
     }

@@ -181,6 +181,7 @@ emp_no:integer |first_name:keyword
 ;
 
 rangeVersion
+required_capability: string_literal_auto_casting_extended
 from apps
 | where version > "2" and version < "4"
 | keep id, version

@@ -1,0 +1,5 @@
+pr: 112217
+summary: Fix template alias parsing livelock
+area: Indices APIs
+type: bug
+issues: []

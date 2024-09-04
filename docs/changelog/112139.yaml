@@ -1,0 +1,6 @@
+pr: 112139
+summary: Fix NPE when executing doc value queries over shape geometries with empty
+  segments
+area: Geo
+type: bug
+issues: []

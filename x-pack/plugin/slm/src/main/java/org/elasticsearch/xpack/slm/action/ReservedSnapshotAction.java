@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.slm.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
@@ -41,7 +42,11 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
 
     public static final String NAME = "slm";
 
-    public ReservedSnapshotAction() {}
+    private final FeatureService featureService;
+
+    public ReservedSnapshotAction(FeatureService featureService) {
+        this.featureService = featureService;
+    }
 
     @Override
     public String name() {
@@ -63,6 +68,7 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
             );
             try {
                 validate(request);
+                SnapshotLifecycleService.validateIntervalScheduleSupport(request.getLifecycle().getSchedule(), featureService, state);
                 SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
                 SnapshotLifecycleService.validateMinimumInterval(request.getLifecycle(), state);
                 result.add(request);

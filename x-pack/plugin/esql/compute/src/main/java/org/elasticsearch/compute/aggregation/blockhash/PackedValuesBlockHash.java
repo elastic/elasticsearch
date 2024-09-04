@@ -117,7 +117,7 @@ final class PackedValuesBlockHash extends BlockHash {
         }
     }
 
-    class AddWork extends AbstractAddBlock {
+    class AddWork extends AddBlock {
         final Group[] groups;
         final int positionCount;
         int position;
@@ -147,23 +147,17 @@ final class PackedValuesBlockHash extends BlockHash {
 
         private void addSingleEntry() {
             fillBytesSv(groups);
-            ords.appendInt(Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
-            addedValue(position);
+            appendOrdSv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
         }
 
         private void addMultipleEntries() {
-            ords.beginPositionEntry();
             int g = 0;
             do {
                 fillBytesMv(groups, g);
-
-                // emit ords
-                ords.appendInt(Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
-                addedValueInMultivaluePosition(position);
-
+                appendOrdInMv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
                 g = rewindKeys(groups);
             } while (g >= 0);
-            ords.endPositionEntry();
+            finishMv();
             for (Group group : groups) {
                 group.valueOffset += group.valueCount;
             }

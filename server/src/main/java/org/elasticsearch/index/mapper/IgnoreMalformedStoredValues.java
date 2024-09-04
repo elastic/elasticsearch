@@ -107,7 +107,17 @@ public abstract class IgnoreMalformedStoredValues {
 
         @Override
         public Stream<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of(Map.entry(name(fieldName), values -> this.values = values));
+            return Stream.of(Map.entry(name(fieldName), new SourceLoader.SyntheticFieldLoader.StoredFieldLoader() {
+                @Override
+                public void advanceToDoc(int docId) {
+                    values = emptyList();
+                }
+
+                @Override
+                public void load(List<Object> newValues) {
+                    values = newValues;
+                }
+            }));
         }
 
         @Override

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -115,11 +116,23 @@ public class SimulateIngestServiceTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        return new IngestService(mock(ClusterService.class), threadPool, null, null, null, List.of(new IngestPlugin() {
+        var ingestPlugin = new IngestPlugin() {
             @Override
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
                 return processors;
             }
-        }), client, null, DocumentParsingProvider.EMPTY_INSTANCE);
+        };
+        return new IngestService(
+            mock(ClusterService.class),
+            threadPool,
+            null,
+            null,
+            null,
+            List.of(ingestPlugin),
+            client,
+            null,
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            FailureStoreMetrics.NOOP
+        );
     }
 }

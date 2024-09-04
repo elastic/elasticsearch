@@ -1,0 +1,6 @@
+pr: 112178
+summary: Avoid wrapping rejection exception in exchange
+area: ES|QL
+type: bug
+issues:
+ - 112106

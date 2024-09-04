@@ -283,16 +283,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         protected NodeResponse nodeOperation(NodeRequest request, Task task) {
             logger.info("Test task started on the node {}", clusterService.localNode());
             if (request.shouldBlock) {
-                try {
-                    waitUntil(() -> {
-                        if (((CancellableTask) task).isCancelled()) {
-                            throw new RuntimeException("Cancelled!");
-                        }
-                        return ((TestTask) task).isBlocked() == false;
-                    });
-                } catch (InterruptedException ex) {
-                    Thread.currentThread().interrupt();
-                }
+                waitUntil(() -> {
+                    if (((CancellableTask) task).isCancelled()) {
+                        throw new RuntimeException("Cancelled!");
+                    }
+                    return ((TestTask) task).isBlocked() == false;
+                });
             }
             logger.info("Test task finished on the node {}", clusterService.localNode());
             return new NodeResponse(clusterService.localNode());
@@ -301,9 +297,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
     public static class UnblockTestTaskResponse implements Writeable {
 
-        UnblockTestTaskResponse() {
-
-        }
+        UnblockTestTaskResponse() {}
 
         UnblockTestTaskResponse(StreamInput in) {}
 

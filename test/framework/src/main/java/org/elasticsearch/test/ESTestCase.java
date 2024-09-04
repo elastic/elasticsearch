@@ -213,6 +213,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -1420,9 +1421,8 @@ public abstract class ESTestCase extends LuceneTestCase {
      *
      * @param breakSupplier determines whether to return immediately or continue waiting.
      * @return the last value returned by <code>breakSupplier</code>
-     * @throws InterruptedException if any sleep calls were interrupted.
      */
-    public static boolean waitUntil(BooleanSupplier breakSupplier) throws InterruptedException {
+    public static boolean waitUntil(BooleanSupplier breakSupplier) {
         return waitUntil(breakSupplier, 10, TimeUnit.SECONDS);
     }
 
@@ -1438,9 +1438,8 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param maxWaitTime the maximum amount of time to wait
      * @param unit the unit of tie for <code>maxWaitTime</code>
      * @return the last value returned by <code>breakSupplier</code>
-     * @throws InterruptedException if any sleep calls were interrupted.
      */
-    public static boolean waitUntil(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) throws InterruptedException {
+    public static boolean waitUntil(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
         long timeInMillis = 1;
         long sum = 0;
@@ -1448,12 +1447,12 @@ public abstract class ESTestCase extends LuceneTestCase {
             if (breakSupplier.getAsBoolean()) {
                 return true;
             }
-            Thread.sleep(timeInMillis);
+            safeSleep(timeInMillis);
             sum += timeInMillis;
             timeInMillis = Math.min(AWAIT_BUSY_THRESHOLD, timeInMillis * 2);
         }
         timeInMillis = maxTimeInMillis - sum;
-        Thread.sleep(Math.max(timeInMillis, 0));
+        safeSleep(Math.max(timeInMillis, 0));
         return breakSupplier.getAsBoolean();
     }
 
@@ -2505,7 +2504,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Same as {@link #runInParallel(int, IntConsumer)} but also attempts to start all tasks at the same time by blocking execution on a
      * barrier until all threads are started and ready to execute their task.
      */
-    public static void startInParallel(int numberOfTasks, IntConsumer taskFactory) throws InterruptedException {
+    public static void startInParallel(int numberOfTasks, IntConsumer taskFactory) {
         final CyclicBarrier barrier = new CyclicBarrier(numberOfTasks);
         runInParallel(numberOfTasks, i -> {
             safeAwait(barrier);
@@ -2519,7 +2518,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param numberOfTasks number of tasks to run in parallel
      * @param taskFactory task factory
      */
-    public static void runInParallel(int numberOfTasks, IntConsumer taskFactory) throws InterruptedException {
+    public static void runInParallel(int numberOfTasks, IntConsumer taskFactory) {
         final ArrayList<Future<?>> futures = new ArrayList<>(numberOfTasks);
         final Thread[] threads = new Thread[numberOfTasks - 1];
         for (int i = 0; i < numberOfTasks; i++) {
@@ -2534,16 +2533,26 @@ public abstract class ESTestCase extends LuceneTestCase {
                 threads[i].start();
             }
         }
-        for (Thread thread : threads) {
-            thread.join();
-        }
         Exception e = null;
-        for (Future<?> future : futures) {
-            try {
-                future.get();
-            } catch (Exception ex) {
-                e = ExceptionsHelper.useOrSuppress(e, ex);
+        try {
+            for (Thread thread : threads) {
+                // no sense in waiting for the rest of the threads, nor any futures, if interrupted, just bail out and fail
+                thread.join();
             }
+            for (Future<?> future : futures) {
+                try {
+                    future.get();
+                } catch (InterruptedException interruptedException) {
+                    // no sense in waiting for the rest of the futures if interrupted, just bail out and fail
+                    Thread.currentThread().interrupt();
+                    throw interruptedException;
+                } catch (Exception executionException) {
+                    e = ExceptionsHelper.useOrSuppress(e, executionException);
+                }
+            }
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            e = ExceptionsHelper.useOrSuppress(e, interruptedException);
         }
         if (e != null) {
             throw new AssertionError(e);

@@ -11,7 +11,6 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.MvEvaluator;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -21,11 +20,9 @@ import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 
 /**
@@ -69,6 +66,11 @@ public class EvaluatorProcessor implements Processor {
     public boolean process(Set<? extends TypeElement> set, RoundEnvironment roundEnvironment) {
         for (TypeElement ann : set) {
             for (Element evaluatorMethod : roundEnvironment.getElementsAnnotatedWith(ann)) {
+                var warnExceptionsTypes = Annotations.listAttributeValues(
+                    evaluatorMethod,
+                    Set.of(Evaluator.class, MvEvaluator.class, ConvertEvaluator.class),
+                    "warnExceptions"
+                );
                 Evaluator evaluatorAnn = evaluatorMethod.getAnnotation(Evaluator.class);
                 if (evaluatorAnn != null) {
                     try {
@@ -80,7 +82,7 @@ public class EvaluatorProcessor implements Processor {
                                 env.getTypeUtils(),
                                 (ExecutableElement) evaluatorMethod,
                                 evaluatorAnn.extraName(),
-                                warnExceptions(evaluatorMethod)
+                                warnExceptionsTypes
                             ).sourceFile(),
                             env
                         );
@@ -102,7 +104,7 @@ public class EvaluatorProcessor implements Processor {
                                 mvEvaluatorAnn.finish(),
                                 mvEvaluatorAnn.single(),
                                 mvEvaluatorAnn.ascending(),
-                                warnExceptions(evaluatorMethod)
+                                warnExceptionsTypes
                             ).sourceFile(),
                             env
                         );
@@ -121,7 +123,7 @@ public class EvaluatorProcessor implements Processor {
                                 env.getElementUtils(),
                                 (ExecutableElement) evaluatorMethod,
                                 convertEvaluatorAnn.extraName(),
-                                warnExceptions(evaluatorMethod)
+                                warnExceptionsTypes
                             ).sourceFile(),
                             env
                         );
@@ -133,26 +135,5 @@ public class EvaluatorProcessor implements Processor {
             }
         }
         return true;
-    }
-
-    private static List<TypeMirror> warnExceptions(Element evaluatorMethod) {
-        List<TypeMirror> result = new ArrayList<>();
-        for (var mirror : evaluatorMethod.getAnnotationMirrors()) {
-            String annotationType = mirror.getAnnotationType().toString();
-            if (annotationType.equals(Evaluator.class.getName())
-                || annotationType.equals(MvEvaluator.class.getName())
-                || annotationType.equals(ConvertEvaluator.class.getName())) {
-
-                for (var e : mirror.getElementValues().entrySet()) {
-                    if (false == e.getKey().getSimpleName().toString().equals("warnExceptions")) {
-                        continue;
-                    }
-                    for (var v : (List<?>) e.getValue().getValue()) {
-                        result.add((TypeMirror) ((AnnotationValue) v).getValue());
-                    }
-                }
-            }
-        }
-        return result;
     }
 }

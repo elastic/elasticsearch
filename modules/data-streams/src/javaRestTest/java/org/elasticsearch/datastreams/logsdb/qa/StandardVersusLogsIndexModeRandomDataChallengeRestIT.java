@@ -45,7 +45,7 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
     public StandardVersusLogsIndexModeRandomDataChallengeRestIT() {
         super();
         this.subobjects = randomFrom(ObjectMapper.Subobjects.values());
-        this.storeArraySource = usually();
+        this.storeArraySource = randomBoolean();
 
         var specificationBuilder = DataGeneratorSpecification.builder().withFullyDynamicMapping(randomBoolean());
         if (subobjects != ObjectMapper.Subobjects.ENABLED) {

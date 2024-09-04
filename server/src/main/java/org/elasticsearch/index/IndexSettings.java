@@ -933,9 +933,7 @@ public final class IndexSettings {
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
-        storeSourceMode = scopedSettings.get(Mapper.STORE_ARRAY_SOURCE_SETTING)
-            ? Mapper.StoreSourceMode.ARRAYS
-            : Mapper.StoreSourceMode.NONE;
+        storeSourceMode = scopedSettings.get(Mapper.STORE_ARRAY_SOURCE_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(

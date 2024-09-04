@@ -59,11 +59,18 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         private final String name;
     }
 
-    // Setting StoreSourceMode to ENABLED at the index level is equivalent to disabling synthetic source, which is not desired.
-    // Since the only valid option is to track array source by default, we use a boolean index setting for it.
-    public static final Setting<Boolean> STORE_ARRAY_SOURCE_SETTING = Setting.boolSetting(
-        "index.mapping.store_array_source",
-        false,
+    // Only relevant for indexes configured with synthetic source mode. Otherwise, it has no effect.
+    // Controls the default behavior for storing the source of leaf fields and objects, in singleton or array form.
+    // Setting to StoreSourceMode.ALL is equivalent to disabling synthetic source, so this is not allowed.
+    public static final Setting<StoreSourceMode> STORE_ARRAY_SOURCE_SETTING = Setting.enumSetting(
+        StoreSourceMode.class,
+        "index.mapping.store_source",
+        StoreSourceMode.NONE,
+        value -> {
+            if (value == StoreSourceMode.ALL) {
+                throw new IllegalArgumentException("index.mapping.store_source can't be set to [" + value.toString() + "]");
+            }
+        },
         Setting.Property.IndexScope,
         Setting.Property.ServerlessPublic
     );

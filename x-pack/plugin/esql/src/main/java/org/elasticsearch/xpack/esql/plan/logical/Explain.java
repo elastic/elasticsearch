@@ -70,6 +70,11 @@ public class Explain extends LeafPlan {
     }
 
     @Override
+    public String commandName() {
+        return "EXPLAIN";
+    }
+
+    @Override
     public boolean expressionsResolved() {
         return true;
     }

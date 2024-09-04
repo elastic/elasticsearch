@@ -146,4 +146,9 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     public Map<Runnable, Long> getOngoingTasks() {
         return trackOngoingTasks ? Map.copyOf(ongoingTasks) : Map.of();
     }
+
+    // Used for testing
+    public double getEwmaAlpha() {
+        return executionEWMA.getAlpha();
+    }
 }

@@ -12,6 +12,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -492,6 +494,25 @@ public enum IndexMode {
                     + "]"
             );
         };
+    }
+
+    public static IndexMode readFrom(StreamInput in) throws IOException {
+        int mode = in.readByte();
+        return switch (mode) {
+            case 0 -> STANDARD;
+            case 1 -> TIME_SERIES;
+            case 2 -> LOGSDB;
+            default -> throw new IllegalStateException("unexpected index mode [" + mode + "]");
+        };
+    }
+
+    public static void writeTo(IndexMode indexMode, StreamOutput out) throws IOException {
+        final int code = switch (indexMode) {
+            case STANDARD -> 0;
+            case TIME_SERIES -> 1;
+            case LOGSDB -> 2;
+        };
+        out.writeByte((byte) code);
     }
 
     @Override

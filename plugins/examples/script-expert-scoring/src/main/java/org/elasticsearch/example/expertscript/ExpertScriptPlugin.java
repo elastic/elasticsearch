@@ -125,6 +125,11 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
             }
 
             @Override
+            public boolean needs_termStats() {
+                return false; // Return true if the script needs term statistics via get_termStats()
+            }
+
+            @Override
             public ScoreScript newInstance(DocReader docReader)
                     throws IOException {
                 DocValuesDocReader dvReader = ((DocValuesDocReader) docReader);

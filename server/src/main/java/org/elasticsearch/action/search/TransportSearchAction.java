@@ -369,7 +369,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             } else {
                 if ((listener instanceof TelemetryListener tl) && CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
                     tl.setRemotes(resolvedIndices.getRemoteClusterIndices().size());
-                    if (isAsyncSearchTask(task)) {
+                    if (task.isAsync()) {
                         tl.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
                     }
                     String client = task.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
@@ -1512,34 +1512,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             }
         }
-    }
-
-    /**
-     * TransportSearchAction cannot access async-search code, so can't check whether this the Task
-     * is an instance of AsyncSearchTask, so this roundabout method is used
-     * @param searchTask SearchTask to analyze
-     * @return true if this is an async search task; false if a synchronous search task
-     */
-    private boolean isAsyncSearchTask(SearchTask searchTask) {
-        assert assertAsyncSearchTaskListener(searchTask) : "AsyncSearchTask SearchProgressListener is not one of the expected types";
-        // AsyncSearchTask will not return SearchProgressListener.NOOP, since it uses its own progress listener
-        // which delegates to CCSSingleCoordinatorSearchProgressListener when minimizing roundtrips.
-        // Only synchronous SearchTask uses SearchProgressListener.NOOP or CCSSingleCoordinatorSearchProgressListener directly
-        return searchTask.getProgressListener() != SearchProgressListener.NOOP
-            && searchTask.getProgressListener() instanceof CCSSingleCoordinatorSearchProgressListener == false;
-    }
-
-    /**
-     * @param searchTask SearchTask to analyze
-     * @return true if AsyncSearchTask still uses its own special listener, not one of the two that synchronous SearchTask uses
-     */
-    private boolean assertAsyncSearchTaskListener(SearchTask searchTask) {
-        if (searchTask.getClass().getSimpleName().contains("AsyncSearchTask")) {
-            SearchProgressListener progressListener = searchTask.getProgressListener();
-            return progressListener != SearchProgressListener.NOOP
-                && progressListener instanceof CCSSingleCoordinatorSearchProgressListener == false;
-        }
-        return true;
     }
 
     private static void validateAndResolveWaitForCheckpoint(

@@ -9,7 +9,6 @@
 package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -125,8 +124,8 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
         RankDocsRetrieverBuilder retriever = createRandomRankDocsRetrieverBuilder();
         QueryBuilder topDocs = retriever.topDocsQuery();
         assertNotNull(topDocs);
-        assertThat(topDocs, instanceOf(DisMaxQueryBuilder.class));
-        assertThat(((DisMaxQueryBuilder) topDocs).innerQueries(), hasSize(retriever.sources.size()));
+        assertThat(topDocs, instanceOf(BoolQueryBuilder.class));
+        assertThat(((BoolQueryBuilder) topDocs).should(), hasSize(retriever.sources.size()));
     }
 
     public void testRewrite() throws IOException {

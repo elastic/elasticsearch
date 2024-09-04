@@ -528,7 +528,7 @@ public class HistogramFieldMapper extends FieldMapper {
         );
     }
 
-    private class HistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.SyntheticFieldLoaderLayer {
+    private class HistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.Layer {
         private final InternalHistogramValue value = new InternalHistogramValue();
         private BytesRef binaryValue;
 

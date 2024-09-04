@@ -26,6 +26,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         private String leafName;
 
+        @SuppressWarnings("this-escape")
         protected Builder(String leafName) {
             setLeafName(leafName);
         }
@@ -55,6 +56,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     private final String leafName;
 
+    @SuppressWarnings("this-escape")
     public Mapper(String leafName) {
         Objects.requireNonNull(leafName);
         this.leafName = internFieldName(leafName);

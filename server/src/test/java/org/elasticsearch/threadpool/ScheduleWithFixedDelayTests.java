@@ -52,7 +52,8 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
     public void setup() {
         threadPool = new ThreadPool(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "fixed delay tests").build(),
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
         );
     }
 
@@ -255,7 +256,8 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         terminate(threadPool);
         threadPool = new ThreadPool(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "fixed delay tests").build(),
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
         ) {
             @Override
             public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {

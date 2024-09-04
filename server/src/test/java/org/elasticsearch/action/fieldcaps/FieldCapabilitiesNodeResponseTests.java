@@ -16,6 +16,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -49,7 +50,9 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         List<FieldCapabilitiesIndexResponse> responses = new ArrayList<>();
         int numResponse = randomIntBetween(0, 10);
         for (int i = 0; i < numResponse; i++) {
-            responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, randomFieldCaps(), randomBoolean()));
+            responses.add(
+                new FieldCapabilitiesIndexResponse("index_" + i, null, randomFieldCaps(), randomBoolean(), randomFrom(IndexMode.values()))
+            );
         }
         int numUnmatched = randomIntBetween(0, 3);
         Set<ShardId> shardIds = new HashSet<>();
@@ -69,21 +72,38 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         List<FieldCapabilitiesIndexResponse> newResponses = new ArrayList<>(response.getIndexResponses());
         int mutation = response.getIndexResponses().isEmpty() ? 0 : randomIntBetween(0, 3);
         switch (mutation) {
-            case 0 -> newResponses.add(new FieldCapabilitiesIndexResponse("extra_index", null, randomFieldCaps(), randomBoolean()));
+            case 0 -> newResponses.add(
+                new FieldCapabilitiesIndexResponse("extra_index", null, randomFieldCaps(), randomBoolean(), randomFrom(IndexMode.values()))
+            );
             case 1 -> {
                 int toRemove = randomInt(newResponses.size() - 1);
                 newResponses.remove(toRemove);
             }
             case 2 -> {
                 int toReplace = randomInt(newResponses.size() - 1);
-                newResponses.set(toReplace, new FieldCapabilitiesIndexResponse("new_index", null, randomFieldCaps(), randomBoolean()));
+                newResponses.set(
+                    toReplace,
+                    new FieldCapabilitiesIndexResponse(
+                        "new_index",
+                        null,
+                        randomFieldCaps(),
+                        randomBoolean(),
+                        randomFrom(IndexMode.values())
+                    )
+                );
             }
             case 3 -> {
                 int toReplace = randomInt(newResponses.size() - 1);
                 FieldCapabilitiesIndexResponse resp = newResponses.get(toReplace);
                 newResponses.set(
                     toReplace,
-                    new FieldCapabilitiesIndexResponse(resp.getIndexName(), UUIDs.randomBase64UUID(), resp.get(), true)
+                    new FieldCapabilitiesIndexResponse(
+                        resp.getIndexName(),
+                        UUIDs.randomBase64UUID(),
+                        resp.get(),
+                        true,
+                        randomFrom(IndexMode.values())
+                    )
                 );
             }
         }
@@ -194,9 +214,10 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         "blue_field",
                         new IndexFieldCapabilities("blue_field", "long", false, true, true, false, null, Map.of())
                     ),
-                    true
+                    true,
+                    IndexMode.STANDARD
                 ),
-                new FieldCapabilitiesIndexResponse("index_02", null, Map.of(), false),
+                new FieldCapabilitiesIndexResponse("index_02", null, Map.of(), false, IndexMode.STANDARD),
                 new FieldCapabilitiesIndexResponse(
                     "index_03",
                     null,
@@ -206,7 +227,8 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         "_seq_no",
                         new IndexFieldCapabilities("_seq_no", "long", true, true, true, false, null, Map.of())
                     ),
-                    true
+                    true,
+                    IndexMode.STANDARD
                 )
             )
         );

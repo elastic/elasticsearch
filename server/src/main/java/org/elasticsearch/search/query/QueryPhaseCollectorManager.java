@@ -220,8 +220,6 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         );
         final IndexReader reader = searchContext.searcher().getIndexReader();
         final Query query = searchContext.rewrittenQuery();
-        // top collectors don't like a size of 0
-        final int totalNumDocs = Math.max(1, reader.numDocs());
         if (searchContext.size() == 0) {
             return new EmptyHits(
                 postFilterWeight,
@@ -238,6 +236,8 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
             int trackTotalHitsUpTo = searchContext.scrollContext().totalHits != null
                 ? SearchContext.TRACK_TOTAL_HITS_DISABLED
                 : SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+            // top collectors don't like a size of 0
+            final int totalNumDocs = Math.max(1, reader.numDocs());
             // no matter what the value of from is
             int numDocs = Math.min(searchContext.size(), totalNumDocs);
             return forScroll(
@@ -257,6 +257,8 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
                 searchContext.numberOfShards()
             );
         } else {
+            // top collectors don't like a size of 0
+            final int totalNumDocs = Math.max(1, reader.numDocs());
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;
             if (rescore) {

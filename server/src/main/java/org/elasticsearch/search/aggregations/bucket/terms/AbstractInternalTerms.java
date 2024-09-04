@@ -178,8 +178,8 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             assert lastBucket == null || cmp.compare(top.current(), lastBucket) >= 0;
             if (lastBucket != null && cmp.compare(top.current(), lastBucket) != 0) {
                 // the key changed so bundle up the last key's worth of buckets
-                sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
-                sameTermBuckets = new ArrayList<>();
+                sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, new ArrayList<>(sameTermBuckets)));
+                sameTermBuckets.clear();
             }
             lastBucket = top.current();
             sameTermBuckets.add(top.current());
@@ -210,7 +210,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             }
         }
         for (List<B> sameTermBuckets : bucketMap.values()) {
-            sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
+            sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, new ArrayList<>(sameTermBuckets)));
         }
     }
 

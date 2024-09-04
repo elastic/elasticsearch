@@ -329,7 +329,7 @@ public abstract class DocumentParserContext {
         return mappingLookup.isSourceSynthetic() && clonedSource == false;
     }
 
-    Mapper.SourceKeepMode storeSourceModeFromIndexSettings() {
+    Mapper.SourceKeepMode sourceKeepModeFromIndexSettings() {
         return indexSettings().sourceKeepMode();
     }
 

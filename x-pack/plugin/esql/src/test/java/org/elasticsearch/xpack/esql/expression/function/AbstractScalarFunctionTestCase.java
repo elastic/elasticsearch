@@ -38,7 +38,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -120,6 +119,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
         Object result;
         try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
+            if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
+                assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
+            }
             try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
                 assertThat(block.getPositionCount(), is(1));
                 result = toJavaObjectUnsignedLongAware(block, 0);
@@ -177,6 +179,10 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
      */
     public final void testCrankyEvaluateBlockWithoutNulls() {
         assumeTrue("sometimes the cranky breaker silences warnings, just skip these cases", testCase.getExpectedWarnings() == null);
+        assumeTrue(
+            "sometimes the cranky breaker silences warnings, just skip these cases",
+            testCase.getExpectedBuildEvaluatorWarnings() == null
+        );
         try {
             testEvaluateBlock(driverContext().blockFactory(), crankyContext(), false);
         } catch (CircuitBreakingException ex) {
@@ -190,6 +196,10 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
      */
     public final void testCrankyEvaluateBlockWithNulls() {
         assumeTrue("sometimes the cranky breaker silences warnings, just skip these cases", testCase.getExpectedWarnings() == null);
+        assumeTrue(
+            "sometimes the cranky breaker silences warnings, just skip these cases",
+            testCase.getExpectedBuildEvaluatorWarnings() == null
+        );
         try {
             testEvaluateBlock(driverContext().blockFactory(), crankyContext(), true);
         } catch (CircuitBreakingException ex) {
@@ -242,10 +252,13 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 ExpressionEvaluator eval = evaluator(expression).get(context);
                 Block block = eval.eval(new Page(positions, manyPositionsBlocks))
             ) {
+                if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
+                    assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
+                }
                 assertThat(block.getPositionCount(), is(positions));
                 for (int p = 0; p < positions; p++) {
                     if (nullPositions.contains(p)) {
-                        assertThat(toJavaObject(block, p), allNullsMatcher());
+                        assertThat(toJavaObjectUnsignedLongAware(block, p), allNullsMatcher());
                         continue;
                     }
                     assertThat(toJavaObjectUnsignedLongAware(block, p), testCase.getMatcher());
@@ -275,6 +288,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         int count = 10_000;
         int threads = 5;
         var evalSupplier = evaluator(expression);
+        if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
+            assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
+        }
         ExecutorService exec = Executors.newFixedThreadPool(threads);
         try {
             List<Future<?>> futures = new ArrayList<>();
@@ -310,6 +326,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         var factory = evaluator(expression);
         try (ExpressionEvaluator ev = factory.get(driverContext())) {
+            if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
+                assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
+            }
             assertThat(ev.toString(), testCase.evaluatorToString());
         }
     }
@@ -322,6 +341,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         var factory = evaluator(buildFieldExpression(testCase));
+        if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
+            assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
+        }
         assertThat(factory.toString(), testCase.evaluatorToString());
     }
 
@@ -342,6 +364,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 result = NumericUtils.unsignedLongAsBigInteger((Long) result);
             }
             assertThat(result, testCase.getMatcher());
+            if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
+                assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
+            }
             if (testCase.getExpectedWarnings() != null) {
                 assertWarnings(testCase.getExpectedWarnings());
             }

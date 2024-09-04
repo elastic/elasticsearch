@@ -217,7 +217,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         expectedType.expectedType(finalNullPosition, nulledData.type(), oc),
                         nullValue(),
                         null,
+                        null,
                         oc.getExpectedTypeError(),
+                        null,
                         null,
                         null
                     );
@@ -246,7 +248,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 expectedType.expectedType(finalNullPosition, DataType.NULL, oc),
                                 nullValue(),
                                 null,
+                                null,
                                 oc.getExpectedTypeError(),
+                                null,
                                 null,
                                 null
                             );
@@ -642,9 +646,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 testCase.expectedType(),
                 testCase.getMatcher(),
                 testCase.getExpectedWarnings(),
+                testCase.getExpectedBuildEvaluatorWarnings(),
                 testCase.getExpectedTypeError(),
                 testCase.foldingExceptionClass(),
-                testCase.foldingExceptionMessage()
+                testCase.foldingExceptionMessage(),
+                testCase.extra()
             );
         })).toList();
     }

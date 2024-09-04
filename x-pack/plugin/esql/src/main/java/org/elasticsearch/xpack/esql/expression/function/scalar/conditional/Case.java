@@ -230,7 +230,7 @@ public final class Case extends EsqlScalarFunction {
                  * multivalued fields fold to null which folds to false.
                  * So they *are* foldable if the value is foldable.
                  */
-                return condition.value.foldable();
+                continue;
             }
             Boolean b = (Boolean) o;
             if (b != null && b) {
@@ -288,10 +288,11 @@ public final class Case extends EsqlScalarFunction {
     }
 
     private Expression finishPartialFold(List<Expression> newChildren) {
-        if (newChildren.size() == 1) {
-            return newChildren.get(0);
-        }
-        return replaceChildren(newChildren);
+        return switch (newChildren.size()) {
+            case 0 -> new Literal(source(), null, dataType());
+            case 1 -> newChildren.get(0);
+            default -> replaceChildren(newChildren);
+        };
     }
 
     @Override

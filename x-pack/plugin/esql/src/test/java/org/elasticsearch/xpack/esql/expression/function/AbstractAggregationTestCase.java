@@ -105,7 +105,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                         testCase.expectedType(),
                         nullValue(),
                         null,
+                        null,
                         testCase.getExpectedTypeError(),
+                        null,
                         null,
                         null
                     );

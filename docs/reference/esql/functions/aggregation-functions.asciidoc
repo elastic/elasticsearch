@@ -9,7 +9,6 @@ The <<esql-stats-by>> command supports these aggregate functions:
 
 // tag::agg_list[]
 * <<esql-avg>>
-* <<esql-bucket>>
 * <<esql-count>>
 * <<esql-count_distinct>>
 * <<esql-max>>

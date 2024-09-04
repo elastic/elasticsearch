@@ -41,6 +41,10 @@ The following <<esql-agg-functions,aggregation functions>> are supported:
 
 include::../functions/aggregation-functions.asciidoc[tag=agg_list]
 
+The following <<esql-group-functions,grouping functions>> are supported:
+
+include::../functions/grouping-functions.asciidoc[tag=group_list]
+
 NOTE: `STATS` without any groups is much much faster than adding a group.
 
 NOTE: Grouping on a single expression is currently much more optimized than grouping

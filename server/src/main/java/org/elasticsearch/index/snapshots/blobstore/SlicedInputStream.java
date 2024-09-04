@@ -21,10 +21,14 @@ import java.io.InputStream;
  * close is called before.
  */
 public abstract class SlicedInputStream extends InputStream {
-    private int slice = 0;
+    private int nextSlice = 0;
     private InputStream currentStream;
+    private int currentSliceOffset = 0;
     private final int numSlices;
+    private boolean closed = false;
     private boolean initialized = false;
+    private int markedSlice = -1;
+    private int markedSliceOffset = -1;
 
     /**
      * Creates a new SlicedInputStream
@@ -38,16 +42,19 @@ public abstract class SlicedInputStream extends InputStream {
         assert initialized == false || currentStream != null;
         initialized = true;
         IOUtils.close(currentStream);
-        if (slice < numSlices) {
-            currentStream = openSlice(slice++);
+        if (nextSlice < numSlices) {
+            currentStream = openSlice(nextSlice++);
         } else {
             currentStream = null;
         }
+        currentSliceOffset = 0;
         return currentStream;
     }
 
     /**
      * Called for each logical slice given a zero based slice ordinal.
+     * The function must be able to be called again to open a previous slice. This ensures we can support the mark/reset functionality and
+     * {@link InputStream#markSupported()} being true. The returned InputStreams do not need to support mark/reset.
      */
     protected abstract InputStream openSlice(int slice) throws IOException;
 
@@ -69,6 +76,7 @@ public abstract class SlicedInputStream extends InputStream {
             nextStream();
             return read();
         }
+        currentSliceOffset++;
         return read;
     }
 
@@ -83,14 +91,17 @@ public abstract class SlicedInputStream extends InputStream {
             nextStream();
             return read(buffer, offset, length);
         }
+        currentSliceOffset += read;
         return read;
     }
 
     @Override
-    public final void close() throws IOException {
+    public void close() throws IOException {
         IOUtils.close(currentStream);
+        closed = true;
         initialized = true;
         currentStream = null;
+        currentSliceOffset = 0;
     }
 
     @Override
@@ -99,4 +110,38 @@ public abstract class SlicedInputStream extends InputStream {
         return stream == null ? 0 : stream.available();
     }
 
+    @Override
+    public boolean markSupported() {
+        return true;
+    }
+
+    @Override
+    public void mark(int readLimit) {
+        // We ignore readLimit since openSlice() can re-open previous InputStreams, and we can skip as many bytes as we'd like.
+        // According to JDK documentation, marking a closed InputStream should have no effect.
+        if (closed == false) {
+            if (initialized && nextSlice > 0) { // nextSlice > 0 guards the case it is initialized and numSlices is 0.
+                markedSlice = nextSlice - 1;
+                markedSliceOffset = currentSliceOffset;
+            } else {
+                markedSlice = 0;
+                markedSliceOffset = 0;
+            }
+        }
+    }
+
+    @Override
+    public void reset() throws IOException {
+        // JDK documentation does not clarify if a closed InputStream (that has been previously marked) can be reset. We assume the same
+        // behavior specified for mark(), i.e., that reset on a closed InputStream has no effect.
+        if (closed == false) {
+            if (markedSlice < 0 || markedSliceOffset < 0) {
+                throw new IOException("Mark has not been set");
+            }
+
+            nextSlice = markedSlice;
+            nextStream();
+            skipNBytes(markedSliceOffset);
+        }
+    }
 }

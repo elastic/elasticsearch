@@ -28,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -43,6 +44,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LongSupplier globalCheckpointSupplier;
     private final Map<IndexCommit, Integer> acquiredIndexCommits; // Number of references held against each commit point.
+    private final Set<IndexCommit> indexCommitsAcquiredByCommitsListener;
 
     interface CommitsListener {
 
@@ -72,6 +74,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.commitsListener = commitsListener;
         this.acquiredIndexCommits = new HashMap<>();
+        this.indexCommitsAcquiredByCommitsListener = new HashSet<>();
     }
 
     @Override
@@ -114,7 +117,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 this.maxSeqNoOfNextSafeCommit = Long.parseLong(commits.get(keptPosition + 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
             }
             if (commitsListener != null && previousLastCommit != this.lastCommit) {
-                newCommit = acquireIndexCommit(false);
+                newCommit = acquireIndexCommit(false, true);
             } else {
                 newCommit = null;
             }
@@ -210,15 +213,26 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * @param acquiringSafeCommit captures the most recent safe commit point if true; otherwise captures the most recent commit point.
      */
     synchronized IndexCommit acquireIndexCommit(boolean acquiringSafeCommit) {
+        return acquireIndexCommit(acquiringSafeCommit, false);
+    }
+
+    private synchronized IndexCommit acquireIndexCommit(boolean acquiringSafeCommit, boolean acquiredByCommitsListener) {
         assert safeCommit != null : "Safe commit is not initialized yet";
         assert lastCommit != null : "Last commit is not initialized yet";
         final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
         acquiredIndexCommits.merge(snapshotting, 1, Integer::sum); // increase refCount
-        return wrapCommit(snapshotting);
+        if (acquiredByCommitsListener) {
+            indexCommitsAcquiredByCommitsListener.add(snapshotting);
+        }
+        return wrapCommit(snapshotting, acquiredByCommitsListener);
     }
 
     protected IndexCommit wrapCommit(IndexCommit indexCommit) {
-        return new SnapshotIndexCommit(indexCommit);
+        return wrapCommit(indexCommit, false);
+    }
+
+    protected IndexCommit wrapCommit(IndexCommit indexCommit, boolean acquiredByCommitsListener) {
+        return new SnapshotIndexCommit(indexCommit, acquiredByCommitsListener);
     }
 
     /**
@@ -227,7 +241,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * @return true if the acquired commit can be clean up.
      */
     synchronized boolean releaseCommit(final IndexCommit acquiredCommit) {
-        final IndexCommit releasingCommit = ((SnapshotIndexCommit) acquiredCommit).getIndexCommit();
+        SnapshotIndexCommit snapshotIndexCommit = (SnapshotIndexCommit) acquiredCommit;
+        final IndexCommit releasingCommit = snapshotIndexCommit.getIndexCommit();
         assert acquiredIndexCommits.containsKey(releasingCommit)
             : "Release non-acquired commit;"
                 + "acquired commits ["
@@ -242,6 +257,9 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             }
             return count - 1;
         });
+        if (snapshotIndexCommit.acquiredByCommitsListener) {
+            indexCommitsAcquiredByCommitsListener.remove(releasingCommit);
+        }
 
         assert refCount == null || refCount > 0 : "Number of references for acquired commit can not be negative [" + refCount + "]";
         // The commit can be clean up only if no refCount and it is neither the safe commit nor last commit.
@@ -299,7 +317,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * Checks whether the deletion policy is holding on to acquired index commits
      */
     synchronized boolean hasAcquiredIndexCommits() {
-        return acquiredIndexCommits.isEmpty() == false;
+        return acquiredIndexCommits.isEmpty() == false
+            && acquiredIndexCommits.keySet().stream().anyMatch(Predicate.not(indexCommitsAcquiredByCommitsListener::contains));
     }
 
     /**
@@ -320,8 +339,12 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * A wrapper of an index commit that prevents it from being deleted.
      */
     private static class SnapshotIndexCommit extends FilterIndexCommit {
-        SnapshotIndexCommit(IndexCommit delegate) {
+
+        private final boolean acquiredByCommitsListener;
+
+        SnapshotIndexCommit(IndexCommit delegate, boolean acquiredByCommitsListener) {
             super(delegate);
+            this.acquiredByCommitsListener = acquiredByCommitsListener;
         }
 
         @Override

@@ -11,9 +11,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.operator.SequenceBytesRefBlockSourceOperator;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.LongBytesRefTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.hamcrest.core.IsEqual;
+import org.elasticsearch.core.Tuple;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -22,8 +23,9 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.core.IsEqual.equalTo;
 
-public class CategorizeBytesRefAggregatorFunctionTests extends AggregatorFunctionTestCase {
+public class CategorizeBytesRefGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     private static final int NUM_PREFIXES = 10;
 
@@ -32,9 +34,16 @@ public class CategorizeBytesRefAggregatorFunctionTests extends AggregatorFunctio
         List<String> prefixes = IntStream.range(0, NUM_PREFIXES)
             .mapToObj(i -> randomAlphaOfLength(5) + " " + randomAlphaOfLength(5) + " " + randomAlphaOfLength(5) + " ")
             .toList();
-        return new SequenceBytesRefBlockSourceOperator(
+
+        return new LongBytesRefTupleBlockSourceOperator(
             blockFactory,
-            IntStream.range(0, size).mapToObj(i -> new BytesRef((prefixes.get(i % NUM_PREFIXES) + i).getBytes(StandardCharsets.UTF_8)))
+            IntStream.range(0, size)
+                .mapToObj(
+                    i -> Tuple.tuple(
+                        randomGroupId(size),
+                        new BytesRef((prefixes.get(i % NUM_PREFIXES) + i).getBytes(StandardCharsets.UTF_8))
+                    )
+                )
         );
     }
 
@@ -49,20 +58,20 @@ public class CategorizeBytesRefAggregatorFunctionTests extends AggregatorFunctio
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
+    protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
         int inputSize = (int) input.stream()
-            .flatMap(AggregatorFunctionTestCase::allBytesRefs)
+            .flatMap(p -> GroupingAggregatorFunctionTestCase.allBytesRefs(p, group))
             .filter(Objects::nonNull)
             .map(b -> b.utf8ToString().replaceAll("[0-9]", ""))
             .distinct()
             .count();
-        Object resultValue = BlockUtils.toJavaObject(result, 0);
+        Object resultValue = BlockUtils.toJavaObject(result, position);
         switch (inputSize) {
             case 0 -> assertThat(resultValue, nullValue());
             case 1 -> assertThat(resultValue, instanceOf(BytesRef.class));
             default -> {
                 assertThat(resultValue, instanceOf(List.class));
-                assertThat(((List<?>) resultValue).size(), IsEqual.equalTo(inputSize));
+                assertThat(((List<?>) resultValue).size(), equalTo(inputSize));
             }
         }
     }

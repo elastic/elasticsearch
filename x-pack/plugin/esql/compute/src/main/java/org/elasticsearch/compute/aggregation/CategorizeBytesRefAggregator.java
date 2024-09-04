@@ -107,7 +107,7 @@ class CategorizeBytesRefAggregator {
 
         private final CategorizationAnalyzer analyzer;
         private final CategorizationBytesRefHash bytesRefHash;
-        private final TokenListCategorizer categorizer;
+        private final TokenListCategorizer categorizer; // TODO: reuse for group
 
         private SingleState(BigArrays bigArrays) {
             // TODO: add correct analyzer, see also: CategorizationAnalyzerConfig::buildStandardCategorizationAnalyzer
@@ -128,6 +128,7 @@ class CategorizeBytesRefAggregator {
                 return;
             }
             try (TokenStream ts = analyzer.tokenStream("text", v.utf8ToString())) {
+                // TODO: unfilteredStringLen: 999 ???
                 categorizer.computeCategory(ts, 999, 1);
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -149,6 +150,10 @@ class CategorizeBytesRefAggregator {
         }
 
         void addToBlockIntermediate(BytesRefBlock.Builder block) {
+            if (categorizer.getCategoryCount() == 0) {
+                block.appendNull();
+                return;
+            }
             block.beginPositionEntry();
             for (InternalCategorizationAggregation.Bucket bucket : categorizer.toOrderedBuckets(categorizer.getCategoryCount())) {
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -174,6 +179,10 @@ class CategorizeBytesRefAggregator {
         }
 
         void addToBlockFinal(BytesRefBlock.Builder block) {
+            if (categorizer.getCategoryCount() == 0) {
+                block.appendNull();
+                return;
+            }
             block.beginPositionEntry();
             for (InternalCategorizationAggregation.Bucket bucket : categorizer.toOrderedBuckets(categorizer.getCategoryCount())) {
                 // TODO: find something better for this semi-colon-separated string.
@@ -218,7 +227,12 @@ class CategorizeBytesRefAggregator {
             }
             try (BytesRefBlock.Builder block = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
                 for (int s = 0; s < selected.getPositionCount(); s++) {
-                    states.get(selected.getInt(s)).addToBlockIntermediate(block);
+                    SingleState state = states.get(selected.getInt(s));
+                    if (state == null) {
+                        block.appendNull();
+                    } else {
+                        state.addToBlockIntermediate(block);
+                    }
                 }
                 return block.build();
             }
@@ -230,7 +244,12 @@ class CategorizeBytesRefAggregator {
             }
             try (BytesRefBlock.Builder block = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
                 for (int s = 0; s < selected.getPositionCount(); s++) {
-                    states.get(selected.getInt(s)).addToBlockFinal(block);
+                    SingleState state = states.get(selected.getInt(s));
+                    if (state == null) {
+                        block.appendNull();
+                    } else {
+                        state.addToBlockFinal(block);
+                    }
                 }
                 return block.build();
             }

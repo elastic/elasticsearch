@@ -38,14 +38,14 @@ import java.util.Map;
  */
 public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends StandardVersusLogsIndexModeChallengeRestIT {
     private final ObjectMapper.Subobjects subobjects;
-    private final boolean storeArraySource;
+    private final boolean keepArraySource;
 
     private final DataGenerator dataGenerator;
 
     public StandardVersusLogsIndexModeRandomDataChallengeRestIT() {
         super();
         this.subobjects = randomFrom(ObjectMapper.Subobjects.values());
-        this.storeArraySource = randomBoolean();
+        this.keepArraySource = randomBoolean();
 
         var specificationBuilder = DataGeneratorSpecification.builder().withFullyDynamicMapping(randomBoolean());
         if (subobjects != ObjectMapper.Subobjects.ENABLED) {
@@ -126,7 +126,7 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
 
     @Override
     public void contenderSettings(Settings.Builder builder) {
-        if (storeArraySource) {
+        if (keepArraySource) {
             builder.put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays");
         }
     }

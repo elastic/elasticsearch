@@ -330,7 +330,7 @@ public abstract class DocumentParserContext {
     }
 
     Mapper.SourceKeepMode storeSourceModeFromIndexSettings() {
-        return indexSettings().storeSourceMode();
+        return indexSettings().sourceKeepMode();
     }
 
     /**

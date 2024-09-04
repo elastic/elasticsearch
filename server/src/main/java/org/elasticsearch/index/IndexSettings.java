@@ -798,11 +798,11 @@ public final class IndexSettings {
      * The default mode for storing source, for all mappers not overriding this setting.
      * This is only relevant for indexes configured with synthetic-source code.
      */
-    public Mapper.SourceKeepMode storeSourceMode() {
-        return storeSourceMode;
+    public Mapper.SourceKeepMode sourceKeepMode() {
+        return sourceKeepMode;
     }
 
-    private final Mapper.SourceKeepMode storeSourceMode;
+    private final Mapper.SourceKeepMode sourceKeepMode;
 
     /**
      * Returns the default search fields for this index.
@@ -933,7 +933,7 @@ public final class IndexSettings {
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
-        storeSourceMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
+        sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(

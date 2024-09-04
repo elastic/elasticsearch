@@ -7,7 +7,6 @@
  */
 
 package org.elasticsearch.xcontent;
-
 public class XContentEOFException extends XContentParseException {
 
     public XContentEOFException(XContentLocation location, String message, Exception cause) {

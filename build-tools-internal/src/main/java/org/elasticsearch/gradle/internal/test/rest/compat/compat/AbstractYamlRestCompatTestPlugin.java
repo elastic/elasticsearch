@@ -225,7 +225,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
             testTask.setClasspath(
                 yamlCompatTestSourceSet.getRuntimeClasspath()
                     // remove the "normal" api and tests
-                    .minus(project.files(yamlTestSourceSet.getOutput().getResourcesDir()))
+                    .minus(project.files(new File(yamlTestSourceSet.getOutput().getResourcesDir(), "rest-api-spec")))
                     .minus(project.files(originalYamlSpecsDir))
                     .minus(project.files(originalYamlTestsDir))
             );

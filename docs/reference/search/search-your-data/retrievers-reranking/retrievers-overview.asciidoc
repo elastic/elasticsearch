@@ -13,23 +13,23 @@ For implementation details, including notable restrictions, check out the
 
 [discrete]
 [[retrievers-overview-types]]
-==== Retriever types 
+==== Retriever types
 
 Retrievers come in various types, each tailored for different search operations.
 The following retrievers are currently available:
 
-* <<standard-retriever,*Standard Retriever*>>. Returns top documents from a 
-traditional https://www.elastic.co/guide/en/elasticsearch/reference/master/query-dsl.html[query]. 
-Mimics a traditional query but in the context of a retriever framework. This 
-ensures backward compatibility as existing `_search` requests remain supported. 
-That way you can transition to the new abstraction at your own pace without 
+* <<standard-retriever,*Standard Retriever*>>. Returns top documents from a
+traditional https://www.elastic.co/guide/en/elasticsearch/reference/master/query-dsl.html[query].
+Mimics a traditional query but in the context of a retriever framework. This
+ensures backward compatibility as existing `_search` requests remain supported.
+That way you can transition to the new abstraction at your own pace without
 mixing syntaxes.
-* <<knn-retriever,*kNN Retriever*>>. Returns top documents from a <<search-api-knn,knn search>>, 
+* <<knn-retriever,*kNN Retriever*>>. Returns top documents from a <<search-api-knn,knn search>>,
 in the context of a retriever framework.
 * <<rrf-retriever,*RRF Retriever*>>. Combines and ranks multiple first-stage retrievers using
-the reciprocal rank fusion (RRF) algorithm. Allows you to combine multiple result sets 
+the reciprocal rank fusion (RRF) algorithm. Allows you to combine multiple result sets
 with different relevance indicators into a single result set.
-An RRF retriever is a *compound retriever*, where its `filter` element is 
+An RRF retriever is a *compound retriever*, where its `filter` element is
 propagated to its sub retrievers.
 +
 Sub retrievers may not use elements that are restricted by having a compound retriever as part of the retriever tree.
@@ -38,7 +38,7 @@ See the <<rrf-using-multiple-standard-retrievers,RRF documentation>> for detaile
 Requires first creating a `rerank` task using the <<put-inference-api,{es} Inference API>>.
 
 [discrete]
-==== What makes retrievers useful? 
+==== What makes retrievers useful?
 
 Here's an overview of what makes retrievers useful and how they differ from regular queries.
 
@@ -140,7 +140,7 @@ GET example-index/_search
   ],
   "rank":{
     "rrf":{
-      "window_size":50,
+      "rank_window_size":50,
       "rank_constant":20
     }
   }
@@ -155,14 +155,14 @@ GET example-index/_search
 
 Here are some important terms:
 
-* *Retrieval Pipeline*. Defines the entire retrieval and ranking logic to 
+* *Retrieval Pipeline*. Defines the entire retrieval and ranking logic to
 produce top hits.
 * *Retriever Tree*. A hierarchical structure that defines how retrievers interact.
 * *First-stage Retriever*. Returns an initial set of candidate documents.
-* *Compound Retriever*. Builds on one or more retrievers, 
+* *Compound Retriever*. Builds on one or more retrievers,
 enhancing document retrieval and ranking logic.
-* *Combiners*. Compound retrievers that merge top hits 
-from multiple sub-retrievers. 
+* *Combiners*. Compound retrievers that merge top hits
+from multiple sub-retrievers.
 * *Rerankers*. Special compound retrievers that reorder hits and may adjust the number of hits, with distinctions between first-stage and second-stage rerankers.
 
 [discrete]

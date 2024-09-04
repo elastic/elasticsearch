@@ -40,6 +40,11 @@ include::common-options.asciidoc[]
 Select the `content` field for inference and write the result to 
 `content_embedding`.
 
+IMPORTANT: If the specified `output_field` already exists in the ingest document, it won't be overwritten.
+The {infer} results will be appended to the existing fields within `output_field`, which could lead to duplicate fields and potential errors.
+To avoid this, use an unique `output_field` field name that does not clash with any existing fields.
+
+
 [source,js]
 --------------------------------------------------
 {

@@ -33,10 +33,6 @@ public interface DataSourceHandler {
         return null;
     }
 
-    default DataSourceResponse.DoubleInRangeGenerator handle(DataSourceRequest.DoubleInRangeGenerator request) {
-        return null;
-    }
-
     default DataSourceResponse.FloatGenerator handle(DataSourceRequest.FloatGenerator request) {
         return null;
     }
@@ -66,6 +62,14 @@ public interface DataSourceHandler {
     }
 
     default DataSourceResponse.ObjectArrayGenerator handle(DataSourceRequest.ObjectArrayGenerator request) {
+        return null;
+    }
+
+    default DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
+        return null;
+    }
+
+    default DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
         return null;
     }
 }

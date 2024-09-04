@@ -6,7 +6,7 @@
 <titleabbrev>Get {ccr-init} stats</titleabbrev>
 ++++
 
-Get {ccr} stats.
+Get <<xpack-ccr,{ccr}>> stats.
 
 [[ccr-get-stats-request]]
 ==== {api-request-title}

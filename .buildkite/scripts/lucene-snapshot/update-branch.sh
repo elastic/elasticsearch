@@ -2,17 +2,17 @@
 
 set -euo pipefail
 
-if [[ "$BUILDKITE_BRANCH" != "lucene_snapshot" ]]; then
-  echo "Error: This script should only be run on the lucene_snapshot branch"
+if [[ "$BUILDKITE_BRANCH" != "lucene_snapshot"* ]]; then
+  echo "Error: This script should only be run on lucene_snapshot branches"
   exit 1
 fi
 
-echo --- Updating lucene_snapshot branch with main
+echo --- Updating "$BUILDKITE_BRANCH" branch with main
 
 git config --global user.name elasticsearchmachine
 git config --global user.email 'infra-root+elasticsearchmachine@elastic.co'
 
-git checkout lucene_snapshot
+git checkout "$BUILDKITE_BRANCH"
 git fetch origin main
 git merge --no-edit origin/main
-git push origin lucene_snapshot
+git push origin "$BUILDKITE_BRANCH"

@@ -19,12 +19,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Wraps component version numbers for cluster state
@@ -42,6 +39,8 @@ public record CompatibilityVersions(
     Map<String, org.elasticsearch.indices.SystemIndexDescriptor.MappingsVersion> systemIndexMappingsVersion
 ) implements Writeable, ToXContentFragment {
 
+    public static final CompatibilityVersions EMPTY = new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of());
+
     /**
      * Constructs a VersionWrapper collecting all the minimum versions from the values of the map.
      *
@@ -49,18 +48,26 @@ public record CompatibilityVersions(
      * @return Minimum versions for the cluster
      */
     public static CompatibilityVersions minimumVersions(Collection<CompatibilityVersions> compatibilityVersions) {
-        TransportVersion minimumTransport = compatibilityVersions.stream()
-            .map(CompatibilityVersions::transportVersion)
-            .min(Comparator.naturalOrder())
-            // In practice transportVersions is always nonempty (except in tests) but use a conservative default anyway:
-            .orElse(TransportVersions.MINIMUM_COMPATIBLE);
-
-        Map<String, SystemIndexDescriptor.MappingsVersion> minimumMappingsVersions = compatibilityVersions.stream()
-            .flatMap(mv -> mv.systemIndexMappingsVersion().entrySet().stream())
-            .collect(
-                Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (v1, v2) -> Stream.of(v1, v2).min(Comparator.naturalOrder()).get())
-            );
-
+        if (compatibilityVersions.isEmpty()) {
+            return EMPTY;
+        }
+        TransportVersion minimumTransport = null;
+        Map<String, SystemIndexDescriptor.MappingsVersion> minimumMappingsVersions = null;
+        for (CompatibilityVersions cv : compatibilityVersions) {
+            TransportVersion version = cv.transportVersion();
+            if (minimumTransport == null) {
+                minimumTransport = version;
+                minimumMappingsVersions = new HashMap<>(cv.systemIndexMappingsVersion());
+                continue;
+            }
+            if (version.compareTo(minimumTransport) < 0) {
+                minimumTransport = version;
+            }
+            for (Map.Entry<String, SystemIndexDescriptor.MappingsVersion> entry : cv.systemIndexMappingsVersion().entrySet()) {
+                minimumMappingsVersions.merge(entry.getKey(), entry.getValue(), (v1, v2) -> v1.compareTo(v2) < 0 ? v1 : v2);
+            }
+        }
+        // transportVersions is always non-null since we break out on empty above
         return new CompatibilityVersions(minimumTransport, minimumMappingsVersions);
     }
 
@@ -113,7 +120,7 @@ public record CompatibilityVersions(
         TransportVersion.writeVersion(this.transportVersion(), out);
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            out.writeMap(this.systemIndexMappingsVersion(), (o, v) -> v.writeTo(o));
+            out.writeMap(this.systemIndexMappingsVersion(), StreamOutput::writeWriteable);
         }
     }
 

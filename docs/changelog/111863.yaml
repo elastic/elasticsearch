@@ -1,0 +1,6 @@
+pr: 111863
+summary: Fixing incorrect bulk request took time
+area: Ingest Node
+type: bug
+issues:
+ - 111854

@@ -1,9 +1,7 @@
 [[rrf]]
 === Reciprocal rank fusion
 
-preview::["This functionality is in technical preview and may be changed or removed in a future release.
-The syntax will likely change before GA.
-Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
+preview::["This functionality is in technical preview and may be changed or removed in a future release. The syntax will likely change before GA. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
 https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf[Reciprocal rank fusion (RRF)]
 is a method for combining multiple result sets with different relevance indicators into a single result set.
@@ -43,7 +41,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-constant]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-window-size]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-window-size]
 
 An example request using RRF:
 

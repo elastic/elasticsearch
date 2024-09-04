@@ -398,20 +398,41 @@ public final class StringUtils {
 
     public static boolean isInteger(String value) {
         for (char c : value.trim().toCharArray()) {
-            if (Character.isDigit(c) == false) {
+            if (isDigit(c) == false) {
                 return false;
             }
         }
         return true;
     }
 
+    private static boolean isLetter(char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+    }
+
+    private static boolean isDigit(char c) {
+        return c >= '0' && c <= '9';
+    }
+
+    private static boolean isUnderscore(char c) {
+        return c == '_';
+    }
+
+    private static boolean isLetterOrDigitOrUnderscore(char c) {
+        return isLetter(c) || isDigit(c) || isUnderscore(c);
+    }
+
+    private static boolean isLetterOrUnderscore(char c) {
+        return isLetter(c) || isUnderscore(c);
+    }
+
     public static boolean isValidParamName(String value) {
-        // A valid name starts with a letter and contain only letter, digit or _
-        if (Character.isLetter(value.charAt(0)) == false) {
+        // A valid name starts with a letter or _
+        if (isLetterOrUnderscore(value.charAt(0)) == false) {
             return false;
         }
-        for (char c : value.trim().toCharArray()) {
-            if (Character.isLetterOrDigit(c) == false && c != '_') {
+        // contain only letter, digit or _
+        for (char c : value.toCharArray()) {
+            if (isLetterOrDigitOrUnderscore(c) == false) {
                 return false;
             }
         }

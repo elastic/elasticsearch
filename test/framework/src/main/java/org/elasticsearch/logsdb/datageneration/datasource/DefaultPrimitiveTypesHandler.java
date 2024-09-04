@@ -44,13 +44,6 @@ public class DefaultPrimitiveTypesHandler implements DataSourceHandler {
     }
 
     @Override
-    public DataSourceResponse.DoubleInRangeGenerator handle(DataSourceRequest.DoubleInRangeGenerator request) {
-        return new DataSourceResponse.DoubleInRangeGenerator(
-            () -> ESTestCase.randomDoubleBetween(request.minExclusive(), request.maxExclusive(), false)
-        );
-    }
-
-    @Override
     public DataSourceResponse.FloatGenerator handle(DataSourceRequest.FloatGenerator request) {
         return new DataSourceResponse.FloatGenerator(ESTestCase::randomFloat);
     }

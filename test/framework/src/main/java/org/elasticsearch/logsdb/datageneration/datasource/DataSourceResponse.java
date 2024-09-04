@@ -10,6 +10,7 @@ package org.elasticsearch.logsdb.datageneration.datasource;
 
 import org.elasticsearch.logsdb.datageneration.FieldType;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -27,8 +28,6 @@ public interface DataSourceResponse {
 
     record DoubleGenerator(Supplier<Double> generator) implements DataSourceResponse {}
 
-    record DoubleInRangeGenerator(Supplier<Double> generator) implements DataSourceResponse {}
-
     record FloatGenerator(Supplier<Float> generator) implements DataSourceResponse {}
 
     record HalfFloatGenerator(Supplier<Float> generator) implements DataSourceResponse {}
@@ -42,6 +41,8 @@ public interface DataSourceResponse {
     interface ChildFieldGenerator extends DataSourceResponse {
         int generateChildFieldCount();
 
+        boolean generateDynamicSubObject();
+
         boolean generateNestedSubObject();
 
         boolean generateRegularSubObject();
@@ -49,7 +50,13 @@ public interface DataSourceResponse {
         String generateFieldName();
     }
 
-    record FieldTypeGenerator(Supplier<FieldType> generator) implements DataSourceResponse {}
+    record FieldTypeGenerator(Supplier<FieldTypeInfo> generator) implements DataSourceResponse {
+        public record FieldTypeInfo(FieldType fieldType, boolean dynamic) {}
+    }
 
     record ObjectArrayGenerator(Supplier<Optional<Integer>> lengthGenerator) implements DataSourceResponse {}
+
+    record LeafMappingParametersGenerator(Supplier<Map<String, Object>> mappingGenerator) implements DataSourceResponse {}
+
+    record ObjectMappingParametersGenerator(Supplier<Map<String, Object>> mappingGenerator) implements DataSourceResponse {}
 }

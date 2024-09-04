@@ -183,10 +183,10 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testChangeLocale() throws IOException {
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "date").field("format", "E, d MMM yyyy HH:mm:ss Z").field("locale", "de"))
+            fieldMapping(b -> b.field("type", "date").field("format", "E, d MMM yyyy HH:mm:ss Z").field("locale", "fr"))
         );
 
-        mapper.parse(source(b -> b.field("field", "Mi, 06 Dez 2000 02:55:00 -0800")));
+        mapper.parse(source(b -> b.field("field", "mer., 6 déc. 2000 02:55:00 -0800")));
     }
 
     public void testNullValue() throws IOException {
@@ -731,7 +731,18 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Function<Object, Object> loadBlockExpected() {
-        return v -> ((Number) v).longValue();
+        return v -> asJacksonNumberOutput(((Number) v).longValue());
+    }
+
+    protected static Object asJacksonNumberOutput(long l) {
+        // If a long value fits in int, Jackson will write it as int in NumberOutput.outputLong()
+        // and we hit this during serialization of expected values.
+        // Code below mimics that behaviour in order for matching to work.
+        if (l < 0 && l >= Integer.MIN_VALUE || l >= 0 && l <= Integer.MAX_VALUE) {
+            return (int) l;
+        } else {
+            return l;
+        }
     }
 
     public void testLegacyField() throws Exception {

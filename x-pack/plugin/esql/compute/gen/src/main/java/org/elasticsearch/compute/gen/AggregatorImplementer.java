@@ -21,10 +21,15 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
 import static java.util.stream.Collectors.joining;
@@ -40,6 +45,7 @@ import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_VECTOR;
+import static org.elasticsearch.compute.gen.Types.COMPUTE_WARNINGS;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
@@ -68,6 +74,7 @@ import static org.elasticsearch.compute.gen.Types.vectorType;
  */
 public class AggregatorImplementer {
     private final TypeElement declarationType;
+    private final List<TypeMirror> warnExceptions;
     private final ExecutableElement init;
     private final ExecutableElement combine;
     private final ExecutableElement combineValueCount;
@@ -76,18 +83,28 @@ public class AggregatorImplementer {
     private final ClassName implementation;
     private final TypeName stateType;
     private final boolean stateTypeHasSeen;
+    private final boolean stateTypeHasFailed;
     private final boolean valuesIsBytesRef;
     private final List<IntermediateStateDesc> intermediateState;
     private final List<Parameter> createParameters;
 
-    public AggregatorImplementer(Elements elements, TypeElement declarationType, IntermediateState[] interStateAnno) {
+    public AggregatorImplementer(
+        Elements elements,
+        TypeElement declarationType,
+        IntermediateState[] interStateAnno,
+        List<TypeMirror> warnExceptions
+    ) {
         this.declarationType = declarationType;
+        this.warnExceptions = warnExceptions;
 
         this.init = findRequiredMethod(declarationType, new String[] { "init", "initSingle" }, e -> true);
         this.stateType = choseStateType();
-        stateTypeHasSeen = elements.getAllMembers(elements.getTypeElement(stateType.toString()))
+        this.stateTypeHasSeen = elements.getAllMembers(elements.getTypeElement(stateType.toString()))
             .stream()
             .anyMatch(e -> e.toString().equals("seen()"));
+        this.stateTypeHasFailed = elements.getAllMembers(elements.getTypeElement(stateType.toString()))
+            .stream()
+            .anyMatch(e -> e.toString().equals("failed()"));
 
         this.combine = findRequiredMethod(declarationType, new String[] { "combine" }, e -> {
             if (e.getParameters().size() == 0) {
@@ -102,7 +119,7 @@ public class AggregatorImplementer {
         this.createParameters = init.getParameters()
             .stream()
             .map(Parameter::from)
-            .filter(f -> false == f.type().equals(BIG_ARRAYS))
+            .filter(f -> false == f.type().equals(BIG_ARRAYS) && false == f.type().equals(DRIVER_CONTEXT))
             .toList();
 
         this.implementation = ClassName.get(
@@ -126,7 +143,10 @@ public class AggregatorImplementer {
         if (false == initReturn.isPrimitive()) {
             return initReturn;
         }
-        return ClassName.get("org.elasticsearch.compute.aggregation", firstUpper(initReturn.toString()) + "State");
+        if (warnExceptions.isEmpty()) {
+            return ClassName.get("org.elasticsearch.compute.aggregation", firstUpper(initReturn.toString()) + "State");
+        }
+        return ClassName.get("org.elasticsearch.compute.aggregation", firstUpper(initReturn.toString()) + "FallibleState");
     }
 
     static String valueType(ExecutableElement init, ExecutableElement combine) {
@@ -202,6 +222,11 @@ public class AggregatorImplementer {
                 .initializer(initInterState())
                 .build()
         );
+
+        if (warnExceptions.isEmpty() == false) {
+            builder.addField(COMPUTE_WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
+        }
+
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(stateType, "state", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(LIST_INTEGER, "channels", Modifier.PRIVATE, Modifier.FINAL);
@@ -228,17 +253,26 @@ public class AggregatorImplementer {
     private MethodSpec create() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("create");
         builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC).returns(implementation);
+        if (warnExceptions.isEmpty() == false) {
+            builder.addParameter(COMPUTE_WARNINGS, "warnings");
+        }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addParameter(LIST_INTEGER, "channels");
         for (Parameter p : createParameters) {
             builder.addParameter(p.type(), p.name());
         }
         if (createParameters.isEmpty()) {
-            builder.addStatement("return new $T(driverContext, channels, $L)", implementation, callInit());
+            builder.addStatement(
+                "return new $T($LdriverContext, channels, $L)",
+                implementation,
+                warnExceptions.isEmpty() ? "" : "warnings, ",
+                callInit()
+            );
         } else {
             builder.addStatement(
-                "return new $T(driverContext, channels, $L, $L)",
+                "return new $T($LdriverContext, channels, $L, $L)",
                 implementation,
+                warnExceptions.isEmpty() ? "" : "warnings, ",
                 callInit(),
                 createParameters.stream().map(p -> p.name()).collect(joining(", "))
             );
@@ -275,16 +309,22 @@ public class AggregatorImplementer {
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
+        if (warnExceptions.isEmpty() == false) {
+            builder.addParameter(COMPUTE_WARNINGS, "warnings");
+        }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addParameter(LIST_INTEGER, "channels");
         builder.addParameter(stateType, "state");
+
+        if (warnExceptions.isEmpty() == false) {
+            builder.addStatement("this.warnings = warnings");
+        }
         builder.addStatement("this.driverContext = driverContext");
         builder.addStatement("this.channels = channels");
         builder.addStatement("this.state = state");
 
         for (Parameter p : createParameters()) {
-            builder.addParameter(p.type(), p.name());
-            builder.addStatement("this.$N = $N", p.name(), p.name());
+            p.buildCtor(builder);
         }
         return builder.build();
     }
@@ -306,6 +346,11 @@ public class AggregatorImplementer {
     private MethodSpec addRawInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
+        if (stateTypeHasFailed) {
+            builder.beginControlFlow("if (state.failed())");
+            builder.addStatement("return");
+            builder.endControlFlow();
+        }
         builder.addStatement("$T block = page.getBlock(channels.get(0))", valueBlockType(init, combine));
         builder.addStatement("$T vector = block.asVector()", valueVectorType(init, combine));
         builder.beginControlFlow("if (vector != null)").addStatement("addRawVector(vector)");
@@ -366,20 +411,27 @@ public class AggregatorImplementer {
     }
 
     private void combineRawInput(MethodSpec.Builder builder, String blockVariable) {
+        TypeName returnType = TypeName.get(combine.getReturnType());
+        if (warnExceptions.isEmpty() == false) {
+            builder.beginControlFlow("try");
+        }
         if (valuesIsBytesRef) {
             combineRawInputForBytesRef(builder, blockVariable);
-            return;
-        }
-        TypeName returnType = TypeName.get(combine.getReturnType());
-        if (returnType.isPrimitive()) {
+        } else if (returnType.isPrimitive()) {
             combineRawInputForPrimitive(returnType, builder, blockVariable);
-            return;
-        }
-        if (returnType == TypeName.VOID) {
+        } else if (returnType == TypeName.VOID) {
             combineRawInputForVoid(builder, blockVariable);
-            return;
+        } else {
+            throw new IllegalArgumentException("combine must return void or a primitive");
         }
-        throw new IllegalArgumentException("combine must return void or a primitive");
+        if (warnExceptions.isEmpty() == false) {
+            String catchPattern = "catch (" + warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | ")) + " e)";
+            builder.nextControlFlow(catchPattern, warnExceptions.stream().map(TypeName::get).toArray());
+            builder.addStatement("warnings.registerException(e)");
+            builder.addStatement("state.failed(true)");
+            builder.addStatement("return");
+            builder.endControlFlow();
+        }
     }
 
     private void combineRawInputForPrimitive(TypeName returnType, MethodSpec.Builder builder, String blockVariable) {
@@ -423,16 +475,37 @@ public class AggregatorImplementer {
             }
             builder.addStatement("$T.combineIntermediate(state, " + intermediateStateRowAccess() + ")", declarationType);
         } else if (hasPrimitiveState()) {
-            assert intermediateState.size() == 2;
-            assert intermediateState.get(1).name().equals("seen");
-            builder.beginControlFlow("if (seen.getBoolean(0))");
-            {
-                var state = intermediateState.get(0);
-                var s = "state.$L($T.combine(state.$L(), " + state.name() + "." + vectorAccessorName(state.elementType()) + "(0)))";
-                builder.addStatement(s, primitiveStateMethod(), declarationType, primitiveStateMethod());
-                builder.addStatement("state.seen(true)");
+            if (warnExceptions.isEmpty()) {
+                assert intermediateState.size() == 2;
+                assert intermediateState.get(1).name().equals("seen");
+                builder.beginControlFlow("if (seen.getBoolean(0))");
+            } else {
+                assert intermediateState.size() == 3;
+                assert intermediateState.get(1).name().equals("seen");
+                assert intermediateState.get(2).name().equals("failed");
+                builder.beginControlFlow("if (failed.getBoolean(0))");
+                {
+                    builder.addStatement("state.failed(true)");
+                    builder.addStatement("state.seen(true)");
+                }
+                builder.nextControlFlow("else if (seen.getBoolean(0))");
+            }
+
+            if (warnExceptions.isEmpty() == false) {
+                builder.beginControlFlow("try");
+            }
+            var state = intermediateState.get(0);
+            var s = "state.$L($T.combine(state.$L(), " + state.name() + "." + vectorAccessorName(state.elementType()) + "(0)))";
+            builder.addStatement(s, primitiveStateMethod(), declarationType, primitiveStateMethod());
+            builder.addStatement("state.seen(true)");
+            if (warnExceptions.isEmpty() == false) {
+                String catchPattern = "catch (" + warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | ")) + " e)";
+                builder.nextControlFlow(catchPattern, warnExceptions.stream().map(TypeName::get).toArray());
+                builder.addStatement("warnings.registerException(e)");
+                builder.addStatement("state.failed(true)");
                 builder.endControlFlow();
             }
+            builder.endControlFlow();
         } else {
             throw new IllegalArgumentException("Don't know how to combine intermediate input. Define combineIntermediate");
         }
@@ -445,15 +518,15 @@ public class AggregatorImplementer {
 
     private String primitiveStateMethod() {
         switch (stateType.toString()) {
-            case "org.elasticsearch.compute.aggregation.BooleanState":
+            case "org.elasticsearch.compute.aggregation.BooleanState", "org.elasticsearch.compute.aggregation.BooleanFallibleState":
                 return "booleanValue";
-            case "org.elasticsearch.compute.aggregation.IntState":
+            case "org.elasticsearch.compute.aggregation.IntState", "org.elasticsearch.compute.aggregation.IntFallibleState":
                 return "intValue";
-            case "org.elasticsearch.compute.aggregation.LongState":
+            case "org.elasticsearch.compute.aggregation.LongState", "org.elasticsearch.compute.aggregation.LongFallibleState":
                 return "longValue";
-            case "org.elasticsearch.compute.aggregation.DoubleState":
+            case "org.elasticsearch.compute.aggregation.DoubleState", "org.elasticsearch.compute.aggregation.DoubleFallibleState":
                 return "doubleValue";
-            case "org.elasticsearch.compute.aggregation.FloatState":
+            case "org.elasticsearch.compute.aggregation.FloatState", "org.elasticsearch.compute.aggregation.FloatFallibleState":
                 return "floatValue";
             default:
                 throw new IllegalArgumentException(
@@ -480,8 +553,11 @@ public class AggregatorImplementer {
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset")
             .addParameter(DRIVER_CONTEXT, "driverContext");
-        if (stateTypeHasSeen) {
-            builder.beginControlFlow("if (state.seen() == false)");
+        if (stateTypeHasSeen || stateTypeHasFailed) {
+            var condition = Stream.of(stateTypeHasSeen ? "state.seen() == false" : null, stateTypeHasFailed ? "state.failed()" : null)
+                .filter(Objects::nonNull)
+                .collect(joining(" || "));
+            builder.beginControlFlow("if ($L)", condition);
             builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1)", BLOCK);
             builder.addStatement("return");
             builder.endControlFlow();
@@ -496,19 +572,19 @@ public class AggregatorImplementer {
 
     private void primitiveStateToResult(MethodSpec.Builder builder) {
         switch (stateType.toString()) {
-            case "org.elasticsearch.compute.aggregation.BooleanState":
+            case "org.elasticsearch.compute.aggregation.BooleanState", "org.elasticsearch.compute.aggregation.BooleanFallibleState":
                 builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantBooleanBlockWith(state.booleanValue(), 1)");
                 return;
-            case "org.elasticsearch.compute.aggregation.IntState":
+            case "org.elasticsearch.compute.aggregation.IntState", "org.elasticsearch.compute.aggregation.IntFallibleState":
                 builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantIntBlockWith(state.intValue(), 1)");
                 return;
-            case "org.elasticsearch.compute.aggregation.LongState":
+            case "org.elasticsearch.compute.aggregation.LongState", "org.elasticsearch.compute.aggregation.LongFallibleState":
                 builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantLongBlockWith(state.longValue(), 1)");
                 return;
-            case "org.elasticsearch.compute.aggregation.DoubleState":
+            case "org.elasticsearch.compute.aggregation.DoubleState", "org.elasticsearch.compute.aggregation.DoubleFallibleState":
                 builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantDoubleBlockWith(state.doubleValue(), 1)");
                 return;
-            case "org.elasticsearch.compute.aggregation.FloatState":
+            case "org.elasticsearch.compute.aggregation.FloatState", "org.elasticsearch.compute.aggregation.FloatFallibleState":
                 builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantFloatBlockWith(state.floatValue(), 1)");
                 return;
             default:
@@ -534,13 +610,12 @@ public class AggregatorImplementer {
         return builder.build();
     }
 
+    private static final Pattern PRIMITIVE_STATE_PATTERN = Pattern.compile(
+        "org.elasticsearch.compute.aggregation.(Boolean|Int|Long|Double|Float)(Fallible)?State"
+    );
+
     private boolean hasPrimitiveState() {
-        return switch (stateType.toString()) {
-            case "org.elasticsearch.compute.aggregation.BooleanState", "org.elasticsearch.compute.aggregation.IntState",
-                "org.elasticsearch.compute.aggregation.LongState", "org.elasticsearch.compute.aggregation.DoubleState",
-                "org.elasticsearch.compute.aggregation.FloatState" -> true;
-            default -> false;
-        };
+        return PRIMITIVE_STATE_PATTERN.matcher(stateType.toString()).matches();
     }
 
     record IntermediateStateDesc(String name, String elementType, boolean block) {

@@ -1,0 +1,6 @@
+pr: 112038
+summary: Semantic reranking should fail whenever inference ID does not exist
+area: Relevance
+type: bug
+issues:
+ - 111934

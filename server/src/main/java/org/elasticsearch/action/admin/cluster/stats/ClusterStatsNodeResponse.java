@@ -20,28 +20,32 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class ClusterStatsNodeResponse extends BaseNodeResponse {
 
     private final NodeInfo nodeInfo;
     private final NodeStats nodeStats;
     private final ShardStats[] shardsStats;
-    private ClusterHealthStatus clusterStatus;
+    private final ClusterHealthStatus clusterStatus;
     private final SearchUsageStats searchUsageStats;
+    private final RepositoryUsageStats repositoryUsageStats;
 
     public ClusterStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
-        clusterStatus = null;
-        if (in.readBoolean()) {
-            clusterStatus = ClusterHealthStatus.readFrom(in);
-        }
+        this.clusterStatus = in.readOptionalWriteable(ClusterHealthStatus::readFrom);
         this.nodeInfo = new NodeInfo(in);
         this.nodeStats = new NodeStats(in);
-        shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
+        this.shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             searchUsageStats = new SearchUsageStats(in);
         } else {
             searchUsageStats = new SearchUsageStats();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.REPOSITORIES_TELEMETRY)) {
+            repositoryUsageStats = RepositoryUsageStats.readFrom(in);
+        } else {
+            repositoryUsageStats = RepositoryUsageStats.EMPTY;
         }
     }
 
@@ -51,14 +55,16 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         NodeInfo nodeInfo,
         NodeStats nodeStats,
         ShardStats[] shardsStats,
-        SearchUsageStats searchUsageStats
+        SearchUsageStats searchUsageStats,
+        RepositoryUsageStats repositoryUsageStats
     ) {
         super(node);
         this.nodeInfo = nodeInfo;
         this.nodeStats = nodeStats;
         this.shardsStats = shardsStats;
         this.clusterStatus = clusterStatus;
-        this.searchUsageStats = searchUsageStats;
+        this.searchUsageStats = Objects.requireNonNull(searchUsageStats);
+        this.repositoryUsageStats = Objects.requireNonNull(repositoryUsageStats);
     }
 
     public NodeInfo nodeInfo() {
@@ -85,20 +91,22 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return searchUsageStats;
     }
 
+    public RepositoryUsageStats repositoryUsageStats() {
+        return repositoryUsageStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (clusterStatus == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeByte(clusterStatus.value());
-        }
+        out.writeOptionalWriteable(clusterStatus);
         nodeInfo.writeTo(out);
         nodeStats.writeTo(out);
         out.writeArray(shardsStats);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             searchUsageStats.writeTo(out);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.REPOSITORIES_TELEMETRY)) {
+            repositoryUsageStats.writeTo(out);
+        } // else just drop these stats, ok for bwc
     }
 }

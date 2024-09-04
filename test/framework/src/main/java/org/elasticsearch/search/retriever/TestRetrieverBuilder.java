@@ -9,6 +9,7 @@
 package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -63,6 +64,11 @@ public class TestRetrieverBuilder extends RetrieverBuilder {
 
     public TestRetrieverBuilder(String value) {
         this.value = value;
+    }
+
+    @Override
+    public QueryBuilder topDocsQuery() {
+        throw new UnsupportedOperationException("only used for parsing tests");
     }
 
     @Override

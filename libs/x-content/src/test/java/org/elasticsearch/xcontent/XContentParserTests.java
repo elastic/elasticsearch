@@ -80,37 +80,66 @@ public class XContentParserTests extends ESTestCase {
 
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             builder.startObject();
-            builder.field("decimal", "5.5");
-            builder.field("expInRange", "5e18");
+
+            builder.field("five", "5.5");
+            builder.field("minusFive", "-5.5");
+
+            builder.field("minNegative", "-9.2233720368547758089999e18");
+            builder.field("tooNegative", "-9.223372036854775809e18");
+            builder.field("maxPositive", "9.2233720368547758079999e18");
+            builder.field("tooPositive", "9.223372036854775808e18");
+
             builder.field("expTooBig", "2e100");
+            builder.field("minusExpTooBig", "-2e100");
+            builder.field("maxPositiveExp", "1e2147483647");
+            builder.field("tooPositiveExp", "1e2147483648");
+
             builder.field("expTooSmall", "2e-100");
+            builder.field("minusExpTooSmall", "-2e-100");
+            builder.field("maxNegativeExp", "1e-2147483647");
+
+            builder.field("tooNegativeExp", "1e-2147483648");
+
             builder.endObject();
 
             try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
                 assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
 
-                assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
-                assertThat(parser.currentName(), is("decimal"));
-                assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
-                assertThat(parser.longValue(), equalTo(5L));
+                assertFieldWithValue("five", 5L, parser);
+                assertFieldWithValue("minusFive", -5L, parser); // Rounds toward zero
 
-                assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
-                assertThat(parser.currentName(), is("expInRange"));
-                assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
-                assertThat(parser.longValue(), equalTo((long) 5e18));
+                assertFieldWithValue("minNegative", Long.MIN_VALUE, parser);
+                assertFieldWithInvalidLongValue("tooNegative", parser);
+                assertFieldWithValue("maxPositive", Long.MAX_VALUE, parser);
+                assertFieldWithInvalidLongValue("tooPositive", parser);
 
-                assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
-                assertThat(parser.currentName(), is("expTooBig"));
-                assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
-                expectThrows(IllegalArgumentException.class, parser::longValue);
+                assertFieldWithInvalidLongValue("expTooBig", parser);
+                assertFieldWithInvalidLongValue("minusExpTooBig", parser);
+                assertFieldWithInvalidLongValue("maxPositiveExp", parser);
+                assertFieldWithInvalidLongValue("tooPositiveExp", parser);
 
                 // too small goes to zero
-                assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
-                assertThat(parser.currentName(), is("expTooSmall"));
-                assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
-                assertThat(parser.longValue(), equalTo(0L));
+                assertFieldWithValue("expTooSmall", 0L, parser);
+                assertFieldWithValue("minusExpTooSmall", 0L, parser);
+                assertFieldWithValue("maxNegativeExp", 0L, parser);
+
+                assertFieldWithInvalidLongValue("tooNegativeExp", parser);
             }
         }
+    }
+
+    private static void assertFieldWithValue(String fieldName, long fieldValue, XContentParser parser) throws IOException {
+        assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), is(fieldName));
+        assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
+        assertThat(parser.longValue(), equalTo(fieldValue));
+    }
+
+    private static void assertFieldWithInvalidLongValue(String fieldName, XContentParser parser) throws IOException {
+        assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), is(fieldName));
+        assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
+        expectThrows(IllegalArgumentException.class, parser::longValue);
     }
 
     public void testReadList() throws IOException {

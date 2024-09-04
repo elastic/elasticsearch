@@ -96,7 +96,7 @@ public final class TopBooleanGroupingAggregatorFunction implements GroupingAggre
 
   private void addRawInput(int positionOffset, IntVector groups, BooleanBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
@@ -110,7 +110,7 @@ public final class TopBooleanGroupingAggregatorFunction implements GroupingAggre
 
   private void addRawInput(int positionOffset, IntVector groups, BooleanVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       TopBooleanAggregator.combine(state, groupId, values.getBoolean(groupPosition + positionOffset));
     }
   }
@@ -123,7 +123,7 @@ public final class TopBooleanGroupingAggregatorFunction implements GroupingAggre
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         if (values.isNull(groupPosition + positionOffset)) {
           continue;
         }
@@ -144,7 +144,7 @@ public final class TopBooleanGroupingAggregatorFunction implements GroupingAggre
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         TopBooleanAggregator.combine(state, groupId, values.getBoolean(groupPosition + positionOffset));
       }
     }
@@ -160,7 +160,7 @@ public final class TopBooleanGroupingAggregatorFunction implements GroupingAggre
     }
     BooleanBlock top = (BooleanBlock) topUncast;
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       TopBooleanAggregator.combineIntermediate(state, groupId, top, groupPosition + positionOffset);
     }
   }

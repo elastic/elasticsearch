@@ -63,13 +63,13 @@
       "params" : [
         {
           "name" : "lhs",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "An expression."
         },
         {
           "name" : "rhs",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "An expression."
         }

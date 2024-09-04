@@ -74,6 +74,30 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         );
     }
 
+    /**
+     * Converts a list of test cases into a list of parameter suppliers.
+     * Also, adds a default set of extra test cases.
+     * <p>
+     *     Use if possible, as this method may get updated with new checks in the future.
+     * </p>
+     *
+     * @param nullsExpectedType See {@link #anyNullIsNull(List, ExpectedType, ExpectedEvaluatorToString)}
+     * @param evaluatorToString See {@link #anyNullIsNull(List, ExpectedType, ExpectedEvaluatorToString)}
+     */
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
+        ExpectedType nullsExpectedType,
+        ExpectedEvaluatorToString evaluatorToString,
+        List<TestCaseSupplier> suppliers,
+        PositionalErrorMessageSupplier positionalErrorMessageSupplier
+    ) {
+        return parameterSuppliersFromTypedData(
+            errorsForCasesWithoutExamples(
+                anyNullIsNull(randomizeBytesRefsOffset(suppliers), nullsExpectedType, evaluatorToString),
+                positionalErrorMessageSupplier
+            )
+        );
+    }
+
     public final void testEvaluate() {
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         boolean readFloating = randomBoolean();
@@ -97,6 +121,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         Object result;
         try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
             try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
+                assertThat(block.getPositionCount(), is(1));
                 result = toJavaObjectUnsignedLongAware(block, 0);
             }
         }
@@ -217,6 +242,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 ExpressionEvaluator eval = evaluator(expression).get(context);
                 Block block = eval.eval(new Page(positions, manyPositionsBlocks))
             ) {
+                assertThat(block.getPositionCount(), is(positions));
                 for (int p = 0; p < positions; p++) {
                     if (nullPositions.contains(p)) {
                         assertThat(toJavaObject(block, p), allNullsMatcher());
@@ -260,6 +286,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                     try (EvalOperator.ExpressionEvaluator eval = evalSupplier.get(driverContext())) {
                         for (int c = 0; c < count; c++) {
                             try (Block block = eval.eval(page)) {
+                                assertThat(block.getPositionCount(), is(1));
                                 assertThat(toJavaObjectUnsignedLongAware(block, 0), testCase.getMatcher());
                             }
                         }

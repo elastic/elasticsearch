@@ -162,7 +162,8 @@ and smaller shards may be appropriate for
 {enterprise-search-ref}/index.html[Enterprise Search] and similar use cases.
 
 If you use {ilm-init}, set the <<ilm-rollover,rollover action>>'s
-`max_primary_shard_size` threshold to `50gb` to avoid shards larger than 50GB.
+`max_primary_shard_size` threshold to `50gb` to avoid shards larger than 50GB 
+and `min_primary_shard_size` threshold to `10gb` to avoid shards smaller than 10GB.
 
 To see the current size of your shards, use the <<cat-shards,cat shards API>>.
 

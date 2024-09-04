@@ -10,27 +10,41 @@ package org.elasticsearch.logsdb.datageneration.fields.leaf;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Supplier;
 
 public class FloatFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
+    private final Map<String, Object> mappingParameters;
 
-    public FloatFieldDataGenerator(DataSource dataSource) {
+    public FloatFieldDataGenerator(String fieldName, DataSource dataSource) {
         var floats = dataSource.get(new DataSourceRequest.FloatGenerator());
         var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
         var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
 
         this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> floats.generator().get());
+        this.mappingParameters = dataSource.get(new DataSourceRequest.LeafMappingParametersGenerator(fieldName, FieldType.FLOAT))
+            .mappingGenerator()
+            .get();
     }
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
-        return b -> b.startObject().field("type", "float").endObject();
+        return b -> {
+            b.startObject().field("type", "float");
+
+            for (var entry : mappingParameters.entrySet()) {
+                b.field(entry.getKey(), entry.getValue());
+            }
+
+            b.endObject();
+        };
     }
 
     @Override

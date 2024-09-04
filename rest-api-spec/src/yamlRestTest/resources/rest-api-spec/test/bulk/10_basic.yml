@@ -229,3 +229,23 @@
   - match: { items.0.index.error.type: illegal_argument_exception }
   - match: { items.0.index.error.reason: "no write index is defined for alias [test_index]. The write index may be explicitly disabled using is_write_index=false or the alias points to multiple indices without one being designated as a write index" }
 
+---
+"Took is not orders of magnitude off":
+  - requires:
+      cluster_features: ["gte_v8.15.1"]
+      reason: "Bug reporting wrong took time introduced in 8.15.0, fixed in 8.15.1"
+  - do:
+      bulk:
+        body:
+          - index:
+              _index: took_test
+          - f: 1
+          - index:
+              _index: took_test
+          - f: 2
+          - index:
+              _index: took_test
+          - f: 3
+  - match: { errors: false }
+  - gte: { took: 0 }
+  - lte: { took: 60000 } # Making sure we have a reasonable upper bound and that we're not for example returning nanoseconds

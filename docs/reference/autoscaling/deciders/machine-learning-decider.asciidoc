@@ -2,7 +2,7 @@
 [[autoscaling-machine-learning-decider]]
 === Machine learning decider
 
-The {ml} decider (`ml`) calculates the memory and CPU requirements to run {ml} 
+The {cloud}/ec-autoscaling.html[autoscaling] {ml} decider (`ml`) calculates the memory and CPU requirements to run {ml} 
 jobs and trained models.
 
 The {ml} decider is enabled for policies governing `ml` nodes.

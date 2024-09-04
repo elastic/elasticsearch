@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.index;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.esql.type.EsFieldTests;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -34,8 +34,7 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
     public static EsIndex randomEsIndex() {
         String name = randomAlphaOfLength(5);
         Map<String, EsField> mapping = randomMapping();
-        Set<String> concreteIndices = randomConcreteIndices();
-        return new EsIndex(name, mapping, concreteIndices);
+        return new EsIndex(name, mapping, randomConcreteIndices());
     }
 
     private static Map<String, EsField> randomMapping() {
@@ -47,11 +46,11 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
         return result;
     }
 
-    private static Set<String> randomConcreteIndices() {
+    private static Map<String, IndexMode> randomConcreteIndices() {
         int size = between(0, 10);
-        Set<String> result = new HashSet<>(size);
+        Map<String, IndexMode> result = new HashMap<>(size);
         while (result.size() < size) {
-            result.add(randomAlphaOfLength(5));
+            result.put(randomAlphaOfLength(5), randomFrom(IndexMode.values()));
         }
         return result;
     }
@@ -75,14 +74,14 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
     protected EsIndex mutateInstance(EsIndex instance) throws IOException {
         String name = instance.name();
         Map<String, EsField> mapping = instance.mapping();
-        Set<String> concreteIndices = instance.concreteIndices();
+        Map<String, IndexMode> indexedNameWithModes = instance.indexNameWithModes();
         switch (between(0, 2)) {
             case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLength(5));
             case 1 -> mapping = randomValueOtherThan(mapping, EsIndexSerializationTests::randomMapping);
-            case 2 -> concreteIndices = randomValueOtherThan(concreteIndices, EsIndexSerializationTests::randomConcreteIndices);
+            case 2 -> indexedNameWithModes = randomValueOtherThan(indexedNameWithModes, EsIndexSerializationTests::randomConcreteIndices);
             default -> throw new IllegalArgumentException();
         }
-        return new EsIndex(name, mapping, concreteIndices);
+        return new EsIndex(name, mapping, indexedNameWithModes);
     }
 
     /**
@@ -126,10 +125,9 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
             fields.put("parent", parent);
         }
 
-        TreeSet<String> concrete = new TreeSet<>();
-        concrete.addAll(keywordIndices);
-        concrete.addAll(textIndices);
-
+        Map<String, IndexMode> concrete = new TreeMap<>();
+        keywordIndices.forEach(index -> concrete.put(index, randomFrom(IndexMode.values())));
+        textIndices.forEach(index -> concrete.put(index, randomFrom(IndexMode.values())));
         return new EsIndex("name", fields, concrete);
     }
 
@@ -138,7 +136,7 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflicts() throws IOException {
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(991027));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(991026));
         /*
          * History:
          *  953.7kb - shorten error messages for UnsupportedAttributes #111973
@@ -151,7 +149,7 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflictsWithParent() throws IOException {
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1374498));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1374497));
         /*
          * History:
          * 16.9mb - start

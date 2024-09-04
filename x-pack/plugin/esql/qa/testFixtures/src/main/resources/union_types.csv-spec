@@ -405,6 +405,74 @@ count:long  |  message:keyword
 2           |  Connected to 10.1.0.3
 ;
 
+multiIndexMissingIpToString
+required_capability: union_types
+required_capability: union_types_missing_field
+
+FROM sample_data, sample_data_str, missing_ip_sample_data METADATA _index
+| EVAL client_ip = TO_STRING(client_ip)
+| KEEP _index, @timestamp, client_ip, event_duration, message
+| SORT _index ASC, @timestamp DESC
+;
+
+_index:keyword         | @timestamp:date           |  client_ip:keyword  |  event_duration:long  |  message:keyword
+missing_ip_sample_data | 2023-10-23T13:55:01.543Z  |  null               |  1756467              |  Connected to 10.1.0.1
+missing_ip_sample_data | 2023-10-23T13:53:55.832Z  |  null               |  5033755              |  Connection error
+missing_ip_sample_data | 2023-10-23T13:52:55.015Z  |  null               |  8268153              |  Connection error
+missing_ip_sample_data | 2023-10-23T13:51:54.732Z  |  null               |  725448               |  Connection error
+missing_ip_sample_data | 2023-10-23T13:33:34.937Z  |  null               |  1232382              |  Disconnected
+missing_ip_sample_data | 2023-10-23T12:27:28.948Z  |  null               |  2764889              |  Connected to 10.1.0.2
+missing_ip_sample_data | 2023-10-23T12:15:03.360Z  |  null               |  3450233              |  Connected to 10.1.0.3
+sample_data            | 2023-10-23T13:55:01.543Z  |  172.21.3.15        |  1756467              |  Connected to 10.1.0.1
+sample_data            | 2023-10-23T13:53:55.832Z  |  172.21.3.15        |  5033755              |  Connection error
+sample_data            | 2023-10-23T13:52:55.015Z  |  172.21.3.15        |  8268153              |  Connection error
+sample_data            | 2023-10-23T13:51:54.732Z  |  172.21.3.15        |  725448               |  Connection error
+sample_data            | 2023-10-23T13:33:34.937Z  |  172.21.0.5         |  1232382              |  Disconnected
+sample_data            | 2023-10-23T12:27:28.948Z  |  172.21.2.113       |  2764889              |  Connected to 10.1.0.2
+sample_data            | 2023-10-23T12:15:03.360Z  |  172.21.2.162       |  3450233              |  Connected to 10.1.0.3
+sample_data_str        | 2023-10-23T13:55:01.543Z  |  172.21.3.15        |  1756467              |  Connected to 10.1.0.1
+sample_data_str        | 2023-10-23T13:53:55.832Z  |  172.21.3.15        |  5033755              |  Connection error
+sample_data_str        | 2023-10-23T13:52:55.015Z  |  172.21.3.15        |  8268153              |  Connection error
+sample_data_str        | 2023-10-23T13:51:54.732Z  |  172.21.3.15        |  725448               |  Connection error
+sample_data_str        | 2023-10-23T13:33:34.937Z  |  172.21.0.5         |  1232382              |  Disconnected
+sample_data_str        | 2023-10-23T12:27:28.948Z  |  172.21.2.113       |  2764889              |  Connected to 10.1.0.2
+sample_data_str        | 2023-10-23T12:15:03.360Z  |  172.21.2.162       |  3450233              |  Connected to 10.1.0.3
+;
+
+multiIndexMissingIpToIp
+required_capability: union_types
+required_capability: union_types_missing_field
+
+FROM sample_data, sample_data_str, missing_ip_sample_data METADATA _index
+| EVAL client_ip = TO_IP(client_ip)
+| KEEP _index, @timestamp, client_ip, event_duration, message
+| SORT _index ASC, @timestamp DESC
+;
+
+_index:keyword         | @timestamp:date           |  client_ip:ip  |  event_duration:long  |  message:keyword
+missing_ip_sample_data | 2023-10-23T13:55:01.543Z  |  null          |  1756467              |  Connected to 10.1.0.1
+missing_ip_sample_data | 2023-10-23T13:53:55.832Z  |  null          |  5033755              |  Connection error
+missing_ip_sample_data | 2023-10-23T13:52:55.015Z  |  null          |  8268153              |  Connection error
+missing_ip_sample_data | 2023-10-23T13:51:54.732Z  |  null          |  725448               |  Connection error
+missing_ip_sample_data | 2023-10-23T13:33:34.937Z  |  null          |  1232382              |  Disconnected
+missing_ip_sample_data | 2023-10-23T12:27:28.948Z  |  null          |  2764889              |  Connected to 10.1.0.2
+missing_ip_sample_data | 2023-10-23T12:15:03.360Z  |  null          |  3450233              |  Connected to 10.1.0.3
+sample_data            | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
+sample_data            | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
+sample_data            | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
+sample_data            | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
+sample_data            | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
+sample_data            | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
+sample_data            | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
+sample_data_str        | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
+sample_data_str        | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
+sample_data_str        | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
+sample_data_str        | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
+sample_data_str        | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
+sample_data_str        | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
+sample_data_str        | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
+;
+
 multiIndexTsLong
 required_capability: union_types
 required_capability: metadata_fields

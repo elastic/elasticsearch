@@ -1548,7 +1548,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.setScrollIds(clearScrollIds);
-        client().clearScroll(clearScrollRequest);
+        client().clearScroll(clearScrollRequest).get();
 
         for (int i = 0; i < clearScrollIds.size(); i++) {
             client().prepareSearch("index").setSize(1).setScroll(TimeValue.timeValueMinutes(1)).get().decRef();

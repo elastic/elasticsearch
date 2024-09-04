@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -491,7 +492,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                     var f = new IndexFieldCapabilities(e.getKey(), e.getValue(), false, false, false, false, null, Map.of());
                     fieldCaps.put(e.getKey(), f);
                 }
-                var indexResponse = new FieldCapabilitiesIndexResponse(alias, null, fieldCaps, true);
+                var indexResponse = new FieldCapabilitiesIndexResponse(alias, null, fieldCaps, true, IndexMode.STANDARD);
                 response = new FieldCapabilitiesResponse(List.of(indexResponse), List.of());
             } else {
                 response = new FieldCapabilitiesResponse(List.of(), List.of());

@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTest
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComponentTemplateTests;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionTests;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
@@ -45,8 +44,7 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
     protected GetComponentTemplateAction.Response createTestInstance() {
         return new GetComponentTemplateAction.Response(
             randomBoolean() ? Map.of() : randomTemplates(),
-            RolloverConfigurationTests.randomRolloverConditions(),
-            DataStreamGlobalRetentionTests.randomGlobalRetention()
+            RolloverConfigurationTests.randomRolloverConditions()
         );
     }
 
@@ -54,13 +52,11 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
     protected GetComponentTemplateAction.Response mutateInstance(GetComponentTemplateAction.Response instance) {
         var templates = instance.getComponentTemplates();
         var rolloverConditions = instance.getRolloverConfiguration();
-        var globalRetention = instance.getGlobalRetention();
-        switch (randomInt(2)) {
+        switch (randomInt(1)) {
             case 0 -> templates = templates == null ? randomTemplates() : null;
             case 1 -> rolloverConditions = randomValueOtherThan(rolloverConditions, RolloverConfigurationTests::randomRolloverConditions);
-            case 2 -> globalRetention = randomValueOtherThan(globalRetention, DataStreamGlobalRetentionTests::randomGlobalRetention);
         }
-        return new GetComponentTemplateAction.Response(templates, rolloverConditions, globalRetention);
+        return new GetComponentTemplateAction.Response(templates, rolloverConditions);
     }
 
     public void testXContentSerializationWithRolloverAndEffectiveRetention() throws IOException {
@@ -84,20 +80,15 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
             null,
             false
         );
-        var globalRetention = DataStreamGlobalRetentionTests.randomGlobalRetention();
         var rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
-        var response = new GetComponentTemplateAction.Response(
-            Map.of(randomAlphaOfLength(10), template),
-            rolloverConfiguration,
-            globalRetention
-        );
+        var response = new GetComponentTemplateAction.Response(Map.of(randomAlphaOfLength(10), template), rolloverConfiguration);
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true);
             response.toXContent(builder, EMPTY_PARAMS);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention))
+            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(null, randomBoolean()))
                 .getConditions()
                 .keySet()) {
                 assertThat(serialized, containsString(label));

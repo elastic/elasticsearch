@@ -99,6 +99,7 @@ import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -3134,7 +3135,7 @@ public class InternalEngine extends Engine {
         if (enableRecoverySource == false) {
             throw new IllegalStateException(
                 "Changes snapshot are unavailable when the "
-                    + IndicesService.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey()
+                    + RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey()
                     + " setting is disabled."
             );
         }

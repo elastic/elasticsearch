@@ -80,7 +80,7 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Multivalue expression. If `null`, the function returns `null`."
         },
@@ -98,7 +98,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [

@@ -36,10 +36,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.indices.IndicesService.INDICES_RECOVERY_SOURCE_ENABLED_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
     public static final NodeFeature SYNTHETIC_SOURCE_FALLBACK = new NodeFeature("mapper.source.synthetic_source_fallback");
+    public static final NodeFeature SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX = new NodeFeature(
+        "mapper.source.synthetic_source_stored_fields_advance_fix"
+    );
 
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
@@ -296,7 +299,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             c.getIndexSettings().getMode(),
             c.getSettings(),
             c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK),
-            INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(c.getSettings())
+                INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(c.getSettings())
         )
     );
 

@@ -24,8 +24,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
-import java.util.Objects;
-
 /**
  * Class that encapsulates the logic of figuring out the most appropriate file format for a given field, across postings, doc values and
  * vectors.
@@ -33,7 +31,6 @@ import java.util.Objects;
 public class PerFieldFormatSupplier {
 
     private final MapperService mapperService;
-    private final BigArrays bigArrays;
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
@@ -43,7 +40,6 @@ public class PerFieldFormatSupplier {
 
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays) {
         this.mapperService = mapperService;
-        this.bigArrays = Objects.requireNonNull(bigArrays);
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
         this.tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
         this.es812PostingsFormat = new ES812PostingsFormat();

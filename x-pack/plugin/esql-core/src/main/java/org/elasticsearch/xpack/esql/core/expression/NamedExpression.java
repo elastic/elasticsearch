@@ -51,6 +51,10 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
         return id;
     }
 
+    /**
+     * Synthetic named expressions are not user defined and usually created during optimizations and substitutions, e.g. when turning
+     * {@code ... | STATS x = avg(2*field)} into {@code ... | EVAL $$synth$attribute = 2*field | STATS x = avg($$synth$attribute)}.
+     */
     public boolean synthetic() {
         return synthetic;
     }

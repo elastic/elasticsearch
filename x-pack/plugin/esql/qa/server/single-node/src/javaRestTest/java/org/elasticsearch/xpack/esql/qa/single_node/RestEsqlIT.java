@@ -13,6 +13,7 @@ import org.apache.http.util.EntityUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
@@ -21,15 +22,19 @@ import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.LogType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matchers;
+import org.junit.Assert;
 import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -285,15 +290,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("profile", matchesMap().entry("drivers", instanceOf(List.class)))
         );
 
-        MapMatcher commonProfile = matchesMap().entry("iterations", greaterThan(0))
-            .entry("cpu_nanos", greaterThan(0))
-            .entry("took_nanos", greaterThan(0))
-            .entry("operators", instanceOf(List.class));
         List<List<String>> signatures = new ArrayList<>();
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
         for (Map<String, Object> p : profiles) {
-            assertThat(p, commonProfile);
+            fixTypesOnProfile(p);
+            assertThat(p, commonProfile());
             List<String> sig = new ArrayList<>();
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
@@ -348,15 +350,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
             ).entry("values", values).entry("profile", matchesMap().entry("drivers", instanceOf(List.class)))
         );
 
-        MapMatcher commonProfile = matchesMap().entry("iterations", greaterThan(0))
-            .entry("cpu_nanos", greaterThan(0))
-            .entry("took_nanos", greaterThan(0))
-            .entry("operators", instanceOf(List.class));
         List<List<String>> signatures = new ArrayList<>();
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
         for (Map<String, Object> p : profiles) {
-            assertThat(p, commonProfile);
+            fixTypesOnProfile(p);
+            assertThat(p, commonProfile());
             List<String> sig = new ArrayList<>();
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
@@ -396,6 +395,127 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 matchesList().item("ExchangeSourceOperator").item("TopNOperator").item("OutputOperator")
             )
         );
+    }
+
+    public void testForceSleepsProfile() throws IOException {
+        assumeTrue("requires pragmas", Build.current().isSnapshot());
+
+        Request createIndex = new Request("PUT", testIndexName());
+        createIndex.setJsonEntity("""
+            {
+              "settings": {
+                "index": {
+                  "number_of_shards": 1
+                }
+              }
+            }""");
+        Response response = client().performRequest(createIndex);
+        assertThat(
+            entityToMap(response.getEntity(), XContentType.JSON),
+            matchesMap().entry("shards_acknowledged", true).entry("index", testIndexName()).entry("acknowledged", true)
+        );
+
+        int groupCount = 300;
+        for (int group1 = 0; group1 < groupCount; group1++) {
+            StringBuilder b = new StringBuilder();
+            for (int group2 = 0; group2 < groupCount; group2++) {
+                b.append(String.format(Locale.ROOT, """
+                    {"create":{"_index":"%s"}}
+                    {"@timestamp":"2020-12-12","value":1,"group1":%d,"group2":%d}
+                    """, testIndexName(), group1, group2));
+            }
+            Request bulk = new Request("POST", "/_bulk");
+            bulk.addParameter("refresh", "true");
+            bulk.addParameter("filter_path", "errors");
+            bulk.setJsonEntity(b.toString());
+            response = client().performRequest(bulk);
+            Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+        }
+
+        RequestObjectBuilder builder = requestObjectBuilder().query(
+            fromIndex() + " | STATS AVG(value), MAX(value), MIN(value) BY group1, group2 | SORT group1, group2 ASC | LIMIT 10"
+        );
+        // Lock to shard level partitioning, so we get consistent profile output
+        builder.pragmas(Settings.builder().put("data_partitioning", "shard").put("page_size", 10).build());
+        builder.profile(true);
+        Map<String, Object> result = runEsql(builder);
+        List<List<?>> expectedValues = new ArrayList<>();
+        for (int group2 = 0; group2 < 10; group2++) {
+            expectedValues.add(List.of(1.0, 1, 1, 0, group2));
+        }
+        assertMap(
+            result,
+            matchesMap().entry(
+                "columns",
+                matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
+                    .item(matchesMap().entry("name", "MAX(value)").entry("type", "long"))
+                    .item(matchesMap().entry("name", "MIN(value)").entry("type", "long"))
+                    .item(matchesMap().entry("name", "group1").entry("type", "long"))
+                    .item(matchesMap().entry("name", "group2").entry("type", "long"))
+            ).entry("values", expectedValues).entry("profile", matchesMap().entry("drivers", instanceOf(List.class)))
+        );
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+
+        for (Map<String, Object> p : profiles) {
+            fixTypesOnProfile(p);
+            assertMap(p, commonProfile());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> sleeps = (Map<String, Object>) p.get("sleeps");
+            String operators = p.get("operators").toString();
+            MapMatcher sleepMatcher = matchesMap().entry("reason", "exchange empty")
+                .entry("sleep_millis", greaterThan(0L))
+                .entry("wake_millis", greaterThan(0L));
+            if (operators.contains("LuceneSourceOperator")) {
+                assertMap(sleeps, matchesMap().entry("counts", Map.of()).entry("first", List.of()).entry("last", List.of()));
+            } else if (operators.contains("ExchangeSourceOperator")) {
+                if (operators.contains("ExchangeSinkOperator")) {
+                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> first = (List<Map<String, Object>>) sleeps.get("first");
+                    for (Map<String, Object> s : first) {
+                        assertMap(s, sleepMatcher);
+                    }
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> last = (List<Map<String, Object>>) sleeps.get("last");
+                    for (Map<String, Object> s : last) {
+                        assertMap(s, sleepMatcher);
+                    }
+
+                } else {
+                    assertMap(
+                        sleeps,
+                        matchesMap().entry("counts", matchesMap().entry("exchange empty", 1))
+                            .entry("first", List.of(sleepMatcher))
+                            .entry("last", List.of(sleepMatcher))
+                    );
+                }
+            } else {
+                fail("unknown signature: " + operators);
+            }
+        }
+    }
+
+    private MapMatcher commonProfile() {
+        return matchesMap().entry("start_millis", greaterThan(0L))
+            .entry("stop_millis", greaterThan(0L))
+            .entry("iterations", greaterThan(0L))
+            .entry("cpu_nanos", greaterThan(0L))
+            .entry("took_nanos", greaterThan(0L))
+            .entry("operators", instanceOf(List.class))
+            .entry("sleeps", matchesMap().extraOk());
+    }
+
+    /**
+     * Fix some of the types on the profile results. Sometimes they
+     * come back as integers and sometimes longs. This just promotes
+     * them to long every time.
+     */
+    private void fixTypesOnProfile(Map<String, Object> profile) {
+        profile.put("iterations", ((Number) profile.get("iterations")).longValue());
+        profile.put("cpu_nanos", ((Number) profile.get("cpu_nanos")).longValue());
+        profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
     }
 
     private String checkOperatorProfile(Map<String, Object> o) {

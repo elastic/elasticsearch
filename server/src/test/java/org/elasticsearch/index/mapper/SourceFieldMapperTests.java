@@ -18,7 +18,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -30,6 +29,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -366,7 +366,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"field1\":\"value1\"}")));
         }
         {
-            Settings settings = Settings.builder().put(IndicesService.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false).build();
+            Settings settings = Settings.builder().put(INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false).build();
             MapperService mapperService = createMapperService(
                 settings,
                 topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", false).endObject())
@@ -388,7 +388,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"field1\":\"value1\"}")));
         }
         {
-            Settings settings = Settings.builder().put(IndicesService.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false).build();
+            Settings settings = Settings.builder().put(INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false).build();
             MapperService mapperService = createMapperService(
                 settings,
                 topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", false).endObject())
@@ -410,7 +410,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"field1\":\"value1\"}")));
         }
         {
-            Settings settings = Settings.builder().put(IndicesService.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false).build();
+            Settings settings = Settings.builder().put(INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false).build();
             MapperService mapperService = createMapperService(
                 settings,
                 topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject())
@@ -433,7 +433,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         {
             Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
-                .put(IndicesService.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+                .put(INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
                 .build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {}));
             DocumentMapper docMapper = mapperService.documentMapper();
@@ -464,7 +464,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
-                .put(IndicesService.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+                .put(INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
                 .build();
             MapperService mapperService = createMapperService(settings, fieldMapping(b -> {
                 b.field("type", "keyword");

@@ -74,7 +74,7 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Column or literal for which to count the number of distinct values."
         }
@@ -86,7 +86,7 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Column or literal for which to count the number of distinct values."
         },
@@ -104,7 +104,7 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Column or literal for which to count the number of distinct values."
         },
@@ -122,7 +122,7 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Column or literal for which to count the number of distinct values."
         },

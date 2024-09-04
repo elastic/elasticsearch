@@ -40,9 +40,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -56,6 +58,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -108,10 +111,28 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     private static final String DATA_TIER_ALLOCATION_DECIDER_NAME = "data_tier";
 
+    /**
+     * Changes the behavior of isNewlyCreatedAndInitializingReplica so that the
+     * shard_availability health indicator returns YELLOW if a primary
+     * is STARTED, but a replica is still INITIALIZING and the replica has been
+     * unassigned for less than the value of this setting. This function is
+     * only used in serverless, so this setting has no effect in stateless.
+     */
+    public static final Setting<TimeValue> REPLICA_UNASSIGNED_BUFFER_TIME = Setting.timeSetting(
+        "health.shards_availability.replica_unassigned_buffer_time",
+        TimeValue.timeValueSeconds(3),
+        TimeValue.timeValueSeconds(0),
+        TimeValue.timeValueSeconds(20),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final ClusterService clusterService;
     private final AllocationService allocationService;
 
     private final SystemIndices systemIndices;
+
+    private volatile TimeValue replicaUnassignedBufferTime = TimeValue.timeValueSeconds(0);
 
     public ShardsAvailabilityHealthIndicatorService(
         ClusterService clusterService,
@@ -121,6 +142,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.systemIndices = systemIndices;
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(REPLICA_UNASSIGNED_BUFFER_TIME, this::setReplicaUnassignedBufferTime);
+    }
+
+    private void setReplicaUnassignedBufferTime(TimeValue replicaUnassignedBufferTime) {
+        this.replicaUnassignedBufferTime = replicaUnassignedBufferTime;
     }
 
     @Override
@@ -144,7 +170,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = createNewStatus(state.getMetadata());
-        updateShardAllocationStatus(status, state, shutdown, verbose);
+        updateShardAllocationStatus(status, state, shutdown, verbose, replicaUnassignedBufferTime);
         return createIndicator(
             status.getStatus(),
             status.getSymptom(),
@@ -158,14 +184,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         ShardAllocationStatus status,
         ClusterState state,
         NodesShutdownMetadata shutdown,
-        boolean verbose
+        boolean verbose,
+        TimeValue replicaUnassignedBufferTime
     ) {
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
             for (int i = 0; i < indexShardRouting.size(); i++) {
                 IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
                 status.addPrimary(shardRouting.primaryShard(), state, shutdown, verbose);
                 for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                    status.addReplica(replicaShard, state, shutdown, verbose);
+                    status.addReplica(replicaShard, state, shutdown, verbose, replicaUnassignedBufferTime);
                 }
             }
         }
@@ -438,11 +465,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         public SearchableSnapshotsState searchableSnapshotsState = new SearchableSnapshotsState();
         final Map<Diagnosis.Definition, Set<String>> diagnosisDefinitions = new HashMap<>();
 
-        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
+        public void increment(
+            ShardRouting routing,
+            ClusterState state,
+            NodesShutdownMetadata shutdowns,
+            boolean verbose,
+            TimeValue replicaUnassignedBufferTime
+        ) {
             boolean isNew = isUnassignedDueToNewInitialization(routing, state);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
+            long replicaUnassignedCutoffTime = Instant.now().toEpochMilli() - replicaUnassignedBufferTime.millis();
             boolean allUnavailable = areAllShardsOfThisTypeUnavailable(routing, state)
-                && isNewlyCreatedAndInitializingReplica(routing, state) == false;
+                && isNewlyCreatedAndInitializingReplica(routing, state, replicaUnassignedCutoffTime) == false;
             if (allUnavailable) {
                 indicesWithAllShardsUnavailable.add(routing.getIndexName());
             }
@@ -520,7 +554,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * (a newly created index having unassigned replicas for example), we don't want the cluster
      * to turn "unhealthy" for the tiny amount of time before the shards are allocated.
      */
-    static boolean isNewlyCreatedAndInitializingReplica(ShardRouting routing, ClusterState state) {
+    static boolean isNewlyCreatedAndInitializingReplica(ShardRouting routing, ClusterState state, long replicaUnassignedCutoffTime) {
         if (routing.active()) {
             return false;
         }
@@ -528,10 +562,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             return false;
         }
         ShardRouting primary = state.routingTable().shardRoutingTable(routing.shardId()).primaryShard();
-        if (primary.active()) {
-            return false;
+        if (primary.active() == false) {
+            return ClusterShardHealth.getInactivePrimaryHealth(primary) == ClusterHealthStatus.YELLOW;
         }
-        return ClusterShardHealth.getInactivePrimaryHealth(primary) == ClusterHealthStatus.YELLOW;
+
+        Optional<UnassignedInfo> ui = Optional.ofNullable(routing.unassignedInfo());
+        return ui.filter(info -> info.failedAllocations() == 0)
+            .filter(info -> info.lastAllocationStatus() != UnassignedInfo.AllocationStatus.DECIDERS_NO)
+            .filter(info -> info.unassignedTimeMillis() > replicaUnassignedCutoffTime)
+            .isPresent();
     }
 
     private static boolean isUnassignedDueToTimelyRestart(ShardRouting routing, NodesShutdownMetadata shutdowns) {
@@ -910,11 +949,17 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
 
         void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
-            primaries.increment(routing, state, shutdowns, verbose);
+            primaries.increment(routing, state, shutdowns, verbose, TimeValue.MINUS_ONE);
         }
 
-        void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
-            replicas.increment(routing, state, shutdowns, verbose);
+        void addReplica(
+            ShardRouting routing,
+            ClusterState state,
+            NodesShutdownMetadata shutdowns,
+            boolean verbose,
+            TimeValue replicaUnassignedBufferTime
+        ) {
+            replicas.increment(routing, state, shutdowns, verbose, replicaUnassignedBufferTime);
         }
 
         void updateSearchableSnapshotsOfAvailableIndices() {

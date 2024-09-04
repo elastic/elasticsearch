@@ -1,0 +1,94 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: random rerank retriever introduced in 8.16.0
+      test_runner_features: "close_to"
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              topic:
+                type: keyword
+              subtopic:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-index
+        body: |
+          {"index": { "_id": "doc_1" } }
+          { "text": "Pugs are proof that even nature has a sense of humor." }
+          {"index": { "_id": "doc_2" } }
+          { "text": "A pugs snore can rival a chainsaw, but it's somehow adorable." }
+          {"index": { "_id": "doc_3" } }
+          { "text": "Pugs are like potato chips; you can't have just one wrinkle." }
+          {"index": { "_id": "doc_4" } }
+          { "text": "Pugs don't walk; pugs waddle majestically." }
+          {"index": { "_id": "doc_5" } }
+          { "text": "A pugs life goal: be the ultimate couch potato, and they're crushing it." }
+---
+"Random rerank retriever predictably shuffles results":
+
+  - do:
+      search:
+        index: test-index
+        body:
+          query:
+            query_string:
+              query: "pugs"
+          size: 10
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+
+  - match: { hits.hits.0._id: "doc_4" }
+  - close_to: { hits.hits.0._score: { value: 0.136, error: 0.001 } }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            random_reranker:
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: "pugs"
+              field: text
+              seed: 42
+              rank_window_size: 10
+          size: 10
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 0.727, error: 0.001 } }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            random_reranker:
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: "pugs"
+              field: text
+              rank_window_size: 10
+          size: 10
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+
+  - match: { hits.hits.0._id: "doc_3" }
+  - close_to: { hits.hits.0._score: { value: 0.731, error: 0.001 } }

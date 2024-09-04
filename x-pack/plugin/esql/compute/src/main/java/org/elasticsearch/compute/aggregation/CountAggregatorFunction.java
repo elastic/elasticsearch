@@ -52,7 +52,7 @@ public class CountAggregatorFunction implements AggregatorFunction {
     private final boolean countAll;
 
     public static CountAggregatorFunction create(List<Integer> inputChannels) {
-        return new CountAggregatorFunction(inputChannels, new LongState());
+        return new CountAggregatorFunction(inputChannels, new LongState(0));
     }
 
     private CountAggregatorFunction(List<Integer> channels, LongState state) {

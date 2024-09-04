@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -2491,19 +2492,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 );
                 return;
             }
+            final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
             repositoriesService.repository(deleteEntry.repository())
-                .deleteSnapshots(snapshotIds, repositoryData.getGenId(), minNodeVersion, new SnapshotDeleteListener() {
-
-                    private final ListenableFuture<Void> doneFuture = new ListenableFuture<>();
-
+                .deleteSnapshots(snapshotIds, repositoryData.getGenId(), minNodeVersion, new ActionListener<>() {
                     @Override
-                    public void onDone() {
-                        logger.info("snapshots {} deleted", snapshotIds);
-                        doneFuture.onResponse(null);
-                    }
-
-                    @Override
-                    public void onRepositoryDataWritten(RepositoryData updatedRepoData) {
+                    public void onResponse(RepositoryData updatedRepoData) {
                         removeSnapshotDeletionFromClusterState(
                             deleteEntry,
                             updatedRepoData,
@@ -2549,6 +2542,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             }
                         );
                     }
+                }, () -> {
+                    logger.info("snapshots {} deleted", snapshotIds);
+                    doneFuture.onResponse(null);
                 });
         }
     }

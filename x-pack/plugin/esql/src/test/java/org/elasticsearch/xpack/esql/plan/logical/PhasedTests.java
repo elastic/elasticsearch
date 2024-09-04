@@ -13,6 +13,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -31,14 +32,14 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PhasedTests extends ESTestCase {
     public void testZeroLayers() {
         EsRelation relation = new EsRelation(Source.synthetic("relation"), new EsIndex("foo", Map.of()), IndexMode.STANDARD, false);
-        relation.setAnalyzed();
+        relation.setOptimized();
         assertThat(Phased.extractFirstPhase(relation), nullValue());
     }
 
     public void testOneLayer() {
         EsRelation relation = new EsRelation(Source.synthetic("relation"), new EsIndex("foo", Map.of()), IndexMode.STANDARD, false);
         LogicalPlan orig = new Dummy(Source.synthetic("orig"), relation);
-        orig.setAnalyzed();
+        orig.setOptimized();
         assertThat(Phased.extractFirstPhase(orig), sameInstance(relation));
         LogicalPlan finalPhase = Phased.applyResultsFromFirstPhase(
             orig,
@@ -49,6 +50,7 @@ public class PhasedTests extends ESTestCase {
             finalPhase,
             equalTo(new Row(orig.source(), List.of(new Alias(orig.source(), "foo", new Literal(orig.source(), "foo", DataType.KEYWORD)))))
         );
+        finalPhase.setOptimized();
         assertThat(Phased.extractFirstPhase(finalPhase), nullValue());
     }
 
@@ -56,7 +58,7 @@ public class PhasedTests extends ESTestCase {
         EsRelation relation = new EsRelation(Source.synthetic("relation"), new EsIndex("foo", Map.of()), IndexMode.STANDARD, false);
         LogicalPlan inner = new Dummy(Source.synthetic("inner"), relation);
         LogicalPlan orig = new Dummy(Source.synthetic("outer"), inner);
-        orig.setAnalyzed();
+        orig.setOptimized();
         assertThat(
             "extractFirstPhase should call #firstPhase on the earliest child in the plan",
             Phased.extractFirstPhase(orig),
@@ -67,6 +69,7 @@ public class PhasedTests extends ESTestCase {
             List.of(new ReferenceAttribute(Source.EMPTY, "foo", DataType.KEYWORD)),
             List.of()
         );
+        secondPhase.setOptimized();
         assertThat(
             "applyResultsFromFirstPhase should call #nextPhase one th earliest child in the plan",
             secondPhase,
@@ -84,6 +87,7 @@ public class PhasedTests extends ESTestCase {
             List.of(new ReferenceAttribute(Source.EMPTY, "foo", DataType.KEYWORD)),
             List.of()
         );
+        finalPhase.setOptimized();
         assertThat(
             finalPhase,
             equalTo(new Row(orig.source(), List.of(new Alias(orig.source(), "foo", new Literal(orig.source(), "foo", DataType.KEYWORD)))))
@@ -105,6 +109,11 @@ public class PhasedTests extends ESTestCase {
         @Override
         public String getWriteableName() {
             throw new UnsupportedOperationException("not serialized");
+        }
+
+        @Override
+        public String commandName() {
+            return "DUMMY";
         }
 
         @Override
@@ -139,6 +148,11 @@ public class PhasedTests extends ESTestCase {
         @Override
         public List<Attribute> output() {
             return child().output();
+        }
+
+        @Override
+        protected AttributeSet computeReferences() {
+            return AttributeSet.EMPTY;
         }
 
         @Override

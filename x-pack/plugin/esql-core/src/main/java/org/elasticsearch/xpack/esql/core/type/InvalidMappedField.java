@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -27,11 +26,6 @@ import java.util.stream.Collectors;
  * It is used specifically for the 'union types' feature in ES|QL.
  */
 public class InvalidMappedField extends EsField {
-    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        EsField.class,
-        "InvalidMappedField",
-        InvalidMappedField::new
-    );
 
     private final String errorMessage;
     private final Map<String, Set<String>> typesToIndices;
@@ -42,10 +36,6 @@ public class InvalidMappedField extends EsField {
 
     public InvalidMappedField(String name, String errorMessage) {
         this(name, errorMessage, new TreeMap<>());
-    }
-
-    public InvalidMappedField(String name) {
-        this(name, StringUtils.EMPTY, new TreeMap<>());
     }
 
     /**
@@ -61,8 +51,8 @@ public class InvalidMappedField extends EsField {
         this.typesToIndices = typesToIndices;
     }
 
-    private InvalidMappedField(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), in.readImmutableMap(StreamInput::readString, i -> i.readNamedWriteable(EsField.class)));
+    protected InvalidMappedField(StreamInput in) throws IOException {
+        this(in.readString(), in.readString(), in.readImmutableMap(StreamInput::readString, EsField::readFrom));
     }
 
     public Set<DataType> types() {
@@ -70,15 +60,14 @@ public class InvalidMappedField extends EsField {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void writeContent(StreamOutput out) throws IOException {
         out.writeString(getName());
         out.writeString(errorMessage);
-        out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
+        out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
     }
 
-    @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return "InvalidMappedField";
     }
 
     public String errorMessage() {
@@ -130,7 +119,13 @@ public class InvalidMappedField extends EsField {
             errorMessage.append("[");
             errorMessage.append(e.getKey());
             errorMessage.append("] in ");
-            errorMessage.append(e.getValue());
+            if (e.getValue().size() <= 3) {
+                errorMessage.append(e.getValue());
+            } else {
+                errorMessage.append(e.getValue().stream().sorted().limit(3).collect(Collectors.toList()));
+                errorMessage.append(" and [" + (e.getValue().size() - 3) + "] other ");
+                errorMessage.append(e.getValue().size() == 4 ? "index" : "indices");
+            }
         }
         return errorMessage.toString();
     }

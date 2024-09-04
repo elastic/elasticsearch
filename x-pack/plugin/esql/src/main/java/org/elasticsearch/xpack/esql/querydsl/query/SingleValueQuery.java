@@ -111,7 +111,7 @@ public class SingleValueQuery extends Query {
                     this.source = Source.readFrom(psi);
                 } else {
                     /*
-                     * For things like CanMatch we serialize without the Source. But we
+                     * For things like CanMatchNodeRequest we serialize without the Source. But we
                      * don't use it, so that's ok.
                      */
                     this.source = Source.readEmpty(in);

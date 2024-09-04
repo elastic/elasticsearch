@@ -7,7 +7,7 @@
 condition | trueValue | result
 boolean | boolean | boolean
 boolean | cartesian_point | cartesian_point
-boolean | datetime | datetime
+boolean | date | date
 boolean | double | double
 boolean | geo_point | geo_point
 boolean | integer | integer

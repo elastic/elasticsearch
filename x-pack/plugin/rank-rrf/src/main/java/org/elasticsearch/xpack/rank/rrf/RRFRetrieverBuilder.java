@@ -92,7 +92,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         this(new ArrayList<>(), rankWindowSize, rankConstant);
     }
 
-    private RRFRetrieverBuilder(List<RetrieverSource> childRetrievers, int rankWindowSize, int rankConstant) {
+    RRFRetrieverBuilder(List<RetrieverSource> childRetrievers, int rankWindowSize, int rankConstant) {
         super(childRetrievers, rankWindowSize);
         this.rankConstant = rankConstant;
     }

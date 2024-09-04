@@ -277,10 +277,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     new TopDocsStats(trackTotalHits),
                     0,
                     true,
-                    false,
                     InternalAggregationTestCase.emptyReduceContextBuilder(),
                     null,
-                    true
+                    true,
+                    null
                 );
                 List<SearchShardTarget> shards = queryResults.asList()
                     .stream()
@@ -370,7 +370,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     new TopDocsStats(trackTotalHits),
                     0,
                     true,
-                    false,
                     InternalAggregationTestCase.emptyReduceContextBuilder(),
                     new QueryPhaseRankCoordinatorContext(windowSize) {
                         @Override
@@ -399,7 +398,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                             return topResults;
                         }
                     },
-                    true
+                    true,
+                    null
                 );
                 List<SearchShardTarget> shards = queryResults.asList()
                     .stream()

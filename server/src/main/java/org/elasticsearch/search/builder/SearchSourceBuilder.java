@@ -2336,9 +2336,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     validationException = addValidationError("[rank] cannot be used with [sort]", validationException);
                 }
             }
-            if (collapse() != null) {
-                validationException = addValidationError("[rank] cannot be used with [collapse]", validationException);
-            }
             if (suggest() != null && suggest().getSuggestions().isEmpty() == false) {
                 validationException = addValidationError("[rank] cannot be used with [suggest]", validationException);
             }

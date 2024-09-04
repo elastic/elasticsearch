@@ -48,6 +48,7 @@ import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsSortField;
@@ -532,10 +533,10 @@ public final class SearchPhaseController {
             topDocsStats,
             0,
             true,
-            false,
             aggReduceContextBuilder,
             null,
-            true
+            true,
+            null
         );
     }
 
@@ -555,11 +556,12 @@ public final class SearchPhaseController {
         TopDocsStats topDocsStats,
         int numReducePhases,
         boolean isScrollRequest,
-        boolean isRankQuery,
         AggregationReduceContext.Builder aggReduceContextBuilder,
         QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext,
-        boolean performFinalReduce
+        boolean performFinalReduce,
+        RankBuilder rankBuilder
     ) {
+        boolean isRankQuery = rankBuilder != null;
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce

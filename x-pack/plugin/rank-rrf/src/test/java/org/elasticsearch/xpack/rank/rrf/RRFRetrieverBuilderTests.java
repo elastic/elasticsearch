@@ -26,6 +26,8 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
+
 /** Tests for the rrf retriever. */
 public class RRFRetrieverBuilderTests extends ESTestCase {
 
@@ -127,7 +129,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         try (
             XContentParser parser = createParser(
                 JsonXContent.jsonXContent,
-                "{\"retriever\":{\"rrf_nl\":{\"retrievers\":[{\"rrf_nl\":{\"retrievers\":[{\"standard\":{}}]}}]}}}"
+                "{\"retriever\":{\"rrf_nl\":{\"retrievers\":[{\"rrf_nl\":{\"retrievers\":[{\"rrf_nl\":{\"retrievers\":[{\"rrf_nl\":{\"retrievers\":[{\"standard\":{}}]}}]}}]}}]}}}"
             )
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
@@ -136,10 +138,10 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                 () -> ssb.parseXContent(parser, true, nf -> true)
                     .rewrite(new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid"))))
             );
-            assertEquals("[1:65] [rrf] failed to parse field [retrievers]", iae.getMessage());
+            assertThat(iae.getMessage(), containsString("[rrf] failed to parse field [retrievers]"));
             assertEquals(
-                "the nested depth of the [standard] retriever exceeds the maximum nested depth [2] for retrievers",
-                iae.getCause().getCause().getMessage()
+                "the nested depth of the [standard] retriever exceeds the maximum nested depth [4] for retrievers",
+                iae.getCause().getCause().getCause().getCause().getMessage()
             );
         }
     }

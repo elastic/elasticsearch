@@ -106,6 +106,12 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
     Float minScore;
     CollapseBuilder collapseBuilder;
 
+    public StandardRetrieverBuilder() {}
+
+    public StandardRetrieverBuilder(QueryBuilder queryBuilder) {
+        this.queryBuilder = queryBuilder;
+    }
+
     @Override
     public QueryBuilder topDocsQuery() {
         // TODO: for compound retrievers this will have to be reworked as queries like knn could be executed twice

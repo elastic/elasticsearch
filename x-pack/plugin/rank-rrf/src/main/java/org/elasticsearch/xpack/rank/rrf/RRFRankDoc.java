@@ -93,7 +93,7 @@ public class RRFRankDoc extends RankDoc {
                         + (rank)
                         + " + "
                         + rankConstant
-                        + "]), for matching query with score"
+                        + ")], for matching query with score"
                 );
             }
         }

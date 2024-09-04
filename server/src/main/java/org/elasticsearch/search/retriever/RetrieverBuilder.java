@@ -85,9 +85,9 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
                 if (categoryClass.equals(RetrieverBuilder.class)) {
                     nestedDepth++;
 
-                    if (nestedDepth > 2) {
+                    if (nestedDepth > 4) {
                         throw new IllegalArgumentException(
-                            "the nested depth of the [" + name + "] retriever exceeds the maximum nested depth [2] for retrievers"
+                            "the nested depth of the [" + name + "] retriever exceeds the maximum nested depth [4] for retrievers"
                         );
                     }
                 }

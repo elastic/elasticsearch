@@ -63,8 +63,7 @@ public class RankDocsRankBuilder extends RankBuilder {
         // RankDocsQuery explanation, as well info on the disjunction of the sub queries,
         // which however is of no actual interest on its own. So in this method we repackage the explanation so that we would have
         // the ranker's overall score as info, keep the `RankDocsQuery#explain` as the main explanation, and add the sub queries'
-        // explanations
-        // computed from the disjunction.
+        // explanations computed from the disjunction.
         if (false == baseExplanation.isMatch() || baseExplanation.getDetails().length < 2) {
             return baseExplanation;
         }

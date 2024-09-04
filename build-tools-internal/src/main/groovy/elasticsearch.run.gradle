@@ -30,13 +30,7 @@ testClusters.register("runTask") {
       setting 'xpack.security.enabled', 'true'
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
-      numberOfNodes = 3
-      def cluster = testClusters.named("runTask").get()
-      cluster.getNodes().each { node ->
-        node.setting('cluster.initial_master_nodes', cluster.getLastNode().getName())
-        node.setting('node.roles', '[master,data_hot,data_content]')
-      }
-      cluster.getFirstNode().setting('node.roles', '[]')
+      numberOfNodes = 1
     }
 }
 

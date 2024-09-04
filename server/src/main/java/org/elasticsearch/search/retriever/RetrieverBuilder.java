@@ -66,7 +66,7 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         parser.declareString(RetrieverBuilder::retrieverName, NAME_FIELD);
     }
 
-    private void retrieverName(String retrieverName) {
+    public void retrieverName(String retrieverName) {
         this.retrieverName = retrieverName;
     }
 

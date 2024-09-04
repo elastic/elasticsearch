@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -34,19 +33,18 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 3)
 public class RRFRetrieverBuilderIT extends ESIntegTestCase {
 
-    private static String INDEX = "test_index";
-    private static final String ID_FIELD = "_id";
-    private static final String DOC_FIELD = "doc";
-    private static final String TEXT_FIELD = "text";
-    private static final String VECTOR_FIELD = "vector";
-    private static final String TOPIC_FIELD = "topic";
-    private static final String LAST_30D_FIELD = "views.last30d";
-    private static final String ALL_TIME_FIELD = "views.all";
+    protected static String INDEX = "test_index";
+    protected static final String ID_FIELD = "_id";
+    protected static final String DOC_FIELD = "doc";
+    protected static final String TEXT_FIELD = "text";
+    protected static final String VECTOR_FIELD = "vector";
+    protected static final String TOPIC_FIELD = "topic";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -55,6 +53,10 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
 
     @Before
     public void setup() throws Exception {
+        setupIndex();
+    }
+
+    protected void setupIndex() {
         String mapping = """
             {
               "properties": {
@@ -93,7 +95,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             """;
         createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 5).build());
         admin().indices().preparePutMapping(INDEX).setSource(mapping, XContentType.JSON).get();
-        indexDoc(INDEX, "doc_1", DOC_FIELD, "doc_1", TOPIC_FIELD, "technology", TEXT_FIELD, "term", LAST_30D_FIELD, 100);
+        indexDoc(INDEX, "doc_1", DOC_FIELD, "doc_1", TOPIC_FIELD, "technology", TEXT_FIELD, "term");
         indexDoc(
             INDEX,
             "doc_2",
@@ -104,25 +106,10 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             TEXT_FIELD,
             "search term term",
             VECTOR_FIELD,
-            new float[] { 2.0f },
-            LAST_30D_FIELD,
-            3
+            new float[] { 2.0f }
         );
         indexDoc(INDEX, "doc_3", DOC_FIELD, "doc_3", TOPIC_FIELD, "technology", VECTOR_FIELD, new float[] { 3.0f });
-        indexDoc(
-            INDEX,
-            "doc_4",
-            DOC_FIELD,
-            "doc_4",
-            TOPIC_FIELD,
-            "technology",
-            TEXT_FIELD,
-            "term term term term",
-            ALL_TIME_FIELD,
-            100,
-            LAST_30D_FIELD,
-            40
-        );
+        indexDoc(INDEX, "doc_4", DOC_FIELD, "doc_4", TOPIC_FIELD, "technology", TEXT_FIELD, "term term term term");
         indexDoc(INDEX, "doc_5", DOC_FIELD, "doc_5", TOPIC_FIELD, "science", TEXT_FIELD, "irrelevant stuff");
         indexDoc(
             INDEX,
@@ -132,9 +119,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             TEXT_FIELD,
             "search term term term term term term",
             VECTOR_FIELD,
-            new float[] { 6.0f },
-            LAST_30D_FIELD,
-            15
+            new float[] { 6.0f }
         );
         indexDoc(
             INDEX,
@@ -146,9 +131,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             TEXT_FIELD,
             "term term term term term term term",
             VECTOR_FIELD,
-            new float[] { 7.0f },
-            ALL_TIME_FIELD,
-            1000
+            new float[] { 7.0f }
         );
         refresh(INDEX);
     }
@@ -353,47 +336,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         });
     }
 
-    public void testRRFRetrieverWithNestedQuery() {
-        final int rankWindowSize = 100;
-        final int rankConstant = 10;
-        SearchSourceBuilder source = new SearchSourceBuilder();
-        // this one retrieves docs 1, 4
-        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
-            QueryBuilders.nestedQuery("views", QueryBuilders.rangeQuery(LAST_30D_FIELD).gte(30L), ScoreMode.Avg)
-        );
-        // this one retrieves docs 2 and 6 due to prefilter
-        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L)
-        );
-        standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
-        // this one retrieves docs 6
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 6.0f }, null, 1, 100, null);
-        source.retriever(
-            new RRFRetrieverBuilder(
-                Arrays.asList(
-                    new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
-                    new CompoundRetrieverBuilder.RetrieverSource(standard1, null),
-                    new CompoundRetrieverBuilder.RetrieverSource(knnRetrieverBuilder, null)
-                ),
-                rankWindowSize,
-                rankConstant
-            )
-        );
-        source.fetchField(TOPIC_FIELD);
-        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
-        ElasticsearchAssertions.assertResponse(req, resp -> {
-            assertNull(resp.pointInTimeId());
-            assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value, equalTo(4L));
-            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
-            assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_6"));
-            assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_1"));
-            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_2"));
-            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_4"));
-        });
-    }
-
-    public void testRRFExplain() {
+    public void testRRFExplainWithNestedFields() {
         final int rankWindowSize = 100;
         final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -401,6 +344,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
             QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("term").defaultField(TEXT_FIELD)).boost(10L)
         );
+        standard0.retrieverName("my_custom_retriever");
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
             QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L)
@@ -420,18 +364,31 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             )
         );
         source.explain(true);
+        source.size(1);
         SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
             assertThat(resp.getHits().getTotalHits().value, equalTo(6L));
             assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
-            assertThat(resp.getHits().getHits().length, equalTo(5));
-            assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_6"));
-            assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_7"));
-            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_1"));
-            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_3"));
-            assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_4"));
+            assertThat(resp.getHits().getHits().length, equalTo(1));
+            assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
+            assertThat(resp.getHits().getAt(0).getExplanation().isMatch(), equalTo(true));
+            assertThat(resp.getHits().getAt(0).getExplanation().getDescription(), containsString("computed for initial ranks [3, 1, 2]"));
+            assertThat(resp.getHits().getAt(0).getExplanation().getDetails().length, equalTo(3));
+            assertThat(
+                resp.getHits().getAt(0).getExplanation().getDetails()[0].getDescription(),
+                containsString("for rank [3] in query at index [0]")
+            );
+            assertThat(resp.getHits().getAt(0).getExplanation().getDetails()[0].getDescription(), containsString("[my_custom_retriever]"));
+            assertThat(
+                resp.getHits().getAt(0).getExplanation().getDetails()[1].getDescription(),
+                containsString("for rank [1] in query at index [1]")
+            );
+            assertThat(
+                resp.getHits().getAt(0).getExplanation().getDetails()[2].getDescription(),
+                containsString("for rank [2] in query at index [2]")
+            );
         });
     }
 }

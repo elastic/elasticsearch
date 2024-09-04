@@ -120,6 +120,7 @@ import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SnapshotShutdownProgressTracker;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
@@ -365,6 +366,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
         TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
         ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING,
+        SnapshotShutdownProgressTracker.SNAPSHOT_PROGRESS_DURING_SHUTDOWN_INTERVAL_TIME_SETTING,
         NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING,
         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING,
         HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,

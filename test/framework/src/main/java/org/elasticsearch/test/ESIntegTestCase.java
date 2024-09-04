@@ -44,6 +44,7 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -1524,6 +1525,34 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected final DocWriteResponse indexDoc(String index, String id, Object... source) {
         return prepareIndex(index).setId(id).setSource(source).get();
+    }
+
+    /**
+     * Index documents until all the shards are at least bytesPerShard in size.
+     * @return ShardStats for the newly populated shards.
+     */
+    protected ShardStats[] populateIndexShards(final String indexName, long bytesPerShard) {
+        while (true) {
+            indexRandom(true, indexName, scaledRandomIntBetween(100, 10000));
+            forceMerge();
+            refresh();
+
+            final ShardStats[] shardStats = indicesAdmin().prepareStats(indexName)
+                .clear()
+                .setStore(true)
+                .setTranslog(true)
+                .get()
+                .getShards();
+
+            var smallestShardSize = Arrays.stream(shardStats)
+                .mapToLong(it -> it.getStats().getStore().sizeInBytes())
+                .min()
+                .orElseThrow(() -> new AssertionError("no shards"));
+
+            if (smallestShardSize > bytesPerShard) {
+                return shardStats;
+            }
+        }
     }
 
     /**

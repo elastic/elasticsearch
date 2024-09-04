@@ -624,6 +624,11 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             return added;
         }
 
+        @Override
+        public String toString() {
+            return shortSummary();
+        }
+
         public String shortSummary() {
             final StringBuilder summary = new StringBuilder();
             if (masterNodeChanged()) {

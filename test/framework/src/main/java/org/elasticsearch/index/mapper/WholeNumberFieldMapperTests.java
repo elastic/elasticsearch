@@ -10,13 +10,14 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests {
 
@@ -72,25 +73,30 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         }
     }
 
-    public void testDimensionMultiValuedField() throws Throwable {
-        XContentBuilder mapping = fieldMapping(b -> {
+    public void testDimensionMultiValuedFieldTSDB() throws Throwable {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true);
-        });
+        }), IndexMode.TIME_SERIES);
 
-        IndexMode indexMode = randomFrom(IndexMode.values());
-        DocumentMapper mapper = createDocumentMapper(mapping, indexMode);
+        Exception e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+    }
 
-        ThrowingRunnable parseArray = () -> mapper.parse(source(b -> {
+    public void testDimensionMultiValuedFieldNonTSDB() throws Throwable {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", true);
+        }), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
             b.array("field", randomNumber(), randomNumber(), randomNumber());
             b.field("@timestamp", Instant.now());
         }));
-        if (indexMode == IndexMode.TIME_SERIES) {
-            Exception e = expectThrows(DocumentParsingException.class, parseArray);
-            assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
-        } else {
-            parseArray.run();
-        }
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
     public void testMetricAndDimension() {

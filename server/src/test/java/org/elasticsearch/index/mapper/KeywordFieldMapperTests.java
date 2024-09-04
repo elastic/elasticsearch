@@ -59,6 +59,8 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class KeywordFieldMapperTests extends MapperTestCase {
@@ -375,24 +377,27 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testDimensionMultiValuedField() throws Throwable {
-        XContentBuilder mapping = fieldMapping(b -> {
+    public void testDimensionMultiValuedFieldTSDB() throws Throwable {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true);
-        });
-        IndexMode indexMode = randomFrom(IndexMode.values());
-        DocumentMapper mapper = createDocumentMapper(mapping, indexMode);
+        }), IndexMode.TIME_SERIES);
 
-        ThrowingRunnable parseArray = () -> mapper.parse(source(b -> {
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.array("field", "1234", "45678"))));
+        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+    }
+
+    public void testDimensionMultiValuedFieldNonTSDB() throws Throwable {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", true);
+        }), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
             b.array("field", "1234", "45678");
             b.field("@timestamp", Instant.now());
         }));
-        if (indexMode == IndexMode.TIME_SERIES) {
-            Exception e = expectThrows(DocumentParsingException.class, parseArray);
-            assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
-        } else {
-            parseArray.run();
-        }
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
     public void testDimensionExtraLongKeyword() throws IOException {

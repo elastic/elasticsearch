@@ -48,6 +48,8 @@ import java.util.TreeMap;
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class FlattenedFieldMapperTests extends MapperTestCase {
 
@@ -191,25 +193,30 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testDimensionMultiValuedField() throws Throwable {
-        XContentBuilder mapping = fieldMapping(b -> {
+    public void testDimensionMultiValuedFieldTSDB() throws Throwable {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimensions", List.of("key1", "key2", "field3.key3"));
-        });
+        }), IndexMode.TIME_SERIES);
 
-        IndexMode indexMode = randomFrom(IndexMode.values());
-        DocumentMapper mapper = createDocumentMapper(mapping, indexMode);
+        Exception e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field.key1", "value1", "value2")))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Dimension field [field.key1] cannot be a multi-valued field"));
+    }
 
-        ThrowingRunnable parseArray = () -> mapper.parse(source(b -> {
+    public void testDimensionMultiValuedFieldNonTSDB() throws Throwable {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimensions", List.of("key1", "key2", "field3.key3"));
+        }), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
             b.array("field.key1", "value1", "value2");
             b.field("@timestamp", Instant.now());
         }));
-        if (indexMode == IndexMode.TIME_SERIES) {
-            Exception e = expectThrows(DocumentParsingException.class, parseArray);
-            assertThat(e.getCause().getMessage(), containsString("Dimension field [field.key1] cannot be a multi-valued field"));
-        } else {
-            parseArray.run();
-        }
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
     public void testDisableIndex() throws Exception {

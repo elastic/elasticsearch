@@ -366,7 +366,7 @@ index param - root arrays:
           settings:
             index:
               mapping:
-                store_array_source: true
+                store_source: arrays
           mappings:
             _source:
               mode: synthetic
@@ -431,7 +431,7 @@ index param - dynamic root arrays:
           settings:
             index:
               mapping:
-                store_array_source: true
+                store_source: arrays
           mappings:
             _source:
               mode: synthetic
@@ -484,7 +484,7 @@ index param - object array within array:
           settings:
             index:
               mapping:
-                store_array_source: true
+                store_source: arrays
           mappings:
             _source:
               mode: synthetic
@@ -534,7 +534,7 @@ index param - no object array:
           settings:
             index:
               mapping:
-                store_array_source: true
+                store_source: arrays
           mappings:
             _source:
               mode: synthetic
@@ -579,7 +579,7 @@ index param - field ordering:
           settings:
             index:
               mapping:
-                store_array_source: true
+                store_source: arrays
           mappings:
             _source:
               mode: synthetic
@@ -630,7 +630,7 @@ index param - nested arrays:
           settings:
             index:
               mapping:
-                store_array_source: true
+                store_source: arrays
           mappings:
             _source:
               mode: synthetic
@@ -693,7 +693,7 @@ index param - nested object with stored array:
           settings:
             index:
               mapping:
-                store_array_source: true
+                store_source: arrays
           mappings:
             _source:
               mode: synthetic

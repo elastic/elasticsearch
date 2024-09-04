@@ -312,19 +312,6 @@ public final class DocumentParser {
                 parser = context.parser();
             }
             context = context.createNestedContext((NestedObjectMapper) context.parent());
-        } else if (context.storeSourceModeFromIndexSettings() == Mapper.StoreSourceMode.ALL && context.canAddIgnoredField()) {
-            Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
-            context.addIgnoredField(
-                new IgnoredSourceFieldMapper.NameValue(
-                    context.parent().fullPath(),
-                    context.parent().fullPath().lastIndexOf(context.parent().leafName()),
-                    XContentDataHelper.encodeXContentBuilder(tuple.v2()),
-                    context.doc()
-                )
-            );
-            context = tuple.v1();
-            token = context.parser().currentToken();
-            parser = context.parser();
         }
 
         // if we are at the end of the previous object, advance
@@ -454,9 +441,7 @@ public final class DocumentParser {
                 parseObjectOrNested(context.createFlattenContext(currentFieldName));
                 context.path().add(currentFieldName);
             } else {
-                if (context.canAddIgnoredField()
-                    && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
-                        || context.storeSourceModeFromIndexSettings() == Mapper.StoreSourceMode.ALL)) {
+                if (context.canAddIgnoredField() && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
                     Tuple<DocumentParserContext, XContentBuilder> contextWithSourceToStore = XContentDataHelper.cloneSubContext(context);
 
                     context.addIgnoredField(
@@ -702,12 +687,12 @@ public final class DocumentParser {
         if (context.canAddIgnoredField()) {
             boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
                 && (objectMapper.storeArraySource()
-                    || context.storeSourceModeFromIndexSettings() != Mapper.StoreSourceMode.NONE
+                    || context.storeSourceModeFromIndexSettings() == Mapper.StoreSourceMode.ARRAYS
                     || objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME);
             boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
                 && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
             boolean fieldWithStoredArraySource = mapper instanceof FieldMapper fieldMapper
-                && context.storeSourceModeFromIndexSettings() != Mapper.StoreSourceMode.NONE;
+                && context.storeSourceModeFromIndexSettings() == Mapper.StoreSourceMode.ARRAYS;
             boolean dynamicRuntimeContext = context.dynamic() == ObjectMapper.Dynamic.RUNTIME;
             if (objectRequiresStoringSource || fieldWithFallbackSyntheticSource || dynamicRuntimeContext || fieldWithStoredArraySource) {
                 Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);

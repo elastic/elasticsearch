@@ -38,7 +38,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             this.name = name;
         }
 
-        static StoreSourceMode fromString(String input) {
+        static StoreSourceMode from(String input) {
             if (input.equals(NONE.name)) {
                 return NONE;
             }

@@ -128,7 +128,7 @@ public class DebertaV2Tokenizer extends NlpTokenizer {
     @Override
     int defaultSpanForChunking(int maxWindowSize) {
         return (maxWindowSize - numExtraTokensForSingleSequence()) / 2;
-    } // TODO verify
+    }
 
     @Override
     public TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokens> tokenizations) {
@@ -277,7 +277,6 @@ public class DebertaV2Tokenizer extends NlpTokenizer {
                 this.scores[i++] = s;
             }
             normalizer = PrecompiledCharMapNormalizer.fromBase64EncodedResource(
-                // TODO verify this is correct
                 "/org/elasticsearch/xpack/ml/inference.nlp.tokenizers/spm_precompiled_normalizer.txt"
             );
         }

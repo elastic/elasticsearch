@@ -58,7 +58,7 @@ public class DebertaV2Tokenization extends Tokenization {
 
     @Override
     Tokenization buildWindowingTokenization(int updatedMaxSeqLength, int updatedSpan) {
-        return null;
+        return new DebertaV2Tokenization(doLowerCase, withSpecialTokens, updatedMaxSeqLength, truncate, updatedSpan);
     }
 
     @Override

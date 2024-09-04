@@ -26,7 +26,6 @@ public class DebertaTokenizationResult extends TokenizationResult {
     static final String TOKENS = "tokens";
     static final String ARG1 = "arg_1";
     static final String ARG2 = "arg_2";
-    static final String ARG3 = "arg_3";
 
     private static final Logger logger = LogManager.getLogger(DebertaTokenizationResult.class);
 

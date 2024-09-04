@@ -27,6 +27,8 @@ import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.stream.Collectors;
 
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.VOCABULARY;
 
@@ -86,7 +88,7 @@ public abstract class NlpTokenizer implements Releasable {
 
         if (numTokens > windowSize) {
             switch (truncate) {
-                case FIRST, SECOND -> {
+                case FIRST, SECOND, BALANCED -> { // only one sequence exists in this case
                     isTruncated = true;
                     tokenIds = tokenIds.subList(0, isWithSpecialTokens() ? windowSize - numExtraTokensForSingleSequence() : windowSize);
                     tokenPositionMap = tokenPositionMap.subList(
@@ -124,7 +126,7 @@ public abstract class NlpTokenizer implements Releasable {
         int splitStartPos = 0;
         int spanPrev = -1;
         while (splitEndPos < tokenIds.size()) {
-            splitEndPos = Math.min(
+            splitEndPos = min(
                 splitStartPos + (isWithSpecialTokens() ? windowSize - numExtraTokensForSingleSequence() : windowSize),
                 tokenIds.size()
             );
@@ -232,6 +234,19 @@ public abstract class NlpTokenizer implements Releasable {
                     }
                     tokenIdsSeq2 = tokenIdsSeq2.subList(0, maxSequenceLength() - extraTokens - tokenIdsSeq1.size());
                     tokenPositionMapSeq2 = tokenPositionMapSeq2.subList(0, maxSequenceLength() - extraTokens - tokenIdsSeq1.size());
+                }
+                case BALANCED -> {
+                    isTruncated = true;
+                    if (tokenIdsSeq1.size() + tokenIdsSeq2.size() + getNumExtraTokensForSeqPair() > maxSequenceLength()) {
+                        int queryLength = min(tokenIdsSeq1.size(), (maxSequenceLength() - getNumExtraTokensForSeqPair()) / 2);
+                        tokenIdsSeq1 = tokenIdsSeq1.subList(0, queryLength);
+                        tokenPositionMapSeq2 = tokenPositionMapSeq2.subList(0, queryLength);
+                        tokenIdsSeq2 = tokenIdsSeq1.subList(0, maxSequenceLength() - queryLength - getNumExtraTokensForSeqPair());
+                        tokenPositionMapSeq2 = tokenPositionMapSeq2.subList(
+                            0,
+                            maxSequenceLength() - queryLength - getNumExtraTokensForSeqPair()
+                        );
+                    }
                 }
                 case NONE -> throw ExceptionsHelper.badRequestException(
                     "Input too large. The tokenized input length [{}] exceeds the maximum sequence length [{}]",
@@ -356,7 +371,7 @@ public abstract class NlpTokenizer implements Releasable {
         }
 
         while (splitEndPos < tokenIdsSeq2.size()) {
-            splitEndPos = Math.min(splitStartPos + trueMaxSeqLength, tokenIdsSeq2.size());
+            splitEndPos = min(splitStartPos + trueMaxSeqLength, tokenIdsSeq2.size());
             // Make sure we do not end on a word
             if (splitEndPos != tokenIdsSeq2.size()) {
                 while (splitEndPos > splitStartPos + 1

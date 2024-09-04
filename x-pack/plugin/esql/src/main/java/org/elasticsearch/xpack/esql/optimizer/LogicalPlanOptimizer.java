@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -415,17 +414,5 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         var aliases = aliasBuilder.build();
 
         return (UnaryPlan) plan.transformExpressionsOnly(ReferenceAttribute.class, r -> aliases.resolve(r, r));
-    }
-
-    public abstract static class ParameterizedOptimizerRule<SubPlan extends LogicalPlan, P> extends ParameterizedRule<
-        SubPlan,
-        LogicalPlan,
-        P> {
-
-        public final LogicalPlan apply(LogicalPlan plan, P context) {
-            return plan.transformDown(typeToken(), t -> rule(t, context));
-        }
-
-        protected abstract LogicalPlan rule(SubPlan plan, P context);
     }
 }

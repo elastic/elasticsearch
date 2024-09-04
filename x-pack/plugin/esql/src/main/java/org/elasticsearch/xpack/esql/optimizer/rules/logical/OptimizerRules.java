@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -68,5 +69,25 @@ public final class OptimizerRules {
     public enum TransformDirection {
         UP,
         DOWN
+    }
+
+    public abstract static class ParameterizedOptimizerRule<SubPlan extends LogicalPlan, P> extends ParameterizedRule<
+        SubPlan,
+        LogicalPlan,
+        P> {
+
+        private final TransformDirection direction;
+
+        protected ParameterizedOptimizerRule(TransformDirection direction) {
+            this.direction = direction;
+        }
+
+        public final LogicalPlan apply(LogicalPlan plan, P context) {
+            return direction == TransformDirection.DOWN
+                ? plan.transformDown(typeToken(), t -> rule(t, context))
+                : plan.transformUp(typeToken(), t -> rule(t, context));
+        }
+
+        protected abstract LogicalPlan rule(SubPlan plan, P context);
     }
 }

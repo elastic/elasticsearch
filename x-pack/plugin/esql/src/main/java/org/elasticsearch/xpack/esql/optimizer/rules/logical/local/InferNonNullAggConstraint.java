@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -34,9 +34,10 @@ import java.util.Set;
  * Unfortunately this optimization cannot be applied when grouping is necessary since it can filter out
  * groups containing only null values
  */
-public class InferNonNullAggConstraint extends LocalLogicalPlanOptimizer.ParameterizedOptimizerRule<
-    Aggregate,
-    LocalLogicalOptimizerContext> {
+public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptimizerRule<Aggregate, LocalLogicalOptimizerContext> {
+    public InferNonNullAggConstraint() {
+        super(OptimizerRules.TransformDirection.UP);
+    }
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate, LocalLogicalOptimizerContext context) {

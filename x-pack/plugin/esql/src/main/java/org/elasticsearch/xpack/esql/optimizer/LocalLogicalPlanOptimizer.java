@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
@@ -70,17 +69,5 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
 
     public LogicalPlan localOptimize(LogicalPlan plan) {
         return execute(plan);
-    }
-
-    public abstract static class ParameterizedOptimizerRule<SubPlan extends LogicalPlan, P> extends ParameterizedRule<
-        SubPlan,
-        LogicalPlan,
-        P> {
-
-        public final LogicalPlan apply(LogicalPlan plan, P context) {
-            return plan.transformUp(typeToken(), t -> rule(t, context));
-        }
-
-        protected abstract LogicalPlan rule(SubPlan plan, P context);
     }
 }

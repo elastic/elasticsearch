@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -39,7 +38,10 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
  * OR if there is no sort between "limit" and "mv_expand".
  * But, since this type of query has such a filter, the "sort emp_no" will have no limit when it reaches the current rule.
  */
-public final class AddDefaultTopN extends LogicalPlanOptimizer.ParameterizedOptimizerRule<LogicalPlan, LogicalOptimizerContext> {
+public final class AddDefaultTopN extends OptimizerRules.ParameterizedOptimizerRule<LogicalPlan, LogicalOptimizerContext> {
+    public AddDefaultTopN() {
+        super(OptimizerRules.TransformDirection.DOWN);
+    }
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan, LogicalOptimizerContext context) {

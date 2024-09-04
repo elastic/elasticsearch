@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.action.ibmwatsonx;
 
-
 import org.apache.http.HttpHeaders;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -27,12 +24,10 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
-import org.elasticsearch.xpack.inference.external.http.sender.GoogleAiStudioEmbeddingsRequestManager;
-import org.elasticsearch.xpack.inference.external.http.sender.IbmWatsonxEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.IbmWatsonxEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModelTests;
 import org.junit.After;
 import org.junit.Before;
 
@@ -42,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -56,9 +50,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
@@ -139,7 +130,15 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
         }
     }
 
-    private ExecutableAction createAction(String url, String apiKey, String modelName, String projectId, URI uri, String apiVersion, Sender sender) {
+    private ExecutableAction createAction(
+        String url,
+        String apiKey,
+        String modelName,
+        String projectId,
+        URI uri,
+        String apiVersion,
+        Sender sender
+    ) {
         var model = createModel(modelName, projectId, uri, apiVersion, apiKey, url);
         var requestManager = new IbmWatsonxEmbeddingsRequestManager(model, TruncatorTests.createTruncator(), threadPool);
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(), "IBM Watsonx embeddings");

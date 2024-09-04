@@ -17,9 +17,15 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 
 import java.net.URI;
 
-public class IbmWatsonxEmbeddingsModelTests  extends ESTestCase {
-    public static IbmWatsonxEmbeddingsModel createModel(String model, String projectId, URI uri, String apiVersion,
-                                                        String apiKey, String url) {
+public class IbmWatsonxEmbeddingsModelTests extends ESTestCase {
+    public static IbmWatsonxEmbeddingsModel createModel(
+        String model,
+        String projectId,
+        URI uri,
+        String apiVersion,
+        String apiKey,
+        String url
+    ) {
         return new IbmWatsonxEmbeddingsModel(
             "id",
             TaskType.TEXT_EMBEDDING,
@@ -65,7 +71,16 @@ public class IbmWatsonxEmbeddingsModelTests  extends ESTestCase {
             "id",
             TaskType.TEXT_EMBEDDING,
             "service",
-            new IbmWatsonxEmbeddingsServiceSettings(model, projectId, uri, apiVersion, tokenLimit, dimensions, SimilarityMeasure.DOT_PRODUCT, null),
+            new IbmWatsonxEmbeddingsServiceSettings(
+                model,
+                projectId,
+                uri,
+                apiVersion,
+                tokenLimit,
+                dimensions,
+                SimilarityMeasure.DOT_PRODUCT,
+                null
+            ),
             EmptyTaskSettings.INSTANCE,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );

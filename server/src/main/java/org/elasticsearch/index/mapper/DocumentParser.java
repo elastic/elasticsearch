@@ -687,7 +687,9 @@ public final class DocumentParser {
         if (context.canAddIgnoredField()) {
             boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
                 && (objectMapper.storeArraySource()
-                    || context.storeSourceModeFromIndexSettings() == Mapper.StoreSourceMode.ARRAYS
+                    || (context.storeSourceModeFromIndexSettings() == Mapper.StoreSourceMode.ARRAYS
+                        && objectMapper instanceof NestedObjectMapper == false)
+
                     || objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME);
             boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
                 && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;

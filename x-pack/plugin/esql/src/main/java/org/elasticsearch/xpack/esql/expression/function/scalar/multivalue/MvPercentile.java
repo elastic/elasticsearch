@@ -233,7 +233,7 @@ public class MvPercentile extends EsqlScalarFunction {
 
     // Percentile calculators
 
-    private static double calculateDoublePercentile(
+    static double calculateDoublePercentile(
         DoubleBlock valuesBlock,
         int firstValueIndex,
         int valueCount,
@@ -257,7 +257,11 @@ public class MvPercentile extends EsqlScalarFunction {
                 return valuesBlock.getDouble(valueCount - 1);
             } else {
                 assert lowerIndex >= 0 && upperIndex < valueCount;
-                return calculateDoublePercentile(fraction, valuesBlock.getDouble(lowerIndex), valuesBlock.getDouble(upperIndex));
+                return calculateDoublePercentile(
+                    fraction,
+                    valuesBlock.getDouble(firstValueIndex + lowerIndex),
+                    valuesBlock.getDouble(firstValueIndex + upperIndex)
+                );
             }
         }
 
@@ -289,7 +293,7 @@ public class MvPercentile extends EsqlScalarFunction {
         return calculateDoublePercentile(fraction, scratch.values[lowerIndex], scratch.values[upperIndex]);
     }
 
-    private static int calculateIntPercentile(
+    static int calculateIntPercentile(
         IntBlock valuesBlock,
         int firstValueIndex,
         int valueCount,
@@ -313,8 +317,8 @@ public class MvPercentile extends EsqlScalarFunction {
                 return valuesBlock.getInt(valueCount - 1);
             } else {
                 assert lowerIndex >= 0 && upperIndex < valueCount;
-                var lowerValue = valuesBlock.getInt(lowerIndex);
-                var upperValue = valuesBlock.getInt(upperIndex);
+                var lowerValue = valuesBlock.getInt(firstValueIndex + lowerIndex);
+                var upperValue = valuesBlock.getInt(firstValueIndex + upperIndex);
                 var difference = (long) upperValue - lowerValue;
                 return lowerValue + (int) (fraction * difference);
             }
@@ -351,7 +355,7 @@ public class MvPercentile extends EsqlScalarFunction {
         return lowerValue + (int) (fraction * difference);
     }
 
-    private static long calculateLongPercentile(
+    static long calculateLongPercentile(
         LongBlock valuesBlock,
         int firstValueIndex,
         int valueCount,
@@ -375,7 +379,11 @@ public class MvPercentile extends EsqlScalarFunction {
                 return valuesBlock.getLong(valueCount - 1);
             } else {
                 assert lowerIndex >= 0 && upperIndex < valueCount;
-                return calculateLongPercentile(fraction, valuesBlock.getLong(lowerIndex), valuesBlock.getLong(upperIndex));
+                return calculateLongPercentile(
+                    fraction,
+                    valuesBlock.getLong(firstValueIndex + lowerIndex),
+                    valuesBlock.getLong(firstValueIndex + upperIndex)
+                );
             }
         }
 

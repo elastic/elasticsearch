@@ -139,6 +139,14 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return randomFrom("docs", "freqs", "positions", "offsets");
     }
 
+    protected final DocumentMapper createDocumentMapper(XContentBuilder mappings, IndexMode indexMode) throws IOException {
+        return switch (indexMode) {
+            case STANDARD -> createDocumentMapper(mappings);
+            case TIME_SERIES -> createTimeSeriesModeDocumentMapper(mappings);
+            case LOGSDB -> createLogsModeDocumentMapper(mappings);
+        };
+    }
+
     protected final DocumentMapper createDocumentMapper(XContentBuilder mappings) throws IOException {
         return createMapperService(mappings).documentMapper();
     }
@@ -426,8 +434,13 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected static XContentBuilder mappingNoSubobjects(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+        return mappingWithSubobjects(buildFields, "false");
+    }
+
+    protected static XContentBuilder mappingWithSubobjects(CheckedConsumer<XContentBuilder, IOException> buildFields, String subobjects)
+        throws IOException {
         return topMapping(xContentBuilder -> {
-            xContentBuilder.field("subobjects", false);
+            xContentBuilder.field("subobjects", subobjects);
             xContentBuilder.startObject("properties");
             buildFields.accept(xContentBuilder);
             xContentBuilder.endObject();
@@ -783,7 +796,8 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected RandomIndexWriter indexWriterForSyntheticSource(Directory directory) throws IOException {
-        return new RandomIndexWriter(random(), directory);
+        // MockAnalyzer (rarely) produces random payloads that lead to failures during assertReaderEquals.
+        return new RandomIndexWriter(random(), directory, new StandardAnalyzer());
     }
 
     protected final String syntheticSource(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {

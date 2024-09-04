@@ -79,6 +79,11 @@ public abstract class IgnoreMalformedStoredValues {
      */
     public abstract void write(XContentBuilder b) throws IOException;
 
+    /**
+     * Remove stored values for this document and return to clean state to process next document.
+     */
+    public abstract void reset();
+
     private static final Empty EMPTY = new Empty();
 
     private static class Empty extends IgnoreMalformedStoredValues {
@@ -94,6 +99,9 @@ public abstract class IgnoreMalformedStoredValues {
 
         @Override
         public void write(XContentBuilder b) throws IOException {}
+
+        @Override
+        public void reset() {}
     }
 
     private static class Stored extends IgnoreMalformedStoredValues {
@@ -107,7 +115,7 @@ public abstract class IgnoreMalformedStoredValues {
 
         @Override
         public Stream<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of(Map.entry(name(fieldName), values -> this.values = values));
+            return Stream.of(Map.entry(name(fieldName), newValues -> values = newValues));
         }
 
         @Override
@@ -124,6 +132,11 @@ public abstract class IgnoreMalformedStoredValues {
                     b.value(v);
                 }
             }
+            reset();
+        }
+
+        @Override
+        public void reset() {
             values = emptyList();
         }
     }

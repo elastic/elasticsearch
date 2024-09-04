@@ -39,6 +39,12 @@
     </button>
     <button role="tab"
             aria-selected="false"
+            aria-controls="infer-api-ingest-google-vertex-ai-tab"
+            id="infer-api-ingest-google-vertex-ai">
+      Google Vertex AI
+    </button>
+    <button role="tab"
+            aria-selected="false"
             aria-controls="infer-api-ingest-mistral-tab"
             id="infer-api-ingest-mistral">
       Mistral
@@ -48,6 +54,12 @@
             aria-controls="infer-api-ingest-amazon-bedrock-tab"
             id="infer-api-ingest-amazon-bedrock">
       Amazon Bedrock
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-ingest-alibabacloud-ai-search-tab"
+            id="infer-api-ingest-alibabacloud-ai-search">
+      AlibabaCloud AI Search
     </button>
   </div>
   <div tabindex="0"
@@ -117,6 +129,17 @@ include::infer-api-ingest-pipeline.asciidoc[tag=azure-ai-studio]
   </div>
   <div tabindex="0"
        role="tabpanel"
+       id="infer-api-ingest-google-vertex-ai-tab"
+       aria-labelledby="infer-api-ingest-google-vertex-ai"
+       hidden="">
+++++
+
+include::infer-api-ingest-pipeline.asciidoc[tag=google-vertex-ai]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
        id="infer-api-ingest-mistral-tab"
        aria-labelledby="infer-api-ingest-mistral"
        hidden="">
@@ -134,6 +157,17 @@ include::infer-api-ingest-pipeline.asciidoc[tag=mistral]
 ++++
 
 include::infer-api-ingest-pipeline.asciidoc[tag=amazon-bedrock]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-ingest-alibabacloud-ai-search-tab"
+       aria-labelledby="infer-api-ingest-alibabacloud-ai-search"
+       hidden="">
+++++
+
+include::infer-api-ingest-pipeline.asciidoc[tag=alibabacloud-ai-search]
 
 ++++
   </div>

@@ -379,6 +379,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             }
 
             @Override
+            public void reset() {
+                // NOOP
+            }
+
+            @Override
             public String fieldName() {
                 return fullPath();
             }

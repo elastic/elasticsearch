@@ -9,6 +9,7 @@
 package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.lib.LoaderHelper;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
 import java.lang.foreign.FunctionDescriptor;
@@ -29,7 +30,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
     static final VectorSimilarityFunctions INSTANCE;
 
     static {
-        System.loadLibrary("vec");
+        LoaderHelper.loadLibrary("vec");
         final MethodHandle vecCaps$mh = downcallHandle("vec_caps", FunctionDescriptor.of(JAVA_INT));
 
         try {

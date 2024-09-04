@@ -69,4 +69,11 @@ public class SearchTask extends CancellableTask {
     public void setSearchResponseMergerSupplier(Supplier<SearchResponseMerger> supplier) {
         this.searchResponseMergerSupplier = supplier;
     }
+
+    /**
+     * Is this async search?
+     */
+    public boolean isAsync() {
+        return false;
+    }
 }

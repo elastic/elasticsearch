@@ -1,0 +1,6 @@
+pr: 111950
+summary: "[ES|QL] Name parameter with leading underscore"
+area: ES|QL
+type: enhancement
+issues:
+ - 111821

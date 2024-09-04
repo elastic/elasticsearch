@@ -199,6 +199,7 @@ public class EsqlFunctionRegistry {
 
     private SnapshotFunctionRegistry snapshotRegistry = null;
 
+    @SuppressWarnings("this-escape")
     public EsqlFunctionRegistry() {
         register(functions());
         buildDataTypesForStringLiteralConversion(functions());

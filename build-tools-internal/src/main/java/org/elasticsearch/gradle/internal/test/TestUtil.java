@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.test;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 
-import java.io.File;
 import java.util.Locale;
 
 public class TestUtil {
@@ -19,8 +18,7 @@ public class TestUtil {
     public static String getTestLibraryPath(String nativeLibsDir) {
         String arch = Architecture.current().toString().toLowerCase(Locale.ROOT);
         String platform = String.format(Locale.ROOT, "%s-%s", ElasticsearchDistribution.CURRENT_PLATFORM, arch);
-        String existingLibraryPath = System.getProperty("java.library.path");
 
-        return String.format(Locale.ROOT, "%s/%s%c%s", nativeLibsDir, platform, File.pathSeparatorChar, existingLibraryPath);
+        return String.format(Locale.ROOT, "%s/%s", nativeLibsDir, platform);
     }
 }

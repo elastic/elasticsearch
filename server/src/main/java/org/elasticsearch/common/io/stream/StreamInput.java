@@ -104,6 +104,10 @@ public abstract class StreamInput extends InputStream {
      */
     public abstract void readBytes(byte[] b, int offset, int len) throws IOException;
 
+    // force implementing bulk reads to avoid accidentally slow implementations
+    @Override
+    public abstract int read(byte[] b, int off, int len) throws IOException;
+
     /**
      * Reads a bytes reference from this stream, copying any bytes read to a new {@code byte[]}. Use {@link #readReleasableBytesReference()}
      * when reading large bytes references where possible top avoid needless allocations and copying.
@@ -1091,8 +1095,23 @@ public abstract class StreamInput extends InputStream {
         return readBoolean() ? readArray(reader, arraySupplier) : null;
     }
 
+    /**
+     * Reads a possibly-null value using the given {@link org.elasticsearch.common.io.stream.Writeable.Reader}.
+     *
+     * @see StreamOutput#writeOptionalWriteable
+     */
+    // just an alias for readOptional() since we don't actually care whether T extends Writeable
     @Nullable
     public <T extends Writeable> T readOptionalWriteable(Writeable.Reader<T> reader) throws IOException {
+        return readOptional(reader);
+    }
+
+    /**
+     * Reads a possibly-null value using the given {@link org.elasticsearch.common.io.stream.Writeable.Reader}.
+     *
+     * @see StreamOutput#writeOptional
+     */
+    public <T> T readOptional(Writeable.Reader<T> reader) throws IOException {
         if (readBoolean()) {
             T t = reader.read(this);
             if (t == null) {

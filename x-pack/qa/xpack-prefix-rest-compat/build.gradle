@@ -32,7 +32,7 @@ tasks.named("copyRestCompatTestTask").configure { task ->
     task.setXpackConfig(configurations.compatXpackTests);
     task.getIncludeXpack().set(List.of("license", "migration", "ml", "rollup", "sql", "ssl"));
     def fileOperations = task.getFileOperations()
-    task.getOutputResourceDir().set(project.getLayout().getBuildDirectory().dir("restResources/yamlTests/original"))
+    task.getOutputResourceDir().set(project.getLayout().getBuildDirectory().dir("restResources/compat/yamlTests/original"))
     task.setXpackConfigToFileTree(
       config -> fileOperations.fileTree(
         config.getSingleFile()

@@ -302,6 +302,10 @@ public class BwcVersions {
         return minimumWireCompatibleVersion;
     }
 
+    public Version getCurrentVersion() {
+        return currentVersion;
+    }
+
     public record UnreleasedVersionInfo(Version version, String branch, String gradleProjectPath) {}
 
     /**

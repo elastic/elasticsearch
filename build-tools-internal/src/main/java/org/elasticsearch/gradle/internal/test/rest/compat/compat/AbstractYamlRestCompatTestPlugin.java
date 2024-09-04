@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.internal.test.rest.compat.compat;
 
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask;
@@ -74,7 +73,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
     @Override
     public void apply(Project project) {
 
-        final Path compatRestResourcesDir = Path.of("restResources");
+        final Path compatRestResourcesDir = Path.of("restResources").resolve("compat");
         final Path compatSpecsDir = compatRestResourcesDir.resolve("yamlSpecs");
         final Path compatTestsDir = compatRestResourcesDir.resolve("yamlTests");
         project.getPluginManager().apply(getBasePlugin());
@@ -90,11 +89,11 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
         GradleUtils.extendSourceSet(project, YamlRestTestPlugin.YAML_REST_TEST, SOURCE_SET_NAME);
 
         // determine the previous rest compatibility version and BWC project path
-        int currenMajor = VersionProperties.getElasticsearchVersion().getMajor();
+        int currentMajor = BuildParams.getBwcVersions().getCurrentVersion().getMajor();
         Version lastMinor = BuildParams.getBwcVersions()
             .getUnreleased()
             .stream()
-            .filter(v -> v.getMajor() == currenMajor - 1)
+            .filter(v -> v.getMajor() == currentMajor - 1)
             .min(Comparator.reverseOrder())
             .get();
         String lastMinorProjectPath = BuildParams.getBwcVersions().unreleasedInfo(lastMinor).gradleProjectPath();

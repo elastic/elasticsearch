@@ -1,0 +1,5 @@
+pr: 112451
+summary: Update data stream lifecycle telemetry to track global retention
+area: Data streams
+type: enhancement
+issues: []

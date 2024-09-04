@@ -219,9 +219,10 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
             .withType(ProcessResources.class)
             .named(yamlCompatTestSourceSet.getProcessResourcesTaskName())
             .configure(processResources -> {
-                processResources.from(sourceSets.getByName(YamlRestTestPlugin.YAML_REST_TEST).getResources(), spec -> {
-                    spec.exclude("rest-api-spec/**");
-                });
+                processResources.from(
+                    sourceSets.getByName(YamlRestTestPlugin.YAML_REST_TEST).getResources(),
+                    spec -> { spec.exclude("rest-api-spec/**"); }
+                );
             });
 
         // setup the test task

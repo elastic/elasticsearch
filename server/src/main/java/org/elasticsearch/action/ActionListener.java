@@ -188,6 +188,13 @@ public interface ActionListener<Response> {
     }
 
     /**
+     * Same as {@link #delegateFailureAndWrap(CheckedBiConsumer)} except that the response is ignored and not passed to the delegate.
+     */
+    default <T> ActionListener<T> delegateFailureIgnoreResponseAndWrap(CheckedConsumer<ActionListener<Response>, ? extends Exception> c) {
+        return new ActionListenerImplementations.ResponseDroppingActionListener<>(this, c);
+    }
+
+    /**
      * Creates a listener which releases the given resource on completion (whether success or failure)
      */
     static <Response> ActionListener<Response> releasing(Releasable releasable) {
@@ -381,8 +388,8 @@ public interface ActionListener<Response> {
                 private final AtomicReference<ElasticsearchException> firstCompletion = new AtomicReference<>();
 
                 private void assertFirstRun() {
-                    var previousRun = firstCompletion.compareAndExchange(null, new ElasticsearchException(delegate.toString()));
-                    assert previousRun == null : previousRun; // reports the stack traces of both completions
+                    var previousRun = firstCompletion.compareAndExchange(null, new ElasticsearchException("executed already"));
+                    assert previousRun == null : "[" + delegate + "] " + previousRun; // reports the stack traces of both completions
                 }
 
                 @Override

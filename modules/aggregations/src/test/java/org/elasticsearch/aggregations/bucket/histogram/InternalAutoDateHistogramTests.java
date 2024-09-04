@@ -501,7 +501,7 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
             assertEquals(1, deserialized.getBuckets().size());
             InternalAutoDateHistogram.Bucket bucket = deserialized.getBuckets().iterator().next();
             assertEquals(10, bucket.key);
-            assertEquals(100, bucket.docCount);
+            assertEquals(100, bucket.getDocCount());
         }
     }
 }

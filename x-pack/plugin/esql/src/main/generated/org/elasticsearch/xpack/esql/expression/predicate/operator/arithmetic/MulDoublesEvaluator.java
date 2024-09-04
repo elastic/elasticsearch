@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
@@ -50,7 +51,7 @@ public final class MulDoublesEvaluator implements EvalOperator.ExpressionEvaluat
         if (rhsVector == null) {
           return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
-        return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
+        return eval(page.getPositionCount(), lhsVector, rhsVector);
       }
     }
   }
@@ -80,16 +81,26 @@ public final class MulDoublesEvaluator implements EvalOperator.ExpressionEvaluat
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Mul.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
+        try {
+          result.appendDouble(Mul.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public DoubleVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+  public DoubleBlock eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Mul.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+        try {
+          result.appendDouble(Mul.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

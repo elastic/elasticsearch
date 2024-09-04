@@ -265,7 +265,7 @@ public class AggregationOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ESQL_TIMINGS;
+            return TransportVersions.V_8_14_0;
         }
     }
 }

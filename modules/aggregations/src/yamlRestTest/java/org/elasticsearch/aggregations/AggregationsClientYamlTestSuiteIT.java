@@ -18,11 +18,21 @@ import org.junit.ClassRule;
 
 public class AggregationsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("aggregations")
-        .module("lang-painless")
-        .feature(FeatureFlag.TIME_SERIES_MODE)
-        .build();
+    public static ElasticsearchCluster cluster = makeCluster();
+
+    private static ElasticsearchCluster makeCluster() {
+        var cluster = ElasticsearchCluster.local().module("aggregations").module("lang-painless").feature(FeatureFlag.TIME_SERIES_MODE);
+
+        // On Serverless, we want to disallow scripted metrics aggs per default.
+        // The following override allows us to still run the scripted metrics agg tests without breaking bwc.
+        boolean disableAllowListPerDefault = Boolean.parseBoolean(
+            System.getProperty("tests.disable_scripted_metric_allow_list_per_default")
+        );
+        if (disableAllowListPerDefault) {
+            return cluster.setting("search.aggs.only_allowed_metric_scripts", "false").build();
+        }
+        return cluster.build();
+    }
 
     public AggregationsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

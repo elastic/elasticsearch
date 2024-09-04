@@ -12,27 +12,27 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 
-public abstract class AbstractConfigurationFunctionTestCase extends AbstractFunctionTestCase {
-    protected abstract Expression buildWithConfiguration(Source source, List<Expression> args, EsqlConfiguration configuration);
+public abstract class AbstractConfigurationFunctionTestCase extends AbstractScalarFunctionTestCase {
+    protected abstract Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration);
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return buildWithConfiguration(source, args, EsqlTestUtils.TEST_CFG);
     }
 
-    static EsqlConfiguration randomConfiguration() {
+    static Configuration randomConfiguration() {
         // TODO: Randomize the query and maybe the pragmas.
-        return new EsqlConfiguration(
+        return new Configuration(
             randomZone(),
             randomLocale(random()),
             randomBoolean() ? null : randomAlphaOfLength(randomInt(64)),
@@ -47,12 +47,12 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractFunc
     }
 
     public void testSerializationWithConfiguration() {
-        EsqlConfiguration config = randomConfiguration();
+        Configuration config = randomConfiguration();
         Expression expr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), config);
 
         assertSerialization(expr, config);
 
-        EsqlConfiguration differentConfig;
+        Configuration differentConfig;
         do {
             differentConfig = randomConfiguration();
         } while (config.equals(differentConfig));

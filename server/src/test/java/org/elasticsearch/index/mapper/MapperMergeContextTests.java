@@ -10,21 +10,23 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_UPDATE;
+
 public class MapperMergeContextTests extends ESTestCase {
 
     public void testAddFieldIfPossibleUnderLimit() {
-        MapperMergeContext context = MapperMergeContext.root(false, false, 1);
+        MapperMergeContext context = MapperMergeContext.root(false, false, MAPPING_UPDATE, 1);
         assertTrue(context.decrementFieldBudgetIfPossible(1));
         assertFalse(context.decrementFieldBudgetIfPossible(1));
     }
 
     public void testAddFieldIfPossibleAtLimit() {
-        MapperMergeContext context = MapperMergeContext.root(false, false, 0);
+        MapperMergeContext context = MapperMergeContext.root(false, false, MAPPING_UPDATE, 0);
         assertFalse(context.decrementFieldBudgetIfPossible(1));
     }
 
     public void testAddFieldIfPossibleUnlimited() {
-        MapperMergeContext context = MapperMergeContext.root(false, false, Long.MAX_VALUE);
+        MapperMergeContext context = MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE);
         assertTrue(context.decrementFieldBudgetIfPossible(Integer.MAX_VALUE));
         assertTrue(context.decrementFieldBudgetIfPossible(Integer.MAX_VALUE));
     }

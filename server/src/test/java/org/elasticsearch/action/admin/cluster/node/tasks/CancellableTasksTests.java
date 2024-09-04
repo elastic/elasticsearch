@@ -158,15 +158,11 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             if (shouldBlock) {
                 // Simulate a job that takes forever to finish
                 // Using periodic checks method to identify that the task was cancelled
-                try {
-                    waitUntil(() -> {
-                        ((CancellableTask) task).ensureNotCancelled();
-                        return false;
-                    });
-                    fail("It should have thrown an exception");
-                } catch (InterruptedException ex) {
-                    Thread.currentThread().interrupt();
-                }
+                waitUntil(() -> {
+                    ((CancellableTask) task).ensureNotCancelled();
+                    return false;
+                });
+                fail("It should have thrown an exception");
             }
             debugDelay("op4");
 

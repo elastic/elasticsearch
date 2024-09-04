@@ -13,19 +13,15 @@
 #include <emmintrin.h>
 #include <immintrin.h>
 
-#ifndef DOT7U_STRIDE_BYTES_LEN
-#define DOT7U_STRIDE_BYTES_LEN 32 // Must be a power of 2
-#endif
-
-#ifndef SQR7U_STRIDE_BYTES_LEN
-#define SQR7U_STRIDE_BYTES_LEN 32 // Must be a power of 2
+#ifndef STRIDE_BYTES_LEN
+#define STRIDE_BYTES_LEN sizeof(__m256i) // Must be a power of 2
 #endif
 
 #ifdef _MSC_VER
 #include <intrin.h>
-#elif __GNUC__
-#include <x86intrin.h>
 #elif __clang__
+#include <x86intrin.h>
+#elif __GNUC__
 #include <x86intrin.h>
 #endif
 
@@ -67,9 +63,19 @@ EXPORT int vec_caps() {
     if (functionIds >= 7) {
         cpuid(cpuInfo, 7);
         int ebx = cpuInfo[1];
+        int ecx = cpuInfo[2];
         // AVX2 flag is the 5th bit
         // We assume that all processors that have AVX2 also have FMA3
-        return (ebx & (1 << 5)) != 0;
+        int avx2 = (ebx & 0x00000020) != 0;
+        int avx512 = (ebx & 0x00010000) != 0;
+        // int avx512_vnni = (ecx & 0x00000800) != 0;
+        // if (avx512 && avx512_vnni) {
+        if (avx512) {
+            return 2;
+        }
+        if (avx2) {
+            return 1;
+        }
     }
     return 0;
 }
@@ -81,7 +87,7 @@ static inline int32_t dot7u_inner(int8_t* a, int8_t* b, size_t dims) {
     __m256i acc1 = _mm256_setzero_si256();
 
 #pragma GCC unroll 4
-    for(int i = 0; i < dims; i += DOT7U_STRIDE_BYTES_LEN) {
+    for(int i = 0; i < dims; i += STRIDE_BYTES_LEN) {
         // Load packed 8-bit integers
         __m256i va1 = _mm256_loadu_si256(a + i);
         __m256i vb1 = _mm256_loadu_si256(b + i);
@@ -101,8 +107,8 @@ static inline int32_t dot7u_inner(int8_t* a, int8_t* b, size_t dims) {
 EXPORT int32_t dot7u(int8_t* a, int8_t* b, size_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > DOT7U_STRIDE_BYTES_LEN) {
-        i += dims & ~(DOT7U_STRIDE_BYTES_LEN - 1);
+    if (dims > STRIDE_BYTES_LEN) {
+        i += dims & ~(STRIDE_BYTES_LEN - 1);
         res = dot7u_inner(a, b, i);
     }
     for (; i < dims; i++) {
@@ -118,7 +124,7 @@ static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
     const __m256i ones = _mm256_set1_epi16(1);
 
 #pragma GCC unroll 4
-    for(int i = 0; i < dims; i += SQR7U_STRIDE_BYTES_LEN) {
+    for(int i = 0; i < dims; i += STRIDE_BYTES_LEN) {
         // Load packed 8-bit integers
         __m256i va1 = _mm256_loadu_si256(a + i);
         __m256i vb1 = _mm256_loadu_si256(b + i);
@@ -126,7 +132,6 @@ static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
         const __m256i dist1 = _mm256_sub_epi8(va1, vb1);
         const __m256i abs_dist1 = _mm256_sign_epi8(dist1, dist1);
         const __m256i sqr1 = _mm256_maddubs_epi16(abs_dist1, abs_dist1);
-
         acc1 = _mm256_add_epi32(_mm256_madd_epi16(ones, sqr1), acc1);
     }
 
@@ -137,8 +142,8 @@ static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
 EXPORT int32_t sqr7u(int8_t* a, int8_t* b, size_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > SQR7U_STRIDE_BYTES_LEN) {
-        i += dims & ~(SQR7U_STRIDE_BYTES_LEN - 1);
+    if (dims > STRIDE_BYTES_LEN) {
+        i += dims & ~(STRIDE_BYTES_LEN - 1);
         res = sqr7u_inner(a, b, i);
     }
     for (; i < dims; i++) {
@@ -147,4 +152,3 @@ EXPORT int32_t sqr7u(int8_t* a, int8_t* b, size_t dims) {
     }
     return res;
 }
-

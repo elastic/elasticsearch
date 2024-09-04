@@ -110,7 +110,7 @@ public final class LongHash extends AbstractHash {
     protected void removeAndAdd(long index) {
         final long id = id(index, -1);
         assert id >= 0;
-        final long key = keys.set(id, 0);
+        final long key = keys.getAndSet(id, 0);
         reset(key, id);
     }
 

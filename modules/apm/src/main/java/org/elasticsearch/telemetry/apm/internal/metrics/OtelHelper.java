@@ -17,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -53,37 +54,45 @@ class OtelHelper {
         return builder.build();
     }
 
-    static Consumer<ObservableDoubleMeasurement> doubleMeasurementCallback(Supplier<DoubleWithAttributes> observer) {
+    static Consumer<ObservableDoubleMeasurement> doubleMeasurementCallback(Supplier<Collection<DoubleWithAttributes>> observer) {
         return measurement -> {
-            DoubleWithAttributes observation;
+            Collection<DoubleWithAttributes> observations;
             try {
-                observation = observer.get();
+                observations = observer.get();
             } catch (RuntimeException err) {
                 assert false : "observer must not throw [" + err.getMessage() + "]";
                 logger.error("doubleMeasurementCallback observer unexpected error", err);
                 return;
             }
-            if (observation == null) {
+            if (observations == null) {
                 return;
             }
-            measurement.record(observation.value(), OtelHelper.fromMap(observation.attributes()));
+            for (DoubleWithAttributes observation : observations) {
+                if (observation != null) {
+                    measurement.record(observation.value(), OtelHelper.fromMap(observation.attributes()));
+                }
+            }
         };
     }
 
-    static Consumer<ObservableLongMeasurement> longMeasurementCallback(Supplier<LongWithAttributes> observer) {
+    static Consumer<ObservableLongMeasurement> longMeasurementCallback(Supplier<Collection<LongWithAttributes>> observer) {
         return measurement -> {
-            LongWithAttributes observation;
+            Collection<LongWithAttributes> observations;
             try {
-                observation = observer.get();
+                observations = observer.get();
             } catch (RuntimeException err) {
                 assert false : "observer must not throw [" + err.getMessage() + "]";
                 logger.error("longMeasurementCallback observer unexpected error", err);
                 return;
             }
-            if (observation == null) {
+            if (observations == null) {
                 return;
             }
-            measurement.record(observation.value(), OtelHelper.fromMap(observation.attributes()));
+            for (LongWithAttributes observation : observations) {
+                if (observation != null) {
+                    measurement.record(observation.value(), OtelHelper.fromMap(observation.attributes()));
+                }
+            }
         };
     }
 }

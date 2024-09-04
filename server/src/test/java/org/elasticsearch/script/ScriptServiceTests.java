@@ -456,10 +456,10 @@ public class ScriptServiceTests extends ESTestCase {
             )
             .build();
 
-        assertEquals("abc", ScriptService.getStoredScript(cs, new GetStoredScriptRequest("_id")).getSource());
+        assertEquals("abc", ScriptService.getStoredScript(cs, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "_id")).getSource());
 
         cs = ClusterState.builder(new ClusterName("_name")).build();
-        assertNull(ScriptService.getStoredScript(cs, new GetStoredScriptRequest("_id")));
+        assertNull(ScriptService.getStoredScript(cs, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "_id")));
     }
 
     public void testMaxSizeLimit() throws Exception {

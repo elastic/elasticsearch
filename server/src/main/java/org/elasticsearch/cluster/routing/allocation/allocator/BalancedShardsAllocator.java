@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -44,6 +43,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -68,7 +68,7 @@ import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClu
  *     <li>even shard count across nodes (weighted by cluster.routing.allocation.balance.shard)</li>
  *     <li>spread shards of the same index across different nodes (weighted by cluster.routing.allocation.balance.index)</li>
  *     <li>even write load of the data streams write indices across nodes (weighted by cluster.routing.allocation.balance.write_load)</li>
- *     <li>even disk usage across nodes (weighted by cluster.routing.allocation.balance.write_load)</li>
+ *     <li>even disk usage across nodes (weighted by cluster.routing.allocation.balance.disk_usage)</li>
  * </ul>
  * The sensitivity of the algorithm is defined by cluster.routing.allocation.balance.threshold.
  * Allocator takes into account constraints set by {@code AllocationDeciders} when allocating and balancing shards.

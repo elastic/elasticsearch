@@ -19,6 +19,7 @@ module org.elasticsearch.nativeaccess {
         to
             org.elasticsearch.nativeaccess.jna,
             org.elasticsearch.server,
+            org.elasticsearch.blobcache,
             org.elasticsearch.simdvec,
             org.elasticsearch.systemd;
     // allows jna to implement a library provider, and ProviderLocator to load it

@@ -13,6 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 
 import java.io.IOException;
@@ -41,12 +42,13 @@ public class RestClaimConnectorSyncJobAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        ClaimConnectorSyncJobAction.Request request = ClaimConnectorSyncJobAction.Request.fromXContentBytes(
-            restRequest.param(CONNECTOR_SYNC_JOB_ID_PARAM),
-            restRequest.content(),
-            restRequest.getXContentType()
-        );
+        try (XContentParser parser = restRequest.contentParser()) {
+            ClaimConnectorSyncJobAction.Request request = ClaimConnectorSyncJobAction.Request.fromXContent(
+                parser,
+                restRequest.param(CONNECTOR_SYNC_JOB_ID_PARAM)
+            );
 
-        return channel -> client.execute(ClaimConnectorSyncJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
+            return channel -> client.execute(ClaimConnectorSyncJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        }
     }
 }

@@ -67,7 +67,7 @@ public class ReproduceInfoPrinter extends RunListener {
         boolean isBwcTest = Boolean.parseBoolean(System.getProperty("tests.bwc", "false"));
 
         // append Gradle test runner test filter string
-        b.append("'" + task + "'");
+        b.append("\"" + task + "\"");
         if (isBwcTest) {
             // Use "legacy" method for bwc tests so that it applies globally to all upstream bwc test tasks
             b.append(" -Dtests.class=\"");
@@ -178,11 +178,13 @@ public class ReproduceInfoPrinter extends RunListener {
             if (System.getProperty("tests.jvm.argline") != null && System.getProperty("tests.jvm.argline").isEmpty() == false) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }
+            if (Boolean.parseBoolean(System.getProperty("build.snapshot", "true")) == false) {
+                appendOpt("license.key", "x-pack/license-tools/src/test/resources/public.key");
+            }
             appendOpt("tests.locale", Locale.getDefault().toLanguageTag());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
             appendOpt("tests.distribution", System.getProperty("tests.distribution"));
             appendOpt("runtime.java", Integer.toString(Runtime.version().feature()));
-            appendOpt("license.key", System.getProperty("licence.key"));
             appendOpt(ESTestCase.FIPS_SYSPROP, System.getProperty(ESTestCase.FIPS_SYSPROP));
             return this;
         }

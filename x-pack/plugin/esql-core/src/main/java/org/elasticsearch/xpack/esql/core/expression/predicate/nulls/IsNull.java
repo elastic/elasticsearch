@@ -6,20 +6,32 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.predicate.nulls;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.io.IOException;
+
 public class IsNull extends UnaryScalarFunction implements Negatable<UnaryScalarFunction> {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "IsNull", IsNull::new);
 
     public IsNull(Source source, Expression field) {
         super(source, field);
+    }
+
+    private IsNull(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -35,11 +47,6 @@ public class IsNull extends UnaryScalarFunction implements Negatable<UnaryScalar
     @Override
     public Object fold() {
         return field().fold() == null || DataType.isNull(field().dataType());
-    }
-
-    @Override
-    protected Processor makeProcessor() {
-        return new CheckNullProcessor(CheckNullOperation.IS_NULL);
     }
 
     @Override

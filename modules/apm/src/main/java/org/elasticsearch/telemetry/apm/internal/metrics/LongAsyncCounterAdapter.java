@@ -15,12 +15,19 @@ import org.elasticsearch.telemetry.apm.AbstractInstrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
+import java.util.Collection;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 public class LongAsyncCounterAdapter extends AbstractInstrument<ObservableLongCounter> implements LongAsyncCounter {
 
-    public LongAsyncCounterAdapter(Meter meter, String name, String description, String unit, Supplier<LongWithAttributes> observer) {
+    public LongAsyncCounterAdapter(
+        Meter meter,
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<LongWithAttributes>> observer
+    ) {
         super(meter, new Builder(name, description, unit, observer));
     }
 
@@ -30,9 +37,9 @@ public class LongAsyncCounterAdapter extends AbstractInstrument<ObservableLongCo
     }
 
     private static class Builder extends AbstractInstrument.Builder<ObservableLongCounter> {
-        private final Supplier<LongWithAttributes> observer;
+        private final Supplier<Collection<LongWithAttributes>> observer;
 
-        private Builder(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
+        private Builder(String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer) {
             super(name, description, unit);
             this.observer = Objects.requireNonNull(observer);
         }

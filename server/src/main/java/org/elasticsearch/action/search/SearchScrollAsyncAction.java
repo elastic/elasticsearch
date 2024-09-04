@@ -147,7 +147,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
             // we can't create a SearchShardTarget here since we don't know the index and shard ID we are talking to
             // we only know the node and the search context ID. Yet, the response will contain the SearchShardTarget
             // from the target node instead...that's why we pass null here
-            SearchActionListener<T> searchActionListener = new SearchActionListener<T>(null, shardIndex) {
+            SearchActionListener<T> searchActionListener = new SearchActionListener<>(null, shardIndex) {
 
                 @Override
                 protected void setSearchShardTarget(T response) {
@@ -215,7 +215,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
     protected abstract void executeInitialPhase(
         Transport.Connection connection,
         InternalScrollSearchRequest internalRequest,
-        SearchActionListener<T> searchActionListener
+        ActionListener<T> searchActionListener
     );
 
     protected abstract SearchPhase moveToNextPhase(BiFunction<String, String, DiscoveryNode> clusterNodeLookup);

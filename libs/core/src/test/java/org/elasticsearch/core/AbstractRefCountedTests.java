@@ -9,7 +9,6 @@ package org.elasticsearch.core;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -62,32 +61,22 @@ public class AbstractRefCountedTests extends ESTestCase {
 
     public void testMultiThreaded() throws InterruptedException {
         final AbstractRefCounted counted = createRefCounted();
-        final Thread[] threads = new Thread[randomIntBetween(2, 5)];
-        final CountDownLatch latch = new CountDownLatch(1);
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread(() -> {
-                try {
-                    latch.await();
-                    for (int j = 0; j < 10000; j++) {
-                        assertTrue(counted.hasReferences());
-                        if (randomBoolean()) {
-                            counted.incRef();
-                        } else {
-                            assertTrue(counted.tryIncRef());
-                        }
-                        assertTrue(counted.hasReferences());
-                        counted.decRef();
+        startInParallel(randomIntBetween(2, 5), i -> {
+            try {
+                for (int j = 0; j < 10000; j++) {
+                    assertTrue(counted.hasReferences());
+                    if (randomBoolean()) {
+                        counted.incRef();
+                    } else {
+                        assertTrue(counted.tryIncRef());
                     }
-                } catch (Exception e) {
-                    throw new AssertionError(e);
+                    assertTrue(counted.hasReferences());
+                    counted.decRef();
                 }
-            });
-            threads[i].start();
-        }
-        latch.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        });
         counted.decRef();
         assertFalse(counted.hasReferences());
         assertThat(

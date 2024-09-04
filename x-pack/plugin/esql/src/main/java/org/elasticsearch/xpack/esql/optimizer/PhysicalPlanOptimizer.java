@@ -8,32 +8,23 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
-import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
-import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
 import java.util.ArrayList;
@@ -46,8 +37,8 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 
 /**
- * Performs global (coordinator) optimization of the physical plan.
- * Local (data-node) optimizations occur later by operating just on a plan fragment (subplan).
+ * This class is part of the planner. Performs global (coordinator) optimization of the physical plan. Local (data-node) optimizations
+ * occur later by operating just on a plan {@link FragmentExec} (subplan).
  */
 public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, PhysicalOptimizerContext> {
     private static final Iterable<RuleExecutor.Batch<PhysicalPlan>> rules = initializeRules(true);
@@ -89,51 +80,18 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
 
         @Override
         public PhysicalPlan apply(PhysicalPlan plan) {
-            var projectAll = new Holder<>(TRUE);
-            var keepCollecting = new Holder<>(TRUE);
-            var attributes = new AttributeSet();
-            var aliases = new AttributeMap<Expression>();
+            Holder<Boolean> keepTraversing = new Holder<>(TRUE);
+            // Invariant: if we add a projection with these attributes after the current plan node, the plan remains valid
+            // and the overall output will not change.
+            Holder<AttributeSet> requiredAttributes = new Holder<>(plan.outputSet());
 
-            return plan.transformDown(UnaryExec.class, p -> {
-                // no need for project all
-                if (p instanceof ProjectExec || p instanceof AggregateExec) {
-                    projectAll.set(FALSE);
+            // This will require updating should we choose to have non-unary execution plans in the future.
+            return plan.transformDown(UnaryExec.class, currentPlanNode -> {
+                if (keepTraversing.get() == false) {
+                    return currentPlanNode;
                 }
-                if (keepCollecting.get()) {
-                    p.forEachExpression(NamedExpression.class, ne -> {
-                        var attr = ne.toAttribute();
-                        // filter out attributes declared as aliases before
-                        if (ne instanceof Alias as) {
-                            aliases.put(attr, as.child());
-                            attributes.remove(attr);
-                        } else {
-                            // skip synthetically added attributes (the ones from AVG), see LogicalPlanOptimizer.SubstituteSurrogates
-                            if (attr.synthetic() == false && aliases.containsKey(attr) == false) {
-                                attributes.add(attr);
-                            }
-                        }
-                    });
-                    if (p instanceof RegexExtractExec ree) {
-                        attributes.removeAll(ree.extractedFields());
-                    }
-                    if (p instanceof MvExpandExec mvee) {
-                        attributes.remove(mvee.expanded());
-                    }
-                    if (p instanceof HashJoinExec join) {
-                        attributes.removeAll(join.addedFields());
-                        for (Equals cond : join.conditions()) {
-                            attributes.remove(cond.right());
-                        }
-                    }
-                    if (p instanceof EnrichExec ee) {
-                        for (NamedExpression enrichField : ee.enrichFields()) {
-                            // TODO: why is this different then the remove above?
-                            attributes.remove(enrichField instanceof Alias a ? a.child() : enrichField);
-                        }
-                    }
-                }
-                if (p instanceof ExchangeExec exec) {
-                    keepCollecting.set(FALSE);
+                if (currentPlanNode instanceof ExchangeExec exec) {
+                    keepTraversing.set(FALSE);
                     var child = exec.child();
                     // otherwise expect a Fragment
                     if (child instanceof FragmentExec fragmentExec) {
@@ -141,32 +99,34 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
 
                         // no need for projection when dealing with aggs
                         if (logicalFragment instanceof Aggregate == false) {
-                            var selectAll = projectAll.get();
-                            var output = selectAll ? exec.child().output() : new ArrayList<>(attributes);
+                            List<Attribute> output = new ArrayList<>(requiredAttributes.get());
                             // if all the fields are filtered out, it's only the count that matters
                             // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
                             // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
                             // to avoid the block from being trimmed
                             if (output.isEmpty()) {
-                                var alias = new Alias(logicalFragment.source(), "<all-fields-projected>", null, Literal.NULL, null, true);
+                                var alias = new Alias(logicalFragment.source(), "<all-fields-projected>", Literal.NULL, null, true);
                                 List<Alias> fields = singletonList(alias);
                                 logicalFragment = new Eval(logicalFragment.source(), logicalFragment, fields);
                                 output = Expressions.asAttributes(fields);
                             }
                             // add a logical projection (let the local replanning remove it if needed)
-                            p = exec.replaceChild(
-                                new FragmentExec(
-                                    Source.EMPTY,
-                                    new Project(logicalFragment.source(), logicalFragment, output),
-                                    fragmentExec.esFilter(),
-                                    fragmentExec.estimatedRowSize(),
-                                    fragmentExec.reducer()
-                                )
+                            FragmentExec newChild = new FragmentExec(
+                                Source.EMPTY,
+                                new Project(logicalFragment.source(), logicalFragment, output),
+                                fragmentExec.esFilter(),
+                                fragmentExec.estimatedRowSize(),
+                                fragmentExec.reducer()
                             );
+                            return new ExchangeExec(exec.source(), output, exec.inBetweenAggs(), newChild);
                         }
                     }
+                } else {
+                    AttributeSet childOutput = currentPlanNode.inputSet();
+                    AttributeSet addedAttributes = currentPlanNode.outputSet().subtract(childOutput);
+                    requiredAttributes.set(requiredAttributes.get().subtract(addedAttributes).combine(currentPlanNode.references()));
                 }
-                return p;
+                return currentPlanNode;
             });
         }
     }

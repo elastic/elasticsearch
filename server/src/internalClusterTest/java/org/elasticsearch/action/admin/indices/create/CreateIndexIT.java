@@ -306,10 +306,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testFailureToCreateIndexCleansUpIndicesService() {
         final int numReplicas = internalCluster().numDataNodes();
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
-            .build();
+        Settings settings = indexSettings(1, numReplicas).build();
         assertAcked(indicesAdmin().prepareCreate("test-idx-1").setSettings(settings).addAlias(new Alias("alias1").writeIndex(true)).get());
 
         ActionRequestBuilder<?, ?> builder = indicesAdmin().prepareCreate("test-idx-2")
@@ -328,10 +325,7 @@ public class CreateIndexIT extends ESIntegTestCase {
      */
     public void testDefaultWaitForActiveShardsUsesIndexSetting() throws Exception {
         final int numReplicas = internalCluster().numDataNodes();
-        Settings settings = Settings.builder()
-            .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas))
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
+        Settings settings = indexSettings(1, numReplicas).put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas))
             .build();
         assertAcked(indicesAdmin().prepareCreate("test-idx-1").setSettings(settings).get());
 

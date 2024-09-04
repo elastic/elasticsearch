@@ -924,6 +924,26 @@ public class ScopedSettingsTests extends ESTestCase {
         assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
     }
 
+    public void testDiffWithFallbackDefaultSetting() {
+        final String fallbackSettingName = "fallback";
+        final Setting<Integer> fallbackSetting = Setting.intSetting(fallbackSettingName, 1, Property.Dynamic, Property.NodeScope);
+
+        final String settingName = "setting.with.fallback";
+        final Setting<Integer> dependentSetting = new Setting<>(
+            settingName,
+            fallbackSetting,
+            (s) -> Setting.parseInt(s, 1, settingName),
+            value -> {},
+            Property.Dynamic,
+            Property.NodeScope
+        );
+
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(fallbackSetting, dependentSetting)));
+
+        final Settings diff = settings.diff(Settings.EMPTY, Settings.builder().put(fallbackSettingName, 2).build());
+        assertThat(diff.getAsInt(settingName, null), equalTo(2));
+    }
+
     public void testDiffWithDependentSettings() {
         final String dependedSettingName = "this.setting.is.depended.on";
         Setting<Integer> dependedSetting = Setting.intSetting(dependedSettingName, 1, Property.Dynamic, Property.NodeScope);

@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
@@ -19,6 +22,8 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xpack.esql.arrow.ArrowFormat;
+import org.elasticsearch.xpack.esql.arrow.ArrowResponse;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
 import org.elasticsearch.xpack.esql.plugin.EsqlMediaTypeParser;
 
@@ -26,7 +31,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.esql.core.util.LoggingUtils.logOnFailure;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
 
@@ -135,6 +139,13 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                     ChunkedRestResponseBodyPart.fromTextChunks(format.contentType(restRequest), format.format(restRequest, esqlResponse)),
                     releasable
                 );
+            } else if (mediaType == ArrowFormat.INSTANCE) {
+                ArrowResponse arrowResponse = new ArrowResponse(
+                    // Map here to avoid cyclic dependencies between the arrow subproject and its parent
+                    esqlResponse.columns().stream().map(c -> new ArrowResponse.Column(c.outputType(), c.name())).toList(),
+                    esqlResponse.pages()
+                );
+                restResponse = RestResponse.chunked(RestStatus.OK, arrowResponse, Releasables.wrap(arrowResponse, releasable));
             } else {
                 restResponse = RestResponse.chunked(
                     RestStatus.OK,
@@ -158,7 +169,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
      */
     public ActionListener<EsqlQueryResponse> wrapWithLogging() {
         ActionListener<EsqlQueryResponse> listener = ActionListener.wrap(this::onResponse, ex -> {
-            logOnFailure(LOGGER, ex);
+            logOnFailure(ex);
             onFailure(ex);
         });
         if (LOGGER.isDebugEnabled() == false) {
@@ -178,5 +189,10 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
             LOGGER.debug("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
             listener.onFailure(ex);
         });
+    }
+
+    static void logOnFailure(Throwable throwable) {
+        RestStatus status = ExceptionsHelper.status(throwable);
+        LOGGER.log(status.getStatus() >= 500 ? Level.WARN : Level.DEBUG, () -> "Request failed with status [" + status + "]: ", throwable);
     }
 }

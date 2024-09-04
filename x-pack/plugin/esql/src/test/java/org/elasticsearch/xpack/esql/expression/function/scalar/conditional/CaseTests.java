@@ -11,29 +11,21 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expression.TypeResolution;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
-import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class CaseTests extends AbstractFunctionTestCase {
+public class CaseTests extends AbstractScalarFunctionTestCase {
 
     public CaseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -44,6 +36,7 @@ public class CaseTests extends AbstractFunctionTestCase {
      */
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        // TODO this needs lots of stuff flipped to parameters
         return parameterSuppliersFromTypedData(
             List.of(new TestCaseSupplier("keyword", List.of(DataType.BOOLEAN, DataType.KEYWORD, DataType.KEYWORD), () -> {
                 List<TestCaseSupplier.TypedData> typedData = List.of(
@@ -204,145 +197,7 @@ public class CaseTests extends AbstractFunctionTestCase {
     }
 
     @Override
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        if (nullBlock == 0) {
-            if (data.size() == 2) {
-                assertThat(value.isNull(0), equalTo(true));
-            } else if (data.size() > 2) {
-                assertThat(toJavaObject(value, 0), equalTo(data.get(2)));
-            }
-            return;
-        }
-        if (((Boolean) data.get(0)).booleanValue()) {
-            if (nullBlock == 1) {
-                super.assertSimpleWithNulls(data, value, nullBlock);
-            } else {
-                assertThat(toJavaObject(value, 0), equalTo(data.get(1)));
-            }
-            return;
-        }
-        if (nullBlock == 2) {
-            super.assertSimpleWithNulls(data, value, nullBlock);
-        } else {
-            if (data.size() > 2) {
-                assertThat(toJavaObject(value, 0), equalTo(data.get(2)));
-            } else {
-                super.assertSimpleWithNulls(data, value, nullBlock);
-            }
-        }
-    }
-
-    @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Case(Source.EMPTY, args.get(0), args.subList(1, args.size()));
-    }
-
-    public void testEvalCase() {
-        testCase(caseExpr -> {
-            DriverContext driverContext = driverContext();
-            Page page = new Page(driverContext.blockFactory().newConstantIntBlockWith(0, 1));
-            try (
-                EvalOperator.ExpressionEvaluator eval = caseExpr.toEvaluator(child -> evaluator(child)).get(driverContext);
-                Block block = eval.eval(page)
-            ) {
-                return toJavaObject(block, 0);
-            } finally {
-                page.releaseBlocks();
-            }
-        });
-    }
-
-    public void testFoldCase() {
-        testCase(caseExpr -> {
-            assertTrue(caseExpr.foldable());
-            return caseExpr.fold();
-        });
-    }
-
-    public void testCase(Function<Case, Object> toValue) {
-        assertEquals(1, toValue.apply(caseExpr(true, 1)));
-        assertNull(toValue.apply(caseExpr(false, 1)));
-        assertEquals(2, toValue.apply(caseExpr(false, 1, 2)));
-        assertEquals(1, toValue.apply(caseExpr(true, 1, true, 2)));
-        assertEquals(2, toValue.apply(caseExpr(false, 1, true, 2)));
-        assertNull(toValue.apply(caseExpr(false, 1, false, 2)));
-        assertEquals(3, toValue.apply(caseExpr(false, 1, false, 2, 3)));
-        assertNull(toValue.apply(caseExpr(true, null, 1)));
-        assertEquals(1, toValue.apply(caseExpr(false, null, 1)));
-        assertEquals(1, toValue.apply(caseExpr(false, field("ignored", DataType.INTEGER), 1)));
-        assertEquals(1, toValue.apply(caseExpr(true, 1, field("ignored", DataType.INTEGER))));
-    }
-
-    public void testIgnoreLeadingNulls() {
-        assertEquals(DataType.INTEGER, resolveType(false, null, 1));
-        assertEquals(DataType.INTEGER, resolveType(false, null, false, null, false, 2, null));
-        assertEquals(DataType.NULL, resolveType(false, null, null));
-        assertEquals(DataType.BOOLEAN, resolveType(false, null, field("bool", DataType.BOOLEAN)));
-    }
-
-    public void testCaseWithInvalidCondition() {
-        assertEquals("expected at least two arguments in [<case>] but got 1", resolveCase(1).message());
-        assertEquals("first argument of [<case>] must be [boolean], found value [1] type [integer]", resolveCase(1, 2).message());
-        assertEquals(
-            "third argument of [<case>] must be [boolean], found value [3] type [integer]",
-            resolveCase(true, 2, 3, 4, 5).message()
-        );
-    }
-
-    public void testCaseWithIncompatibleTypes() {
-        assertEquals("third argument of [<case>] must be [integer], found value [hi] type [keyword]", resolveCase(true, 1, "hi").message());
-        assertEquals(
-            "fourth argument of [<case>] must be [integer], found value [hi] type [keyword]",
-            resolveCase(true, 1, false, "hi", 5).message()
-        );
-        assertEquals(
-            "argument of [<case>] must be [integer], found value [hi] type [keyword]",
-            resolveCase(true, 1, false, 2, true, 5, "hi").message()
-        );
-    }
-
-    public void testCaseIsLazy() {
-        Case caseExpr = caseExpr(true, 1, true, 2);
-        DriverContext driveContext = driverContext();
-        EvalOperator.ExpressionEvaluator evaluator = caseExpr.toEvaluator(child -> {
-            Object value = child.fold();
-            if (value != null && value.equals(2)) {
-                return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
-                    @Override
-                    public Block eval(Page page) {
-                        fail("Unexpected evaluation of 4th argument");
-                        return null;
-                    }
-
-                    @Override
-                    public void close() {}
-                };
-            }
-            return evaluator(child);
-        }).get(driveContext);
-        Page page = new Page(driveContext.blockFactory().newConstantIntBlockWith(0, 1));
-        try (Block block = evaluator.eval(page)) {
-            assertEquals(1, toJavaObject(block, 0));
-        } finally {
-            page.releaseBlocks();
-        }
-    }
-
-    private static Case caseExpr(Object... args) {
-        List<Expression> exps = Stream.of(args).<Expression>map(arg -> {
-            if (arg instanceof Expression e) {
-                return e;
-            }
-            return new Literal(Source.synthetic(arg == null ? "null" : arg.toString()), arg, DataType.fromJava(arg));
-        }).toList();
-        return new Case(Source.synthetic("<case>"), exps.get(0), exps.subList(1, exps.size()));
-    }
-
-    private static TypeResolution resolveCase(Object... args) {
-        return caseExpr(args).resolveType();
-    }
-
-    private static DataType resolveType(Object... args) {
-        return caseExpr(args).dataType();
     }
 }

@@ -70,7 +70,7 @@ example, `"username": "jsmith"`.
 `groups`::
 (array of strings) The groups to which the user belongs. For example, `"groups" : [ "cn=admin,ou=groups,dc=example,dc=com","cn=esusers,ou=groups,dc=example,dc=com ]`.
 `metadata`::
-(object) Additional metadata for the user. For example, `"metadata": { "cn": "John Smith" }`.
+(object) Additional metadata for the user. This can include a variety of key-value pairs. When referencing metadata fields in role mapping rules, use the dot notation to specify the key within the metadata object. If the key contains special characters such as parentheses, dots, or spaces, you must escape these characters using backslashes (`\`). For example, `"metadata": { "cn": "John Smith" }`.
 `realm`::  
 (object) The realm that authenticated the user. The only field in this object is the realm name. For example, `"realm": { "name": "ldap1" }`.
 

@@ -15,25 +15,29 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toUnmodifiableMap;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 /**
  * This class encapsulates the metrics and other information needed to define scope when we are requesting node stats.
  */
 public class NodesStatsRequestParameters implements Writeable {
     private CommonStatsFlags indices = new CommonStatsFlags();
-    private final Set<String> requestedMetrics = new HashSet<>();
+    private final EnumSet<Metric> requestedMetrics;
     private boolean includeShardsStats = true;
 
-    public NodesStatsRequestParameters() {}
+    public NodesStatsRequestParameters() {
+        this.requestedMetrics = EnumSet.noneOf(Metric.class);
+    }
 
     public NodesStatsRequestParameters(StreamInput in) throws IOException {
         indices = new CommonStatsFlags(in);
-        requestedMetrics.clear();
-        requestedMetrics.addAll(in.readStringCollectionAsList());
+        requestedMetrics = Metric.readSetFrom(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             includeShardsStats = in.readBoolean();
         } else {
@@ -44,7 +48,7 @@ public class NodesStatsRequestParameters implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         indices.writeTo(out);
-        out.writeStringCollection(requestedMetrics);
+        Metric.writeSetTo(out, requestedMetrics);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(includeShardsStats);
         }
@@ -58,7 +62,7 @@ public class NodesStatsRequestParameters implements Writeable {
         this.indices = indices;
     }
 
-    public Set<String> requestedMetrics() {
+    public EnumSet<Metric> requestedMetrics() {
         return requestedMetrics;
     }
 
@@ -92,22 +96,52 @@ public class NodesStatsRequestParameters implements Writeable {
         REPOSITORIES("repositories"),
         ALLOCATIONS("allocations");
 
-        private String metricName;
+        public static final Set<Metric> ALL = Collections.unmodifiableSet(EnumSet.allOf(Metric.class));
+        public static final Set<String> ALL_NAMES = ALL.stream().map(Metric::metricName).collect(toUnmodifiableSet());
+        public static final Map<String, Metric> NAMES_MAP = ALL.stream().collect(toUnmodifiableMap(Metric::metricName, m -> m));
+        private final String metricName;
 
-        Metric(String name) {
-            this.metricName = name;
+        Metric(String metricName) {
+            this.metricName = metricName;
+        }
+
+        public static boolean isValid(String name) {
+            return NAMES_MAP.containsKey(name);
+        }
+
+        public static Metric get(String name) {
+            var metric = NAMES_MAP.get(name);
+            assert metric != null;
+            return metric;
+        }
+
+        public static void writeSetTo(StreamOutput out, EnumSet<Metric> metrics) throws IOException {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_ENUM_SET)) {
+                out.writeEnumSet(metrics);
+            } else {
+                out.writeCollection(metrics, (output, metric) -> output.writeString(metric.metricName));
+            }
+        }
+
+        public static EnumSet<Metric> readSetFrom(StreamInput in) throws IOException {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_ENUM_SET)) {
+                return in.readEnumSet(Metric.class);
+            } else {
+                return in.readCollection((i) -> EnumSet.noneOf(Metric.class), (is, out) -> {
+                    var name = is.readString();
+                    var metric = Metric.get(name);
+                    out.add(metric);
+                });
+            }
         }
 
         public String metricName() {
-            return this.metricName;
+            return metricName;
         }
 
-        boolean containedIn(Set<String> metricNames) {
-            return metricNames.contains(this.metricName());
-        }
-
-        static Set<String> allMetrics() {
-            return Arrays.stream(values()).map(Metric::metricName).collect(Collectors.toSet());
+        @Override
+        public String toString() {
+            return metricName;
         }
     }
 }

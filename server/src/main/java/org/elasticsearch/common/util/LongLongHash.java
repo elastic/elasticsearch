@@ -134,8 +134,8 @@ public final class LongLongHash extends AbstractHash {
         final long id = id(index, -1);
         assert id >= 0;
         long keyOffset = id * 2;
-        final long key1 = keys.set(keyOffset, 0);
-        final long key2 = keys.set(keyOffset + 1, 0);
+        final long key1 = keys.getAndSet(keyOffset, 0);
+        final long key2 = keys.getAndSet(keyOffset + 1, 0);
         reset(key1, key2, id);
     }
 

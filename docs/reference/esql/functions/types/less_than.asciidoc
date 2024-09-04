@@ -5,7 +5,7 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 lhs | rhs | result
-datetime | datetime | boolean
+date | date | boolean
 double | double | boolean
 double | integer | boolean
 double | long | boolean

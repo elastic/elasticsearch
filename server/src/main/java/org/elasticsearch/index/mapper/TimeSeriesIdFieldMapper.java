@@ -345,6 +345,18 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public DocumentDimensions addBoolean(String fieldName, boolean value) {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.write((byte) 'b');
+                out.write(value ? 't' : 'f');
+                add(fieldName, out.bytes());
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
+            }
+            return this;
+        }
+
+        @Override
         public DocumentDimensions validate(final IndexSettings settings) {
             if (settings.getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ID_HASHING)
                 && dimensions.size() > settings.getValue(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING)) {
@@ -415,6 +427,8 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                     }
                     case (byte) 'd' -> // parse a double
                         result.put(name, in.readDouble());
+                    case (byte) 'b' -> // parse a boolean
+                        result.put(name, in.read() == 't');
                     default -> throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
                 }
             }

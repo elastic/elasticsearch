@@ -225,6 +225,8 @@ public class Task implements Traceable {
             + parentTask
             + ", startTime="
             + startTime
+            + ", headers="
+            + headers
             + ", startTimeNanos="
             + startTimeNanos
             + '}';

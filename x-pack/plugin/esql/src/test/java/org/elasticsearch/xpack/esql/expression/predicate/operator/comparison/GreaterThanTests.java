@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class GreaterThanTests extends AbstractFunctionTestCase {
+public class GreaterThanTests extends AbstractScalarFunctionTestCase {
     public GreaterThanTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -106,7 +106,6 @@ public class GreaterThanTests extends AbstractFunctionTestCase {
             )
         );
         // Datetime
-        // TODO: I'm surprised this passes. Shouldn't there be a cast from DateTime to Long?
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 "GreaterThanLongsEvaluator",
@@ -122,6 +121,20 @@ public class GreaterThanTests extends AbstractFunctionTestCase {
         );
 
         suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "GreaterThanLongsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> ((Number) l).longValue() > ((Number) r).longValue(),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateNanosCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
             TestCaseSupplier.stringCases(
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) > 0,
                 (lhsType, rhsType) -> "GreaterThanKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
@@ -131,7 +144,15 @@ public class GreaterThanTests extends AbstractFunctionTestCase {
         );
 
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), AbstractFunctionTestCase::errorMessageStringForBinaryOperators)
+            errorsForCasesWithoutExamples(
+                anyNullIsNull(true, suppliers),
+                (o, v, t) -> AbstractScalarFunctionTestCase.errorMessageStringForBinaryOperators(
+                    o,
+                    v,
+                    t,
+                    (l, p) -> "date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
+                )
+            )
         );
     }
 

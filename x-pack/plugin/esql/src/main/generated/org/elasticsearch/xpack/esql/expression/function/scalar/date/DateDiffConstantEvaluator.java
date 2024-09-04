@@ -88,7 +88,7 @@ public final class DateDiffConstantEvaluator implements EvalOperator.ExpressionE
           continue position;
         }
         try {
-          result.appendInt(DateDiff.process(datePartFieldUnit, startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p)), endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p))));
+          result.appendInt(DateDiff.process(this.datePartFieldUnit, startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p)), endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p))));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -103,7 +103,7 @@ public final class DateDiffConstantEvaluator implements EvalOperator.ExpressionE
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendInt(DateDiff.process(datePartFieldUnit, startTimestampVector.getLong(p), endTimestampVector.getLong(p)));
+          result.appendInt(DateDiff.process(this.datePartFieldUnit, startTimestampVector.getLong(p), endTimestampVector.getLong(p)));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings.registerException(e);
           result.appendNull();

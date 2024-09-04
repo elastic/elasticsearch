@@ -62,6 +62,7 @@ import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.operator.ShuffleDocsOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -74,7 +75,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -164,93 +164,51 @@ public class OperatorTests extends MapperServiceTestCase {
             }
             writer.commit();
             Map<BytesRef, Long> actualCounts = new HashMap<>();
-            boolean shuffleDocs = randomBoolean();
-            Operator shuffleDocsOperator = new AbstractPageMappingOperator() {
-                @Override
-                protected Page process(Page page) {
-                    if (shuffleDocs == false) {
-                        return page;
-                    }
-                    DocVector docVector = (DocVector) page.getBlock(0).asVector();
-                    int positionCount = docVector.getPositionCount();
-                    IntVector shards = null;
-                    IntVector segments = null;
-                    IntVector docs = null;
-                    try (
-                        IntVector.Builder shardsBuilder = blockFactory.newIntVectorBuilder(positionCount);
-                        IntVector.Builder segmentsBuilder = blockFactory.newIntVectorBuilder(positionCount);
-                        IntVector.Builder docsBuilder = blockFactory.newIntVectorBuilder(positionCount);
-                    ) {
-                        List<Integer> docIds = new ArrayList<>(positionCount);
-                        for (int i = 0; i < positionCount; i++) {
-                            shardsBuilder.appendInt(docVector.shards().getInt(i));
-                            segmentsBuilder.appendInt(docVector.segments().getInt(i));
-                            docIds.add(docVector.docs().getInt(i));
-                        }
-                        shards = shardsBuilder.build();
-                        segments = segmentsBuilder.build();
-                        Collections.shuffle(docIds, random());
-                        for (Integer d : docIds) {
-                            docsBuilder.appendInt(d);
-                        }
-                        docs = docsBuilder.build();
-                    } finally {
-                        if (docs == null) {
-                            Releasables.closeExpectNoException(docVector, shards, segments);
-                        } else {
-                            Releasables.closeExpectNoException(docVector);
-                        }
-                    }
-                    Block[] blocks = new Block[page.getBlockCount()];
-                    blocks[0] = new DocVector(shards, segments, docs, false).asBlock();
-                    for (int i = 1; i < blocks.length; i++) {
-                        blocks[i] = page.getBlock(i);
-                    }
-                    return new Page(blocks);
-                }
-
-                @Override
-                public String toString() {
-                    return "ShuffleDocs";
-                }
-            };
 
             try (DirectoryReader reader = writer.getReader()) {
+                List<Operator> operators = new ArrayList<>();
+                if (randomBoolean()) {
+                    operators.add(new ShuffleDocsOperator(blockFactory));
+                }
+                operators.add(new AbstractPageMappingOperator() {
+                    @Override
+                    protected Page process(Page page) {
+                        return page.appendBlock(driverContext.blockFactory().newConstantIntBlockWith(1, page.getPositionCount()));
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "Add(1)";
+                    }
+                });
+                operators.add(
+                    new OrdinalsGroupingOperator(
+                        shardIdx -> new KeywordFieldMapper.KeywordFieldType("g").blockLoader(null),
+                        List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
+                        ElementType.BYTES_REF,
+                        0,
+                        gField,
+                        List.of(CountAggregatorFunction.supplier(List.of(1)).groupingAggregatorFactory(INITIAL)),
+                        randomPageSize(),
+                        driverContext
+                    )
+                );
+                operators.add(
+                    new HashAggregationOperator(
+                        List.of(CountAggregatorFunction.supplier(List.of(1, 2)).groupingAggregatorFactory(FINAL)),
+                        () -> BlockHash.build(
+                            List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF)),
+                            driverContext.blockFactory(),
+                            randomPageSize(),
+                            false
+                        ),
+                        driverContext
+                    )
+                );
                 Driver driver = new Driver(
                     driverContext,
                     luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT).get(driverContext),
-                    List.of(shuffleDocsOperator, new AbstractPageMappingOperator() {
-                        @Override
-                        protected Page process(Page page) {
-                            return page.appendBlock(driverContext.blockFactory().newConstantIntBlockWith(1, page.getPositionCount()));
-                        }
-
-                        @Override
-                        public String toString() {
-                            return "Add(1)";
-                        }
-                    },
-                        new OrdinalsGroupingOperator(
-                            shardIdx -> new KeywordFieldMapper.KeywordFieldType("g").blockLoader(null),
-                            List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
-                            ElementType.BYTES_REF,
-                            0,
-                            gField,
-                            List.of(CountAggregatorFunction.supplier(List.of(1)).groupingAggregatorFactory(INITIAL)),
-                            randomPageSize(),
-                            driverContext
-                        ),
-                        new HashAggregationOperator(
-                            List.of(CountAggregatorFunction.supplier(List.of(1, 2)).groupingAggregatorFactory(FINAL)),
-                            () -> BlockHash.build(
-                                List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF)),
-                                driverContext.blockFactory(),
-                                randomPageSize(),
-                                false
-                            ),
-                            driverContext
-                        )
-                    ),
+                    operators,
                     new PageConsumerOperator(page -> {
                         BytesRefBlock keys = page.getBlock(0);
                         LongBlock counts = page.getBlock(1);

@@ -196,46 +196,29 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
     }
 
     public void testConcurrentReplica() throws InterruptedException {
-        Thread[] threads = new Thread[randomIntBetween(2, 5)];
+        final int threads = randomIntBetween(2, 5);
         final int opsPerThread = randomIntBetween(10, 20);
-        final int maxOps = opsPerThread * threads.length;
+        final int maxOps = opsPerThread * threads;
         final long unFinishedSeq = randomIntBetween(0, maxOps - 2); // make sure we always index the last seqNo to simplify maxSeq checks
         Set<Integer> seqNos = IntStream.range(0, maxOps).boxed().collect(Collectors.toSet());
 
-        final Integer[][] seqNoPerThread = new Integer[threads.length][];
-        for (int t = 0; t < threads.length - 1; t++) {
+        final Integer[][] seqNoPerThread = new Integer[threads][];
+        for (int t = 0; t < threads - 1; t++) {
             int size = Math.min(seqNos.size(), randomIntBetween(opsPerThread - 4, opsPerThread + 4));
             seqNoPerThread[t] = randomSubsetOf(size, seqNos).toArray(new Integer[size]);
             seqNos.removeAll(Arrays.asList(seqNoPerThread[t]));
         }
-        seqNoPerThread[threads.length - 1] = seqNos.toArray(new Integer[seqNos.size()]);
-        logger.info("--> will run [{}] threads, maxOps [{}], unfinished seq no [{}]", threads.length, maxOps, unFinishedSeq);
-        final CyclicBarrier barrier = new CyclicBarrier(threads.length);
-        for (int t = 0; t < threads.length; t++) {
-            final int threadId = t;
-            threads[t] = new Thread(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    throw new ElasticsearchException("failure in background thread", e);
+        seqNoPerThread[threads - 1] = seqNos.toArray(new Integer[seqNos.size()]);
+        logger.info("--> will run [{}] threads, maxOps [{}], unfinished seq no [{}]", threads, maxOps, unFinishedSeq);
+        startInParallel(threads, threadId -> {
+            Integer[] ops = seqNoPerThread[threadId];
+            for (int seqNo : ops) {
+                if (seqNo != unFinishedSeq) {
+                    tracker.markSeqNoAsProcessed(seqNo);
+                    logger.info("[t{}] completed [{}]", threadId, seqNo);
                 }
-
-                @Override
-                protected void doRun() throws Exception {
-                    barrier.await();
-                    Integer[] ops = seqNoPerThread[threadId];
-                    for (int seqNo : ops) {
-                        if (seqNo != unFinishedSeq) {
-                            tracker.markSeqNoAsProcessed(seqNo);
-                            logger.info("[t{}] completed [{}]", threadId, seqNo);
-                        }
-                    }
-                }
-            }, "testConcurrentReplica_" + threadId);
-            threads[t].start();
-        }
-        for (Thread thread : threads) {
-            thread.join();
-        }
+            }
+        });
         assertThat(tracker.getMaxSeqNo(), equalTo(maxOps - 1L));
         assertThat(tracker.getProcessedCheckpoint(), equalTo(unFinishedSeq - 1L));
         assertThat(tracker.hasProcessed(unFinishedSeq), equalTo(false));

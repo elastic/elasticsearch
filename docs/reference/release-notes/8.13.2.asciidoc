@@ -3,6 +3,22 @@
 
 Also see <<breaking-changes-8.13,Breaking changes in 8.13>>.
 
+[[known-issues-8.13.2]]
+[float]
+=== Known issues
+* When upgrading clusters from version 8.11.4 or earlier, if your cluster contains non-master-eligible nodes,
+information about the new functionality of these upgraded nodes may not be registered properly with the master node.
+This can lead to some new functionality added since 8.12.0 not being accessible on the upgraded cluster.
+If your cluster is running on ECK 2.12.1 and above, this may cause problems with finalizing the upgrade.
+To resolve this issue, perform a rolling restart on the non-master-eligible nodes once all Elasticsearch nodes
+are upgraded. This issue is fixed in 8.15.0.
+
+* The `pytorch_inference` process used to run Machine Learning models can consume large amounts of memory.
+In environments where the available memory is limited, the OS Out of Memory Killer will kill the `pytorch_inference`
+process to reclaim memory. This can cause inference requests to fail.
+Elasticsearch will automatically restart the `pytorch_inference` process
+after it is killed up to four times in 24 hours. (issue: {es-issue}110530[#110530])
+
 [[bug-8.13.2]]
 [float]
 
@@ -36,5 +52,3 @@ Packaging::
 Security::
 * Query API Key Information API support for the `typed_keys` request parameter {es-pull}106873[#106873] (issue: {es-issue}106817[#106817])
 * Query API Keys support for both `aggs` and `aggregations` keywords {es-pull}107054[#107054] (issue: {es-issue}106839[#106839])
-
-

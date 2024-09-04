@@ -15,9 +15,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -32,6 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -45,15 +49,67 @@ public class AzureHttpHandler implements HttpHandler {
     private final Map<String, BytesReference> blobs;
     private final String account;
     private final String container;
+    private final Predicate<String> authHeaderPredicate;
 
-    public AzureHttpHandler(final String account, final String container) {
+    public AzureHttpHandler(final String account, final String container, @Nullable Predicate<String> authHeaderPredicate) {
         this.account = Objects.requireNonNull(account);
         this.container = Objects.requireNonNull(container);
+        this.authHeaderPredicate = authHeaderPredicate;
         this.blobs = new ConcurrentHashMap<>();
+    }
+
+    private static List<String> getAuthHeader(HttpExchange exchange) {
+        return exchange.getRequestHeaders().get("Authorization");
+    }
+
+    private boolean isValidAuthHeader(HttpExchange exchange) {
+        if (authHeaderPredicate == null) {
+            return true;
+        }
+
+        final var authHeader = getAuthHeader(exchange);
+        if (authHeader == null) {
+            return false;
+        }
+
+        if (authHeader.size() != 1) {
+            return false;
+        }
+
+        return authHeaderPredicate.test(authHeader.get(0));
     }
 
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
+        if (isValidAuthHeader(exchange) == false) {
+            try (exchange; var builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.startObject();
+                builder.field("method", exchange.getRequestMethod());
+                builder.field("uri", exchange.getRequestURI().toString());
+                builder.field("predicate", authHeaderPredicate.toString());
+                builder.field("authorization", Objects.toString(getAuthHeader(exchange)));
+                builder.startObject("headers");
+                for (final var header : exchange.getRequestHeaders().entrySet()) {
+                    if (header.getValue() == null) {
+                        builder.nullField(header.getKey());
+                    } else {
+                        builder.startArray(header.getKey());
+                        for (final var value : header.getValue()) {
+                            builder.value(value);
+                        }
+                        builder.endArray();
+                    }
+                }
+                builder.endObject();
+                builder.endObject();
+                final var responseBytes = BytesReference.bytes(builder);
+                exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+                exchange.sendResponseHeaders(RestStatus.FORBIDDEN.getStatus(), responseBytes.length());
+                responseBytes.writeTo(exchange.getResponseBody());
+                return;
+            }
+        }
+
         final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
         if (request.startsWith("GET") || request.startsWith("HEAD") || request.startsWith("DELETE")) {
             int read = exchange.getRequestBody().read();
@@ -131,6 +187,13 @@ public class AzureHttpHandler implements HttpHandler {
 
                 final long start = Long.parseLong(matcher.group(1));
                 final long end = Long.parseLong(matcher.group(2));
+
+                if (blob.length() <= start) {
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
+                    return;
+                }
+
                 var responseBlob = blob.slice(Math.toIntExact(start), Math.toIntExact(Math.min(end - start + 1, blob.length() - start)));
 
                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");

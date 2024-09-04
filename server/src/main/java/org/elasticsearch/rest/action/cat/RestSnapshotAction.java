@@ -49,15 +49,17 @@ public class RestSnapshotAction extends AbstractCatAction {
         return "cat_snapshot_action";
     }
 
+    private static final String[] MATCH_ALL_PATTERNS = { ResolvedRepositories.ALL_PATTERN };
+
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
-        final String[] matchAll = { ResolvedRepositories.ALL_PATTERN };
-        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest().repositories(request.paramAsStringArray("repository", matchAll))
-            .snapshots(matchAll);
+        final var getSnapshotsRequest = new GetSnapshotsRequest(
+            getMasterNodeTimeout(request),
+            request.paramAsStringArray("repository", MATCH_ALL_PATTERNS),
+            MATCH_ALL_PATTERNS
+        );
 
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
-
-        getSnapshotsRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestResponseListener<>(channel) {
             @Override

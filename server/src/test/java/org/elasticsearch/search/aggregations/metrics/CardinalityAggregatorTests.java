@@ -768,7 +768,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals("global", global.getName());
             assertEquals(numDocs * 2, global.getDocCount());
             assertNotNull(global.getAggregations());
-            assertEquals(1, global.getAggregations().asMap().size());
+            assertEquals(1, global.getAggregations().asList().size());
 
             final Cardinality cardinality = global.getAggregations().get("cardinality");
             assertNotNull(cardinality);

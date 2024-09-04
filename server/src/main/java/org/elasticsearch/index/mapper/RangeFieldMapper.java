@@ -120,12 +120,12 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         protected RangeFieldType setupFieldType(MapperBuilderContext context) {
-            String fullName = context.buildFullName(name());
+            String fullName = context.buildFullName(leafName());
             if (format.isConfigured()) {
                 if (type != RangeType.DATE) {
                     throw new IllegalArgumentException(
                         "field ["
-                            + name()
+                            + leafName()
                             + "] of type [range]"
                             + " should not define a dateTimeFormatter unless it is a "
                             + RangeType.DATE
@@ -167,7 +167,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public RangeFieldMapper build(MapperBuilderContext context) {
             RangeFieldType ft = setupFieldType(context);
-            return new RangeFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, type, this);
+            return new RangeFieldMapper(leafName(), ft, multiFieldsBuilder.build(this, context), copyTo, type, this);
         }
     }
 
@@ -364,7 +364,7 @@ public class RangeFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, coerceByDefault).init(this);
+        return new Builder(leafName(), type, coerceByDefault).init(this);
     }
 
     @Override
@@ -390,7 +390,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         Range range = parseRange(parser);
-        context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, index, hasDocValues, store));
+        context.doc().addAll(fieldType().rangeType.createFields(context, fullPath(), range, index, hasDocValues, store));
 
         if (hasDocValues == false && (index || store)) {
             context.addToFieldNames(fieldType().name());
@@ -406,7 +406,7 @@ public class RangeFieldMapper extends FieldMapper {
         if (start != XContentParser.Token.START_OBJECT) {
             throw new DocumentParsingException(
                 parser.getTokenLocation(),
-                "error parsing field [" + name() + "], expected an object but got " + parser.currentName()
+                "error parsing field [" + fullPath() + "], expected an object but got " + parser.currentName()
             );
         }
 
@@ -445,7 +445,7 @@ public class RangeFieldMapper extends FieldMapper {
                 } else {
                     throw new DocumentParsingException(
                         parser.getTokenLocation(),
-                        "error parsing field [" + name() + "], with unknown parameter [" + fieldName + "]"
+                        "error parsing field [" + fullPath() + "], with unknown parameter [" + fieldName + "]"
                     );
                 }
             }
@@ -471,15 +471,19 @@ public class RangeFieldMapper extends FieldMapper {
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+                "field ["
+                    + fullPath()
+                    + "] of type ["
+                    + typeName()
+                    + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new BinaryDocValuesSyntheticFieldLoader(name()) {
+        return new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
             @Override
             protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
                 List<Range> ranges = type.decodeRanges(value);
@@ -488,11 +492,11 @@ public class RangeFieldMapper extends FieldMapper {
                     case 0:
                         return;
                     case 1:
-                        b.field(simpleName());
+                        b.field(leafName());
                         ranges.get(0).toXContent(b, fieldType().dateTimeFormatter);
                         break;
                     default:
-                        b.startArray(simpleName());
+                        b.startArray(leafName());
                         for (var range : ranges) {
                             range.toXContent(b, fieldType().dateTimeFormatter);
                         }

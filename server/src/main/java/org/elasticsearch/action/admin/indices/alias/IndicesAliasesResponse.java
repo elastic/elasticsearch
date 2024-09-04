@@ -48,7 +48,7 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
     protected IndicesAliasesResponse(StreamInput in) throws IOException {
         super(in);
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ALIAS_ACTION_RESULTS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.errors = in.readBoolean();
             this.actionResults = in.readCollectionAsImmutableList(AliasActionResult::new);
         } else {
@@ -91,7 +91,7 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ALIAS_ACTION_RESULTS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeBoolean(errors);
             out.writeCollection(actionResults);
         }

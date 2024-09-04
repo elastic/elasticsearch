@@ -27,7 +27,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateCtxMap;
@@ -181,14 +181,14 @@ public class UpdateHelper {
     Result prepareUpdateIndexRequest(ShardId shardId, UpdateRequest request, GetResult getResult, boolean detectNoop) {
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
-        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver();
+        final XContentMeteringParserDecorator meteringParserDecorator = documentParsingProvider.newMeteringParserDecorator(request);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
         final Map<String, Object> updatedSourceAsMap = sourceAndContent.v2();
 
         final boolean noop = XContentHelper.update(
             updatedSourceAsMap,
-            currentRequest.sourceAsMap(documentSizeObserver),
+            currentRequest.sourceAsMap(meteringParserDecorator),
             detectNoop
         ) == false;
 
@@ -218,7 +218,7 @@ public class UpdateHelper {
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
             String index = request.index();
-            final IndexRequest finalIndexRequest = new IndexRequest(index).id(request.id())
+            IndexRequest finalIndexRequest = new IndexRequest(index).id(request.id())
                 .routing(routing)
                 .source(updatedSourceAsMap, updateSourceContentType)
                 .setIfSeqNo(getResult.getSeqNo())
@@ -226,7 +226,8 @@ public class UpdateHelper {
                 .waitForActiveShards(request.waitForActiveShards())
                 .timeout(request.timeout())
                 .setRefreshPolicy(request.getRefreshPolicy())
-                .setNormalisedBytesParsed(documentSizeObserver.normalisedBytesParsed());
+                .setOriginatesFromUpdateByDoc(true);
+            finalIndexRequest.setNormalisedBytesParsed(meteringParserDecorator.meteredDocumentSize().ingestedBytes());
             return new Result(finalIndexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         }
     }
@@ -261,7 +262,7 @@ public class UpdateHelper {
         switch (operation) {
             case INDEX -> {
                 String index = request.index();
-                final IndexRequest indexRequest = new IndexRequest(index).id(request.id())
+                IndexRequest indexRequest = new IndexRequest(index).id(request.id())
                     .routing(routing)
                     .source(updatedSourceAsMap, updateSourceContentType)
                     .setIfSeqNo(getResult.getSeqNo())
@@ -269,7 +270,7 @@ public class UpdateHelper {
                     .waitForActiveShards(request.waitForActiveShards())
                     .timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy())
-                    .noParsedBytesToReport();
+                    .setOriginatesFromUpdateByScript(true);
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             }
             case DELETE -> {

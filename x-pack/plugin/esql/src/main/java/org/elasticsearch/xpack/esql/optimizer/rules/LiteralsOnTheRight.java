@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules;
 
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
 
 public final class LiteralsOnTheRight extends OptimizerRules.OptimizerExpressionRule<BinaryOperator<?, ?, ?, ?>> {
 

@@ -74,7 +74,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.TopHits;
@@ -1816,20 +1815,13 @@ public class JobResultsProvider {
                     handler.accept(new ForecastStats());
                     return;
                 }
-                Map<String, InternalAggregation> aggregationsAsMap = aggregations.asMap();
-                StatsAccumulator memoryStats = StatsAccumulator.fromStatsAggregation(
-                    (Stats) aggregationsAsMap.get(ForecastStats.Fields.MEMORY)
-                );
-                Stats aggRecordsStats = (Stats) aggregationsAsMap.get(ForecastStats.Fields.RECORDS);
+                StatsAccumulator memoryStats = StatsAccumulator.fromStatsAggregation(aggregations.get(ForecastStats.Fields.MEMORY));
+                Stats aggRecordsStats = aggregations.get(ForecastStats.Fields.RECORDS);
                 // Stats already gives us all the counts and every doc as a "records" field.
                 long totalHits = aggRecordsStats.getCount();
                 StatsAccumulator recordStats = StatsAccumulator.fromStatsAggregation(aggRecordsStats);
-                StatsAccumulator runtimeStats = StatsAccumulator.fromStatsAggregation(
-                    (Stats) aggregationsAsMap.get(ForecastStats.Fields.RUNTIME)
-                );
-                CountAccumulator statusCount = CountAccumulator.fromTermsAggregation(
-                    (StringTerms) aggregationsAsMap.get(ForecastStats.Fields.STATUSES)
-                );
+                StatsAccumulator runtimeStats = StatsAccumulator.fromStatsAggregation(aggregations.get(ForecastStats.Fields.RUNTIME));
+                CountAccumulator statusCount = CountAccumulator.fromTermsAggregation(aggregations.get(ForecastStats.Fields.STATUSES));
 
                 ForecastStats forecastStats = new ForecastStats(totalHits, memoryStats, recordStats, runtimeStats, statusCount);
                 handler.accept(forecastStats);

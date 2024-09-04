@@ -91,9 +91,9 @@ public class RankFeatureFieldMapper extends FieldMapper {
         @Override
         public RankFeatureFieldMapper build(MapperBuilderContext context) {
             return new RankFeatureFieldMapper(
-                name(),
+                leafName(),
                 new RankFeatureFieldType(
-                    context.buildFullName(name()),
+                    context.buildFullName(leafName()),
                     meta.getValue(),
                     positiveScoreImpact.getValue(),
                     nullValue.getValue()
@@ -205,9 +205,9 @@ public class RankFeatureFieldMapper extends FieldMapper {
             value = context.parser().floatValue();
         }
 
-        if (context.doc().getByKey(name()) != null) {
+        if (context.doc().getByKey(fullPath()) != null) {
             throw new IllegalArgumentException(
-                "[rank_feature] fields do not support indexing multiple values for the same field [" + name() + "] in the same document"
+                "[rank_feature] fields do not support indexing multiple values for the same field [" + fullPath() + "] in the same document"
             );
         }
 
@@ -215,7 +215,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
             value = 1 / value;
         }
 
-        context.doc().addWithKey(name(), new FeatureField(NAME, name(), value));
+        context.doc().addWithKey(fullPath(), new FeatureField(NAME, fullPath(), value));
     }
 
     private static Float objectToFloat(Object value) {
@@ -233,6 +233,6 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 }

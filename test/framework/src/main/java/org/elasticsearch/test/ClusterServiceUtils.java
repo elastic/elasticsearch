@@ -226,8 +226,8 @@ public class ClusterServiceUtils {
     }
 
     public static void awaitNoPendingTasks(ClusterService clusterService) {
-        PlainActionFuture.<Void, RuntimeException>get(
-            fut -> clusterService.submitUnbatchedStateUpdateTask(
+        ESTestCase.safeAwait(
+            listener -> clusterService.submitUnbatchedStateUpdateTask(
                 "await-queue-empty",
                 new ClusterStateUpdateTask(Priority.LANGUID, TimeValue.timeValueSeconds(10)) {
                     @Override
@@ -237,17 +237,15 @@ public class ClusterServiceUtils {
 
                     @Override
                     public void onFailure(Exception e) {
-                        fut.onFailure(e);
+                        listener.onFailure(e);
                     }
 
                     @Override
                     public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                        fut.onResponse(null);
+                        listener.onResponse(null);
                     }
                 }
-            ),
-            10,
-            TimeUnit.SECONDS
+            )
         );
     }
 

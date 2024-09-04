@@ -105,7 +105,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalTimeSeries(name, new ArrayList<>(), false, metadata());
+        return new InternalTimeSeries(name, List.of(), false, metadata());
     }
 
     @Override

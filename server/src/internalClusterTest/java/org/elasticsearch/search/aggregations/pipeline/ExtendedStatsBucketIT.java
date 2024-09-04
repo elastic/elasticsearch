@@ -12,8 +12,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats.Bounds;
 
 import java.util.ArrayList;
@@ -119,7 +119,7 @@ public class ExtendedStatsBucketIT extends BucketMetricsPipeLineAggregationTestC
                     } else {
                         expectedDocCount = 1;
                     }
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat("i: " + i, bucket, notNullValue());
                     assertThat("i: " + i, ((Number) bucket.getKey()).longValue(), equalTo((long) i));
                     assertThat("i: " + i, bucket.getDocCount(), equalTo(expectedDocCount));

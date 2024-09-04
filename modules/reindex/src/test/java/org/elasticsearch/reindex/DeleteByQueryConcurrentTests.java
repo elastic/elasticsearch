@@ -11,11 +11,9 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -26,44 +24,29 @@ import static org.hamcrest.Matchers.equalTo;
 public class DeleteByQueryConcurrentTests extends ReindexTestCase {
 
     public void testConcurrentDeleteByQueriesOnDifferentDocs() throws Throwable {
-        final Thread[] threads = new Thread[scaledRandomIntBetween(2, 5)];
+        final int threadCount = scaledRandomIntBetween(2, 5);
         final long docs = randomIntBetween(1, 50);
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docs; i++) {
-            for (int t = 0; t < threads.length; t++) {
+            for (int t = 0; t < threadCount; t++) {
                 builders.add(prepareIndex("test").setSource("field", t));
             }
         }
         indexRandom(true, true, true, builders);
 
-        final CountDownLatch start = new CountDownLatch(1);
-        for (int t = 0; t < threads.length; t++) {
-            final int threadNum = t;
-            assertHitCount(prepareSearch("test").setSize(0).setQuery(QueryBuilders.termQuery("field", threadNum)), docs);
-
-            Runnable r = () -> {
-                try {
-                    start.await();
-
-                    assertThat(
-                        deleteByQuery().source("_all").filter(termQuery("field", threadNum)).refresh(true).get(),
-                        matcher().deleted(docs)
-                    );
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            };
-            threads[t] = new Thread(r);
-            threads[t].start();
+        for (int t = 0; t < threadCount; t++) {
+            assertHitCount(prepareSearch("test").setSize(0).setQuery(QueryBuilders.termQuery("field", t)), docs);
         }
+        startInParallel(
+            threadCount,
+            threadNum -> assertThat(
+                deleteByQuery().source("_all").filter(termQuery("field", threadNum)).refresh(true).get(),
+                matcher().deleted(docs)
+            )
+        );
 
-        start.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
-
-        for (int t = 0; t < threads.length; t++) {
+        for (int t = 0; t < threadCount; t++) {
             assertHitCount(prepareSearch("test").setSize(0).setQuery(QueryBuilders.termQuery("field", t)), 0);
         }
     }
@@ -77,33 +60,12 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
         }
         indexRandom(true, true, true, builders);
 
-        final Thread[] threads = new Thread[scaledRandomIntBetween(2, 9)];
+        final int threadCount = scaledRandomIntBetween(2, 9);
 
-        final CountDownLatch start = new CountDownLatch(1);
         final MatchQueryBuilder query = matchQuery("foo", "bar");
         final AtomicLong deleted = new AtomicLong(0);
-
-        for (int t = 0; t < threads.length; t++) {
-            Runnable r = () -> {
-                try {
-                    start.await();
-
-                    BulkByScrollResponse response = deleteByQuery().source("test").filter(query).refresh(true).get();
-                    // Some deletions might fail due to version conflict, but
-                    // what matters here is the total of successful deletions
-                    deleted.addAndGet(response.getDeleted());
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            };
-            threads[t] = new Thread(r);
-            threads[t].start();
-        }
-
-        start.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+        // Some deletions might fail due to version conflict, but what matters here is the total of successful deletions
+        startInParallel(threadCount, i -> deleted.addAndGet(deleteByQuery().source("test").filter(query).refresh(true).get().getDeleted()));
 
         assertHitCount(prepareSearch("test").setSize(0), 0L);
         assertThat(deleted.get(), equalTo(docs));

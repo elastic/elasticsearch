@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -43,19 +44,18 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final ResetFeatureStateRequest req = new ResetFeatureStateRequest();
-
-        return restChannel -> client.execute(ResetFeatureStateAction.INSTANCE, req, new RestToXContentListener<>(restChannel, r -> {
-            long failures = r.getFeatureStateResetStatuses()
-                .stream()
-                .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
-                .count();
-            if (failures == 0) {
-                return RestStatus.OK;
-            } else if (failures == r.getFeatureStateResetStatuses().size()) {
-                return RestStatus.INTERNAL_SERVER_ERROR;
-            }
-            return RestStatus.MULTI_STATUS;
-        }));
+        final var req = new ResetFeatureStateRequest(RestUtils.getMasterNodeTimeout(request));
+        return restChannel -> client.execute(
+            ResetFeatureStateAction.INSTANCE,
+            req,
+            new RestToXContentListener<>(
+                restChannel,
+                r -> r.getFeatureStateResetStatuses()
+                    .stream()
+                    .anyMatch(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
+                        ? RestStatus.INTERNAL_SERVER_ERROR
+                        : RestStatus.OK
+            )
+        );
     }
 }

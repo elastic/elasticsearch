@@ -192,7 +192,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 client,
                 services.clusterService(),
                 ccrLicenseChecker,
-                services.threadPool()::relativeTimeInMillis,
+                services.threadPool().relativeTimeInMillisSupplier(),
                 services.threadPool()::absoluteTimeInMillis,
                 services.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME)
             )

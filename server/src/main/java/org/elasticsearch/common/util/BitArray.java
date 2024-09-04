@@ -65,6 +65,17 @@ public final class BitArray implements Accountable, Releasable, Writeable {
     }
 
     /**
+     * Set or clear the {@code index}th bit based on the specified value.
+     */
+    public void set(long index, boolean value) {
+        if (value) {
+            set(index);
+        } else {
+            clear(index);
+        }
+    }
+
+    /**
      * Set the {@code index}th bit.
      */
     public void set(long index) {
@@ -156,6 +167,69 @@ public final class BitArray implements Accountable, Releasable, Writeable {
         }
         long bitmask = 1L << index;
         return (bits.get(wordNum) & bitmask) != 0;
+    }
+
+    /**
+     * Set or clear slots between {@code fromIndex} inclusive to {@code toIndex} based on {@code value}.
+     */
+    public void fill(long fromIndex, long toIndex, boolean value) {
+        if (fromIndex > toIndex) {
+            throw new IllegalArgumentException("From should be less than or equal to toIndex");
+        }
+        long currentSize = size();
+        if (value == false) {
+            // There's no need to grow the array just to clear bits.
+            toIndex = Math.min(toIndex, currentSize);
+        }
+        if (fromIndex >= toIndex) {
+            // Empty range or false values after the end of the array.
+            return;
+        }
+
+        if (toIndex > currentSize) {
+            bits = bigArrays.grow(bits, wordNum(toIndex) + 1);
+        }
+
+        int wordLength = Long.BYTES * Byte.SIZE;
+        long fullWord = 0xFFFFFFFFFFFFFFFFL;
+
+        long firstWordIndex = fromIndex % wordLength;
+        long lastWordIndex = toIndex % wordLength;
+
+        long firstWordNum = wordNum(fromIndex);
+        long lastWordNum = wordNum(toIndex - 1);
+
+        // Mask first word
+        if (firstWordIndex > 0) {
+            long mask = fullWord << firstWordIndex;
+
+            if (firstWordNum == lastWordNum) {
+                mask &= fullWord >>> (wordLength - lastWordIndex);
+            }
+
+            if (value) {
+                bits.set(firstWordNum, bits.get(firstWordNum) | mask);
+            } else {
+                bits.set(firstWordNum, bits.get(firstWordNum) & ~mask);
+            }
+
+            firstWordNum++;
+        }
+
+        // Mask last word
+        if (firstWordNum <= lastWordNum) {
+            long mask = fullWord >>> (wordLength - lastWordIndex);
+
+            if (value) {
+                bits.set(lastWordNum, bits.get(lastWordNum) | mask);
+            } else {
+                bits.set(lastWordNum, bits.get(lastWordNum) & ~mask);
+            }
+        }
+
+        if (firstWordNum < lastWordNum) {
+            bits.fill(firstWordNum, lastWordNum, value ? fullWord : 0L);
+        }
     }
 
     public long size() {

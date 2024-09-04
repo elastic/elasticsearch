@@ -1,0 +1,37 @@
+---
+setup:
+  - do:
+      indices.create:
+          index:  eql_test
+          body:
+            mappings:
+              properties:
+                some_text:
+                  type: text
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: eql_test
+              _id:    "1"
+          - event:
+              - category: process
+            "@timestamp": 2020-02-03T12:34:56Z
+            user: SYSTEM
+            id: 123
+            valid: false
+            some_text: foo
+
+
+---
+
+"Case insensitive match on text field":
+  - do:
+      catch: "bad_request"
+      eql.search:
+        index: eql_test
+        body:
+          query: 'process where some_text: "foo"'
+  - match: { error.root_cause.0.type: "verification_exception" }
+  - match: { error.root_cause.0.reason: "Found 1 problem\nline 1:15: [:] cannot operate on first argument field of data type [text]: No keyword/multi-field defined exact matches for [some_text]; define one or use MATCH/QUERY instead" }

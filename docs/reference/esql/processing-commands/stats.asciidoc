@@ -2,11 +2,14 @@
 [[esql-stats-by]]
 === `STATS ... BY`
 
+The `STATS ... BY` processing command groups rows according to a common value
+and calculate one or more aggregated values over the grouped rows.
+
 **Syntax**
 
 [source,esql]
 ----
-STATS [column1 =] expression1[, ..., [columnN =] expressionN] 
+STATS [column1 =] expression1[, ..., [columnN =] expressionN]
 [BY grouping_expression1[, ..., grouping_expressionN]]
 ----
 
@@ -15,12 +18,15 @@ STATS [column1 =] expression1[, ..., [columnN =] expressionN]
 `columnX`::
 The name by which the aggregated value is returned. If omitted, the name is
 equal to the corresponding expression (`expressionX`).
+If multiple columns have the same name, all but the rightmost column with this
+name will be ignored.
 
 `expressionX`::
 An expression that computes an aggregated value.
 
 `grouping_expressionX`::
 An expression that outputs the values to group by.
+If its name coincides with one of the computed columns, that column will be ignored.
 
 NOTE: Individual `null` values are skipped when computing aggregations.
 
@@ -39,8 +45,8 @@ NOTE: `STATS` without any groups is much much faster than adding a group.
 
 NOTE: Grouping on a single expression is currently much more optimized than grouping
       on many expressions. In some tests we have seen grouping on a single `keyword`
-      column to be five times faster than grouping on two `keyword` columns. Do 
-      not try to work around this by combining the two columns together with 
+      column to be five times faster than grouping on two `keyword` columns. Do
+      not try to work around this by combining the two columns together with
       something like <<esql-concat>> and then grouping - that is not going to be
       faster.
 
@@ -80,13 +86,35 @@ include::{esql-specs}/stats.csv-spec[tag=statsCalcMultipleValues]
 include::{esql-specs}/stats.csv-spec[tag=statsCalcMultipleValues-result]
 |===
 
-It's also possible to group by multiple values (only supported for long and
-keyword family fields):
+[[esql-stats-mv-group]]
+If the grouping key is multivalued then the input row is in all groups:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=mv-group]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=mv-group-result]
+|===
+
+It's also possible to group by multiple values:
 
 [source,esql]
 ----
 include::{esql-specs}/stats.csv-spec[tag=statsGroupByMultipleValues]
 ----
+
+If the all grouping keys are multivalued then the input row is in all groups:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=multi-mv-group]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=multi-mv-group-result]
+|===
 
 Both the aggregating functions and the grouping expressions accept other
 functions. This is useful for using `STATS...BY` on multivalue columns.

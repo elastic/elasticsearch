@@ -77,7 +77,10 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         // GIVEN
         final String dataStreamName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         putComposableIndexTemplate("1", List.of(dataStreamName));
-        client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
+        client().execute(
+            CreateDataStreamAction.INSTANCE,
+            new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
+        ).actionGet();
         indexDocs(dataStreamName, 10, Instant.now().toEpochMilli());
         final RolloverResponse rolloverResponse = indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).get();
         // NOTE: here we calculate a delay to index documents because the next data stream write index is created with a start time of
@@ -113,6 +116,8 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         ).actionGet();
 
         final ModifyDataStreamsAction.Request modifyDataStreamRequest = new ModifyDataStreamsAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             List.of(
                 DataStreamAction.removeBackingIndex(dataStreamName, rolloverResponse.getOldIndex()),
                 DataStreamAction.addBackingIndex(dataStreamName, downsampleTargetIndex)
@@ -124,7 +129,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         assertThat(downsampleResponse.isAcknowledged(), equalTo(true));
         final GetDataStreamAction.Response getDataStreamActionResponse = indicesAdmin().execute(
             GetDataStreamAction.INSTANCE,
-            new GetDataStreamAction.Request(new String[] { dataStreamName })
+            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName })
         ).actionGet();
         assertThat(getDataStreamActionResponse.getDataStreams().get(0).getDataStream().getIndices().size(), equalTo(2));
         final List<String> backingIndices = getDataStreamActionResponse.getDataStreams()

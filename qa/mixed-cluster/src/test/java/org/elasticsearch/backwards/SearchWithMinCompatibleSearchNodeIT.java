@@ -12,8 +12,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -50,13 +48,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
         allNodes.addAll(nodes.getNewNodes());
 
         if (client().performRequest(new Request("HEAD", "/" + index)).getStatusLine().getStatusCode() == 404) {
-            createIndex(
-                index,
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                    .build()
-            );
+            createIndex(index, indexSettings(numShards, numReplicas).build());
             for (int i = 0; i < numDocs; i++) {
                 Request request = new Request("PUT", index + "/_doc/" + i);
                 request.setJsonEntity("{\"test\": \"test_" + randomAlphaOfLength(2) + "\"}");

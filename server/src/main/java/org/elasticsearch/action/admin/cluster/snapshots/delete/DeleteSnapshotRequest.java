@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,8 +40,8 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
      * @param repository repository name
      * @param snapshots  snapshot names
      */
-    public DeleteSnapshotRequest(String repository, String... snapshots) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    public DeleteSnapshotRequest(TimeValue masterNodeTimeout, String repository, String... snapshots) {
+        super(masterNodeTimeout);
         this.repository = repository;
         this.snapshots = snapshots;
     }

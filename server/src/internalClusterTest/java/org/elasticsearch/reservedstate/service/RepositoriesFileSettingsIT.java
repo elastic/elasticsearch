@@ -137,7 +137,7 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
 
         final var reposResponse = client().execute(
             GetRepositoriesAction.INSTANCE,
-            new GetRepositoriesRequest(new String[] { "repo", "repo1" })
+            new GetRepositoriesRequest(TEST_REQUEST_TIMEOUT, new String[] { "repo", "repo1" })
         ).get();
 
         assertThat(
@@ -204,7 +204,10 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
             "[err-repo] missing",
             expectThrows(
                 RepositoryMissingException.class,
-                client().execute(GetRepositoriesAction.INSTANCE, new GetRepositoriesRequest(new String[] { "err-repo" }))
+                client().execute(
+                    GetRepositoriesAction.INSTANCE,
+                    new GetRepositoriesRequest(TEST_REQUEST_TIMEOUT, new String[] { "err-repo" })
+                )
             ).getMessage()
         );
 
@@ -239,7 +242,7 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
             var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            return new PutRepositoryRequest(name).source(parser.map());
+            return new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name).source(parser.map());
         }
     }
 }

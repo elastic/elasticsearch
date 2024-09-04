@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -28,6 +27,16 @@ public class Row extends LeafPlan {
         this.fields = fields;
     }
 
+    @Override
+    public void writeTo(StreamOutput out) {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
     public List<Alias> fields() {
         return fields;
     }
@@ -35,6 +44,11 @@ public class Row extends LeafPlan {
     @Override
     public List<Attribute> output() {
         return Expressions.asAttributes(fields);
+    }
+
+    @Override
+    public String commandName() {
+        return "ROW";
     }
 
     @Override

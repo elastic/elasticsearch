@@ -22,10 +22,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -39,6 +41,13 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class PrevalidateShardPathIT extends ESIntegTestCase {
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.cluster.service.MasterService:DEBUG, "
+            + "org.elasticsearch.indices.store.IndicesStore:TRACE,"
+            + "org.elasticsearch.indices.cluster.IndicesClusterStateService:DEBUG,"
+            + "org.elasticsearch.indices.IndicesService:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/104807"
+    )
     public void testCheckShards() throws Exception {
         internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startDataOnlyNode();
@@ -95,7 +104,6 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
                         .allShards()
                         .filter(s -> s.getIndexName().equals(indexName))
                         .filter(s -> node2ShardIds.contains(s.shardId()))
-                        .filter(s -> s.currentNodeId().equals(node2Id))
                         .toList();
                     logger.info("Found {} shards on the relocation source node {} in the cluster state", node2Shards, node2Id);
                     for (var node2Shard : node2Shards) {
@@ -126,6 +134,6 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
                 );
                 throw e;
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 }

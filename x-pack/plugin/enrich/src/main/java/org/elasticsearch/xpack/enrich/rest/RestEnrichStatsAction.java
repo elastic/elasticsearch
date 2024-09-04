@@ -16,11 +16,14 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestEnrichStatsAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("size-in-bytes");
 
     @Override
     public List<Route> routes() {
@@ -30,6 +33,11 @@ public class RestEnrichStatsAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "enrich_stats";
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return SUPPORTED_CAPABILITIES;
     }
 
     @Override

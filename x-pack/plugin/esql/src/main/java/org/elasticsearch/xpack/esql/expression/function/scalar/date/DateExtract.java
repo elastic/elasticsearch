@@ -8,13 +8,15 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -22,8 +24,10 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 import java.util.List;
@@ -35,6 +39,11 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.EsqlConver
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLong;
 
 public class DateExtract extends EsqlConfigurationFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "DateExtract",
+        DateExtract::new
+    );
 
     private ChronoField chronoField;
 
@@ -69,6 +78,35 @@ public class DateExtract extends EsqlConfigurationFunction {
         super(source, List.of(chronoFieldExp, field), configuration);
     }
 
+    private DateExtract(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            ((PlanStreamInput) in).configuration()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(datePart());
+        out.writeNamedWriteable(field());
+    }
+
+    Expression datePart() {
+        return children().get(0);
+    }
+
+    Expression field() {
+        return children().get(1);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(children().get(1));
@@ -90,7 +128,7 @@ public class DateExtract extends EsqlConfigurationFunction {
         if (chronoField == null) {
             Expression field = children().get(0);
             try {
-                if (field.foldable() && EsqlDataTypes.isString(field.dataType())) {
+                if (field.foldable() && DataType.isString(field.dataType())) {
                     chronoField = (ChronoField) STRING_TO_CHRONO_FIELD.convert(field.fold());
                 }
             } catch (Exception e) {

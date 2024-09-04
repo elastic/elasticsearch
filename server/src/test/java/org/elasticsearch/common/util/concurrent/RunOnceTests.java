@@ -11,7 +11,6 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
 
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class RunOnceTests extends ESTestCase {
@@ -33,26 +32,7 @@ public class RunOnceTests extends ESTestCase {
     public void testRunOnceConcurrently() throws InterruptedException {
         final AtomicInteger counter = new AtomicInteger(0);
         final RunOnce runOnce = new RunOnce(counter::incrementAndGet);
-
-        final Thread[] threads = new Thread[between(3, 10)];
-        final CountDownLatch latch = new CountDownLatch(1 + threads.length);
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread(() -> {
-                latch.countDown();
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                runOnce.run();
-            });
-            threads[i].start();
-        }
-
-        latch.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+        startInParallel(between(3, 10), i -> runOnce.run());
         assertTrue(runOnce.hasRun());
         assertEquals(1, counter.get());
     }

@@ -62,7 +62,7 @@ public class ReleasableByteArray implements ByteArray {
     }
 
     @Override
-    public byte set(long index, byte value) {
+    public void set(long index, byte value) {
         throw new UnsupportedOperationException();
     }
 

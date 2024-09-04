@@ -64,7 +64,7 @@ public class TrainedModelAssignmentMetadataTests extends AbstractChunkedSerializ
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 allocatedDeploymentId,
-                TrainedModelAssignment.Builder.empty(randomParams(allocatedDeploymentId, allocatedModelId))
+                TrainedModelAssignment.Builder.empty(randomParams(allocatedDeploymentId, allocatedModelId), null)
             )
             .build();
         assertThat(metadata.isAssigned(allocatedDeploymentId), is(true));
@@ -78,7 +78,7 @@ public class TrainedModelAssignmentMetadataTests extends AbstractChunkedSerializ
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 allocatedDeploymentId,
-                TrainedModelAssignment.Builder.empty(randomParams(allocatedDeploymentId, allocatedModelId))
+                TrainedModelAssignment.Builder.empty(randomParams(allocatedDeploymentId, allocatedModelId), null)
             )
             .build();
         assertThat(metadata.modelIsDeployed(allocatedDeploymentId), is(false));
@@ -92,9 +92,9 @@ public class TrainedModelAssignmentMetadataTests extends AbstractChunkedSerializ
         String deployment2 = "test_deployment_2";
         String deployment3 = "test_deployment_3";
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.Builder.empty()
-            .addNewAssignment(deployment1, TrainedModelAssignment.Builder.empty(randomParams(deployment1, modelId1)))
-            .addNewAssignment(deployment2, TrainedModelAssignment.Builder.empty(randomParams(deployment2, modelId1)))
-            .addNewAssignment(deployment3, TrainedModelAssignment.Builder.empty(randomParams(deployment3, "different_model")))
+            .addNewAssignment(deployment1, TrainedModelAssignment.Builder.empty(randomParams(deployment1, modelId1), null))
+            .addNewAssignment(deployment2, TrainedModelAssignment.Builder.empty(randomParams(deployment2, modelId1), null))
+            .addNewAssignment(deployment3, TrainedModelAssignment.Builder.empty(randomParams(deployment3, "different_model"), null))
             .build();
         var assignments = metadata.getDeploymentsUsingModel(modelId1);
         assertThat(assignments, hasSize(2));

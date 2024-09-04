@@ -6,19 +6,19 @@ setup:
 ---
 teardown:
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-ruleset
         ignore: 404
 
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-ruleset-recreating
         ignore: 404
 
 ---
 'Create Query Ruleset':
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-ruleset
         body:
           rules:
@@ -44,11 +44,23 @@ teardown:
                     '_id': 'id3'
                   - '_index': 'test-index2'
                     '_id': 'id4'
+            - rule_id: query-rule-id3
+              type: exclude
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ logstash ]
+              actions:
+                docs:
+                  - '_index': 'test-index1'
+                    '_id': 'id4'
+                  - '_index': 'test-index2'
+                    '_id': 'id5'
 
   - match: { result: 'created' }
 
   - do:
-      query_ruleset.get:
+      query_rules.get_ruleset:
         ruleset_id: test-ruleset
   - match: { ruleset_id: test-ruleset }
   - match:
@@ -75,11 +87,23 @@ teardown:
                 '_id': 'id3'
               - '_index': 'test-index2'
                 '_id': 'id4'
+        - rule_id: query-rule-id3
+          type: exclude
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ logstash ]
+          actions:
+            docs:
+              - '_index': 'test-index1'
+                '_id': 'id4'
+              - '_index': 'test-index2'
+                '_id': 'id5'
 
 ---
 'Create Query Ruleset - Resource already exists':
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset-recreating
         body:
           rules:
@@ -96,7 +120,7 @@ teardown:
   - match: { result: 'created' }
 
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset-recreating
         body:
           rules:
@@ -120,7 +144,7 @@ teardown:
   - do:
       catch: forbidden
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: forbidden-query-ruleset
         body:
           rules:

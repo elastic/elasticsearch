@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -706,7 +705,7 @@ public class DefaultRestChannelTests extends ESTestCase {
                 if (content.isLastPart()) {
                     return;
                 }
-                writeContent(bso, PlainActionFuture.get(content::getNextPart));
+                writeContent(bso, safeAwait(content::getNextPart));
             }
         };
 

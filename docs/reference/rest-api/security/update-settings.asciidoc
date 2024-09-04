@@ -18,27 +18,28 @@ Updates the settings of the security internal indices.
 ==== {api-request-body-title}
 
 `security`::
-(Optional, object) Settings to be used for the index used for most security 
+(Optional, object) Settings to be used for the index used for most security
 configuration, including Native realm users and roles configured via the API.
 
 `security-tokens`::
-(Optional, object) Settings to be used for the index used to store 
+(Optional, object) Settings to be used for the index used to store
 <<security-api-get-token,tokens>>.
 
-`security`::
-(Optional, object) Settings to be used for the index used to store 
+`security-profile`::
+(Optional, object) Settings to be used for the index used to store
 <<security-api-activate-user-profile, profile>> information.
 
 
 [[security-api-update-settings-desc]]
 ==== {api-description-title}
-This API allows a user to modify the settings for the Security internal indices 
-(`.security` and associated indices). Only a subset of settings are allowed to 
+This API allows a user to modify the settings for the Security internal indices
+(`.security` and associated indices). Only a subset of settings are allowed to
 be modified. This includes:
 
 - `index.auto_expand_replicas`
 - `index.number_of_replicas`
 
+NOTE: If `index.auto_expand_replicas` is set, `index.number_of_replicas` will be ignored during updates.
 
 [[security-api-update-settings-example]]
 ==== {api-examples-title}
@@ -62,8 +63,8 @@ PUT /_security/settings
 -----------------------------------------------------------
 // TEST[skip:making sure all the indices have been created reliably is difficult]
 
-The configured settings can be retrieved using the 
-<<security-api-get-settings,Get Security index settings>> API. If a given index 
-is not in use on the system, but settings are provided for it, the request will 
-be rejected - this API does not yet support configuring the settings for these 
+The configured settings can be retrieved using the
+<<security-api-get-settings,Get Security index settings>> API. If a given index
+is not in use on the system, but settings are provided for it, the request will
+be rejected - this API does not yet support configuring the settings for these
 indices before they are in use.

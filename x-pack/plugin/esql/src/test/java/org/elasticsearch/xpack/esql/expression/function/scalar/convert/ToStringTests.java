@@ -11,12 +11,13 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -27,7 +28,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
-public class ToStringTests extends AbstractFunctionTestCase {
+public class ToStringTests extends AbstractScalarFunctionTestCase {
     public ToStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -87,6 +88,13 @@ public class ToStringTests extends AbstractFunctionTestCase {
             i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(i.toEpochMilli())),
             List.of()
         );
+        TestCaseSupplier.forUnaryDateNanos(
+            suppliers,
+            "ToStringFromDateNanosEvaluator[field=" + read + "]",
+            DataType.KEYWORD,
+            i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER.formatNanos(DateUtils.toLong(i))),
+            List.of()
+        );
         TestCaseSupplier.forUnaryGeoPoint(
             suppliers,
             "ToStringFromGeoPointEvaluator[field=" + read + "]",
@@ -130,8 +138,11 @@ public class ToStringTests extends AbstractFunctionTestCase {
             v -> new BytesRef(v.toString()),
             List.of()
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> typeErrorString);
     }
+
+    private static String typeErrorString =
+        "boolean or cartesian_point or cartesian_shape or datetime or geo_point or geo_shape or ip or numeric or string or version";
 
     @Override
     protected Expression build(Source source, List<Expression> args) {

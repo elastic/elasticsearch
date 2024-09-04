@@ -7,44 +7,41 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
-import java.util.List;
 
 public class OrderSerializationTests extends AbstractExpressionSerializationTests<Order> {
-    @Override
-    protected Order createTestInstance() {
+    public static Order randomOrder() {
         return new Order(randomSource(), randomChild(), randomDirection(), randomNulls());
     }
 
-    private static org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection randomDirection() {
-        return randomFrom(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.values());
+    @Override
+    protected Order createTestInstance() {
+        return randomOrder();
     }
 
-    private static org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition randomNulls() {
-        return randomFrom(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.values());
+    private static Order.OrderDirection randomDirection() {
+        return randomFrom(Order.OrderDirection.values());
+    }
+
+    private static Order.NullsPosition randomNulls() {
+        return randomFrom(Order.NullsPosition.values());
     }
 
     @Override
     protected Order mutateInstance(Order instance) throws IOException {
         Source source = instance.source();
         Expression child = instance.child();
-        org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection direction = instance.direction();
-        org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition nulls = instance.nullsPosition();
+        Order.OrderDirection direction = instance.direction();
+        Order.NullsPosition nulls = instance.nullsPosition();
         switch (between(0, 2)) {
             case 0 -> child = randomValueOtherThan(child, AbstractExpressionSerializationTests::randomChild);
             case 1 -> direction = randomValueOtherThan(direction, OrderSerializationTests::randomDirection);
             case 2 -> nulls = randomValueOtherThan(nulls, OrderSerializationTests::randomNulls);
         }
         return new Order(source, child, direction, nulls);
-    }
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(Order.ENTRY);
     }
 
     @Override

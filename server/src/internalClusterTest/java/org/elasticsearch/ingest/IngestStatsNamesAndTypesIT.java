@@ -9,6 +9,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -100,7 +101,7 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
         client().bulk(bulkRequest).actionGet();
 
         {
-            NodesStatsResponse nodesStatsResponse = clusterAdmin().nodesStats(new NodesStatsRequest().addMetric("ingest")).actionGet();
+            NodesStatsResponse nodesStatsResponse = clusterAdmin().nodesStats(new NodesStatsRequest().addMetric(Metric.INGEST)).actionGet();
             assertThat(nodesStatsResponse.getNodes().size(), equalTo(1));
 
             NodeStats stats = nodesStatsResponse.getNodes().get(0);

@@ -73,7 +73,7 @@ public interface NamedGroupExtractor {
                 return MatcherWatchdog.newInstance(
                     interval.millis(),
                     maxExecutionTime.millis(),
-                    threadPool::relativeTimeInMillis,
+                    threadPool.relativeTimeInMillisSupplier(),
                     (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), threadPool.generic())
                 );
             })::getOrCompute;

@@ -22,7 +22,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class TestApmIntegrationRestHandler extends BaseRestHandler {
 
-    private SetOnce<TestMeterUsages> testMeterUsages = new SetOnce<>();
+    private final SetOnce<TestMeterUsages> testMeterUsages = new SetOnce<>();
 
     TestApmIntegrationRestHandler() {}
 

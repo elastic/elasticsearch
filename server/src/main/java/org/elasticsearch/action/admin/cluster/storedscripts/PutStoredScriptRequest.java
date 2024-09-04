@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.StoredScriptSource;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -41,12 +42,20 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         source = new StoredScriptSource(in);
     }
 
-    public PutStoredScriptRequest() {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    public PutStoredScriptRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        super(masterNodeTimeout, ackTimeout);
     }
 
-    public PutStoredScriptRequest(String id, String context, BytesReference content, XContentType xContentType, StoredScriptSource source) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    public PutStoredScriptRequest(
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        String id,
+        String context,
+        BytesReference content,
+        XContentType xContentType,
+        StoredScriptSource source
+    ) {
+        super(masterNodeTimeout, ackTimeout);
         this.id = id;
         this.context = context;
         this.content = content;

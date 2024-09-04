@@ -7,6 +7,14 @@
  */
 package org.elasticsearch.script;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -20,6 +28,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.putJsonStoredScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class StoredScriptsIT extends ESIntegTestCase {
@@ -41,34 +50,66 @@ public class StoredScriptsIT extends ESIntegTestCase {
     }
 
     public void testBasics() {
-        assertAcked(clusterAdmin().preparePutStoredScript().setId("foobar").setContent(new BytesArray(Strings.format("""
+        putJsonStoredScript("foobar", Strings.format("""
             {"script": {"lang": "%s", "source": "1"} }
-            """, LANG)), XContentType.JSON));
-        String script = clusterAdmin().prepareGetStoredScript("foobar").get().getSource().getSource();
+            """, LANG));
+        String script = safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "foobar")).getSource()
+            .getSource();
         assertNotNull(script);
         assertEquals("1", script);
 
-        assertAcked(clusterAdmin().prepareDeleteStoredScript("foobar"));
-        StoredScriptSource source = clusterAdmin().prepareGetStoredScript("foobar").get().getSource();
+        assertAcked(
+            safeExecute(
+                TransportDeleteStoredScriptAction.TYPE,
+                new DeleteStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "foobar")
+            )
+        );
+        StoredScriptSource source = safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "foobar"))
+            .getSource();
         assertNull(source);
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            clusterAdmin().preparePutStoredScript().setId("id#").setContent(new BytesArray(Strings.format("""
-                {"script": {"lang": "%s", "source": "1"} }
-                """, LANG)), XContentType.JSON)
+        assertEquals(
+            "Validation Failed: 1: id cannot contain '#' for stored script;",
+            asInstanceOf(
+                IllegalArgumentException.class,
+                ExceptionsHelper.unwrapCause(
+                    safeAwaitFailure(
+                        AcknowledgedResponse.class,
+                        l -> client().execute(
+                            TransportPutStoredScriptAction.TYPE,
+                            new PutStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).id("id#")
+                                .content(new BytesArray(Strings.format("""
+                                    {"script": {"lang": "%s", "source": "1"} }
+                                    """, LANG)), XContentType.JSON),
+                            l
+                        )
+                    )
+                )
+            ).getMessage()
         );
-        assertEquals("Validation Failed: 1: id cannot contain '#' for stored script;", e.getMessage());
     }
 
     public void testMaxScriptSize() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            clusterAdmin().preparePutStoredScript().setId("foobar").setContent(new BytesArray(Strings.format("""
-                {"script": { "lang": "%s", "source":"0123456789abcdef"} }\
-                """, LANG)), XContentType.JSON)
+        assertEquals(
+            "exceeded max allowed stored script size in bytes [64] with size [65] for script [foobar]",
+            asInstanceOf(
+                IllegalArgumentException.class,
+                ExceptionsHelper.unwrapCause(
+                    safeAwaitFailure(
+                        AcknowledgedResponse.class,
+                        l -> client().execute(
+                            TransportPutStoredScriptAction.TYPE,
+                            new PutStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).id("foobar")
+                                .content(new BytesArray(Strings.format("""
+                                    {"script": { "lang": "%s", "source":"0123456789abcdef"} }\
+                                    """, LANG)), XContentType.JSON),
+                            l
+                        )
+
+                    )
+                )
+            ).getMessage()
         );
-        assertEquals("exceeded max allowed stored script size in bytes [64] with size [65] for script [foobar]", e.getMessage());
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

@@ -54,8 +54,11 @@ specify any field restrictions. If you assign a user both roles, `role_a` gives
 the user access to all documents and `role_b` gives the user access to all
 fields.
 
+[IMPORTANT]
+===========
 If you need to restrict access to both documents and fields, consider splitting
 documents by index instead.
+===========
 
 include::role-templates.asciidoc[]
 include::set-security-user.asciidoc[]

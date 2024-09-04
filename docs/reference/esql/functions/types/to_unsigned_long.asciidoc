@@ -6,7 +6,7 @@
 |===
 field | result
 boolean | unsigned_long
-datetime | unsigned_long
+date | unsigned_long
 double | unsigned_long
 integer | unsigned_long
 keyword | unsigned_long

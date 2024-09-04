@@ -20,7 +20,11 @@ import java.util.Objects;
 
 public class ModelConfigurations implements ToFilteredXContentObject, VersionedNamedWriteable {
 
-    public static final String MODEL_ID = "model_id";
+    // Due to refactoring, we now have different field names for the inference ID when it is serialized and stored to an index vs when it
+    // is returned as part of a GetInferenceModelAction
+    public static final String INDEX_ONLY_ID_FIELD_NAME = "model_id";
+    public static final String INFERENCE_ID_FIELD_NAME = "inference_id";
+    public static final String USE_ID_FOR_INDEX = "for_index";
     public static final String SERVICE = "service";
     public static final String SERVICE_SETTINGS = "service_settings";
     public static final String TASK_SETTINGS = "task_settings";
@@ -119,7 +123,12 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(MODEL_ID, inferenceEntityId);
+        if (params.paramAsBoolean(USE_ID_FOR_INDEX, false)) {
+            builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
+        } else {
+            builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
+            builder.field(INFERENCE_ID_FIELD_NAME, inferenceEntityId);
+        }
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings);
@@ -131,7 +140,12 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     @Override
     public XContentBuilder toFilteredXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(MODEL_ID, inferenceEntityId);
+        if (params.paramAsBoolean(USE_ID_FOR_INDEX, false)) {
+            builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
+        } else {
+            builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
+            builder.field(INFERENCE_ID_FIELD_NAME, inferenceEntityId);
+        }
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings.getFilteredXContentObject());

@@ -310,8 +310,11 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 getClusterStateFeatures(adminSearchClient),
                 semanticNodeVersions
             );
-            final TestFeatureService combinedTestFeatureService = featureId -> testFeatureService.clusterHasFeature(featureId)
-                && searchTestFeatureService.clusterHasFeature(featureId);
+            final TestFeatureService combinedTestFeatureService = (featureId, any) -> {
+                boolean adminFeature = testFeatureService.clusterHasFeature(featureId, any);
+                boolean searchFeature = searchTestFeatureService.clusterHasFeature(featureId, any);
+                return any ? adminFeature || searchFeature : adminFeature && searchFeature;
+            };
             final Set<String> combinedOsSet = Stream.concat(osSet.stream(), Stream.of(searchOs)).collect(Collectors.toSet());
             final Set<String> combinedNodeVersions = Stream.concat(nodesVersions.stream(), searchNodeVersions.stream())
                 .collect(Collectors.toSet());

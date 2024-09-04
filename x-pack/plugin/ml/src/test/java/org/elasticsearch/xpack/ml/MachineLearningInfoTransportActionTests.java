@@ -160,14 +160,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             licenseState,
             jobManagerHolder,
             new MachineLearningExtensionHolder(
-                new MachineLearningTests.MlTestExtension(
-                    true,
-                    true,
-                    isAnomalyDetectionEnabled,
-                    isDataFrameAnalyticsEnabled,
-                    isNlpEnabled,
-                    true
-                )
+                new MachineLearningTests.MlTestExtension(true, true, isAnomalyDetectionEnabled, isDataFrameAnalyticsEnabled, isNlpEnabled)
             )
         );
     }
@@ -1015,6 +1008,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 null,
                                 null,
                                 null,
+                                null,
                                 Instant.now(),
                                 List.of(
                                     AssignmentStats.NodeStats.forStartedState(
@@ -1064,6 +1058,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 "model_4",
                                 2,
                                 2,
+                                null,
                                 1000,
                                 ByteSizeValue.ofBytes(1000),
                                 Instant.now(),

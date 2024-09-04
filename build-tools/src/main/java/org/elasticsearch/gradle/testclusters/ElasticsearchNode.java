@@ -1139,7 +1139,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
         }
         if (foundLeaks) {
-            throw new TestClustersException("Found resource leaks in node logs.");
+            throw new TestClustersException("Found resource leaks in node log: " + from);
         }
     }
 

@@ -372,7 +372,7 @@ public class Netty4Transport extends TcpTransport {
     protected InboundPipeline getInboundPipeline(Channel ch, boolean isRemoteClusterServerChannel) {
         return new InboundPipeline(
             getStatsTracker(),
-            threadPool::relativeTimeInMillis,
+            threadPool.relativeTimeInMillisSupplier(),
             new InboundDecoder(recycler),
             new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
             this::inboundMessage

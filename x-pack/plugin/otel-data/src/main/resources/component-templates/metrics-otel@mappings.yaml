@@ -1,0 +1,17 @@
+version: ${xpack.oteldata.template.version}
+_meta:
+  description: Default mappings for the OpenTelemetry metrics index template installed by x-pack
+  managed: true
+template:
+  mappings:
+    properties:
+      start_timestamp:
+        type: date_nanos
+      metrics:
+        type: passthrough
+        dynamic: true
+        priority: 1
+      unit:
+        type: keyword
+        time_series_dimension: true
+        ignore_above: 1024

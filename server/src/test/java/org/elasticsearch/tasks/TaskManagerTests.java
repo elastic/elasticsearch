@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -335,7 +336,12 @@ public class TaskManagerTests extends ESTestCase {
 
         final Task task = taskManager.registerAndExecute(
             "testType",
-            new TransportAction<ActionRequest, ActionResponse>("actionName", new ActionFilters(Set.of()), taskManager) {
+            new TransportAction<ActionRequest, ActionResponse>(
+                "actionName",
+                new ActionFilters(Set.of()),
+                taskManager,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            ) {
                 @Override
                 protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {
                     listener.onResponse(new ActionResponse() {

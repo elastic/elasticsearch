@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators.valueOf;
+import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 
 public class SpatialRelatesUtils {
 
@@ -36,12 +36,12 @@ public class SpatialRelatesUtils {
      * This function is used to convert a spatial constant to a lucene Component2D.
      * When both left and right sides are constants, we convert the left to a doc-values byte array and the right to a Component2D.
      */
-    static Component2D asLuceneComponent2D(SpatialRelatesFunction.SpatialCrsType crsType, Expression expression) {
+    static Component2D asLuceneComponent2D(BinarySpatialFunction.SpatialCrsType crsType, Expression expression) {
         return asLuceneComponent2D(crsType, makeGeometryFromLiteral(expression));
     }
 
-    static Component2D asLuceneComponent2D(SpatialRelatesFunction.SpatialCrsType crsType, Geometry geometry) {
-        if (crsType == SpatialRelatesFunction.SpatialCrsType.GEO) {
+    static Component2D asLuceneComponent2D(BinarySpatialFunction.SpatialCrsType crsType, Geometry geometry) {
+        if (crsType == BinarySpatialFunction.SpatialCrsType.GEO) {
             var luceneGeometries = LuceneGeometriesUtils.toLatLonGeometry(geometry, true, t -> {});
             return LatLonGeometry.create(luceneGeometries);
         } else {
@@ -55,12 +55,12 @@ public class SpatialRelatesUtils {
      * When both left and right sides are constants, we convert the left to a doc-values byte array and the right to a Component2D[].
      * The reason for generating an array instead of a single component is for multi-shape support with ST_CONTAINS.
      */
-    static Component2D[] asLuceneComponent2Ds(SpatialRelatesFunction.SpatialCrsType crsType, Expression expression) {
+    static Component2D[] asLuceneComponent2Ds(BinarySpatialFunction.SpatialCrsType crsType, Expression expression) {
         return asLuceneComponent2Ds(crsType, makeGeometryFromLiteral(expression));
     }
 
-    static Component2D[] asLuceneComponent2Ds(SpatialRelatesFunction.SpatialCrsType crsType, Geometry geometry) {
-        if (crsType == SpatialRelatesFunction.SpatialCrsType.GEO) {
+    static Component2D[] asLuceneComponent2Ds(BinarySpatialFunction.SpatialCrsType crsType, Geometry geometry) {
+        if (crsType == BinarySpatialFunction.SpatialCrsType.GEO) {
             var luceneGeometries = LuceneGeometriesUtils.toLatLonGeometry(geometry, true, t -> {});
             return LuceneComponent2DUtils.createLatLonComponents(luceneGeometries);
         } else {
@@ -73,10 +73,10 @@ public class SpatialRelatesUtils {
      * This function is used to convert a spatial constant to a doc-values byte array.
      * When both left and right sides are constants, we convert the left to a doc-values byte array and the right to a Component2D.
      */
-    static GeometryDocValueReader asGeometryDocValueReader(SpatialRelatesFunction.SpatialCrsType crsType, Expression expression)
+    static GeometryDocValueReader asGeometryDocValueReader(BinarySpatialFunction.SpatialCrsType crsType, Expression expression)
         throws IOException {
         Geometry geometry = makeGeometryFromLiteral(expression);
-        if (crsType == SpatialRelatesFunction.SpatialCrsType.GEO) {
+        if (crsType == BinarySpatialFunction.SpatialCrsType.GEO) {
             return asGeometryDocValueReader(
                 CoordinateEncoder.GEO,
                 new GeoShapeIndexer(Orientation.CCW, "SpatialRelatesFunction"),

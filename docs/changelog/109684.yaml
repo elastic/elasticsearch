@@ -1,0 +1,5 @@
+pr: 109684
+summary: Avoid `ModelAssignment` deadlock
+area: Machine Learning
+type: bug
+issues: []

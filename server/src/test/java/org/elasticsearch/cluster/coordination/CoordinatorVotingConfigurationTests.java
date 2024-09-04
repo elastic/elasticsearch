@@ -458,7 +458,7 @@ public class CoordinatorVotingConfigurationTests extends AbstractCoordinatorTest
         value = "org.elasticsearch.cluster.coordination.ClusterBootstrapService:INFO"
     )
     public void testClusterUUIDLogging() {
-        try (var mockLog = MockLog.capture(ClusterBootstrapService.class); var cluster = new Cluster(randomIntBetween(1, 3))) {
+        try (var mockLog = MockLog.capture(ClusterBootstrapService.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "fresh node message",
@@ -468,25 +468,27 @@ public class CoordinatorVotingConfigurationTests extends AbstractCoordinatorTest
                 )
             );
 
-            cluster.runRandomly();
-            cluster.stabilise();
-            mockLog.assertAllExpectationsMatched();
+            try (var cluster = new Cluster(randomIntBetween(1, 3))) {
+                cluster.runRandomly();
+                cluster.stabilise();
+                mockLog.assertAllExpectationsMatched();
 
-            final var restartingNode = cluster.getAnyNode();
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "restarted node message",
-                    ClusterBootstrapService.class.getCanonicalName(),
-                    Level.INFO,
-                    "this node is locked into cluster UUID ["
-                        + restartingNode.getLastAppliedClusterState().metadata().clusterUUID()
-                        + "] and will not attempt further cluster bootstrapping"
-                )
-            );
-            restartingNode.close();
-            cluster.clusterNodes.replaceAll(cn -> cn == restartingNode ? cn.restartedNode() : cn);
-            cluster.stabilise();
-            mockLog.assertAllExpectationsMatched();
+                final var restartingNode = cluster.getAnyNode();
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "restarted node message",
+                        ClusterBootstrapService.class.getCanonicalName(),
+                        Level.INFO,
+                        "this node is locked into cluster UUID ["
+                            + restartingNode.getLastAppliedClusterState().metadata().clusterUUID()
+                            + "] and will not attempt further cluster bootstrapping"
+                    )
+                );
+                restartingNode.close();
+                cluster.clusterNodes.replaceAll(cn -> cn == restartingNode ? cn.restartedNode() : cn);
+                cluster.stabilise();
+                mockLog.assertAllExpectationsMatched();
+            }
         }
     }
 

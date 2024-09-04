@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.Strings;
@@ -16,10 +17,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
 /**
  * A request to get node (cluster) level stats.
@@ -51,7 +51,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      */
     public NodesStatsRequest all() {
         this.nodesStatsRequestParameters.indices().all();
-        this.nodesStatsRequestParameters.requestedMetrics().addAll(NodesStatsRequestParameters.Metric.allMetrics());
+        this.nodesStatsRequestParameters.requestedMetrics().addAll(Metric.ALL);
         return this;
     }
 
@@ -100,17 +100,14 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Get the names of requested metrics, excluding indices, which are
      * handled separately.
      */
-    public Set<String> requestedMetrics() {
+    public Set<Metric> requestedMetrics() {
         return Set.copyOf(nodesStatsRequestParameters.requestedMetrics());
     }
 
     /**
      * Add metric
      */
-    public NodesStatsRequest addMetric(String metric) {
-        if (NodesStatsRequestParameters.Metric.allMetrics().contains(metric) == false) {
-            throw new IllegalStateException("Used an illegal metric: " + metric);
-        }
+    public NodesStatsRequest addMetric(Metric metric) {
         nodesStatsRequestParameters.requestedMetrics().add(metric);
         return this;
     }
@@ -118,25 +115,22 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     /**
      * Add an array of metric names
      */
-    public NodesStatsRequest addMetrics(String... metrics) {
-        // use sorted set for reliable ordering in error messages
-        SortedSet<String> metricsSet = new TreeSet<>(Set.of(metrics));
-        if (NodesStatsRequestParameters.Metric.allMetrics().containsAll(metricsSet) == false) {
-            metricsSet.removeAll(NodesStatsRequestParameters.Metric.allMetrics());
-            String plural = metricsSet.size() == 1 ? "" : "s";
-            throw new IllegalStateException("Used illegal metric" + plural + ": " + metricsSet);
+    public NodesStatsRequest addMetrics(Metric... metrics) {
+        for (var metric : metrics) {
+            nodesStatsRequestParameters.requestedMetrics().add(metric);
         }
-        nodesStatsRequestParameters.requestedMetrics().addAll(metricsSet);
+        return this;
+    }
+
+    public NodesStatsRequest addMetrics(List<Metric> metrics) {
+        nodesStatsRequestParameters.requestedMetrics().addAll(metrics);
         return this;
     }
 
     /**
      * Remove metric
      */
-    public NodesStatsRequest removeMetric(String metric) {
-        if (NodesStatsRequestParameters.Metric.allMetrics().contains(metric) == false) {
-            throw new IllegalStateException("Used an illegal metric: " + metric);
-        }
+    public NodesStatsRequest removeMetric(Metric metric) {
         nodesStatsRequestParameters.requestedMetrics().remove(metric);
         return this;
     }

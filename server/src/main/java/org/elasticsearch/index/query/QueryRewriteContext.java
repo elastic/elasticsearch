@@ -14,6 +14,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -62,6 +64,7 @@ public class QueryRewriteContext {
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
     private final ResolvedIndices resolvedIndices;
+    private final PointInTimeBuilder pit;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -77,7 +80,8 @@ public class QueryRewriteContext {
         final ValuesSourceRegistry valuesSourceRegistry,
         final BooleanSupplier allowExpensiveQueries,
         final ScriptCompiler scriptService,
-        final ResolvedIndices resolvedIndices
+        final ResolvedIndices resolvedIndices,
+        final PointInTimeBuilder pit
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -95,6 +99,7 @@ public class QueryRewriteContext {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.scriptService = scriptService;
         this.resolvedIndices = resolvedIndices;
+        this.pit = pit;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -112,6 +117,7 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            null,
             null
         );
     }
@@ -120,7 +126,8 @@ public class QueryRewriteContext {
         final XContentParserConfiguration parserConfiguration,
         final Client client,
         final LongSupplier nowInMillis,
-        final ResolvedIndices resolvedIndices
+        final ResolvedIndices resolvedIndices,
+        final PointInTimeBuilder pit
     ) {
         this(
             parserConfiguration,
@@ -136,7 +143,8 @@ public class QueryRewriteContext {
             null,
             null,
             null,
-            resolvedIndices
+            resolvedIndices,
+            pit
         );
     }
 
@@ -389,5 +397,13 @@ public class QueryRewriteContext {
 
     public ResolvedIndices getResolvedIndices() {
         return resolvedIndices;
+    }
+
+    /**
+     * Returns the {@link PointInTimeBuilder} used by the search request, or null if not specified.
+     */
+    @Nullable
+    public PointInTimeBuilder getPointInTimeBuilder() {
+        return pit;
     }
 }

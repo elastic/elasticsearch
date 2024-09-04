@@ -66,6 +66,11 @@ public class MultiBucketConsumerService {
         }
 
         @Override
+        public Throwable fillInStackTrace() {
+            return this; // this exception doesn't imply a bug, no need for a stack trace
+        }
+
+        @Override
         protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
             super.writeTo(out, nestedExceptionsWriter);
             out.writeInt(maxBuckets);
@@ -134,8 +139,35 @@ public class MultiBucketConsumerService {
         }
     }
 
-    public MultiBucketConsumer create() {
+    /**
+     * Similar to {@link MultiBucketConsumer} but it only checks the parent circuit breaker every 1024 calls.
+     * It provides protection for OOM during partial reductions.
+     */
+    private static class MultiBucketConsumerPartialReduction implements IntConsumer {
+        private final CircuitBreaker breaker;
+
+        // aggregations execute in a single thread so no atomic here
+        private int callCount = 0;
+
+        private MultiBucketConsumerPartialReduction(CircuitBreaker breaker) {
+            this.breaker = breaker;
+        }
+
+        @Override
+        public void accept(int value) {
+            // check parent circuit breaker every 1024 calls
+            if ((++callCount & 0x3FF) == 0) {
+                breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
+            }
+        }
+    }
+
+    public IntConsumer createForFinal() {
         return new MultiBucketConsumer(maxBucket, breaker);
+    }
+
+    public IntConsumer createForPartial() {
+        return new MultiBucketConsumerPartialReduction(breaker);
     }
 
     public int getLimit() {

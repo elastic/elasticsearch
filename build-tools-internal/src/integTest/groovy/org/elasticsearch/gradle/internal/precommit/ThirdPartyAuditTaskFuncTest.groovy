@@ -18,6 +18,7 @@ import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
+import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
 
 
@@ -209,6 +210,10 @@ class ThirdPartyAuditTaskFuncTest extends AbstractGradleInternalPluginFuncTest {
                 .intercept(FixedValue.nullValue())
                 .make()
         loggingDynamicType.toJar(targetFile(dir("${baseGroupFolderPath}/broken-log4j/0.0.1/"), "broken-log4j-0.0.1.jar"))
+    }
+
+    GradleRunner gradleRunner(Object... arguments) {
+        return super.gradleRunner(arguments).withEnvironment([RUNTIME_JAVA_HOME: System.getProperty("java.home")])
     }
 
     static File targetFile(File dir, String fileName) {

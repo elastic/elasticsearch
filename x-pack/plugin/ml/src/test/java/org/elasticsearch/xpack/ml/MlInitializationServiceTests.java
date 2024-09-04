@@ -13,11 +13,15 @@ import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.junit.Before;
 
 import java.util.Map;
@@ -36,6 +40,8 @@ public class MlInitializationServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private ClusterService clusterService;
     private Client client;
+    private InferenceAuditor inferenceAuditor;
+    private MeterRegistry meterRegistry;
     private MlAssignmentNotifier mlAssignmentNotifier;
 
     @Before
@@ -44,9 +50,12 @@ public class MlInitializationServiceTests extends ESTestCase {
         threadPool = deterministicTaskQueue.getThreadPool();
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
+        inferenceAuditor = mock(InferenceAuditor.class);
+        meterRegistry = mock(MeterRegistry.class);
         mlAssignmentNotifier = mock(MlAssignmentNotifier.class);
 
         when(clusterService.getClusterName()).thenReturn(CLUSTER_NAME);
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
 
         @SuppressWarnings("unchecked")
         ActionFuture<GetSettingsResponse> getSettingsResponseActionFuture = mock(ActionFuture.class);
@@ -68,6 +77,8 @@ public class MlInitializationServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             client,
+            inferenceAuditor,
+            meterRegistry,
             mlAssignmentNotifier,
             true,
             true,
@@ -83,6 +94,8 @@ public class MlInitializationServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             client,
+            inferenceAuditor,
+            meterRegistry,
             mlAssignmentNotifier,
             true,
             true,
@@ -94,11 +107,13 @@ public class MlInitializationServiceTests extends ESTestCase {
 
     public void testNodeGoesFromMasterToNonMasterAndBack() {
         MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService = mock(AdaptiveAllocationsScalerService.class);
 
         MlInitializationService initializationService = new MlInitializationService(
             client,
             threadPool,
             initialDailyMaintenanceService,
+            adaptiveAllocationsScalerService,
             clusterService
         );
         initializationService.offMaster();

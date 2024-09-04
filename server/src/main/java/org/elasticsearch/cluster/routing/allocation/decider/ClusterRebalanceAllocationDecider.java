@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -44,7 +45,9 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
     private static final String CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE = "cluster.routing.allocation.allow_rebalance";
     public static final Setting<ClusterRebalanceType> CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING = new Setting<>(
         CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
-        ClusterRebalanceType.INDICES_ALL_ACTIVE.toString(),
+        settings -> ClusterModule.DESIRED_BALANCE_ALLOCATOR.equals(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.get(settings))
+            ? ClusterRebalanceType.ALWAYS.toString()
+            : ClusterRebalanceType.INDICES_ALL_ACTIVE.toString(),
         ClusterRebalanceType::parseString,
         Property.Dynamic,
         Property.NodeScope

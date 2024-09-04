@@ -303,3 +303,38 @@
   - match: { values.0.2: [1, 2] }
   - match: { values.0.3: [1, 2] }
   - match: { values.0.4: [1.1, 2.2] }
+
+
+---
+"grok with duplicate names and different types #110533":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [grok_validation]
+      reason: "fixed grok validation with patterns containing the same attribute multiple times with different types"
+  - do:
+      indices.create:
+        index: test_grok
+        body:
+          mappings:
+            properties:
+              first_name :
+                type : keyword
+              last_name:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_grok" } }
+          - { "first_name": "Georgi", "last_name":"Facello" }
+
+  - do:
+      catch: '/Invalid GROK pattern \[%\{NUMBER:foo\} %\{WORD:foo\}\]: the attribute \[foo\] is defined multiple times with different types/'
+      esql.query:
+        body:
+          query: 'FROM test_grok | KEEP name | WHERE last_name == "Facello" | EVAL name = concat("1 ", last_name) | GROK name "%{NUMBER:foo} %{WORD:foo}"'

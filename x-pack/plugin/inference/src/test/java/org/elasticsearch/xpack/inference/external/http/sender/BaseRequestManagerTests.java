@@ -14,7 +14,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -30,8 +29,7 @@ public class BaseRequestManagerTests extends ESTestCase {
         var manager1 = new BaseRequestManager(mock(ThreadPool.class), "id", val1, new RateLimitSettings(1)) {
             @Override
             public void execute(
-                String query,
-                List<String> input,
+                InferenceInputs inferenceInputs,
                 RequestSender requestSender,
                 Supplier<Boolean> hasRequestCompletedFunction,
                 ActionListener<InferenceServiceResults> listener
@@ -43,8 +41,7 @@ public class BaseRequestManagerTests extends ESTestCase {
         var manager2 = new BaseRequestManager(mock(ThreadPool.class), "id", val2, new RateLimitSettings(1)) {
             @Override
             public void execute(
-                String query,
-                List<String> input,
+                InferenceInputs inferenceInputs,
                 RequestSender requestSender,
                 Supplier<Boolean> hasRequestCompletedFunction,
                 ActionListener<InferenceServiceResults> listener
@@ -62,8 +59,7 @@ public class BaseRequestManagerTests extends ESTestCase {
         var manager1 = new BaseRequestManager(mock(ThreadPool.class), "id", val1, new RateLimitSettings(1)) {
             @Override
             public void execute(
-                String query,
-                List<String> input,
+                InferenceInputs inferenceInputs,
                 RequestSender requestSender,
                 Supplier<Boolean> hasRequestCompletedFunction,
                 ActionListener<InferenceServiceResults> listener
@@ -75,8 +71,7 @@ public class BaseRequestManagerTests extends ESTestCase {
         var manager2 = new BaseRequestManager(mock(ThreadPool.class), "id", val1, new RateLimitSettings(2)) {
             @Override
             public void execute(
-                String query,
-                List<String> input,
+                InferenceInputs inferenceInputs,
                 RequestSender requestSender,
                 Supplier<Boolean> hasRequestCompletedFunction,
                 ActionListener<InferenceServiceResults> listener
@@ -94,8 +89,7 @@ public class BaseRequestManagerTests extends ESTestCase {
         var manager1 = new BaseRequestManager(mock(ThreadPool.class), "id", val1, new RateLimitSettings(1, TimeUnit.MILLISECONDS)) {
             @Override
             public void execute(
-                String query,
-                List<String> input,
+                InferenceInputs inferenceInputs,
                 RequestSender requestSender,
                 Supplier<Boolean> hasRequestCompletedFunction,
                 ActionListener<InferenceServiceResults> listener
@@ -107,8 +101,7 @@ public class BaseRequestManagerTests extends ESTestCase {
         var manager2 = new BaseRequestManager(mock(ThreadPool.class), "id", val1, new RateLimitSettings(1, TimeUnit.DAYS)) {
             @Override
             public void execute(
-                String query,
-                List<String> input,
+                InferenceInputs inferenceInputs,
                 RequestSender requestSender,
                 Supplier<Boolean> hasRequestCompletedFunction,
                 ActionListener<InferenceServiceResults> listener

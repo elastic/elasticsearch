@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -68,7 +69,7 @@ public class RestoreServiceTests extends ESTestCase {
         Index updatedFailureIndex = new Index(failureIndexName, randomUUID());
         when(failureIndexMetadata.getIndex()).thenReturn(updatedFailureIndex);
 
-        RestoreSnapshotRequest request = new RestoreSnapshotRequest();
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT);
 
         DataStream updateDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 
@@ -103,7 +104,8 @@ public class RestoreServiceTests extends ESTestCase {
         Index renamedFailureIndex = new Index(renamedFailureIndexName, randomUUID());
         when(failureIndexMetadata.getIndex()).thenReturn(renamedFailureIndex);
 
-        RestoreSnapshotRequest request = new RestoreSnapshotRequest().renamePattern("data-stream-1").renameReplacement("data-stream-2");
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("data-stream-1")
+            .renameReplacement("data-stream-2");
 
         DataStream renamedDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 
@@ -138,7 +140,7 @@ public class RestoreServiceTests extends ESTestCase {
         Index renamedFailureIndex = new Index(renamedFailureIndexName, randomUUID());
         when(failureIndexMetadata.getIndex()).thenReturn(renamedFailureIndex);
 
-        RestoreSnapshotRequest request = new RestoreSnapshotRequest().renamePattern("ds-").renameReplacement("ds2-");
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("ds-").renameReplacement("ds2-");
 
         DataStream renamedDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 
@@ -146,7 +148,7 @@ public class RestoreServiceTests extends ESTestCase {
         assertEquals(List.of(renamedIndex), renamedDataStream.getIndices());
         assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices().getIndices());
 
-        request = new RestoreSnapshotRequest().renamePattern("ds-000001").renameReplacement("ds2-000001");
+        request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("ds-000001").renameReplacement("ds2-000001");
 
         renamedDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 
@@ -158,7 +160,12 @@ public class RestoreServiceTests extends ESTestCase {
     public void testRefreshRepositoryUuidsDoesNothingIfDisabled() {
         final RepositoriesService repositoriesService = mock(RepositoriesService.class);
         final AtomicBoolean called = new AtomicBoolean();
-        RestoreService.refreshRepositoryUuids(false, repositoriesService, () -> assertTrue(called.compareAndSet(false, true)));
+        RestoreService.refreshRepositoryUuids(
+            false,
+            repositoriesService,
+            () -> assertTrue(called.compareAndSet(false, true)),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         assertTrue(called.get());
         verifyNoMoreInteractions(repositoriesService);
     }
@@ -208,7 +215,12 @@ public class RestoreServiceTests extends ESTestCase {
         final RepositoriesService repositoriesService = mock(RepositoriesService.class);
         when(repositoriesService.getRepositories()).thenReturn(repositories);
         final AtomicBoolean completed = new AtomicBoolean();
-        RestoreService.refreshRepositoryUuids(true, repositoriesService, () -> assertTrue(completed.compareAndSet(false, true)));
+        RestoreService.refreshRepositoryUuids(
+            true,
+            repositoriesService,
+            () -> assertTrue(completed.compareAndSet(false, true)),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         assertTrue(completed.get());
         assertThat(pendingRefreshes, empty());
         finalAssertions.forEach(Runnable::run);
@@ -216,7 +228,7 @@ public class RestoreServiceTests extends ESTestCase {
 
     public void testNotAllowToRestoreGlobalStateFromSnapshotWithoutOne() {
 
-        var request = new RestoreSnapshotRequest().includeGlobalState(true);
+        var request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).includeGlobalState(true);
         var repository = new RepositoryMetadata("name", "type", Settings.EMPTY);
         var snapshot = new Snapshot("repository", new SnapshotId("name", "uuid"));
 

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.script.expression;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -18,10 +17,10 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.putJsonStoredScript;
 import static org.hamcrest.Matchers.containsString;
 
 //TODO: please convert to unit tests!
@@ -38,9 +37,9 @@ public class StoredExpressionIT extends ESIntegTestCase {
         return Collections.singleton(ExpressionPlugin.class);
     }
 
-    public void testAllOpsDisabledIndexedScripts() throws IOException {
-        clusterAdmin().preparePutStoredScript().setId("script1").setContent(new BytesArray("""
-            {"script": {"lang": "expression", "source": "2"} }"""), XContentType.JSON).get();
+    public void testAllOpsDisabledIndexedScripts() {
+        putJsonStoredScript("script1", """
+            {"script": {"lang": "expression", "source": "2"} }""");
         prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
         try {
             client().prepareUpdate("test", "1").setScript(new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())).get();

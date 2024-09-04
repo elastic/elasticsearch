@@ -27,6 +27,8 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -42,9 +44,8 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     public static final String NETTY_EVENT_LOOP_THREAD_POOL_NAME = "azure_event_loop";
 
     static {
-        // Trigger static initialization with the plugin class loader
-        // so we have access to the proper xml parser
-        JacksonAdapter.createDefaultSerializerAdapter();
+        // Trigger static initialization with the plugin class loader so we have access to the proper xml parser
+        AccessController.doPrivileged((PrivilegedAction<Object>) JacksonAdapter::createDefaultSerializerAdapter);
     }
 
     // protected for testing

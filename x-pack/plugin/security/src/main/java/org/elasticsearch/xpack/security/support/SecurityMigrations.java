@@ -28,6 +28,10 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS;
 
+/**
+ * Interface for creating SecurityMigrations that will be automatically applied once to existing .security indices
+ * IMPORTANT: A new index version needs to be added to {@link org.elasticsearch.index.IndexVersions} for the migration to be triggered
+ */
 public class SecurityMigrations {
 
     public interface SecurityMigration {
@@ -57,55 +61,64 @@ public class SecurityMigrations {
         int minMappingVersion();
     }
 
-    public static final TreeMap<Integer, SecurityMigration> MIGRATIONS_BY_VERSION = new TreeMap<>(Map.of(1, new SecurityMigration() {
-        private static final Logger logger = LogManager.getLogger(SecurityMigration.class);
+    public static final Integer ROLE_METADATA_FLATTENED_MIGRATION_VERSION = 1;
 
-        @Override
-        public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
-            BoolQueryBuilder filterQuery = new BoolQueryBuilder().filter(QueryBuilders.termQuery("type", "role"))
-                .mustNot(QueryBuilders.existsQuery("metadata_flattened"));
-            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(filterQuery).size(0).trackTotalHits(true);
-            SearchRequest countRequest = new SearchRequest(indexManager.getConcreteIndexName());
-            countRequest.source(searchSourceBuilder);
+    public static final TreeMap<Integer, SecurityMigration> MIGRATIONS_BY_VERSION = new TreeMap<>(
+        Map.of(ROLE_METADATA_FLATTENED_MIGRATION_VERSION, new SecurityMigration() {
+            private static final Logger logger = LogManager.getLogger(SecurityMigration.class);
 
-            client.search(countRequest, ActionListener.wrap(response -> {
-                // If there are no roles, skip migration
-                if (response.getHits().getTotalHits().value > 0) {
-                    logger.info("Preparing to migrate [" + response.getHits().getTotalHits().value + "] roles");
-                    updateRolesByQuery(indexManager, client, filterQuery, listener);
-                } else {
-                    listener.onResponse(null);
-                }
-            }, listener::onFailure));
-        }
+            @Override
+            public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
+                BoolQueryBuilder filterQuery = new BoolQueryBuilder().filter(QueryBuilders.termQuery("type", "role"))
+                    .mustNot(QueryBuilders.existsQuery("metadata_flattened"));
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(filterQuery).size(0).trackTotalHits(true);
+                SearchRequest countRequest = new SearchRequest(indexManager.getConcreteIndexName());
+                countRequest.source(searchSourceBuilder);
 
-        private void updateRolesByQuery(
-            SecurityIndexManager indexManager,
-            Client client,
-            BoolQueryBuilder filterQuery,
-            ActionListener<Void> listener
-        ) {
-            UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest(indexManager.getConcreteIndexName());
-            updateByQueryRequest.setQuery(filterQuery);
-            updateByQueryRequest.setScript(
-                new Script(ScriptType.INLINE, "painless", "ctx._source.metadata_flattened = ctx._source.metadata", Collections.emptyMap())
-            );
-            client.admin()
-                .cluster()
-                .execute(UpdateByQueryAction.INSTANCE, updateByQueryRequest, ActionListener.wrap(bulkByScrollResponse -> {
-                    logger.info("Migrated [" + bulkByScrollResponse.getTotal() + "] roles");
-                    listener.onResponse(null);
+                client.search(countRequest, ActionListener.wrap(response -> {
+                    // If there are no roles, skip migration
+                    if (response.getHits().getTotalHits().value > 0) {
+                        logger.info("Preparing to migrate [" + response.getHits().getTotalHits().value + "] roles");
+                        updateRolesByQuery(indexManager, client, filterQuery, listener);
+                    } else {
+                        listener.onResponse(null);
+                    }
                 }, listener::onFailure));
-        }
+            }
 
-        @Override
-        public Set<NodeFeature> nodeFeaturesRequired() {
-            return Set.of(SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED);
-        }
+            private void updateRolesByQuery(
+                SecurityIndexManager indexManager,
+                Client client,
+                BoolQueryBuilder filterQuery,
+                ActionListener<Void> listener
+            ) {
+                UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest(indexManager.getConcreteIndexName());
+                updateByQueryRequest.setQuery(filterQuery);
+                updateByQueryRequest.setScript(
+                    new Script(
+                        ScriptType.INLINE,
+                        "painless",
+                        "ctx._source.metadata_flattened = ctx._source.metadata",
+                        Collections.emptyMap()
+                    )
+                );
+                client.admin()
+                    .cluster()
+                    .execute(UpdateByQueryAction.INSTANCE, updateByQueryRequest, ActionListener.wrap(bulkByScrollResponse -> {
+                        logger.info("Migrated [" + bulkByScrollResponse.getTotal() + "] roles");
+                        listener.onResponse(null);
+                    }, listener::onFailure));
+            }
 
-        @Override
-        public int minMappingVersion() {
-            return ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS.id();
-        }
-    }));
+            @Override
+            public Set<NodeFeature> nodeFeaturesRequired() {
+                return Set.of(SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED);
+            }
+
+            @Override
+            public int minMappingVersion() {
+                return ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS.id();
+            }
+        })
+    );
 }

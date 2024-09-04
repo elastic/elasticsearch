@@ -74,7 +74,10 @@ public class ModelRegistry {
             if (modelConfigMap.config() == null) {
                 throw new ElasticsearchStatusException("Missing config map", RestStatus.BAD_REQUEST);
             }
-            String inferenceEntityId = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.MODEL_ID);
+            String inferenceEntityId = ServiceUtils.removeStringOrThrowIfNull(
+                modelConfigMap.config(),
+                ModelConfigurations.INDEX_ONLY_ID_FIELD_NAME
+            );
             String service = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.SERVICE);
             String taskTypeStr = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), TaskType.NAME);
             TaskType taskType = TaskType.fromString(taskTypeStr);
@@ -375,7 +378,10 @@ public class ModelRegistry {
     private static IndexRequest createIndexRequest(String docId, String indexName, ToXContentObject body, boolean allowOverwriting) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             var request = new IndexRequest(indexName);
-            XContentBuilder source = body.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            XContentBuilder source = body.toXContent(
+                builder,
+                new ToXContent.MapParams(Map.of(ModelConfigurations.USE_ID_FOR_INDEX, Boolean.TRUE.toString()))
+            );
             var operation = allowOverwriting ? DocWriteRequest.OpType.INDEX : DocWriteRequest.OpType.CREATE;
 
             return request.opType(operation).id(docId).source(source);

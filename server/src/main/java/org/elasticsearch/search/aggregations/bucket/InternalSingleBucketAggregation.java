@@ -131,7 +131,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         InternalAggregation reduced = this;
         if (pipelineTree.hasSubTrees()) {
             List<InternalAggregation> aggs = new ArrayList<>();
-            for (InternalAggregation agg : getAggregations().asList()) {
+            for (InternalAggregation agg : getAggregations()) {
                 PipelineTree subTree = pipelineTree.subTree(agg.getName());
                 aggs.add(agg.reducePipelines(agg, reduceContext, subTree));
             }

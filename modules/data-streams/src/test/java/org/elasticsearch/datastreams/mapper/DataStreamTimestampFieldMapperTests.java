@@ -177,11 +177,29 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
                     b.startObject("@timestamp");
                     b.field("type", "date");
                     b.endObject();
+                    b.startObject("summary");
+                    {
+                        b.startObject("properties");
+                        {
+                            b.startObject("@timestamp");
+                            b.field("type", "date");
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
                 })
             );
             assertThat(mapperService, notNullValue());
             assertThat(mapperService.documentMapper().mappers().getMapper("@timestamp"), notNullValue());
             assertThat(((DateFieldMapper) mapperService.documentMapper().mappers().getMapper("@timestamp")).ignoreMalformed(), is(false));
+            DateFieldMapper summaryTimestamp = (DateFieldMapper) (mapperService.documentMapper()
+                .mappers()
+                .objectMappers()
+                .get("summary")
+                .getMapper("@timestamp"));
+            assertThat(summaryTimestamp, notNullValue());
+            assertThat(summaryTimestamp.ignoreMalformed(), is(true));
         }
         {
             MapperService mapperService = createMapperService(
@@ -193,11 +211,22 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
                     b.field("type", "date");
                     b.field("ignore_malformed", false);
                     b.endObject();
+                    b.startObject("summary.@timestamp");
+                    b.field("type", "date");
+                    b.field("ignore_malformed", false);
+                    b.endObject();
                 })
             );
             assertThat(mapperService, notNullValue());
             assertThat(mapperService.documentMapper().mappers().getMapper("@timestamp"), notNullValue());
             assertThat(((DateFieldMapper) mapperService.documentMapper().mappers().getMapper("@timestamp")).ignoreMalformed(), is(false));
+            DateFieldMapper summaryTimestamp = (DateFieldMapper) (mapperService.documentMapper()
+                .mappers()
+                .objectMappers()
+                .get("summary")
+                .getMapper("@timestamp"));
+            assertThat(summaryTimestamp, notNullValue());
+            assertThat(summaryTimestamp.ignoreMalformed(), is(false));
         }
     }
 }

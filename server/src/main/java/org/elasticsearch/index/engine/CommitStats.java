@@ -8,6 +8,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.SegmentInfos;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,6 +28,7 @@ public final class CommitStats implements Writeable, ToXContentFragment {
     private final long generation;
     private final String id; // lucene commit id in base 64;
     private final int numDocs;
+    private final int numLeaves;
 
     public CommitStats(SegmentInfos segmentInfos) {
         // clone the map to protect against concurrent changes
@@ -35,6 +37,7 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         generation = segmentInfos.getLastGeneration();
         id = Base64.getEncoder().encodeToString(segmentInfos.getId());
         numDocs = Lucene.getNumDocs(segmentInfos);
+        numLeaves = segmentInfos.size();
     }
 
     CommitStats(StreamInput in) throws IOException {
@@ -42,6 +45,7 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         generation = in.readLong();
         id = in.readOptionalString();
         numDocs = in.readInt();
+        numLeaves = in.getTransportVersion().onOrAfter(TransportVersions.SEGMENT_LEVEL_FIELDS_STATS) ? in.readVInt() : 0;
     }
 
     @Override
@@ -49,12 +53,16 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         CommitStats that = (CommitStats) o;
-        return userData.equals(that.userData) && generation == that.generation && Objects.equals(id, that.id) && numDocs == that.numDocs;
+        return userData.equals(that.userData)
+            && generation == that.generation
+            && Objects.equals(id, that.id)
+            && numDocs == that.numDocs
+            && numLeaves == that.numLeaves;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(userData, generation, id, numDocs);
+        return Objects.hash(userData, generation, id, numDocs, numLeaves);
     }
 
     public static CommitStats readOptionalCommitStatsFrom(StreamInput in) throws IOException {
@@ -81,12 +89,19 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         return numDocs;
     }
 
+    public int getNumLeaves() {
+        return numLeaves;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(userData, StreamOutput::writeString);
         out.writeLong(generation);
         out.writeOptionalString(id);
         out.writeInt(numDocs);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SEGMENT_LEVEL_FIELDS_STATS)) {
+            out.writeVInt(numLeaves);
+        }
     }
 
     static final class Fields {

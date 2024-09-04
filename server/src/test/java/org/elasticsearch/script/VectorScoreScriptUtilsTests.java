@@ -114,10 +114,10 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             );
 
             e = expectThrows(IllegalArgumentException.class, () -> new Hamming(scoreScript, queryVector, fieldName));
-            assertThat(e.getMessage(), containsString("hamming distance is only supported for byte vectors"));
+            assertThat(e.getMessage(), containsString("hamming distance is only supported for byte or bit vectors"));
 
             e = expectThrows(IllegalArgumentException.class, () -> new Hamming(scoreScript, invalidQueryVector, fieldName));
-            assertThat(e.getMessage(), containsString("hamming distance is only supported for byte vectors"));
+            assertThat(e.getMessage(), containsString("hamming distance is only supported for byte or bit vectors"));
 
             // Check scripting infrastructure integration
             DotProduct dotProduct = new DotProduct(scoreScript, queryVector, fieldName);

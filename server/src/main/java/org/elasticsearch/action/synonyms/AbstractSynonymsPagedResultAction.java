@@ -81,6 +81,11 @@ public abstract class AbstractSynonymsPagedResultAction<T extends ActionResponse
         ) {
             if (value < 0) {
                 validationException = addValidationError("[" + paramName + "] must be a positive integer", validationException);
+            } else if (value > MAX_SYNONYMS_RESULTS) {
+                validationException = addValidationError(
+                    "[" + paramName + "] must be less than or equal to " + MAX_SYNONYMS_RESULTS,
+                    validationException
+                );
             }
 
             return validationException;

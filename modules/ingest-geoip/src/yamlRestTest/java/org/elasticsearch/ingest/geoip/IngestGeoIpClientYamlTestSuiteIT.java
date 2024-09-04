@@ -46,7 +46,12 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
         .module("reindex")
         .module("ingest-geoip")
         .systemProperty("ingest.geoip.downloader.enabled.default", "true")
+        // sets the plain (geoip.elastic.co) downloader endpoint, which is used in these tests
         .setting("ingest.geoip.downloader.endpoint", () -> fixture.getAddress(), s -> useFixture)
+        // also sets the enterprise downloader maxmind endpoint, to make sure we do not accidentally hit the real endpoint from tests
+        // note: it's not important that the downloading actually work at this point -- the rest tests (so far) don't exercise
+        // the downloading code because of license reasons -- but if they did, then it would be important that we're hitting a fixture
+        .systemProperty("ingest.geoip.downloader.maxmind.endpoint.default", () -> fixture.getAddress(), s -> useFixture)
         .build();
 
     @ClassRule

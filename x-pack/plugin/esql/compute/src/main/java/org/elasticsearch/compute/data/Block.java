@@ -116,9 +116,20 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
 
     /**
      * Can this block have multivalued fields? Blocks that return {@code false}
-     * will never return more than one from {@link #getValueCount}.
+     * will never return more than one from {@link #getValueCount}. This may
+     * return {@code true} for Blocks that do not have multivalued fields, but
+     * it will always answer quickly.
      */
     boolean mayHaveMultivaluedFields();
+
+    /**
+     * Does this block have multivalued fields? Unlike {@link #mayHaveMultivaluedFields}
+     * this will never return a false positive. In other words, if this returns
+     * {@code true} then there <strong>are</strong> positions for which {@link #getValueCount}
+     * will return more than 1. This will answer quickly if it can but may have
+     * to check all positions.
+     */
+    boolean doesHaveMultivaluedFields();
 
     /**
      * Creates a new block that only exposes the positions provided.
@@ -127,6 +138,14 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
      * TODO: pass BlockFactory
      */
     Block filter(int... positions);
+
+    /**
+     * Build a {@link Block} with the same values as this {@linkplain Block}, but replacing
+     * all values for which {@code mask.getBooleanValue(position)} returns
+     * {@code false} with {@code null}. The {@code mask} vector must be at least
+     * as long as this {@linkplain Block}.
+     */
+    Block keepMask(BooleanVector mask);
 
     /**
      * Builds an Iterator of new {@link Block}s with the same {@link #elementType}

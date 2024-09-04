@@ -55,7 +55,7 @@ public class CcrStatsActionTests extends AbstractWireSerializingTestCase<CcrStat
         if (randomBoolean()) {
             request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(20, 25, 30)));
         }
-        assertSerialization(request, TransportVersionUtils.getPreviousVersion(TransportVersions.CCR_STATS_API_TIMEOUT_PARAM));
+        assertSerialization(request, TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_14_0));
         assertSerialization(request, TransportVersions.MINIMUM_CCS_VERSION);
     }
 }

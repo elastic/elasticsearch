@@ -510,6 +510,9 @@ public class TasksIT extends ESIntegTestCase {
 
         expectThrows(TaskCancelledException.class, future);
 
+        logger.info("--> waiting for all ongoing tasks to complete within a reasonable time");
+        safeGet(clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name() + "*").setWaitForCompletion(true).execute());
+
         logger.info("--> checking that test tasks are not running");
         assertEquals(0, clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name() + "*").get().getTasks().size());
     }
@@ -543,13 +546,7 @@ public class TasksIT extends ESIntegTestCase {
 
             // This ensures that a task has progressed to the point of listing all running tasks and subscribing to their updates
             for (var threadPool : internalCluster().getInstances(ThreadPool.class)) {
-                var max = threadPool.info(ThreadPool.Names.MANAGEMENT).getMax();
-                var executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
-                var waitForManagementToCompleteAllTasks = new CyclicBarrier(max + 1);
-                for (int i = 0; i < max; i++) {
-                    executor.submit(() -> safeAwait(waitForManagementToCompleteAllTasks));
-                }
-                safeAwait(waitForManagementToCompleteAllTasks);
+                flushThreadPoolExecutor(threadPool, ThreadPool.Names.MANAGEMENT);
             }
 
             return future;

@@ -70,8 +70,8 @@ public class RestAllocationAction extends AbstractCatAction {
                 NodesStatsRequest statsRequest = new NodesStatsRequest(nodes);
                 statsRequest.setIncludeShardsStats(false);
                 statsRequest.clear()
-                    .addMetric(NodesStatsRequestParameters.Metric.FS.metricName())
-                    .addMetric(NodesStatsRequestParameters.Metric.ALLOCATIONS.metricName())
+                    .addMetric(NodesStatsRequestParameters.Metric.FS)
+                    .addMetric(NodesStatsRequestParameters.Metric.ALLOCATIONS)
                     .indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
 
                 client.admin().cluster().nodesStats(statsRequest, new RestResponseListener<>(channel) {

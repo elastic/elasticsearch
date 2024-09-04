@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -221,6 +222,11 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     protected static Stream<Boolean> allBooleans(Block input) {
         BooleanBlock b = (BooleanBlock) input;
         return allValueOffsets(b).mapToObj(i -> b.getBoolean(i));
+    }
+
+    protected static Stream<Float> allFloats(Block input) {
+        FloatBlock b = (FloatBlock) input;
+        return allValueOffsets(b).mapToObj(b::getFloat);
     }
 
     protected static DoubleStream allDoubles(Block input) {

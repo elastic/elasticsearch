@@ -72,6 +72,14 @@ public interface DateFormatter {
     }
 
     /**
+     * Return the given nanoseconds-since-epoch formatted with this format.
+     */
+    default String formatNanos(long nanos) {
+        ZoneId zone = zone() != null ? zone() : ZoneOffset.UTC;
+        return format(Instant.ofEpochMilli(nanos / 1_000_000).plusNanos(nanos % 1_000_000).atZone(zone));
+    }
+
+    /**
      * A name based format for this formatter. Can be one of the registered formatters like <code>epoch_millis</code> or
      * a configured format like <code>HH:mm:ss</code>
      *

@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -61,7 +60,6 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLog;
@@ -153,7 +151,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class SecurityTests extends ESTestCase {
-
     private Security security = null;
     private ThreadContext threadContext = null;
     private SecurityContext securityContext = null;
@@ -749,7 +746,7 @@ public class SecurityTests extends ESTestCase {
                 // On trial license, kerberos is allowed and the WWW-Authenticate response header should reflect that
                 verifyHasAuthenticationHeaderValue(
                     e,
-                    "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"",
+                    "Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\"",
                     "Negotiate",
                     "ApiKey"
                 );
@@ -761,7 +758,7 @@ public class SecurityTests extends ESTestCase {
             request.getHttpRequest(),
             ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
                 // On basic or gold license, kerberos is not allowed and the WWW-Authenticate response header should also reflect that
-                verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "ApiKey");
+                verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\"", "ApiKey");
             })
         );
         if (completed.get()) {
@@ -821,7 +818,7 @@ public class SecurityTests extends ESTestCase {
                 null,
                 usageService,
                 null,
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 mock(ClusterService.class),
                 null,
                 List.of(),
@@ -961,8 +958,11 @@ public class SecurityTests extends ESTestCase {
     public void testReload() throws Exception {
         final Settings settings = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir()).build();
 
-        final PlainActionFuture<ActionResponse.Empty> value = new PlainActionFuture<>();
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
         final Client mockedClient = mock(Client.class);
+        when(mockedClient.threadPool()).thenReturn(threadPool);
 
         final JwtRealm mockedJwtRealm = mock(JwtRealm.class);
         final List<ReloadableSecurityComponent> reloadableComponents = List.of(mockedJwtRealm);
@@ -993,11 +993,17 @@ public class SecurityTests extends ESTestCase {
         verify(mockedJwtRealm).reload(same(inputSettings));
     }
 
-    public void testReloadWithFailures() throws Exception {
+    public void testReloadWithFailures() {
         final Settings settings = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir()).build();
 
         final boolean failRemoteClusterCredentialsReload = randomBoolean();
+
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
         final Client mockedClient = mock(Client.class);
+        when(mockedClient.threadPool()).thenReturn(threadPool);
+
         final JwtRealm mockedJwtRealm = mock(JwtRealm.class);
         final List<ReloadableSecurityComponent> reloadableComponents = List.of(mockedJwtRealm);
         if (failRemoteClusterCredentialsReload) {

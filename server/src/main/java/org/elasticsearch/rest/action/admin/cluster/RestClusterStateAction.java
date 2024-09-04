@@ -117,7 +117,7 @@ public class RestClusterStateAction extends BaseRestHandler {
             new RestChunkedToXContentListener<RestClusterStateResponse>(
                 channel,
                 new ToXContent.DelegatingMapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API), request)
-            ).map(response -> new RestClusterStateResponse(clusterStateRequest, response, threadPool::relativeTimeInMillis))
+            ).map(response -> new RestClusterStateResponse(clusterStateRequest, response, threadPool.relativeTimeInMillisSupplier()))
         );
     }
 

@@ -380,7 +380,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 // run pre-recovery activities
                 .newForked(indexShard::preRecovery)
                 // recover the shard as far as possible based on data held locally
-                .<Long>andThen((l, v) -> {
+                .<Long>andThen(l -> {
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
                     if (indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
@@ -517,7 +517,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     public interface RecoveryListener {
-        void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange);
+        void onRecoveryDone(
+            RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        );
 
         void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
     }

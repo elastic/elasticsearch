@@ -31,6 +31,7 @@
             lifecycle:
               data_retention: 10d
           data_stream: {}
+  - is_true: acknowledged
 
   - do:
       indices.create_data_stream:

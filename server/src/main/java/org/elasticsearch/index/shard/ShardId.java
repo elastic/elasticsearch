@@ -108,14 +108,17 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
 
     @Override
     public int compareTo(ShardId o) {
-        if (o.getId() == shardId) {
-            int compare = index.getName().compareTo(o.getIndex().getName());
-            if (compare != 0) {
-                return compare;
-            }
-            return index.getUUID().compareTo(o.getIndex().getUUID());
+        final int res = Integer.compare(shardId, o.shardId);
+        if (res != 0) {
+            return res;
         }
-        return Integer.compare(shardId, o.getId());
+        final Index index = this.index;
+        final Index otherIndex = o.index;
+        int compare = index.getName().compareTo(otherIndex.getName());
+        if (compare != 0) {
+            return compare;
+        }
+        return index.getUUID().compareTo(otherIndex.getUUID());
     }
 
     @Override

@@ -39,7 +39,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CyclicBarrier;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -518,34 +517,17 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         createIndex("test");
         indexDoc("test", "1", "field", "1");
         final BulkResponse[] responses = new BulkResponse[30];
-        final CyclicBarrier cyclicBarrier = new CyclicBarrier(responses.length);
-        Thread[] threads = new Thread[responses.length];
 
-        for (int i = 0; i < responses.length; i++) {
-            final int threadID = i;
-            threads[threadID] = new Thread(() -> {
-                try {
-                    cyclicBarrier.await();
-                } catch (Exception e) {
-                    return;
-                }
-                BulkRequestBuilder requestBuilder = client().prepareBulk();
-                requestBuilder.add(
-                    client().prepareUpdate("test", "1")
-                        .setIfSeqNo(0L)
-                        .setIfPrimaryTerm(1)
-                        .setDoc(Requests.INDEX_CONTENT_TYPE, "field", threadID)
-                );
-                responses[threadID] = requestBuilder.get();
-
-            });
-            threads[threadID].start();
-
-        }
-
-        for (int i = 0; i < threads.length; i++) {
-            threads[i].join();
-        }
+        startInParallel(responses.length, threadID -> {
+            BulkRequestBuilder requestBuilder = client().prepareBulk();
+            requestBuilder.add(
+                client().prepareUpdate("test", "1")
+                    .setIfSeqNo(0L)
+                    .setIfPrimaryTerm(1)
+                    .setDoc(Requests.INDEX_CONTENT_TYPE, "field", threadID)
+            );
+            responses[threadID] = requestBuilder.get();
+        });
 
         int successes = 0;
         for (BulkResponse response : responses) {

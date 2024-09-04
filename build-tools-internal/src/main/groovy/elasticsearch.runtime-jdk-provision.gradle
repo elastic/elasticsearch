@@ -25,7 +25,6 @@ configure(allprojects) {
         JvmVendorSpec.ORACLE :
         JvmVendorSpec.matching(VersionProperties.bundledJdkVendor)
     }
-
   project.tasks.withType(Test).configureEach { Test test ->
         if (BuildParams.getIsRuntimeJavaHomeSet()) {
             test.executable = "${BuildParams.runtimeJavaHome}/bin/java" +
@@ -46,13 +45,5 @@ configure(allprojects) {
                 testClustersPlugin.setRuntimeJava(launcher.map { it.metadata.installationPath.asFile })
             }
         }
-    }
-    project.plugins.withType(ThirdPartyAuditPrecommitPlugin) {
-      project.getTasks().withType(ThirdPartyAuditTask.class).configureEach {
-        if (BuildParams.getIsRuntimeJavaHomeSet() == false) {
-          javaHome.set(launcher.map { it.metadata.installationPath.asFile.path })
-          targetCompatibility.set(providers.provider(() -> JavaVersion.toVersion(launcher.map { it.metadata.javaRuntimeVersion }.get())))
-        }
-      }
     }
 }

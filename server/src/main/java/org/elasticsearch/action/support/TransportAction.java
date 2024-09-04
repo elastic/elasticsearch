@@ -14,11 +14,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> {
@@ -26,22 +29,46 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     public final String actionName;
     private final ActionFilter[] filters;
     protected final TaskManager taskManager;
+    private final Executor executor;
     /**
      * @deprecated declare your own logger.
      */
     @Deprecated
     protected Logger logger = LogManager.getLogger(getClass());
 
-    protected TransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
+    interface TransportActionHandler<Request extends ActionRequest, Response extends ActionResponse> {
+        void execute(Task task, Request request, ActionListener<Response> listener);
+    }
+
+    protected TransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager, Executor executor) {
         this.actionName = actionName;
         this.filters = actionFilters.filters();
         this.taskManager = taskManager;
+        this.executor = executor;
     }
 
     /**
      * Use this method when the transport action should continue to run in the context of the current task
      */
+    protected final void executeDirect(Task task, Request request, ActionListener<Response> listener) {
+        handleExecution(task, request, listener, this::doExecute);
+    }
+
     public final void execute(Task task, Request request, ActionListener<Response> listener) {
+        handleExecution(
+            task,
+            request,
+            listener,
+            executor == EsExecutors.DIRECT_EXECUTOR_SERVICE ? this::doExecute : this::doExecuteForking
+        );
+    }
+
+    private void handleExecution(
+        Task task,
+        Request request,
+        ActionListener<Response> listener,
+        TransportActionHandler<Request, Response> handler
+    ) {
         final ActionRequestValidationException validationException;
         try {
             validationException = request.validate();
@@ -64,8 +91,12 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         // Releasables#releaseOnce to avoid a double-release.
         request.mustIncRef();
         final var releaseRef = Releasables.releaseOnce(request::decRef);
-        RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger, releaseRef);
+        RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger, handler, releaseRef);
         requestFilterChain.proceed(task, actionName, request, ActionListener.runBefore(listener, releaseRef::close));
+    }
+
+    private void doExecuteForking(Task task, Request request, ActionListener<Response> listener) {
+        executor.execute(ActionRunnable.wrap(listener, l -> doExecute(task, request, listener)));
     }
 
     protected abstract void doExecute(Task task, Request request, ActionListener<Response> listener);
@@ -75,13 +106,20 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             ActionFilterChain<Request, Response> {
 
         private final TransportAction<Request, Response> action;
+        private final TransportActionHandler<Request, Response> handler;
         private final AtomicInteger index = new AtomicInteger();
         private final Logger logger;
         private final Releasable releaseRef;
 
-        private RequestFilterChain(TransportAction<Request, Response> action, Logger logger, Releasable releaseRef) {
+        private RequestFilterChain(
+            TransportAction<Request, Response> action,
+            Logger logger,
+            TransportActionHandler<Request, Response> handler,
+            Releasable releaseRef
+        ) {
             this.action = action;
             this.logger = logger;
+            this.handler = handler;
             this.releaseRef = releaseRef;
         }
 
@@ -93,7 +131,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                     this.action.filters[i].apply(task, actionName, request, listener, this);
                 } else if (i == this.action.filters.length) {
                     try (releaseRef) {
-                        this.action.doExecute(task, request, listener);
+                        handler.execute(task, request, listener);
                     }
                 } else {
                     listener.onFailure(new IllegalStateException("proceed was called too many times"));
@@ -103,7 +141,6 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 listener.onFailure(e);
             }
         }
-
     }
 
     /**

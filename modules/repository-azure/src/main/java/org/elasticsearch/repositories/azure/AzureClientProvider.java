@@ -28,6 +28,7 @@ import com.azure.core.http.HttpResponse;
 import com.azure.core.http.ProxyOptions;
 import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
 import com.azure.core.http.policy.HttpPipelinePolicy;
+import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
@@ -61,6 +62,17 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private static final int DEFAULT_MAX_CONNECTIONS = 50;
     private static final int DEFAULT_EVENT_LOOP_THREAD_COUNT = 1;
     private static final int PENDING_CONNECTION_QUEUE_SIZE = -1; // see ConnectionProvider.ConnectionPoolSpec.pendingAcquireMaxCount
+
+    /**
+     * Test-only system property to disable instance discovery for workload identity authentication in the Azure SDK.
+     * This is necessary since otherwise the SDK will attempt to verify identities via a real host
+     * (e.g. <a href="https://login.microsoft.com/">https://login.microsoft.com/</a>) for
+     * workload identity authentication. This is incompatible with our test environment.
+     */
+    private static final boolean DISABLE_INSTANCE_DISCOVERY = System.getProperty(
+        "tests.azure.credentials.disable_instance_discovery",
+        "false"
+    ).equals("true");
 
     static final Setting<Integer> EVENT_LOOP_THREAD_COUNT = Setting.intSetting(
         "repository.azure.http_client.event_loop_executor_thread_count",
@@ -167,6 +179,14 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString)
             .httpClient(httpClient)
             .retryOptions(retryOptions);
+
+        if (settings.hasCredentials() == false) {
+            final DefaultAzureCredentialBuilder credentialBuilder = new DefaultAzureCredentialBuilder().executorService(eventLoopGroup);
+            if (DISABLE_INSTANCE_DISCOVERY) {
+                credentialBuilder.disableInstanceDiscovery();
+            }
+            builder.credential(credentialBuilder.build());
+        }
 
         if (successfulRequestConsumer != null) {
             builder.addPolicy(new SuccessfulRequestTracker(successfulRequestConsumer));

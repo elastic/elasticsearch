@@ -1,0 +1,6 @@
+pr: 110669
+summary: "[ES|QL] Use `RangeQuery` and String in `BinaryComparison` on datetime fields"
+area: ES|QL
+type: bug
+issues:
+ - 107900

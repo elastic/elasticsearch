@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal;
 
-import com.gradle.scan.plugin.BuildScanExtension;
+import com.gradle.develocity.agent.gradle.DevelocityConfiguration;
 
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
@@ -61,10 +61,10 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             : System.getenv("BUILDKITE_BUILD_NUMBER");
         String performanceTest = System.getenv("BUILD_PERFORMANCE_TEST");
         if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false) {
-            File targetFile = target.file("build/" + buildNumber + ".tar.bz2");
+            File targetFile = calculateTargetFile(target, buildNumber);
             File projectDir = target.getProjectDir();
             File gradleWorkersDir = new File(target.getGradle().getGradleUserHomeDir(), "workers/");
-            BuildScanExtension extension = target.getExtensions().getByType(BuildScanExtension.class);
+            DevelocityConfiguration extension = target.getExtensions().getByType(DevelocityConfiguration.class);
             File daemonsLogDir = new File(target.getGradle().getGradleUserHomeDir(), "daemon/" + target.getGradle().getGradleVersion());
 
             getFlowScope().always(BuildFinishedFlowAction.class, spec -> {
@@ -86,9 +86,19 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         }
     }
 
+    private File calculateTargetFile(Project target, String buildNumber) {
+        File uploadFile = target.file("build/" + buildNumber + ".tar.bz2");
+        int artifactIndex = 1;
+        while (uploadFile.exists()) {
+            uploadFile = target.file("build/" + buildNumber + "-" + artifactIndex++ + ".tar.bz2");
+        }
+        return uploadFile;
+    }
+
     private List<File> resolveProjectLogs(File projectDir) {
         var projectDirFiles = getFileOperations().fileTree(projectDir);
         projectDirFiles.include("**/*.hprof");
+        projectDirFiles.include("**/build/reports/configuration-cache/**");
         projectDirFiles.include("**/build/test-results/**/*.xml");
         projectDirFiles.include("**/build/testclusters/**");
         projectDirFiles.include("**/build/testrun/*/temp/**");
@@ -125,7 +135,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             ListProperty<File> getFilteredFiles();
 
             @Input
-            Property<BuildScanExtension> getBuildScan();
+            Property<DevelocityConfiguration> getBuildScan();
 
         }
 
@@ -198,7 +208,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                             + System.getenv("BUILDKITE_JOB_ID")
                             + "/artifacts/"
                             + artifactUuid;
-                        parameters.getBuildScan().get().link("Artifact Upload", targetLink);
+                        parameters.getBuildScan().get().getBuildScan().link("Artifact Upload", targetLink);
                     }
                 } catch (Exception e) {
                     System.out.println("Failed to upload buildkite artifact " + e.getMessage());

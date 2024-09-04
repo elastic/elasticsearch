@@ -22,4 +22,5 @@ tasks.named('javaRestTest').configure {
 
 dependencies {
   clusterModules project(':modules:apm')
+  implementation project(':libs:elasticsearch-logging')
 }

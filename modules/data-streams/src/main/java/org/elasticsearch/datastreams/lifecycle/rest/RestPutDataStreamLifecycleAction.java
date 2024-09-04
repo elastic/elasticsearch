@@ -41,10 +41,17 @@ public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            PutDataStreamLifecycleAction.Request putLifecycleRequest = PutDataStreamLifecycleAction.Request.parseRequest(parser);
-            putLifecycleRequest.indices(Strings.splitStringByCommaToArray(request.param("name")));
-            putLifecycleRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-            putLifecycleRequest.ackTimeout(getAckTimeout(request));
+            PutDataStreamLifecycleAction.Request putLifecycleRequest = PutDataStreamLifecycleAction.Request.parseRequest(
+                parser,
+                (dataRetention, enabled, downsampling) -> new PutDataStreamLifecycleAction.Request(
+                    getMasterNodeTimeout(request),
+                    getAckTimeout(request),
+                    Strings.splitStringByCommaToArray(request.param("name")),
+                    dataRetention,
+                    enabled,
+                    downsampling
+                )
+            );
             putLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, putLifecycleRequest.indicesOptions()));
             return channel -> client.execute(
                 PutDataStreamLifecycleAction.INSTANCE,

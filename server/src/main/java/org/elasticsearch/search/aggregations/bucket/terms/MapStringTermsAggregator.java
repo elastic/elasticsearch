@@ -9,7 +9,10 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
@@ -419,20 +422,61 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             }
             // we need to fill-in the blanks
             for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
-                SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-                // brute force
-                for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                    if (excludeDeletedDocs && ctx.reader().getLiveDocs() != null && ctx.reader().getLiveDocs().get(docId) == false) {
-                        continue;
+                final Bits liveDocs = excludeDeletedDocs ? ctx.reader().getLiveDocs() : null;
+                if (liveDocs == null && valuesSource.hasOrdinals()) {
+                    final SortedSetDocValues values = ((ValuesSource.Bytes.WithOrdinals) valuesSource).ordinalsValues(ctx);
+                    collectZeroDocEntries(values, owningBucketOrd);
+                } else {
+                    final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+                    final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
+                    if (singleton != null) {
+                        collectZeroDocEntries(singleton, liveDocs, ctx.reader().maxDoc(), owningBucketOrd);
+                    } else {
+                        collectZeroDocEntries(values, liveDocs, ctx.reader().maxDoc(), owningBucketOrd);
                     }
-                    if (values.advanceExact(docId)) {
-                        int valueCount = values.docValueCount();
-                        for (int i = 0; i < valueCount; ++i) {
-                            BytesRef term = values.nextValue();
-                            if (includeExclude == null || includeExclude.accept(term)) {
-                                bucketOrds.add(owningBucketOrd, term);
-                            }
+                }
+            }
+        }
+
+        private void collectZeroDocEntries(SortedSetDocValues values, long owningBucketOrd) throws IOException {
+            final TermsEnum termsEnum = values.termsEnum();
+            BytesRef term;
+            while ((term = termsEnum.next()) != null) {
+                if (includeExclude == null || includeExclude.accept(term)) {
+                    bucketOrds.add(owningBucketOrd, term);
+                }
+            }
+        }
+
+        private void collectZeroDocEntries(SortedBinaryDocValues values, Bits liveDocs, int maxDoc, long owningBucketOrd)
+            throws IOException {
+            // brute force
+            for (int docId = 0; docId < maxDoc; ++docId) {
+                if (liveDocs != null && liveDocs.get(docId) == false) {
+                    continue;
+                }
+                if (values.advanceExact(docId)) {
+                    final int valueCount = values.docValueCount();
+                    for (int i = 0; i < valueCount; ++i) {
+                        final BytesRef term = values.nextValue();
+                        if (includeExclude == null || includeExclude.accept(term)) {
+                            bucketOrds.add(owningBucketOrd, term);
                         }
+                    }
+                }
+            }
+        }
+
+        private void collectZeroDocEntries(BinaryDocValues values, Bits liveDocs, int maxDoc, long owningBucketOrd) throws IOException {
+            // brute force
+            for (int docId = 0; docId < maxDoc; ++docId) {
+                if (liveDocs != null && liveDocs.get(docId) == false) {
+                    continue;
+                }
+                if (values.advanceExact(docId)) {
+                    final BytesRef term = values.binaryValue();
+                    if (includeExclude == null || includeExclude.accept(term)) {
+                        bucketOrds.add(owningBucketOrd, term);
                     }
                 }
             }

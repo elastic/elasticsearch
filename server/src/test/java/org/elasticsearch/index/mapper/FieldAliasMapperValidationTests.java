@@ -16,6 +16,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -159,7 +160,15 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
 
     private static FieldMapper createFieldMapper(String parent, String name) {
         return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, false, IndexVersion.current()).build(
-            new MapperBuilderContext(parent)
+            new MapperBuilderContext(
+                parent,
+                false,
+                false,
+                false,
+                ObjectMapper.Defaults.DYNAMIC,
+                MapperService.MergeReason.MAPPING_UPDATE,
+                false
+            )
         );
     }
 
@@ -168,7 +177,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             name,
             name,
             Explicit.IMPLICIT_TRUE,
-            Explicit.IMPLICIT_TRUE,
+            Optional.empty(),
             Explicit.IMPLICIT_FALSE,
             ObjectMapper.Dynamic.FALSE,
             emptyMap()

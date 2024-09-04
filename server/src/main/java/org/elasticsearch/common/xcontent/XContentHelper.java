@@ -20,7 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -152,14 +152,14 @@ public class XContentHelper {
         BytesReference bytes,
         boolean ordered,
         XContentType xContentType,
-        DocumentSizeObserver documentSizeObserver
+        XContentParserDecorator parserDecorator
     ) {
         return parseToType(
             ordered ? XContentParser::mapOrdered : XContentParser::map,
             bytes,
             xContentType,
             XContentParserConfiguration.EMPTY,
-            documentSizeObserver
+            parserDecorator
         );
     }
 
@@ -207,7 +207,7 @@ public class XContentHelper {
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config
     ) throws ElasticsearchParseException {
-        return parseToType(extractor, bytes, xContentType, config, DocumentSizeObserver.EMPTY_INSTANCE);
+        return parseToType(extractor, bytes, xContentType, config, XContentParserDecorator.NOOP);
     }
 
     public static <T> Tuple<XContentType, T> parseToType(
@@ -215,11 +215,11 @@ public class XContentHelper {
         BytesReference bytes,
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config,
-        DocumentSizeObserver documentSizeObserver
+        XContentParserDecorator parserDecorator
     ) throws ElasticsearchParseException {
         config = config != null ? config : XContentParserConfiguration.EMPTY;
         try (
-            XContentParser parser = documentSizeObserver.wrapParser(
+            XContentParser parser = parserDecorator.decorate(
                 xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)
             )
         ) {
@@ -747,25 +747,5 @@ public class XContentHelper {
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
-    }
-
-    /**
-     * Drains all data available via this parser into a provided builder.
-     * Provided parser is closed as a result.
-     * @param parser
-     * @param destination
-     */
-    public static void drainAndClose(XContentParser parser, XContentBuilder destination) throws IOException {
-        if (parser.isClosed()) {
-            throw new IllegalStateException("Can't drain a parser that is closed");
-        }
-
-        XContentParser.Token token;
-        do {
-            destination.copyCurrentStructure(parser);
-            token = parser.nextToken();
-        } while (token != null);
-
-        parser.close();
     }
 }

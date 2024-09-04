@@ -7,13 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.embeddings;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants;
 import org.hamcrest.MatcherAssert;
 
@@ -23,7 +25,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class AzureAiStudioEmbeddingsTaskSettingsTests extends ESTestCase {
+public class AzureAiStudioEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializationTestCase<AzureAiStudioEmbeddingsTaskSettings> {
 
     public void testFromMap_WithUser() {
         assertEquals(
@@ -97,5 +99,32 @@ public class AzureAiStudioEmbeddingsTaskSettingsTests extends ESTestCase {
             map.put(AzureAiStudioConstants.USER_FIELD, user);
         }
         return map;
+    }
+
+    @Override
+    protected Writeable.Reader<AzureAiStudioEmbeddingsTaskSettings> instanceReader() {
+        return AzureAiStudioEmbeddingsTaskSettings::new;
+    }
+
+    @Override
+    protected AzureAiStudioEmbeddingsTaskSettings createTestInstance() {
+        return createRandom();
+    }
+
+    @Override
+    protected AzureAiStudioEmbeddingsTaskSettings mutateInstance(AzureAiStudioEmbeddingsTaskSettings instance) throws IOException {
+        return randomValueOtherThan(instance, AzureAiStudioEmbeddingsTaskSettingsTests::createRandom);
+    }
+
+    @Override
+    protected AzureAiStudioEmbeddingsTaskSettings mutateInstanceForVersion(
+        AzureAiStudioEmbeddingsTaskSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
+    }
+
+    private static AzureAiStudioEmbeddingsTaskSettings createRandom() {
+        return new AzureAiStudioEmbeddingsTaskSettings(randomFrom(new String[] { null, randomAlphaOfLength(15) }));
     }
 }

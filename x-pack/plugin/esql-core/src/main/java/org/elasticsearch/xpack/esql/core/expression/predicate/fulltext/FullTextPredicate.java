@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,7 +56,7 @@ public abstract class FullTextPredicate extends Expression {
             Source.readFrom((StreamInput & PlanStreamInput) in),
             in.readString(),
             in.readOptionalString(),
-            in.readCollectionAsList(input -> ((PlanStreamInput) in).readExpression())
+            in.readNamedWriteableCollectionAsList(Expression.class)
         );
     }
 
@@ -92,7 +91,7 @@ public abstract class FullTextPredicate extends Expression {
         source().writeTo(out);
         out.writeString(query);
         out.writeOptionalString(options);
-        out.writeCollection(children(), (o, v) -> ((PlanStreamOutput) o).writeExpression(v));
+        out.writeNamedWriteableCollection(children());
     }
 
     @Override

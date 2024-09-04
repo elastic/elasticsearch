@@ -943,8 +943,8 @@ final class DefaultSearchContext extends SearchContext {
                         // to the routing path.
                         Set<String> matchingRoutingPaths = new TreeSet<>(routingPaths);
                         for (Mapper mapper : indexService.mapperService().mappingLookup().fieldMappers()) {
-                            if (mapper instanceof KeywordFieldMapper && indexRouting.matchesField(mapper.name())) {
-                                matchingRoutingPaths.add(mapper.name());
+                            if (mapper instanceof KeywordFieldMapper && indexRouting.matchesField(mapper.fullPath())) {
+                                matchingRoutingPaths.add(mapper.fullPath());
                             }
                         }
                         routingPaths = new ArrayList<>(matchingRoutingPaths);

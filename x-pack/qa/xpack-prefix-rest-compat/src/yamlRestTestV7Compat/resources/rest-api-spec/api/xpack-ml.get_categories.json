@@ -34,7 +34,7 @@
           }
         },
         {
-          "path":"/_xpack/ml/anomaly_detectors/{job_id}/results/categories/",
+          "path":"/_xpack/ml/anomaly_detectors/{job_id}/results/categories",
           "methods":[
             "GET",
             "POST"

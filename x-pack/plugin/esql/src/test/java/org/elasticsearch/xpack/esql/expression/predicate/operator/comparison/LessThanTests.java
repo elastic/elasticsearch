@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class LessThanTests extends AbstractFunctionTestCase {
+public class LessThanTests extends AbstractScalarFunctionTestCase {
     public LessThanTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -106,7 +106,20 @@ public class LessThanTests extends AbstractFunctionTestCase {
             )
         );
         // Datetime
-        // TODO: I'm surprised this passes. Shouldn't there be a cast from DateTime to Long?
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "LessThanLongsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> ((Number) l).longValue() < ((Number) r).longValue(),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 "LessThanLongsEvaluator",
@@ -131,7 +144,15 @@ public class LessThanTests extends AbstractFunctionTestCase {
         );
 
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), AbstractFunctionTestCase::errorMessageStringForBinaryOperators)
+            errorsForCasesWithoutExamples(
+                anyNullIsNull(true, suppliers),
+                (o, v, t) -> AbstractScalarFunctionTestCase.errorMessageStringForBinaryOperators(
+                    o,
+                    v,
+                    t,
+                    (l, p) -> "date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
+                )
+            )
         );
     }
 

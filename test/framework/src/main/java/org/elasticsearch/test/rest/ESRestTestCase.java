@@ -44,7 +44,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.cluster.ClusterFeatures;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -307,11 +306,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static boolean clusterHasFeature(String featureId) {
-        return testFeatureService.clusterHasFeature(featureId);
+        return testFeatureService.clusterHasFeature(featureId, false);
     }
 
     protected static boolean clusterHasFeature(NodeFeature feature) {
-        return testFeatureService.clusterHasFeature(feature.id());
+        return testFeatureService.clusterHasFeature(feature.id(), false);
     }
 
     protected static boolean testFeatureServiceInitialized() {
@@ -418,11 +417,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 RestTestLegacyFeatures.class.getCanonicalName()
             );
         }
-        return new ESRestTestFeatureService(
-            additionalTestOnlyHistoricalFeatures(),
-            semanticNodeVersions,
-            ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
-        );
+        return new ESRestTestFeatureService(additionalTestOnlyHistoricalFeatures(), semanticNodeVersions, clusterStateFeatures.values());
     }
 
     protected static boolean has(ProductFeature feature) {
@@ -2024,7 +2019,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         final Request request = newXContentRequest(
             HttpMethod.PUT,
             "/_snapshot/" + repository,
-            new PutRepositoryRequest(repository).type(type).settings(settings)
+            new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repository).type(type).settings(settings)
         );
         request.addParameter("verify", Boolean.toString(verify));
 

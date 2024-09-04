@@ -14,6 +14,7 @@ import io.opentelemetry.api.metrics.ObservableLongGauge;
 import org.elasticsearch.telemetry.apm.AbstractInstrument;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
+import java.util.Collection;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -21,7 +22,7 @@ import java.util.function.Supplier;
  * LongGaugeAdapter wraps an otel ObservableLongGauge
  */
 public class LongGaugeAdapter extends AbstractInstrument<ObservableLongGauge> implements org.elasticsearch.telemetry.metric.LongGauge {
-    public LongGaugeAdapter(Meter meter, String name, String description, String unit, Supplier<LongWithAttributes> observer) {
+    public LongGaugeAdapter(Meter meter, String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer) {
         super(meter, new Builder(name, description, unit, observer));
     }
 
@@ -31,11 +32,11 @@ public class LongGaugeAdapter extends AbstractInstrument<ObservableLongGauge> im
     }
 
     private static class Builder extends AbstractInstrument.Builder<ObservableLongGauge> {
-        private final Supplier<LongWithAttributes> observer;
+        private final Supplier<Collection<LongWithAttributes>> observer;
 
-        private Builder(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
+        private Builder(String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer) {
             super(name, description, unit);
-            this.observer = Objects.requireNonNull(observer);
+            this.observer = observer;
         }
 
         @Override

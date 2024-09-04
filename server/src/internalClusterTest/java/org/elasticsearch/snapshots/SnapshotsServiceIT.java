@@ -124,7 +124,9 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         SubscribableListener<Void> snapshotDeletionListener = createSnapshotDeletionListener("test-repo");
         repository.blockOnDataFiles();
         try {
-            clusterAdmin().prepareDeleteSnapshot("test-repo", "test-snapshot").setWaitForCompletion(false).execute(listener);
+            clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snapshot")
+                .setWaitForCompletion(false)
+                .execute(listener);
             // The request will complete as soon as the deletion is scheduled
             safeGet(listener);
             // The deletion won't complete until the block is removed
@@ -144,7 +146,9 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         SubscribableListener<Void> snapshotDeletionListener = createSnapshotDeletionListener("test-repo");
         repository.blockOnDataFiles();
         try {
-            clusterAdmin().prepareDeleteSnapshot("test-repo", "test-snapshot").setWaitForCompletion(true).execute(requestCompleteListener);
+            clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snapshot")
+                .setWaitForCompletion(true)
+                .execute(requestCompleteListener);
             // Neither the request nor the deletion will complete until we remove the block
             assertFalse(requestCompleteListener.isDone());
             assertFalse(snapshotDeletionListener.isDone());

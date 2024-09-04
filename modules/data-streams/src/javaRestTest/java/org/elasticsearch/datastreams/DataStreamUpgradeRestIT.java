@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
@@ -306,6 +307,6 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
                 // Throw the exception, if it was an error we did not anticipate
                 throw responseException;
             }
-        });
+        }, 15, TimeUnit.SECONDS);
     }
 }

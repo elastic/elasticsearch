@@ -22,8 +22,11 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GoogleAiStudioCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -39,6 +42,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioServiceTests.buildExpectationCompletions;
@@ -265,10 +269,16 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
         }
     }
 
-    private GoogleAiStudioCompletionAction createAction(String url, String apiKey, String modelName, Sender sender) {
+    private ExecutableAction createAction(String url, String apiKey, String modelName, Sender sender) {
         var model = GoogleAiStudioCompletionModelTests.createModel(modelName, url, apiKey);
-
-        return new GoogleAiStudioCompletionAction(sender, model, threadPool);
+        var requestManager = new GoogleAiStudioCompletionRequestManager(model, threadPool);
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(), "Google AI Studio completion");
+        return new SingleInputSenderExecutableAction(
+            sender,
+            requestManager,
+            failedToSendRequestErrorMessage,
+            "Google AI Studio completion"
+        );
     }
 
 }

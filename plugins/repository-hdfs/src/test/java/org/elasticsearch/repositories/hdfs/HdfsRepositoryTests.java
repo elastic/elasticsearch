@@ -39,7 +39,7 @@ public class HdfsRepositoryTests extends AbstractThirdPartyRepositoryTestCase {
     @Override
     protected void createRepository(String repoName) {
         assertAcked(
-            clusterAdmin().preparePutRepository(repoName)
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
                 .setType("hdfs")
                 .setSettings(
                     Settings.builder()

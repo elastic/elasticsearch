@@ -19,6 +19,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
+import org.elasticsearch.gradle.DistributionDownloadPlugin
 
 import java.nio.file.Files
 
@@ -284,11 +285,16 @@ allprojects {
   }
 
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
-    configs = project.configurations
+    def ignoredPrefixes = [DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver"]
+    configs = project.configurations.matching { config -> ignoredPrefixes.any { config.name.startsWith(it) } == false }
     resolveJavaToolChain = true
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)
     }
+    if (project.path.contains(":distribution:docker")) {
+      enabled = false
+    }
+
   }
 
   plugins.withId('lifecycle-base') {

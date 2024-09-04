@@ -27,6 +27,10 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Container for information about results of the resolution of index expression.
+ * Contains local indices, map of remote indices and metadata.
+ */
 public class ResolvedIndices {
     @Nullable
     private final SearchContextId searchContextId;

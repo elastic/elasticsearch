@@ -14,6 +14,7 @@ import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
@@ -42,14 +43,18 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     private static final String FAKE_SNAPSHOT_IVY_GROUP = "elasticsearch-distribution-snapshot";
     private static final String DOWNLOAD_REPO_NAME = "elasticsearch-downloads";
     private static final String SNAPSHOT_REPO_NAME = "elasticsearch-snapshots";
-    public static final String DISTRO_EXTRACTED_CONFIG_PREFIX = "es_distro_extracted_";
-    public static final String DISTRO_CONFIG_PREFIX = "es_distro_file_";
+
+    public static final String ES_DISTRO_CONFIG_PREFIX = "es_distro_";
+    public static final String DISTRO_EXTRACTED_CONFIG_PREFIX = ES_DISTRO_CONFIG_PREFIX + "extracted_";
+    public static final String DISTRO_CONFIG_PREFIX = ES_DISTRO_CONFIG_PREFIX + "file_";
 
     private final ObjectFactory objectFactory;
     private NamedDomainObjectContainer<ElasticsearchDistribution> distributionsContainer;
     private List<DistributionResolution> distributionsResolutionStrategies;
 
     private Property<Boolean> dockerAvailability;
+
+    private boolean writingDependencies = false;
 
     @Inject
     public DistributionDownloadPlugin(ObjectFactory objectFactory) {
@@ -63,6 +68,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        writingDependencies = project.getGradle().getStartParameter().getWriteDependencyVerifications().isEmpty() == false;
         project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
             transformSpec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
             transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
@@ -85,7 +91,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             var extractedConfiguration = project.getConfigurations().create(DISTRO_EXTRACTED_CONFIG_PREFIX + name);
             extractedConfiguration.getAttributes()
                 .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
-
             var distribution = new ElasticsearchDistribution(
                 name,
                 objectFactory,
@@ -94,16 +99,20 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                 objectFactory.fileCollection().from(extractedConfiguration)
             );
 
-            registerDistributionDependencies(project, distribution);
+            // when running with --write-dependency-verification to update dependency verification data,
+            // we do not register the dependencies as we ignore elasticsearch internal dependencies anyhow and
+            // want to reduce general resolution time
+            if (writingDependencies == false) {
+                registerDistributionDependencies(project, distribution);
+            }
             return distribution;
         });
         project.getExtensions().add(CONTAINER_NAME, distributionsContainer);
     }
 
     private void registerDistributionDependencies(Project project, ElasticsearchDistribution distribution) {
-        project.getConfigurations()
-            .getByName(DISTRO_CONFIG_PREFIX + distribution.getName())
-            .getDependencies()
+        Configuration distroConfig = project.getConfigurations().getByName(DISTRO_CONFIG_PREFIX + distribution.getName());
+        distroConfig.getDependencies()
             .addLater(
                 project.provider(() -> distribution.maybeFreeze())
                     .map(
@@ -112,9 +121,9 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                     )
             );
 
-        project.getConfigurations()
-            .getByName(DISTRO_EXTRACTED_CONFIG_PREFIX + distribution.getName())
-            .getDependencies()
+        Configuration extractedDistroConfig = project.getConfigurations()
+            .getByName(DISTRO_EXTRACTED_CONFIG_PREFIX + distribution.getName());
+        extractedDistroConfig.getDependencies()
             .addAllLater(
                 project.provider(() -> distribution.maybeFreeze())
                     .map(

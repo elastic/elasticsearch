@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * A class that represents the snapshot deletions that are in progress in the cluster.
+ * Represents the in-progress snapshot deletions in the cluster state.
  */
 public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 

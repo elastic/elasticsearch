@@ -92,9 +92,10 @@ public class AzureClientProviderTests extends ESTestCase {
 
         LocationMode locationMode = LocationMode.SECONDARY_ONLY;
         RequestRetryOptions requestRetryOptions = new RequestRetryOptions();
-        expectThrows(IllegalArgumentException.class, () -> {
-            azureClientProvider.createClient(storageSettings, locationMode, requestRetryOptions, null, EMPTY_CONSUMER);
-        });
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> azureClientProvider.createClient(storageSettings, locationMode, requestRetryOptions, null, EMPTY_CONSUMER)
+        );
     }
 
     private static String encodeKey(final String value) {

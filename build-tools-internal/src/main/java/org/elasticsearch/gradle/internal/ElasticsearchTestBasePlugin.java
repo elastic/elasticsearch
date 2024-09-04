@@ -25,6 +25,7 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
@@ -33,15 +34,20 @@ import java.io.File;
 import java.util.List;
 import java.util.Map;
 
+import javax.inject.Inject;
+
 import static org.elasticsearch.gradle.util.FileUtils.mkdirs;
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
 
 /**
  * Applies commonly used settings to all Test tasks in the project
  */
-public class ElasticsearchTestBasePlugin implements Plugin<Project> {
+public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
     public static final String DUMP_OUTPUT_ON_FAILURE_PROP_NAME = "dumpOutputOnFailure";
+
+    @Inject
+    protected abstract ProviderFactory getProviderFactory();
 
     @Override
     public void apply(Project project) {
@@ -150,13 +156,11 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
 
+            test.systemProperties(getProviderFactory().systemPropertiesPrefixedBy("tests.").get());
+            test.systemProperties(getProviderFactory().systemPropertiesPrefixedBy("es.").get());
+
             // TODO: remove setting logging level via system property
             test.systemProperty("tests.logger.level", "WARN");
-            System.getProperties().entrySet().forEach(entry -> {
-                if ((entry.getKey().toString().startsWith("tests.") || entry.getKey().toString().startsWith("es."))) {
-                    test.systemProperty(entry.getKey().toString(), entry.getValue());
-                }
-            });
 
             // TODO: remove this once ctx isn't added to update script params in 7.0
             test.systemProperty("es.scripting.update.ctx_in_params", "false");

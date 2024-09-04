@@ -45,4 +45,9 @@ public class UnavailableShardsException extends ElasticsearchException {
     public RestStatus status() {
         return RestStatus.SERVICE_UNAVAILABLE;
     }
+
+    @Override
+    public Throwable fillInStackTrace() {
+        return this; // this exception doesn't imply a bug, no need for a stack trace
+    }
 }

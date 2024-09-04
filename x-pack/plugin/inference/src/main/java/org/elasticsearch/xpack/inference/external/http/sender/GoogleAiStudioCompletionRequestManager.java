@@ -42,13 +42,13 @@ public class GoogleAiStudioCompletionRequestManager extends GoogleAiStudioReques
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        GoogleAiStudioCompletionRequest request = new GoogleAiStudioCompletionRequest(input, model);
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        GoogleAiStudioCompletionRequest request = new GoogleAiStudioCompletionRequest(docsInput, model);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -17,6 +18,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -31,7 +33,9 @@ import org.elasticsearch.compute.operator.NullInsertingSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -60,6 +64,18 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     protected abstract String expectedDescriptionOfAggregator();
 
     protected abstract void assertSimpleGroup(List<Page> input, Block result, int position, Long group);
+
+    /**
+     * Returns the datatype this aggregator accepts. If null, all datatypes are accepted.
+     * <p>
+     *     Used to generate correct input for aggregators that require specific types.
+     *     For example, IP aggregators require BytesRefs with a fixed size.
+     * </p>
+     */
+    @Nullable
+    protected DataType acceptedDataType() {
+        return null;
+    };
 
     @Override
     protected final Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
@@ -201,7 +217,13 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     // Append a small random value to make sure we don't overflow on things like sums
                     append(builder, switch (elementType) {
                         case BOOLEAN -> randomBoolean();
-                        case BYTES_REF -> new BytesRef(randomAlphaOfLength(3));
+                        case BYTES_REF -> {
+                            if (acceptedDataType() == DataType.IP) {
+                                yield new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+                            }
+                            yield new BytesRef(randomAlphaOfLength(3));
+                        }
+                        case FLOAT -> randomFloat();
                         case DOUBLE -> randomDouble();
                         case INT -> 1;
                         case LONG -> 1L;
@@ -276,7 +298,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertSimpleOutput(origInput, results);
     }
 
-    public void testMulitvaluedNullGroup() {
+    public final void testMulitvaluedNullGroup() {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(1, 2);  // TODO revert
@@ -477,6 +499,11 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     protected static Stream<Boolean> allBooleans(Page page, Long group) {
         BooleanBlock b = page.getBlock(1);
         return allValueOffsets(page, group).mapToObj(i -> b.getBoolean(i));
+    }
+
+    protected static Stream<Float> allFloats(Page page, Long group) {
+        FloatBlock b = page.getBlock(1);
+        return allValueOffsets(page, group).mapToObj(b::getFloat);
     }
 
     protected static DoubleStream allDoubles(Page page, Long group) {

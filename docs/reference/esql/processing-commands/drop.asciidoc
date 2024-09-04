@@ -2,6 +2,8 @@
 [[esql-drop]]
 === `DROP`
 
+The `DROP` processing command removes one or more columns.
+
 **Syntax**
 
 [source,esql]
@@ -13,10 +15,6 @@ DROP columns
 
 `columns`::
 A comma-separated list of columns to remove. Supports wildcards.
-
-*Description*
-
-The `DROP` processing command removes one or more columns.
 
 *Examples*
 

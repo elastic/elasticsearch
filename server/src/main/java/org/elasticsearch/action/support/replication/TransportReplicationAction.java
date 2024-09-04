@@ -90,6 +90,48 @@ public abstract class TransportReplicationAction<
     Response extends ReplicationResponse> extends TransportAction<Request, Response> {
 
     /**
+     * Execution of the primary action
+     */
+    protected enum PrimaryActionExecution {
+        /**
+         * Is subject to usual queue length and indexing pressure checks
+         */
+        RejectOnOverload,
+        /**
+         * Will be "forced" (bypassing queue length and indexing pressure checks)
+         */
+        Force
+    }
+
+    /**
+     * Global checkpoint behaviour
+     */
+    protected enum SyncGlobalCheckpointAfterOperation {
+        /**
+         * Do not sync as part of this action
+         */
+        DoNotSync,
+        /**
+         * Attempt to sync the global checkpoint to the replica(s) after success
+         */
+        AttemptAfterSuccess
+    }
+
+    /**
+     * Execution of the replica action
+     */
+    protected enum ReplicaActionExecution {
+        /**
+         * Will only execute when permitted by the configured circuit breakers
+         */
+        SubjectToCircuitBreaker,
+        /**
+         * Will bypass the configured circuit breaker checks
+         */
+        BypassCircuitBreaker
+    }
+
+    /**
      * The timeout for retrying replication requests.
      */
     public static final Setting<TimeValue> REPLICATION_RETRY_TIMEOUT = Setting.timeSetting(
@@ -128,36 +170,6 @@ public abstract class TransportReplicationAction<
     private volatile TimeValue initialRetryBackoffBound;
     private volatile TimeValue retryTimeout;
 
-    protected TransportReplicationAction(
-        Settings settings,
-        String actionName,
-        TransportService transportService,
-        ClusterService clusterService,
-        IndicesService indicesService,
-        ThreadPool threadPool,
-        ShardStateAction shardStateAction,
-        ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader,
-        Writeable.Reader<ReplicaRequest> replicaRequestReader,
-        Executor executor
-    ) {
-        this(
-            settings,
-            actionName,
-            transportService,
-            clusterService,
-            indicesService,
-            threadPool,
-            shardStateAction,
-            actionFilters,
-            requestReader,
-            replicaRequestReader,
-            executor,
-            false,
-            false
-        );
-    }
-
     @SuppressWarnings("this-escape")
     protected TransportReplicationAction(
         Settings settings,
@@ -171,10 +183,15 @@ public abstract class TransportReplicationAction<
         Writeable.Reader<Request> requestReader,
         Writeable.Reader<ReplicaRequest> replicaRequestReader,
         Executor executor,
-        boolean syncGlobalCheckpointAfterOperation,
-        boolean forceExecutionOnPrimary
+        SyncGlobalCheckpointAfterOperation syncGlobalCheckpointAfterOperation,
+        PrimaryActionExecution primaryActionExecution,
+        ReplicaActionExecution replicaActionExecution
     ) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        // TODO: consider passing the executor, investigate doExecute and let InboundHandler/TransportAction handle concurrency.
+        super(actionName, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        assert syncGlobalCheckpointAfterOperation != null : "Must specify global checkpoint sync behaviour";
+        assert primaryActionExecution != null : "Must specify primary action execution behaviour";
+        assert replicaActionExecution != null : "Must specify replica action execution behaviour";
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -187,7 +204,10 @@ public abstract class TransportReplicationAction<
 
         this.initialRetryBackoffBound = REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.get(settings);
         this.retryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);
-        this.forceExecutionOnPrimary = forceExecutionOnPrimary;
+        this.forceExecutionOnPrimary = switch (primaryActionExecution) {
+            case Force -> true;
+            case RejectOnOverload -> false;
+        };
 
         transportService.registerRequestHandler(
             actionName,
@@ -205,19 +225,25 @@ public abstract class TransportReplicationAction<
             this::handlePrimaryRequest
         );
 
-        // we must never reject on because of thread pool capacity on replicas
+        boolean canTripCircuitBreakerOnReplica = switch (replicaActionExecution) {
+            case BypassCircuitBreaker -> false;
+            case SubjectToCircuitBreaker -> true;
+        };
         transportService.registerRequestHandler(
             transportReplicaAction,
             executor,
-            true,
-            true,
+            true, // we must never reject because of thread pool capacity on replicas
+            canTripCircuitBreakerOnReplica,
             in -> new ConcreteReplicaRequest<>(replicaRequestReader, in),
             this::handleReplicaRequest
         );
 
         this.transportOptions = transportOptions();
 
-        this.syncGlobalCheckpointAfterOperation = syncGlobalCheckpointAfterOperation;
+        this.syncGlobalCheckpointAfterOperation = switch (syncGlobalCheckpointAfterOperation) {
+            case AttemptAfterSuccess -> true;
+            case DoNotSync -> false;
+        };
 
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(REPLICATION_INITIAL_RETRY_BACKOFF_BOUND, (v) -> initialRetryBackoffBound = v);

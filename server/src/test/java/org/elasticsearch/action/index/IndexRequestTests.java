@@ -217,22 +217,6 @@ public class IndexRequestTests extends ESTestCase {
             IndexRequest serialized = new IndexRequest(in);
             assertThat(serialized.getDynamicTemplates(), anEmptyMap());
         }
-        // old version
-        {
-            Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(1, 10))
-                .boxed()
-                .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
-            indexRequest.setDynamicTemplates(dynamicTemplates);
-            TransportVersion ver = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.V_7_0_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_13_0)
-            );
-            BytesStreamOutput out = new BytesStreamOutput();
-            out.setTransportVersion(ver);
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> indexRequest.writeTo(out));
-            assertThat(error.getMessage(), equalTo("[dynamic_templates] parameter requires all nodes on 7.13.0 or later"));
-        }
         // new version
         {
             Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(0, 10))

@@ -8,12 +8,17 @@
 
 package org.elasticsearch.grok;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class PatternBank {
 
@@ -57,52 +62,102 @@ public class PatternBank {
     }
 
     /**
-     * Checks whether patterns reference each other in a circular manner and if so fail with an exception.
+     * Checks whether patterns reference each other in a circular manner and if so fail with an IllegalArgumentException. It will also
+     * fail if any pattern value contains a pattern name that does not exist in the bank.
      * <p>
      * In a pattern, anything between <code>%{</code> and <code>}</code> or <code>:</code> is considered
      * a reference to another named pattern. This method will navigate to all these named patterns and
      * check for a circular reference.
      */
     static void forbidCircularReferences(Map<String, String> bank) {
-        // first ensure that the pattern bank contains no simple circular references (i.e., any pattern
-        // containing an immediate reference to itself) as those can cause the remainder of this algorithm
-        // to recurse infinitely
-        for (Map.Entry<String, String> entry : bank.entrySet()) {
-            if (patternReferencesItself(entry.getValue(), entry.getKey())) {
-                throw new IllegalArgumentException("circular reference in pattern [" + entry.getKey() + "][" + entry.getValue() + "]");
+        Set<String> allVisitedNodes = new HashSet<>();
+        Set<String> nodesVisitedMoreThanOnceInAPath = new HashSet<>();
+        // Walk the full path starting at each node in the graph:
+        for (String traversalStartNode : bank.keySet()) {
+            if (nodesVisitedMoreThanOnceInAPath.contains(traversalStartNode) == false && allVisitedNodes.contains(traversalStartNode)) {
+                // If we have seen this node before in a path, and it only appeared once in that path, there is no need to check it again
+                continue;
             }
-        }
-
-        // next, recursively check any other pattern names referenced in each pattern
-        for (Map.Entry<String, String> entry : bank.entrySet()) {
-            String name = entry.getKey();
-            String pattern = entry.getValue();
-            innerForbidCircularReferences(bank, name, new ArrayList<>(), pattern);
+            Set<String> visitedFromThisStartNode = new LinkedHashSet<>();
+            /*
+             * This stack records where we are in the graph. Each String[] in the stack represents a collection of neighbors to the first
+             * non-null node in the layer below it. Null means that the path from that location has been fully traversed. Once all nodes
+             * at a layer have been set to null, the layer is popped. So for example say we have the graph
+             * ( 1 -> (2 -> (4, 5, 8), 3 -> (6, 7))) then when we are at 6 via 1 -> 3 -> 6, the stack looks like this:
+             * [6, 7]
+             * [null, 3]
+             * [1]
+             */
+            Deque<String[]> stack = new ArrayDeque<>();
+            stack.push(new String[] { traversalStartNode });
+            // This is used so that we know that we're unwinding the stack and know not to get the current node's neighbors again.
+            boolean unwinding = false;
+            while (stack.isEmpty() == false) {
+                String[] currentLevel = stack.peek();
+                int firstNonNullIndex = findFirstNonNull(currentLevel);
+                String node = currentLevel[firstNonNullIndex];
+                boolean endOfThisPath = false;
+                if (unwinding) {
+                    // We have completed all of this node's neighbors and have popped back to the node
+                    endOfThisPath = true;
+                } else if (traversalStartNode.equals(node) && stack.size() > 1) {
+                    Deque<String> reversedPath = new ArrayDeque<>();
+                    for (String[] level : stack) {
+                        reversedPath.push(level[findFirstNonNull(level)]);
+                    }
+                    throw new IllegalArgumentException("circular reference detected: " + String.join("->", reversedPath));
+                } else if (visitedFromThisStartNode.contains(node)) {
+                    /*
+                     * We are only looking for a cycle starting and ending at traversalStartNode right now. But this node has been
+                     * visited more than once in the path rooted at traversalStartNode. This could be because it is a cycle, or could be
+                     * because two nodes in the path both point to it. We add it to nodesVisitedMoreThanOnceInAPath so that we make sure
+                     * to check the path rooted at this node later.
+                     */
+                    nodesVisitedMoreThanOnceInAPath.add(node);
+                    endOfThisPath = true;
+                } else {
+                    visitedFromThisStartNode.add(node);
+                    String[] neighbors = getPatternNamesForPattern(bank, node);
+                    if (neighbors.length == 0) {
+                        endOfThisPath = true;
+                    } else {
+                        stack.push(neighbors);
+                    }
+                }
+                if (endOfThisPath) {
+                    if (firstNonNullIndex == currentLevel.length - 1) {
+                        // We have handled all the neighbors at this level -- there are no more non-null ones
+                        stack.pop();
+                        unwinding = true;
+                    } else {
+                        currentLevel[firstNonNullIndex] = null;
+                        unwinding = false;
+                    }
+                } else {
+                    unwinding = false;
+                }
+            }
+            allVisitedNodes.addAll(visitedFromThisStartNode);
         }
     }
 
-    private static void innerForbidCircularReferences(Map<String, String> bank, String patternName, List<String> path, String pattern) {
-        if (patternReferencesItself(pattern, patternName)) {
-            String message;
-            if (path.isEmpty()) {
-                message = "circular reference in pattern [" + patternName + "][" + pattern + "]";
-            } else {
-                message = "circular reference in pattern ["
-                    + path.remove(path.size() - 1)
-                    + "]["
-                    + pattern
-                    + "] back to pattern ["
-                    + patternName
-                    + "]";
-                // add rest of the path:
-                if (path.isEmpty() == false) {
-                    message += " via patterns [" + String.join("=>", path) + "]";
-                }
+    private static int findFirstNonNull(String[] level) {
+        for (int i = 0; i < level.length; i++) {
+            if (level[i] != null) {
+                return i;
             }
-            throw new IllegalArgumentException(message);
         }
+        return -1;
+    }
 
-        // next check any other pattern names found in the pattern
+    /**
+     * This method returns the array of pattern names (if any) found in the bank for the pattern named patternName. If no pattern names
+     * are found, an empty array is returned. If any of the list of pattern names to be returned does not exist in the bank, an exception
+     * is thrown.
+     */
+    private static String[] getPatternNamesForPattern(Map<String, String> bank, String patternName) {
+        String pattern = bank.get(patternName);
+        List<String> patternReferences = new ArrayList<>();
         for (int i = pattern.indexOf("%{"); i != -1; i = pattern.indexOf("%{", i + 1)) {
             int begin = i + 2;
             int bracketIndex = pattern.indexOf('}', begin);
@@ -112,25 +167,22 @@ public class PatternBank {
                 end = bracketIndex;
             } else if (columnIndex != -1 && bracketIndex == -1) {
                 end = columnIndex;
-            } else if (bracketIndex != -1 && columnIndex != -1) {
+            } else if (bracketIndex != -1) {
                 end = Math.min(bracketIndex, columnIndex);
             } else {
                 throw new IllegalArgumentException("pattern [" + pattern + "] has an invalid syntax");
             }
             String otherPatternName = pattern.substring(begin, end);
-            path.add(otherPatternName);
-            String otherPattern = bank.get(otherPatternName);
-            if (otherPattern == null) {
-                throw new IllegalArgumentException(
-                    "pattern [" + patternName + "] is referencing a non-existent pattern [" + otherPatternName + "]"
-                );
+            if (patternReferences.contains(otherPatternName) == false) {
+                patternReferences.add(otherPatternName);
+                String otherPattern = bank.get(otherPatternName);
+                if (otherPattern == null) {
+                    throw new IllegalArgumentException(
+                        "pattern [" + patternName + "] is referencing a non-existent pattern [" + otherPatternName + "]"
+                    );
+                }
             }
-
-            innerForbidCircularReferences(bank, patternName, path, otherPattern);
         }
-    }
-
-    private static boolean patternReferencesItself(String pattern, String patternName) {
-        return pattern.contains("%{" + patternName + "}") || pattern.contains("%{" + patternName + ":");
+        return patternReferences.toArray(new String[0]);
     }
 }

@@ -80,9 +80,14 @@ public class AggregatorProcessor implements Processor {
         }
         for (TypeElement aggClass : annotatedClasses) {
             AggregatorImplementer implementer = null;
+            var warnExceptionsTypes = Annotations.listAttributeValues(
+                aggClass,
+                Set.of(Aggregator.class, GroupingAggregator.class),
+                "warnExceptions"
+            );
             if (aggClass.getAnnotation(Aggregator.class) != null) {
                 IntermediateState[] intermediateState = aggClass.getAnnotation(Aggregator.class).value();
-                implementer = new AggregatorImplementer(env.getElementUtils(), aggClass, intermediateState);
+                implementer = new AggregatorImplementer(env.getElementUtils(), aggClass, intermediateState, warnExceptionsTypes);
                 write(aggClass, "aggregator", implementer.sourceFile(), env);
             }
             GroupingAggregatorImplementer groupingAggregatorImplementer = null;
@@ -96,6 +101,7 @@ public class AggregatorProcessor implements Processor {
                     env.getElementUtils(),
                     aggClass,
                     intermediateState,
+                    warnExceptionsTypes,
                     includeTimestamps
                 );
                 write(aggClass, "grouping aggregator", groupingAggregatorImplementer.sourceFile(), env);
@@ -104,8 +110,13 @@ public class AggregatorProcessor implements Processor {
                 write(
                     aggClass,
                     "aggregator function supplier",
-                    new AggregatorFunctionSupplierImplementer(env.getElementUtils(), aggClass, implementer, groupingAggregatorImplementer)
-                        .sourceFile(),
+                    new AggregatorFunctionSupplierImplementer(
+                        env.getElementUtils(),
+                        aggClass,
+                        implementer,
+                        groupingAggregatorImplementer,
+                        warnExceptionsTypes.isEmpty() == false
+                    ).sourceFile(),
                     env
                 );
             }

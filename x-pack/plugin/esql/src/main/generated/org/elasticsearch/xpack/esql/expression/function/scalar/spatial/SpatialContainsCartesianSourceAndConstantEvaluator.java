@@ -70,7 +70,7 @@ public final class SpatialContainsCartesianSourceAndConstantEvaluator implements
           continue position;
         }
         try {
-          result.appendBoolean(SpatialContains.processCartesianSourceAndConstant(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValue));
+          result.appendBoolean(SpatialContains.processCartesianSourceAndConstant(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), this.rightValue));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -85,7 +85,7 @@ public final class SpatialContainsCartesianSourceAndConstantEvaluator implements
       BytesRef leftValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(SpatialContains.processCartesianSourceAndConstant(leftValueVector.getBytesRef(p, leftValueScratch), rightValue));
+          result.appendBoolean(SpatialContains.processCartesianSourceAndConstant(leftValueVector.getBytesRef(p, leftValueScratch), this.rightValue));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();

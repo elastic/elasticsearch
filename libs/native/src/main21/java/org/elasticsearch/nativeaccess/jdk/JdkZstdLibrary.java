@@ -9,6 +9,7 @@
 package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.nativeaccess.CloseableByteBuffer;
+import org.elasticsearch.nativeaccess.lib.LoaderHelper;
 import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 
 import java.lang.foreign.FunctionDescriptor;
@@ -24,7 +25,7 @@ import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 class JdkZstdLibrary implements ZstdLibrary {
 
     static {
-        System.loadLibrary("zstd");
+        LoaderHelper.loadLibrary("zstd");
     }
 
     private static final MethodHandle compressBound$mh = downcallHandle("ZSTD_compressBound", FunctionDescriptor.of(JAVA_LONG, JAVA_INT));

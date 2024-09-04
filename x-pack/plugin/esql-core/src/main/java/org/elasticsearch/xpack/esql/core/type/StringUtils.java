@@ -26,7 +26,7 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 //FIXME: this class comes from sql-proto
 // find a way to share it across or potentially just copy it over
-final class StringUtils {
+public final class StringUtils {
 
     public static final String EMPTY = "";
 

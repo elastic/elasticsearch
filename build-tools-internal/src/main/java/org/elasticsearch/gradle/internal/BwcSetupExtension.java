@@ -26,7 +26,6 @@ import org.gradle.api.provider.ValueSourceParameters;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
-import org.gradle.jvm.toolchain.JvmVendorSpec;
 
 import java.io.File;
 import java.io.IOException;
@@ -161,10 +160,8 @@ public class BwcSetupExtension {
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
     private static Provider<String> getJavaHome(ObjectFactory objectFactory, JavaToolchainService toolChainService, final int version) {
         Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
-        return toolChainService.launcherFor(javaToolchainSpec -> {
-            javaToolchainSpec.getLanguageVersion().value(value);
-            javaToolchainSpec.getVendor().set(JvmVendorSpec.ORACLE);
-        }).map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile().getAbsolutePath());
+        return toolChainService.launcherFor(javaToolchainSpec -> { javaToolchainSpec.getLanguageVersion().value(value); })
+            .map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile().getAbsolutePath());
     }
 
     private static String readFromFile(File file) {

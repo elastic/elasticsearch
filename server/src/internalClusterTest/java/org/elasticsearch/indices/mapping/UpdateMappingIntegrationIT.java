@@ -37,7 +37,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -179,66 +178,53 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
         final AtomicReference<Exception> threadException = new AtomicReference<>();
         final AtomicBoolean stop = new AtomicBoolean(false);
-        Thread[] threads = new Thread[3];
-        final CyclicBarrier barrier = new CyclicBarrier(threads.length);
         final ArrayList<Client> clientArray = new ArrayList<>();
         for (Client c : clients()) {
             clientArray.add(c);
         }
 
-        for (int j = 0; j < threads.length; j++) {
-            threads[j] = new Thread(() -> {
-                try {
-                    barrier.await();
-
-                    for (int i = 0; i < 100; i++) {
-                        if (stop.get()) {
-                            return;
-                        }
-
-                        Client client1 = clientArray.get(i % clientArray.size());
-                        Client client2 = clientArray.get((i + 1) % clientArray.size());
-                        String indexName = i % 2 == 0 ? "test2" : "test1";
-                        String fieldName = Thread.currentThread().getName() + "_" + i;
-
-                        AcknowledgedResponse response = client1.admin()
-                            .indices()
-                            .preparePutMapping(indexName)
-                            .setSource(
-                                JsonXContent.contentBuilder()
-                                    .startObject()
-                                    .startObject("_doc")
-                                    .startObject("properties")
-                                    .startObject(fieldName)
-                                    .field("type", "text")
-                                    .endObject()
-                                    .endObject()
-                                    .endObject()
-                                    .endObject()
-                            )
-                            .setMasterNodeTimeout(TimeValue.timeValueMinutes(5))
-                            .get();
-
-                        assertThat(response.isAcknowledged(), equalTo(true));
-                        GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
-                        MappingMetadata mappings = getMappingResponse.getMappings().get(indexName);
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> properties = (Map<String, Object>) mappings.getSourceAsMap().get("properties");
-                        assertThat(properties.keySet(), Matchers.hasItem(fieldName));
+        startInParallel(3, j -> {
+            try {
+                for (int i = 0; i < 100; i++) {
+                    if (stop.get()) {
+                        return;
                     }
-                } catch (Exception e) {
-                    threadException.set(e);
-                    stop.set(true);
+
+                    Client client1 = clientArray.get(i % clientArray.size());
+                    Client client2 = clientArray.get((i + 1) % clientArray.size());
+                    String indexName = i % 2 == 0 ? "test2" : "test1";
+                    String fieldName = "t_" + j + "_" + i;
+
+                    AcknowledgedResponse response = client1.admin()
+                        .indices()
+                        .preparePutMapping(indexName)
+                        .setSource(
+                            JsonXContent.contentBuilder()
+                                .startObject()
+                                .startObject("_doc")
+                                .startObject("properties")
+                                .startObject(fieldName)
+                                .field("type", "text")
+                                .endObject()
+                                .endObject()
+                                .endObject()
+                                .endObject()
+                        )
+                        .setMasterNodeTimeout(TimeValue.timeValueMinutes(5))
+                        .get();
+
+                    assertThat(response.isAcknowledged(), equalTo(true));
+                    GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
+                    MappingMetadata mappings = getMappingResponse.getMappings().get(indexName);
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> properties = (Map<String, Object>) mappings.getSourceAsMap().get("properties");
+                    assertThat(properties.keySet(), Matchers.hasItem(fieldName));
                 }
-            });
-
-            threads[j].setName("t_" + j);
-            threads[j].start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
-        }
+            } catch (Exception e) {
+                threadException.set(e);
+                stop.set(true);
+            }
+        });
 
         if (threadException.get() != null) {
             throw threadException.get();

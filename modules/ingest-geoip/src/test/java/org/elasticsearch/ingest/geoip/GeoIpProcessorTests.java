@@ -134,7 +134,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
 
-    public void testNullWithoutIgnoreMissing() throws Exception {
+    public void testNullWithoutIgnoreMissing() {
         GeoIpProcessor processor = new GeoIpProcessor(
             randomAlphaOfLength(10),
             null,
@@ -156,7 +156,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("field [source_field] is null, cannot extract geoip information."));
     }
 
-    public void testNonExistentWithoutIgnoreMissing() throws Exception {
+    public void testNonExistentWithoutIgnoreMissing() {
         GeoIpProcessor processor = new GeoIpProcessor(
             randomAlphaOfLength(10),
             null,
@@ -463,7 +463,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("residential_proxy"), equalTo(false));
         assertThat(geoData.get("domain"), equalTo("frpt.net"));
         assertThat(geoData.get("isp"), equalTo("Fairpoint Communications"));
-        assertThat(geoData.get("isp_organization"), equalTo("Fairpoint Communications"));
+        assertThat(geoData.get("isp_organization_name"), equalTo("Fairpoint Communications"));
         assertThat(geoData.get("user_type"), equalTo("residential"));
         assertThat(geoData.get("connection_type"), equalTo("Cable/DSL"));
     }
@@ -497,7 +497,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("organization_name"), equalTo("CELLCO-PART"));
         assertThat(geoData.get("network"), equalTo("149.101.100.0/28"));
         assertThat(geoData.get("isp"), equalTo("Verizon Wireless"));
-        assertThat(geoData.get("isp_organization"), equalTo("Verizon Wireless"));
+        assertThat(geoData.get("isp_organization_name"), equalTo("Verizon Wireless"));
         assertThat(geoData.get("mobile_network_code"), equalTo("004"));
         assertThat(geoData.get("mobile_country_code"), equalTo("310"));
     }
@@ -526,7 +526,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     /**
      * Don't silently do DNS lookups or anything trappy on bogus data
      */
-    public void testInvalid() throws Exception {
+    public void testInvalid() {
         GeoIpProcessor processor = new GeoIpProcessor(
             randomAlphaOfLength(10),
             null,
@@ -803,7 +803,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             }
 
             @Override
-            InputStream databaseInputStream() throws IOException {
+            InputStream databaseInputStream() {
                 return databaseInputStreamSupplier.get();
             }
 

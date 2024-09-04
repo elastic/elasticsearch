@@ -294,7 +294,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
             b.field("field", "1234");
             if (timeSeriesIndexMode) {
-                b.field("@timestamp", randomMillisUpToYear9999());
+                b.field("@timestamp", "2000-10-10T23:40:53.384Z");
                 b.field("dimension", "dimension1");
             }
         }, null);
@@ -599,7 +599,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> disabledMapper.fieldType("field")
-                .fielddataBuilder(new FieldDataContext("index", null, null, MappedFieldType.FielddataOperation.SEARCH))
+                .fielddataBuilder(new FieldDataContext("index", null, null, null, MappedFieldType.FielddataOperation.SEARCH))
         );
         assertThat(
             e.getMessage(),
@@ -1309,7 +1309,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             } : SourceProvider.fromStoredFields();
             SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
             IndexFieldData<?> sfd = ft.fielddataBuilder(
-                new FieldDataContext("", () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
+                new FieldDataContext("", null, () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
             ).build(null, null);
             LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
             TextDocValuesField scriptDV = (TextDocValuesField) lfd.getScriptFieldFactory("field");
@@ -1336,12 +1336,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     private void testBlockLoaderFromParent(boolean columnReader, boolean syntheticSource) throws IOException {
         boolean storeParent = randomBoolean();
-        KeywordFieldSyntheticSourceSupport kwdSupport = new KeywordFieldSyntheticSourceSupport(
-            null,
-            storeParent,
-            null,
-            false == storeParent
-        );
+        KeywordFieldSyntheticSourceSupport kwdSupport = new KeywordFieldSyntheticSourceSupport(null, storeParent, null, false);
         SyntheticSourceExample example = kwdSupport.example(5);
         CheckedConsumer<XContentBuilder, IOException> buildFields = b -> {
             b.startObject("field");

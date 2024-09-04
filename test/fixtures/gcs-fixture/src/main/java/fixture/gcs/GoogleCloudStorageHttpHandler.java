@@ -144,6 +144,13 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                         offset = Long.parseLong(matcher.group(1));
                         end = Long.parseLong(matcher.group(2));
                     }
+
+                    if (offset >= blob.length()) {
+                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                        exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
+                        return;
+                    }
+
                     BytesReference response = blob;
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     final int bufferedLength = response.length();

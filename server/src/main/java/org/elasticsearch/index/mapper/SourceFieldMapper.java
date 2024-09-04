@@ -38,6 +38,9 @@ import java.util.Locale;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
     public static final NodeFeature SYNTHETIC_SOURCE_FALLBACK = new NodeFeature("mapper.source.synthetic_source_fallback");
+    public static final NodeFeature SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX = new NodeFeature(
+        "mapper.source.synthetic_source_stored_fields_advance_fix"
+    );
 
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
@@ -69,12 +72,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         IndexMode.TIME_SERIES
     );
 
-    private static final SourceFieldMapper LOGS_DEFAULT = new SourceFieldMapper(
+    private static final SourceFieldMapper LOGSDB_DEFAULT = new SourceFieldMapper(
         Mode.SYNTHETIC,
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
-        IndexMode.LOGS
+        IndexMode.LOGSDB
     );
 
     /*
@@ -184,7 +187,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             if (isDefault()) {
                 return switch (indexMode) {
                     case TIME_SERIES -> TSDB_DEFAULT;
-                    case LOGS -> LOGS_DEFAULT;
+                    case LOGSDB -> LOGSDB_DEFAULT;
                     default -> DEFAULT;
                 };
             }
@@ -234,8 +237,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 } else {
                     return TSDB_LEGACY_DEFAULT;
                 }
-            } else if (indexMode == IndexMode.LOGS) {
-                return LOGS_DEFAULT;
+            } else if (indexMode == IndexMode.LOGSDB) {
+                return LOGSDB_DEFAULT;
             }
         }
         return DEFAULT;

@@ -35,6 +35,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.After;
@@ -56,7 +57,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.DEFAULT_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.getIndexRequestOrNull;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSparseEmbeddings;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.semanticTextFieldFromChunkedInferenceResults;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.toChunkedResult;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -205,13 +208,13 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testManyRandomDocs() throws Exception {
         Map<String, StaticModel> inferenceModelMap = new HashMap<>();
-        int numModels = randomIntBetween(1, 5);
+        int numModels = randomIntBetween(1, 3);
         for (int i = 0; i < numModels; i++) {
             StaticModel model = StaticModel.createRandomInstance();
             inferenceModelMap.put(model.getInferenceEntityId(), model);
         }
 
-        int numInferenceFields = randomIntBetween(1, 5);
+        int numInferenceFields = randomIntBetween(1, 3);
         Map<String, InferenceFieldMetadata> inferenceFieldMap = new HashMap<>();
         for (int i = 0; i < numInferenceFields; i++) {
             String field = randomAlphaOfLengthBetween(5, 10);
@@ -219,7 +222,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             inferenceFieldMap.put(field, new InferenceFieldMetadata(field, inferenceId, new String[] { field }));
         }
 
-        int numRequests = randomIntBetween(100, 1000);
+        int numRequests = atLeast(100);
         BulkItemRequest[] originalRequests = new BulkItemRequest[numRequests];
         BulkItemRequest[] modifiedRequests = new BulkItemRequest[numRequests];
         for (int id = 0; id < numRequests; id++) {
@@ -331,16 +334,34 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         for (var entry : fieldInferenceMap.values()) {
             String field = entry.getName();
             var model = modelMap.get(entry.getInferenceId());
-            String text = randomAlphaOfLengthBetween(10, 100);
-            docMap.put(field, text);
-            expectedDocMap.put(field, text);
+            Object inputObject = randomSemanticTextInput();
+            String inputText = inputObject.toString();
+            docMap.put(field, inputObject);
+            expectedDocMap.put(field, inputText);
             if (model == null) {
                 // ignore results, the doc should fail with a resource not found exception
                 continue;
             }
-            var result = randomSemanticText(field, model, List.of(text), requestContentType);
-            model.putResult(text, toChunkedResult(result));
-            expectedDocMap.put(field, result);
+
+            SemanticTextField semanticTextField;
+            // The model is not field aware and that is why we are skipping the embedding generation process for existing values.
+            // This prevents a situation where embeddings in the expected docMap do not match those in the model, which could happen if
+            // embeddings were overwritten.
+            if (model.hasResult(inputText)) {
+                ChunkedInferenceServiceResults results = model.getResults(inputText);
+                semanticTextField = semanticTextFieldFromChunkedInferenceResults(
+                    field,
+                    model,
+                    List.of(inputText),
+                    results,
+                    requestContentType
+                );
+            } else {
+                semanticTextField = randomSemanticText(field, model, List.of(inputText), requestContentType);
+                model.putResult(inputText, toChunkedResult(semanticTextField));
+            }
+
+            expectedDocMap.put(field, semanticTextField);
         }
 
         int requestId = randomIntBetween(0, Integer.MAX_VALUE);
@@ -382,6 +403,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         void putResult(String text, ChunkedInferenceServiceResults result) {
             resultMap.put(text, result);
+        }
+
+        boolean hasResult(String text) {
+            return resultMap.containsKey(text);
         }
     }
 }

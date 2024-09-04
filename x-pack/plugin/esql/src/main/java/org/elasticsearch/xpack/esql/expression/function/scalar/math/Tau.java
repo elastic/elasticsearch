@@ -7,17 +7,24 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
  * Function that emits tau, also known as 2 * pi.
  */
 public class Tau extends DoubleConstantFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Tau", Tau::new);
+
     public static final double TAU = Math.PI * 2;
 
     @FunctionInfo(
@@ -27,6 +34,20 @@ public class Tau extends DoubleConstantFunction {
     )
     public Tau(Source source) {
         super(source);
+    }
+
+    private Tau(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

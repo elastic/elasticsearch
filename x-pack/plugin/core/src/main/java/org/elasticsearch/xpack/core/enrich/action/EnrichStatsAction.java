@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -195,7 +196,8 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             long misses,
             long evictions,
             long hitsTimeInMillis,
-            long missesTimeInMillis
+            long missesTimeInMillis,
+            long cacheSizeInBytes
         ) implements Writeable, ToXContentFragment {
 
             public CacheStats(StreamInput in) throws IOException {
@@ -206,7 +208,8 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                     in.readVLong(),
                     in.readVLong(),
                     in.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS) ? in.readLong() : -1,
-                    in.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS) ? in.readLong() : -1
+                    in.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS) ? in.readLong() : -1,
+                    in.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_STATS_SIZE_ADDED) ? in.readLong() : -1
                 );
             }
 
@@ -219,6 +222,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 builder.field("evictions", evictions);
                 builder.humanReadableField("hits_time_in_millis", "hits_time", new TimeValue(hitsTimeInMillis));
                 builder.humanReadableField("misses_time_in_millis", "misses_time", new TimeValue(missesTimeInMillis));
+                builder.humanReadableField("size_in_bytes", "size", ByteSizeValue.ofBytes(cacheSizeInBytes));
                 return builder;
             }
 
@@ -232,6 +236,9 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 if (out.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS)) {
                     out.writeLong(hitsTimeInMillis);
                     out.writeLong(missesTimeInMillis);
+                }
+                if (out.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_STATS_SIZE_ADDED)) {
+                    out.writeLong(cacheSizeInBytes);
                 }
             }
         }

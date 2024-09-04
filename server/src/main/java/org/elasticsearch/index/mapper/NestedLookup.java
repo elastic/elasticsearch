@@ -82,20 +82,20 @@ public interface NestedLookup {
         if (mappers == null || mappers.isEmpty()) {
             return NestedLookup.EMPTY;
         }
-        mappers = mappers.stream().sorted(Comparator.comparing(ObjectMapper::name)).toList();
+        mappers = mappers.stream().sorted(Comparator.comparing(ObjectMapper::fullPath)).toList();
         Map<String, Query> parentFilters = new HashMap<>();
         Map<String, NestedObjectMapper> mappersByName = new HashMap<>();
         NestedObjectMapper previous = null;
         for (NestedObjectMapper mapper : mappers) {
-            mappersByName.put(mapper.name(), mapper);
+            mappersByName.put(mapper.fullPath(), mapper);
             if (previous != null) {
-                if (mapper.name().startsWith(previous.name() + ".")) {
-                    parentFilters.put(previous.name(), previous.nestedTypeFilter());
+                if (mapper.fullPath().startsWith(previous.fullPath() + ".")) {
+                    parentFilters.put(previous.fullPath(), previous.nestedTypeFilter());
                 }
             }
             previous = mapper;
         }
-        List<String> nestedPathNames = mappers.stream().map(NestedObjectMapper::name).toList();
+        List<String> nestedPathNames = mappers.stream().map(NestedObjectMapper::fullPath).toList();
 
         return new NestedLookup() {
 

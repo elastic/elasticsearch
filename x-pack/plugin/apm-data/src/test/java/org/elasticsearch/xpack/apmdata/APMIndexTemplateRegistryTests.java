@@ -75,7 +75,6 @@ import static org.mockito.Mockito.when;
 public class APMIndexTemplateRegistryTests extends ESTestCase {
     private APMIndexTemplateRegistry apmIndexTemplateRegistry;
     private StackTemplateRegistryAccessor stackTemplateRegistryAccessor;
-    private ClusterService clusterService;
     private ThreadPool threadPool;
     private VerifyingClient client;
 
@@ -89,7 +88,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
 
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
-        clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         FeatureService featureService = new FeatureService(List.of(new DataStreamFeatures()));
         stackTemplateRegistryAccessor = new StackTemplateRegistryAccessor(
             new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY, featureService)

@@ -29,6 +29,8 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -372,8 +374,8 @@ public class DateProcessorTests extends ESTestCase {
         Function<String, ZonedDateTime> zonedDateTimeFunction1 = str -> ZonedDateTime.now();
         Function<String, ZonedDateTime> zonedDateTimeFunction2 = str -> ZonedDateTime.now();
         var cache = new DateProcessor.Cache(1);
-        var key1 = new DateProcessor.Cache.Key("format-1", ZoneId.systemDefault().toString(), Locale.ROOT.toString());
-        var key2 = new DateProcessor.Cache.Key("format-2", ZoneId.systemDefault().toString(), Locale.ROOT.toString());
+        var key1 = new DateProcessor.Cache.Key("format-1", ZoneId.systemDefault(), Locale.ROOT);
+        var key2 = new DateProcessor.Cache.Key("format-2", ZoneId.systemDefault(), Locale.ROOT);
 
         when(supplier1.get()).thenReturn(zonedDateTimeFunction1);
         when(supplier2.get()).thenReturn(zonedDateTimeFunction2);
@@ -390,5 +392,37 @@ public class DateProcessorTests extends ESTestCase {
 
         verify(supplier1, times(3)).get();
         verify(supplier2, times(2)).get();
+    }
+
+    public void testMustacheTemplateExecutesAtMostTwiceWithMultipleFormats() {
+        final TemplateScript.Factory factory = mock(TemplateScript.Factory.class);
+        final TemplateScript compiledScript = mock(TemplateScript.class);
+        when(factory.newInstance(any())).thenReturn(compiledScript);
+        when(compiledScript.execute()).thenReturn(null);
+
+        final List<String> matchFormats = List.of(
+            "dd/MM/yyyy",
+            "dd-MM-yyyy",
+            "uuuu-dd-MM",
+            "uuuu-MM-dd",
+            "TAI64N",
+            "epoch_millis",
+            "yyyy dd MM"
+        );
+        DateProcessor dateProcessor = new DateProcessor(
+            randomAlphaOfLength(10),
+            null,
+            factory,
+            factory,
+            "date_as_string",
+            matchFormats,
+            "date_as_date"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("date_as_string", "2010 12 06");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        dateProcessor.execute(ingestDocument);
+        verify(compiledScript, atMost(2)).execute();
     }
 }

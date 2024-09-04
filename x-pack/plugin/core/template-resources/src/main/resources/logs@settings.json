@@ -5,6 +5,7 @@
         "lifecycle": {
           "name": "logs"
         },
+        "mode": "${xpack.stack.template.logsdb.index.mode}",
         "codec": "best_compression",
         "mapping": {
           "ignore_malformed": true,

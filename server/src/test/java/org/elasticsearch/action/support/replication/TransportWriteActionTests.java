@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationOperation.ReplicaResponse;
@@ -92,7 +93,6 @@ public class TransportWriteActionTests extends ESTestCase {
 
     private ClusterService clusterService;
     private IndexShard indexShard;
-    private Translog.Location location;
 
     @BeforeClass
     public static void beforeClass() {
@@ -102,7 +102,6 @@ public class TransportWriteActionTests extends ESTestCase {
     @Before
     public void initCommonMocks() {
         indexShard = mock(IndexShard.class);
-        location = mock(Translog.Location.class);
         clusterService = createClusterService(threadPool);
         when(indexShard.refresh(any())).thenReturn(new Engine.RefreshResult(true, randomNonNegativeLong(), 1));
         ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
@@ -255,20 +254,15 @@ public class TransportWriteActionTests extends ESTestCase {
     }
 
     public void testDocumentFailureInShardOperationOnPrimary() {
-        assertEquals(
-            "simulated",
-            expectThrows(
-                RuntimeException.class,
-                () -> PlainActionFuture.get(
-                    (PlainActionFuture<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>> future) -> new TestAction(
-                        true,
-                        randomBoolean()
-                    ).dispatchedShardOperationOnPrimary(new TestRequest(), indexShard, future),
-                    0,
-                    TimeUnit.SECONDS
-                )
-            ).getMessage()
+        final var listener = SubscribableListener.<Exception>newForked(
+            l -> new TestAction(true, randomBoolean()).dispatchedShardOperationOnPrimary(
+                new TestRequest(),
+                indexShard,
+                ActionTestUtils.assertNoSuccessListener(l::onResponse)
+            )
         );
+        assertTrue(listener.isDone());
+        assertEquals("simulated", asInstanceOf(RuntimeException.class, safeAwait(listener)).getMessage());
     }
 
     public void testDocumentFailureInShardOperationOnReplica() throws Exception {
@@ -432,9 +426,10 @@ public class TransportWriteActionTests extends ESTestCase {
                 TestRequest::new,
                 TestRequest::new,
                 (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                false,
+                PrimaryActionExecution.RejectOnOverload,
                 new IndexingPressure(Settings.EMPTY),
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                ReplicaActionExecution.SubjectToCircuitBreaker
             );
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
             this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
@@ -460,9 +455,10 @@ public class TransportWriteActionTests extends ESTestCase {
                 TestRequest::new,
                 TestRequest::new,
                 (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                false,
+                PrimaryActionExecution.RejectOnOverload,
                 new IndexingPressure(settings),
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                ReplicaActionExecution.SubjectToCircuitBreaker
             );
             this.withDocumentFailureOnPrimary = false;
             this.withDocumentFailureOnReplica = false;
@@ -483,7 +479,14 @@ public class TransportWriteActionTests extends ESTestCase {
                 if (withDocumentFailureOnPrimary) {
                     throw new RuntimeException("simulated");
                 } else {
-                    return new WritePrimaryResult<>(request, new TestResponse(), location, primary, logger, postWriteRefresh);
+                    return new WritePrimaryResult<>(
+                        request,
+                        new TestResponse(),
+                        Translog.Location.EMPTY,
+                        primary,
+                        logger,
+                        postWriteRefresh
+                    );
                 }
             });
         }
@@ -495,7 +498,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 if (withDocumentFailureOnReplica) {
                     replicaResult = new WriteReplicaResult<>(request, null, new RuntimeException("simulated"), replica, logger);
                 } else {
-                    replicaResult = new WriteReplicaResult<>(request, location, null, replica, logger);
+                    replicaResult = new WriteReplicaResult<>(request, Translog.Location.EMPTY, null, replica, logger);
                 }
                 return replicaResult;
             });

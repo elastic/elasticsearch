@@ -8,8 +8,8 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @WithoutSecurityManager
-public class VectorSystemPropertyTests extends LuceneTestCase {
+public class VectorSystemPropertyTests extends ESTestCase {
 
     static Path jarPath;
 
@@ -49,7 +49,7 @@ public class VectorSystemPropertyTests extends LuceneTestCase {
             "-Xms4m",
             "-cp",
             jarPath + File.pathSeparator + System.getProperty("java.class.path"),
-            "-Djava.library.path=" + System.getProperty("java.library.path"),
+            "-Des.nativelibs.path=" + System.getProperty("es.nativelibs.path"),
             "p.Test"
         ).start();
         String output = new String(process.getInputStream().readAllBytes(), UTF_8);

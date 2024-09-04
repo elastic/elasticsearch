@@ -35,7 +35,6 @@ import org.elasticsearch.test.transport.StubbableTransport;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -187,30 +186,17 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             ClusterRerouteUtils.reroute(client(), commands.toArray(AllocationCommand[]::new));
 
             // start index closing threads
-            final List<Thread> threads = new ArrayList<>();
-            for (final String indexToClose : indices) {
-                final Thread thread = new Thread(() -> {
-                    try {
-                        safeAwait(latch);
-                    } finally {
-                        release.countDown();
-                    }
-                    // Closing is not always acknowledged when shards are relocating: this is the case when the target shard is initializing
-                    // or is catching up operations. In these cases the TransportVerifyShardBeforeCloseAction will detect that the global
-                    // and max sequence number don't match and will not ack the close.
-                    AcknowledgedResponse closeResponse = indicesAdmin().prepareClose(indexToClose).get();
-                    if (closeResponse.isAcknowledged()) {
-                        assertTrue("Index closing should not be acknowledged twice", acknowledgedCloses.add(indexToClose));
-                    }
-                });
-                threads.add(thread);
-                thread.start();
-            }
-
-            latch.countDown();
-            for (Thread thread : threads) {
-                thread.join();
-            }
+            startInParallel(indices.length, i -> {
+                release.countDown();
+                // Closing is not always acknowledged when shards are relocating: this is the case when the target shard is initializing
+                // or is catching up operations. In these cases the TransportVerifyShardBeforeCloseAction will detect that the global
+                // and max sequence number don't match and will not ack the close.
+                final String indexToClose = indices[i];
+                AcknowledgedResponse closeResponse = indicesAdmin().prepareClose(indexToClose).get();
+                if (closeResponse.isAcknowledged()) {
+                    assertTrue("Index closing should not be acknowledged twice", acknowledgedCloses.add(indexToClose));
+                }
+            });
 
             // stop indexers first without waiting for stop to not redundantly index on some while waiting for another one to stop
             for (BackgroundIndexer indexer : indexers.values()) {

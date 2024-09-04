@@ -15,11 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,7 +52,7 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
                 // project can be fully removed
                 if (newAggs != null) {
                     var newGroups = replacePrunedAliasesUsedInGroupBy(a.groupings(), aggs, newAggs);
-                    plan = new Aggregate(a.source(), a.child(), newGroups, newAggs);
+                    plan = new Aggregate(a.source(), a.child(), a.aggregateType(), newGroups, newAggs);
                 }
             }
             return plan;
@@ -75,6 +74,7 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
                 plan = new Aggregate(
                     a.source(),
                     p.child(),
+                    a.aggregateType(),
                     combineUpperGroupingsAndLowerProjections(groupingAttrs, p.projections()),
                     combineProjections(a.aggregates(), p.projections())
                 );

@@ -2,7 +2,7 @@
 
 Hybrid search between a semantic and lexical query can be achieved by using an
 <<rrf-retriever, `rrf` retriever>> as part of your search request. Provide a
-`text_expansion` query and a full-text query as
+`sparse_vector` query and a full-text query as
 <<standard-retriever, `standard` retrievers>> for the `rrf` retriever. The `rrf`
 retriever uses <<rrf, reciprocal rank fusion>> to rank the top documents.
 
@@ -25,11 +25,10 @@ GET my-index/_search
         {
           "standard": {
             "query": {
-              "text_expansion": {
-                "my_tokens": {
-                  "model_id": ".elser_model_2",
-                  "model_text": "the query string"
-                }
+             "sparse_vector": {
+                "field": "my_tokens",
+                "inference_id": "my-elser-endpoint",
+                "query": "the query string"
               }
             }
           }

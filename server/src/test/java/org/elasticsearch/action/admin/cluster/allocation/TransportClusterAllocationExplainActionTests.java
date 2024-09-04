@@ -67,6 +67,7 @@ public class TransportClusterAllocationExplainActionTests extends ESTestCase {
         );
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

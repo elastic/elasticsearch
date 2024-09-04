@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 3)
 public abstract class AbstractRerankerIT extends ESIntegTestCase {
 
-    protected enum ThrowingRankBuilderType {
+    public enum ThrowingRankBuilderType {
         THROWING_QUERY_PHASE_SHARD_CONTEXT,
         THROWING_QUERY_PHASE_COORDINATOR_CONTEXT,
         THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT,
@@ -94,7 +94,7 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
                 int rank = 1;
                 for (SearchHit searchHit : response.getHits().getHits()) {
                     assertThat(searchHit, hasId(String.valueOf(5 - (rank - 1))));
-                    assertEquals(searchHit.getScore(), (0.5f - ((rank - 1) * 0.1f)), 1e-5f);
+                    assertEquals(0.5f - ((rank - 1) * 0.1f), searchHit.getScore(), 1e-5f);
                     assertThat(searchHit, hasRank(rank));
                     assertNotNull(searchHit.getFields().get(searchField));
                     rank++;
@@ -139,7 +139,7 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
                 int rank = 3;
                 for (SearchHit searchHit : response.getHits().getHits()) {
                     assertThat(searchHit, hasId(String.valueOf(5 - (rank - 1))));
-                    assertEquals(searchHit.getScore(), (0.5f - ((rank - 1) * 0.1f)), 1e-5f);
+                    assertEquals(0.5f - ((rank - 1) * 0.1f), searchHit.getScore(), 1e-5f);
                     assertThat(searchHit, hasRank(rank));
                     assertNotNull(searchHit.getFields().get(searchField));
                     rank++;
@@ -221,7 +221,7 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
                 int rank = 1;
                 for (SearchHit searchHit : response.getHits().getHits()) {
                     assertThat(searchHit, hasId(String.valueOf(5 - (rank - 1))));
-                    assertEquals(searchHit.getScore(), (0.5f - ((rank - 1) * 0.1f)), 1e-5f);
+                    assertEquals(0.5f - ((rank - 1) * 0.1f), searchHit.getScore(), 1e-5f);
                     assertThat(searchHit, hasRank(rank));
                     assertNotNull(searchHit.getFields().get(searchField));
                     rank++;

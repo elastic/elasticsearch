@@ -195,3 +195,39 @@ p80_max_salary_change:double
 12.132
 // end::docsStatsPercentileNestedExpression-result[]
 ;
+
+constantsFrom
+required_capability: fn_mv_percentile
+from employees
+| eval single = 7, mv = [1, 7, 10]
+| stats
+    eval_single = percentile(single, 50),
+    eval_mv = percentile(mv, 50),
+    constant_single = percentile(5, 50),
+    constant_mv = percentile([1, 5, 10], 50);
+
+eval_single:double | eval_mv:double | constant_single:double | constant_mv:double
+7                  | 7              | 5                      | 5
+;
+
+constantsRow
+required_capability: fn_mv_percentile
+row single=7, mv=[1, 7, 10]
+| stats
+    eval_single = percentile(single, 50),
+    eval_mv = percentile(mv, 50),
+    constant_single = percentile(5, 50),
+    constant_mv = percentile([1, 5, 10], 50);
+
+eval_single:double | eval_mv:double | constant_single:double | constant_mv:double
+7                  | 7              | 5                      | 5
+;
+
+singleConstant
+required_capability: fn_mv_percentile
+row a=0
+| stats constant_single = percentile(5, 50);
+
+constant_single:double
+5
+;

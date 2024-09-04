@@ -15,17 +15,23 @@ abstract class AbstractGradleInternalPluginFuncTest extends AbstractJavaGradleFu
     abstract <T extends Plugin> Class<T> getPluginClassUnderTest();
 
     def setup() {
+        settingsFile.text = """
+        plugins {
+            id 'elasticsearch.java-toolchain'
+        }
+        """ + settingsFile.text
+
         buildFile << """
         import ${getPluginClassUnderTest().getName()}
-        
+
         plugins {
           // bring in build-tools-internal onto the classpath
           id 'elasticsearch.global-build-info'
         }
         // internally used plugins do not have a plugin id as they are
-        // not intended to be used directly from build scripts 
+        // not intended to be used directly from build scripts
         plugins.apply(${getPluginClassUnderTest().getSimpleName()})
-        
+
         """
     }
 }

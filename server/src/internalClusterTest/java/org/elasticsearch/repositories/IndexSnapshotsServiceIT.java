@@ -145,7 +145,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         if (useBwCFormat) {
             // Reload the RepositoryData so we don't use cached data that wasn't serialized
-            assertAcked(clusterAdmin().prepareDeleteRepository(repoName).get());
+            assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).get());
             createRepository(repoName, "fs", repoPath);
         }
 
@@ -176,10 +176,11 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         blockAllDataNodes(fsRepoName);
 
         final String snapshotName = "snap-1";
-        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(fsRepoName, snapshotName)
-            .setIndices(indexName)
-            .setWaitForCompletion(true)
-            .execute();
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            fsRepoName,
+            snapshotName
+        ).setIndices(indexName).setWaitForCompletion(true).execute();
 
         waitForBlockOnAnyDataNode(fsRepoName);
 
@@ -292,7 +293,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             ((MockRepository) repositoriesService.repository(repoName)).setBlockAndFailOnWriteSnapFiles();
         }
 
-        clusterAdmin().prepareCreateSnapshot(repoName, "snap")
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap")
             .setIndices(indexName)
             .setWaitForCompletion(false)
             .setFeatureStates(NO_FEATURE_STATES_VALUE)
@@ -341,9 +342,9 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         PlainActionFuture<GetShardSnapshotResponse> future = new PlainActionFuture<>();
         final GetShardSnapshotRequest request;
         if (useAllRepositoriesRequest && randomBoolean()) {
-            request = GetShardSnapshotRequest.latestSnapshotInAllRepositories(shardId);
+            request = GetShardSnapshotRequest.latestSnapshotInAllRepositories(TEST_REQUEST_TIMEOUT, shardId);
         } else {
-            request = GetShardSnapshotRequest.latestSnapshotInRepositories(shardId, repositories);
+            request = GetShardSnapshotRequest.latestSnapshotInRepositories(TEST_REQUEST_TIMEOUT, shardId, repositories);
         }
 
         client().execute(TransportGetShardSnapshotAction.TYPE, request, future);

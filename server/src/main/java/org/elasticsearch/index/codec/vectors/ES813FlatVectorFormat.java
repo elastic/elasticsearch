@@ -54,11 +54,11 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
         return new ES813FlatVectorReader(format.fieldsReader(state));
     }
 
-    public static class ES813FlatVectorWriter extends KnnVectorsWriter {
+    static class ES813FlatVectorWriter extends KnnVectorsWriter {
 
         private final FlatVectorsWriter writer;
 
-        public ES813FlatVectorWriter(FlatVectorsWriter writer) {
+        ES813FlatVectorWriter(FlatVectorsWriter writer) {
             super();
             this.writer = writer;
         }
@@ -94,11 +94,11 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
         }
     }
 
-    public static class ES813FlatVectorReader extends KnnVectorsReader {
+    static class ES813FlatVectorReader extends KnnVectorsReader {
 
         private final FlatVectorsReader reader;
 
-        public ES813FlatVectorReader(FlatVectorsReader reader) {
+        ES813FlatVectorReader(FlatVectorsReader reader) {
             super();
             this.reader = reader;
         }

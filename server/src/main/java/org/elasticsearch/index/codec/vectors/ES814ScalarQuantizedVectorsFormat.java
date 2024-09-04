@@ -98,6 +98,8 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             + bits
             + ", compressed="
             + compress
+            + ", flatVectorScorer="
+            + flatVectorScorer
             + ", rawVectorFormat="
             + rawVectorFormat
             + ")";
@@ -232,6 +234,11 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         ESFlatVectorsScorer(FlatVectorsScorer delegte) {
             this.delegate = delegte;
             factory = VectorScorerFactory.instance().orElse(null);
+        }
+
+        @Override
+        public String toString() {
+            return "ESFlatVectorsScorer(" + "delegate=" + delegate + ", factory=" + factory + ')';
         }
 
         @Override

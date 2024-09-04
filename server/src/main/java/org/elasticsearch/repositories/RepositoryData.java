@@ -47,8 +47,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * A class that represents the data in a repository, as captured in the
- * repository's index blob.
+ * Represents the data in a repository: the snapshots and the indices across all snapshots found in the repository.
  */
 public final class RepositoryData {
 

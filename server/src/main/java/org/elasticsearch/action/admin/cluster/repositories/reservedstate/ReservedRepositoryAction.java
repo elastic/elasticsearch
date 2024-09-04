@@ -82,7 +82,7 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
         toDelete.removeAll(entities);
 
         for (var repositoryToDelete : toDelete) {
-            var task = new RepositoriesService.UnregisterRepositoryTask(repositoryToDelete);
+            var task = new RepositoriesService.UnregisterRepositoryTask(DUMMY_TIMEOUT, repositoryToDelete);
             state = task.execute(state);
         }
 
@@ -97,7 +97,7 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
         Map<String, ?> source = parser.map();
 
         for (var entry : source.entrySet()) {
-            PutRepositoryRequest putRepositoryRequest = new PutRepositoryRequest(entry.getKey());
+            PutRepositoryRequest putRepositoryRequest = new PutRepositoryRequest(DUMMY_TIMEOUT, DUMMY_TIMEOUT, entry.getKey());
             @SuppressWarnings("unchecked")
             Map<String, ?> content = (Map<String, ?>) entry.getValue();
             try (XContentParser repoParser = mapToXContentParser(XContentParserConfiguration.EMPTY, content)) {

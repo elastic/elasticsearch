@@ -4,8 +4,6 @@
 <titleabbrev>Redact</titleabbrev>
 ++++
 
-experimental::[]
-
 The Redact processor uses the Grok rules engine to obscure
 text in the input document matching the given Grok patterns. The processor can
 be used to obscure Personal Identifying Information (PII) by configuring it to

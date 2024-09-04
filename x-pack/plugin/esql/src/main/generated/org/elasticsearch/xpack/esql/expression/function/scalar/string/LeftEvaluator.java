@@ -93,7 +93,7 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(Left.process(out, cp, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), lengthBlock.getInt(lengthBlock.getFirstValueIndex(p))));
+        result.appendBytesRef(Left.process(this.out, this.cp, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), lengthBlock.getInt(lengthBlock.getFirstValueIndex(p))));
       }
       return result.build();
     }
@@ -103,7 +103,7 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(Left.process(out, cp, strVector.getBytesRef(p, strScratch), lengthVector.getInt(p)));
+        result.appendBytesRef(Left.process(this.out, this.cp, strVector.getBytesRef(p, strScratch), lengthVector.getInt(p)));
       }
       return result.build();
     }

@@ -29,8 +29,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
@@ -40,7 +43,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ml.MlTasks.trainedModelAssignmentTaskDescription;
 
 public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedModelAssignmentAction.Response> {
@@ -99,6 +101,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         public static final ParseField QUEUE_CAPACITY = TaskParams.QUEUE_CAPACITY;
         public static final ParseField CACHE_SIZE = TaskParams.CACHE_SIZE;
         public static final ParseField PRIORITY = TaskParams.PRIORITY;
+        public static final ParseField ADAPTIVE_ALLOCATIONS = TrainedModelAssignment.ADAPTIVE_ALLOCATIONS;
 
         public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -117,6 +120,14 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 ObjectParser.ValueType.VALUE
             );
             PARSER.declareString(Request::setPriority, PRIORITY);
+            if (AdaptiveAllocationsFeatureFlag.isEnabled()) {
+                PARSER.declareObjectOrNull(
+                    Request::setAdaptiveAllocationsSettings,
+                    (p, c) -> AdaptiveAllocationsSettings.PARSER.parse(p, c).build(),
+                    null,
+                    ADAPTIVE_ALLOCATIONS
+                );
+            }
         }
 
         public static Request parseRequest(String modelId, String deploymentId, XContentParser parser) {
@@ -140,7 +151,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private TimeValue timeout = DEFAULT_TIMEOUT;
         private AllocationStatus.State waitForState = DEFAULT_WAITFOR_STATE;
         private ByteSizeValue cacheSize;
-        private int numberOfAllocations = DEFAULT_NUM_ALLOCATIONS;
+        private Integer numberOfAllocations;
+        private AdaptiveAllocationsSettings adaptiveAllocationsSettings = null;
         private int threadsPerAllocation = DEFAULT_NUM_THREADS;
         private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
         private Priority priority = DEFAULT_PRIORITY;
@@ -160,7 +172,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             modelId = in.readString();
             timeout = in.readTimeValue();
             waitForState = in.readEnum(AllocationStatus.State.class);
-            numberOfAllocations = in.readVInt();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+                numberOfAllocations = in.readOptionalVInt();
+            } else {
+                numberOfAllocations = in.readVInt();
+            }
             threadsPerAllocation = in.readVInt();
             queueCapacity = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
@@ -171,11 +187,15 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             } else {
                 this.priority = Priority.NORMAL;
             }
-
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 this.deploymentId = in.readString();
             } else {
                 this.deploymentId = modelId;
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+                this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
+            } else {
+                this.adaptiveAllocationsSettings = null;
             }
         }
 
@@ -212,12 +232,32 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return this;
         }
 
-        public int getNumberOfAllocations() {
+        public Integer getNumberOfAllocations() {
             return numberOfAllocations;
         }
 
-        public void setNumberOfAllocations(int numberOfAllocations) {
+        public int computeNumberOfAllocations() {
+            if (numberOfAllocations != null) {
+                return numberOfAllocations;
+            } else {
+                if (adaptiveAllocationsSettings == null || adaptiveAllocationsSettings.getMinNumberOfAllocations() == null) {
+                    return DEFAULT_NUM_ALLOCATIONS;
+                } else {
+                    return adaptiveAllocationsSettings.getMinNumberOfAllocations();
+                }
+            }
+        }
+
+        public void setNumberOfAllocations(Integer numberOfAllocations) {
             this.numberOfAllocations = numberOfAllocations;
+        }
+
+        public AdaptiveAllocationsSettings getAdaptiveAllocationsSettings() {
+            return adaptiveAllocationsSettings;
+        }
+
+        public void setAdaptiveAllocationsSettings(AdaptiveAllocationsSettings adaptiveAllocationsSettings) {
+            this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
         }
 
         public int getThreadsPerAllocation() {
@@ -258,7 +298,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeString(modelId);
             out.writeTimeValue(timeout);
             out.writeEnum(waitForState);
-            out.writeVInt(numberOfAllocations);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+                out.writeOptionalVInt(numberOfAllocations);
+            } else {
+                out.writeVInt(numberOfAllocations);
+            }
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(queueCapacity);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
@@ -270,6 +314,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeString(deploymentId);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+                out.writeOptionalWriteable(adaptiveAllocationsSettings);
+            }
         }
 
         @Override
@@ -279,7 +326,12 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             builder.field(DEPLOYMENT_ID.getPreferredName(), deploymentId);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
             builder.field(WAIT_FOR.getPreferredName(), waitForState);
-            builder.field(NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
+            if (numberOfAllocations != null) {
+                builder.field(NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
+            }
+            if (adaptiveAllocationsSettings != null) {
+                builder.field(ADAPTIVE_ALLOCATIONS.getPreferredName(), adaptiveAllocationsSettings);
+            }
             builder.field(THREADS_PER_ALLOCATION.getPreferredName(), threadsPerAllocation);
             builder.field(QUEUE_CAPACITY.getPreferredName(), queueCapacity);
             if (cacheSize != null) {
@@ -301,11 +353,24 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                         + Strings.arrayToCommaDelimitedString(VALID_WAIT_STATES)
                 );
             }
-            if (numberOfAllocations < 1) {
-                validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
+            if (numberOfAllocations != null) {
+                if (numberOfAllocations < 1) {
+                    validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
+                }
+                if (adaptiveAllocationsSettings != null && adaptiveAllocationsSettings.getEnabled() == Boolean.TRUE) {
+                    validationException.addValidationError(
+                        "[" + NUMBER_OF_ALLOCATIONS + "] cannot be set if adaptive allocations is enabled"
+                    );
+                }
             }
             if (threadsPerAllocation < 1) {
                 validationException.addValidationError("[" + THREADS_PER_ALLOCATION + "] must be a positive integer");
+            }
+            ActionRequestValidationException autoscaleException = adaptiveAllocationsSettings == null
+                ? null
+                : adaptiveAllocationsSettings.validate();
+            if (autoscaleException != null) {
+                validationException.addValidationErrors(autoscaleException.validationErrors());
             }
             if (threadsPerAllocation > MAX_THREADS_PER_ALLOCATION || isPowerOf2(threadsPerAllocation) == false) {
                 validationException.addValidationError(
@@ -322,7 +387,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 validationException.addValidationError("[" + TIMEOUT + "] must be positive");
             }
             if (priority == Priority.LOW) {
-                if (numberOfAllocations > 1) {
+                if (numberOfAllocations != null && numberOfAllocations > 1) {
                     validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be 1 when [" + PRIORITY + "] is low");
                 }
                 if (threadsPerAllocation > 1) {
@@ -344,6 +409,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 timeout,
                 waitForState,
                 numberOfAllocations,
+                adaptiveAllocationsSettings,
                 threadsPerAllocation,
                 queueCapacity,
                 cacheSize,
@@ -365,7 +431,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 && Objects.equals(timeout, other.timeout)
                 && Objects.equals(waitForState, other.waitForState)
                 && Objects.equals(cacheSize, other.cacheSize)
-                && numberOfAllocations == other.numberOfAllocations
+                && Objects.equals(numberOfAllocations, other.numberOfAllocations)
+                && Objects.equals(adaptiveAllocationsSettings, other.adaptiveAllocationsSettings)
                 && threadsPerAllocation == other.threadsPerAllocation
                 && queueCapacity == other.queueCapacity
                 && priority == other.priority;
@@ -430,7 +497,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), THREADS_PER_ALLOCATION);
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), QUEUE_CAPACITY);
             PARSER.declareField(
-                optionalConstructorArg(),
+                ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), CACHE_SIZE.getPreferredName()),
                 CACHE_SIZE,
                 ObjectParser.ValueType.VALUE
@@ -553,6 +620,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return deploymentId;
         }
 
+        /**
+         * @return the estimated memory (in bytes) required for the model deployment to run
+         */
         public long estimateMemoryUsageBytes() {
             // We already take into account 2x the model bytes. If the cache size is larger than the model bytes, then
             // we need to take it into account when returning the estimate.
@@ -662,10 +732,16 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return modelBytes;
         }
 
+        /**
+         * @return the number of threads per allocation used by the model during inference. each thread requires one processor.
+         */
         public int getThreadsPerAllocation() {
             return threadsPerAllocation;
         }
 
+        /**
+         * @return the number of allocations requested by the user
+         */
         public int getNumberOfAllocations() {
             return numberOfAllocations;
         }

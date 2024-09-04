@@ -89,10 +89,17 @@ public class MetricsApmIT extends ESRestTestCase {
                 var metricset = (Map<String, Object>) apmMessage.get("metricset");
                 var samples = (Map<String, Object>) metricset.get("samples");
 
-                samples.entrySet().forEach(sampleEntry -> {
-                    var assertion = sampleAssertions.get(sampleEntry.getKey());// sample name
-                    if (assertion != null && assertion.test((Map<String, Object>) sampleEntry.getValue())) {// sample object
-                        sampleAssertions.remove(sampleEntry.getKey());
+                samples.forEach((key, value) -> {
+                    var assertion = sampleAssertions.get(key);// sample name
+                    if (assertion != null) {
+                        logger.info("Matched {}", key);
+                        var sampleObject = (Map<String, Object>) value;
+                        if (assertion.test(sampleObject)) {// sample object
+                            logger.info("{} assertion PASSED", key);
+                            sampleAssertions.remove(key);
+                        } else {
+                            logger.error("{} assertion FAILED: {}", key, sampleObject.get("value"));
+                        }
                     }
                 });
             }
@@ -106,10 +113,8 @@ public class MetricsApmIT extends ESRestTestCase {
 
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
 
-        assertTrue(
-            "Timeout when waiting for assertions to complete. Remaining assertions to match: " + sampleAssertions,
-            finished.await(30, TimeUnit.SECONDS)
-        );
+        var completed = finished.await(30, TimeUnit.SECONDS);
+        assertTrue("Timeout when waiting for assertions to complete. Remaining assertions to match: " + sampleAssertions, completed);
     }
 
     private <T> Map.Entry<String, Predicate<Map<String, Object>>> assertion(

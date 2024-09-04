@@ -104,7 +104,7 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS;
+        return TransportVersions.V_8_14_0;
     }
 
     @Override

@@ -124,9 +124,14 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         );
 
         final MonitoringBulkRequest request = randomRequest();
-        final ClusterBlockException e = expectThrows(ClusterBlockException.class, () -> ActionTestUtils.executeBlocking(action, request));
 
-        assertThat(e, hasToString(containsString("ClusterBlockException: blocked by: [SERVICE_UNAVAILABLE/2/no master]")));
+        assertThat(
+            asInstanceOf(
+                ClusterBlockException.class,
+                safeAwaitFailure(MonitoringBulkResponse.class, l -> action.execute(null, request, l))
+            ),
+            hasToString(containsString("ClusterBlockException: blocked by: [SERVICE_UNAVAILABLE/2/no master]"))
+        );
     }
 
     public void testExecuteIgnoresRequestWhenCollectionIsDisabled() throws Exception {
@@ -169,13 +174,13 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             monitoringService
         );
 
-        final MonitoringBulkRequest request = new MonitoringBulkRequest();
-        final ActionRequestValidationException e = expectThrows(
-            ActionRequestValidationException.class,
-            () -> ActionTestUtils.executeBlocking(action, request)
+        assertThat(
+            asInstanceOf(
+                ActionRequestValidationException.class,
+                safeAwaitFailure(MonitoringBulkResponse.class, l -> action.execute(null, new MonitoringBulkRequest(), l))
+            ),
+            hasToString(containsString("no monitoring documents added"))
         );
-
-        assertThat(e, hasToString(containsString("no monitoring documents added")));
     }
 
     @SuppressWarnings("unchecked")

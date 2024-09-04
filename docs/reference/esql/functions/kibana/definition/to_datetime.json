@@ -3,18 +3,19 @@
   "type" : "eval",
   "name" : "to_datetime",
   "description" : "Converts an input value to a date value.\nA string will only be successfully converted if it's respecting the format `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`.\nTo convert dates in other formats, use <<esql-date_parse>>.",
+  "note" : "Note that when converting from nanosecond resolution to millisecond resolution with this function, the nanosecond date is truncated, not rounded.",
   "signatures" : [
     {
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -26,7 +27,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -38,7 +39,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -50,7 +51,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -62,7 +63,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -74,7 +75,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -86,7 +87,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     }
   ],
   "examples" : [

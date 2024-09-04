@@ -82,12 +82,7 @@ public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTes
             mapping.endObject();
         }
         mapping.endObject();
-        client().admin()
-            .indices()
-            .prepareCreate("test")
-            .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
-            .setMapping(mapping.endObject())
-            .get();
+        client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)).setMapping(mapping.endObject()).get();
 
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < numberOfDocs(); i++) {

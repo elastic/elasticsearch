@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.time.Duration;
@@ -21,15 +21,15 @@ import java.time.Period;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.core.type.DateUtils.asDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DateUtils.asMillis;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AbstractArithmeticTestCase.arithmeticExceptionOverflowCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SubTests extends AbstractFunctionTestCase {
+public class SubTests extends AbstractScalarFunctionTestCase {
     public SubTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -79,7 +79,39 @@ public class SubTests extends AbstractFunctionTestCase {
             );
           }) */
 
-        suppliers.add(new TestCaseSupplier("Datetime - Period", () -> {
+        // Double overflows
+        suppliers.addAll(
+            List.of(
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "rhs")
+                        ),
+                        "SubDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: Infinity")
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "rhs")
+                        ),
+                        "SubDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: -Infinity")
+                )
+            )
+        );
+
+        suppliers.add(new TestCaseSupplier("Datetime - Period", List.of(DataType.DATETIME, DataType.DATE_PERIOD), () -> {
             long lhs = (Long) randomLiteral(DataType.DATETIME).value();
             Period rhs = (Period) randomLiteral(DataType.DATE_PERIOD).value();
             return new TestCaseSupplier.TestCase(
@@ -92,7 +124,7 @@ public class SubTests extends AbstractFunctionTestCase {
                 equalTo(asMillis(asDateTime(lhs).minus(rhs)))
             );
         }));
-        suppliers.add(new TestCaseSupplier("Period - Period", () -> {
+        suppliers.add(new TestCaseSupplier("Period - Period", List.of(DataType.DATE_PERIOD, DataType.DATE_PERIOD), () -> {
             Period lhs = (Period) randomLiteral(DataType.DATE_PERIOD).value();
             Period rhs = (Period) randomLiteral(DataType.DATE_PERIOD).value();
             return new TestCaseSupplier.TestCase(
@@ -105,7 +137,7 @@ public class SubTests extends AbstractFunctionTestCase {
                 equalTo(lhs.minus(rhs))
             );
         }));
-        suppliers.add(new TestCaseSupplier("Datetime - Duration", () -> {
+        suppliers.add(new TestCaseSupplier("Datetime - Duration", List.of(DataType.DATETIME, DataType.TIME_DURATION), () -> {
             long lhs = (Long) randomLiteral(DataType.DATETIME).value();
             Duration rhs = (Duration) randomLiteral(DataType.TIME_DURATION).value();
             TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
@@ -119,7 +151,7 @@ public class SubTests extends AbstractFunctionTestCase {
             );
             return testCase;
         }));
-        suppliers.add(new TestCaseSupplier("Duration - Duration", () -> {
+        suppliers.add(new TestCaseSupplier("Duration - Duration", List.of(DataType.TIME_DURATION, DataType.TIME_DURATION), () -> {
             Duration lhs = (Duration) randomLiteral(DataType.TIME_DURATION).value();
             Duration rhs = (Duration) randomLiteral(DataType.TIME_DURATION).value();
             return new TestCaseSupplier.TestCase(
@@ -131,22 +163,6 @@ public class SubTests extends AbstractFunctionTestCase {
                 DataType.TIME_DURATION,
                 equalTo(lhs.minus(rhs))
             );
-        }));
-        suppliers.add(new TestCaseSupplier("MV", () -> {
-            // Ensure we don't have an overflow
-            int rhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
-            int lhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
-            int lhs2 = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(List.of(lhs, lhs2), DataType.INTEGER, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs")
-                ),
-                "SubIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                DataType.INTEGER,
-                is(nullValue())
-            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
         }));
         // exact math arithmetic exceptions
         suppliers.add(
@@ -189,6 +205,29 @@ public class SubTests extends AbstractFunctionTestCase {
                 "SubUnsignedLongsEvaluator"
             )
         );
+        suppliers = anyNullIsNull(suppliers, (nullPosition, nullValueDataType, original) -> {
+            if (nullValueDataType == DataType.NULL) {
+                return original.getData().get(nullPosition == 0 ? 1 : 0).type();
+            }
+            return original.expectedType();
+        }, (nullPosition, nullData, original) -> original);
+
+        suppliers.add(new TestCaseSupplier("MV", List.of(DataType.INTEGER, DataType.INTEGER), () -> {
+            // Ensure we don't have an overflow
+            int rhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
+            int lhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
+            int lhs2 = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(List.of(lhs, lhs2), DataType.INTEGER, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs")
+                ),
+                "SubIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataType.INTEGER,
+                is(nullValue())
+            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
+        }));
 
         return parameterSuppliersFromTypedData(suppliers);
     }

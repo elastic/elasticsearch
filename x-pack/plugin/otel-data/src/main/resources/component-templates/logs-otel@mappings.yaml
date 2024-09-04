@@ -1,0 +1,42 @@
+---
+version: ${xpack.oteldata.template.version}
+_meta:
+  description: Default mappings for OpenTelemetry logs index template installed by x-pack
+  managed: true
+template:
+  settings:
+    index:
+      mode: logsdb
+      sort:
+        field: [ "resource.attributes.host.name" ]
+  mappings:
+    properties:
+      data_stream.type:
+        type: constant_keyword
+        value: logs
+      observed_timestamp:
+        type: date_nanos
+      severity_number:
+        type: byte
+      severity_text:
+        type: keyword
+      log.level:
+        type: alias
+        path: severity_text
+      body_text:
+        type: match_only_text
+      message:
+        type: alias
+        path: body_text
+      body_structured:
+        type: flattened
+      trace_id:
+        type: keyword
+      trace.id:
+        type: alias
+        path: trace_id
+      span_id:
+        type: keyword
+      span.id:
+        type: alias
+        path: span_id

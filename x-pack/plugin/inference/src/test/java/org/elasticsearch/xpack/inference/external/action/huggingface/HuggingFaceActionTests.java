@@ -10,18 +10,19 @@ package org.elasticsearch.xpack.inference.external.action.huggingface;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.AlwaysRetryingResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.HuggingFaceRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 import org.junit.After;
 import org.junit.Before;
 
@@ -108,27 +109,29 @@ public class HuggingFaceActionTests extends ESTestCase {
         );
     }
 
-    private HuggingFaceAction createAction(String url, Sender sender) {
+    private ExecutableAction createAction(String url, Sender sender) {
         var model = createModel(url, "secret");
-
-        return new HuggingFaceAction(
-            sender,
-            model,
-            new ServiceComponents(threadPool, mock(ThrottlerManager.class), Settings.EMPTY, TruncatorTests.createTruncator()),
-            new AlwaysRetryingResponseHandler("test", (result) -> null),
-            "test action"
-        );
+        return createAction(model, sender);
     }
 
-    private HuggingFaceAction createAction(String url, Sender sender, String modelId) {
-        var model = createModel(url, "secret", modelId);
-
-        return new HuggingFaceAction(
-            sender,
+    private ExecutableAction createAction(HuggingFaceElserModel model, Sender sender) {
+        var requestCreator = HuggingFaceRequestManager.of(
             model,
-            new ServiceComponents(threadPool, mock(ThrottlerManager.class), Settings.EMPTY, TruncatorTests.createTruncator()),
             new AlwaysRetryingResponseHandler("test", (result) -> null),
-            "test action"
+            TruncatorTests.createTruncator(),
+            threadPool
         );
+        var errorMessage = format(
+            "Failed to send Hugging Face %s request from inference entity id [%s]",
+            "test action",
+            model.getInferenceEntityId()
+        );
+
+        return new SenderExecutableAction(sender, requestCreator, errorMessage);
+    }
+
+    private ExecutableAction createAction(String url, Sender sender, String modelId) {
+        var model = createModel(url, "secret", modelId);
+        return createAction(model, sender);
     }
 }

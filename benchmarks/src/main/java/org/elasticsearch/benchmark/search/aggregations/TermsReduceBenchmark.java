@@ -71,7 +71,7 @@ public class TermsReduceBenchmark {
     private final SearchPhaseController controller = new SearchPhaseController((task, req) -> new AggregationReduceContext.Builder() {
         @Override
         public AggregationReduceContext forPartialReduction() {
-            return new AggregationReduceContext.ForPartial(null, null, task, builder);
+            return new AggregationReduceContext.ForPartial(null, null, task, builder, b -> {});
         }
 
         @Override

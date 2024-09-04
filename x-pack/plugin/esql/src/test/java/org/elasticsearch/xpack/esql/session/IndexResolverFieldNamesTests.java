@@ -1212,11 +1212,39 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "language_name", "language_name.*")));
     }
 
+    public void testDissectOverwriteName() {
+        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+            from employees
+            | dissect first_name "%{first_name} %{more}"
+            | keep emp_no, first_name, more"""), Set.of());
+        assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "first_name", "first_name.*")));
+    }
+
     public void testEnrichOnDefaultField() {
         Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
             from employees
             | enrich languages_policy"""), Set.of("language_name"));
         assertThat(fieldNames, equalTo(ALL_FIELDS));
+    }
+
+    public void testMetrics() {
+        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+            METRICS k8s bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster"""), Set.of());
+        assertThat(
+            fieldNames,
+            equalTo(
+                Set.of(
+                    "@timestamp",
+                    "@timestamp.*",
+                    "network.total_bytes_in",
+                    "network.total_bytes_in.*",
+                    "network.total_cost",
+                    "network.total_cost.*",
+                    "cluster",
+                    "cluster.*"
+                )
+            )
+        );
     }
 
     private void assertFieldNames(String query, Set<String> expected) {

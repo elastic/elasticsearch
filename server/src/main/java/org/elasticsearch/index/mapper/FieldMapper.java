@@ -118,7 +118,7 @@ public abstract class FieldMapper extends Mapper {
     }
 
     @Override
-    public String name() {
+    public String fullPath() {
         return fieldType().name();
     }
 
@@ -194,7 +194,7 @@ public abstract class FieldMapper extends Mapper {
     }
 
     private void doParseMultiFields(DocumentParserContext context) throws IOException {
-        context.path().add(simpleName());
+        context.path().add(leafName());
         for (FieldMapper mapper : multiFields.mappers) {
             mapper.parse(context);
         }
@@ -277,9 +277,9 @@ public abstract class FieldMapper extends Mapper {
             indexScriptValues(searchLookup, readerContext, doc, documentParserContext);
         } catch (Exception e) {
             if (onScriptError == OnScriptError.CONTINUE) {
-                documentParserContext.addIgnoredField(name());
+                documentParserContext.addIgnoredField(fullPath());
             } else {
-                throw new DocumentParsingException(XContentLocation.UNKNOWN, "Error executing script on field [" + name() + "]", e);
+                throw new DocumentParsingException(XContentLocation.UNKNOWN, "Error executing script on field [" + fullPath() + "]", e);
             }
         }
     }
@@ -299,7 +299,7 @@ public abstract class FieldMapper extends Mapper {
         int doc,
         DocumentParserContext documentParserContext
     ) {
-        throw new UnsupportedOperationException("FieldMapper " + name() + " does not support [script]");
+        throw new UnsupportedOperationException("FieldMapper " + fullPath() + " does not support [script]");
     }
 
     @Override
@@ -321,11 +321,11 @@ public abstract class FieldMapper extends Mapper {
     @Override
     public final void validate(MappingLookup mappers) {
         if (this.copyTo() != null && this.copyTo().copyToFields().isEmpty() == false) {
-            if (mappers.isMultiField(this.name())) {
-                throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + this.name() + "]");
+            if (mappers.isMultiField(this.fullPath())) {
+                throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + this.fullPath() + "]");
             }
 
-            final String sourceScope = mappers.nestedLookup().getNestedParent(this.name());
+            final String sourceScope = mappers.nestedLookup().getNestedParent(this.fullPath());
             for (String copyTo : this.copyTo().copyToFields()) {
                 if (mappers.isMultiField(copyTo)) {
                     throw new IllegalArgumentException("[copy_to] may not be used to copy to a multi-field: [" + copyTo + "]");
@@ -381,7 +381,7 @@ public abstract class FieldMapper extends Mapper {
         if (mergeWith instanceof FieldMapper == false) {
             throw new IllegalArgumentException(
                 "mapper ["
-                    + name()
+                    + fullPath()
                     + "] cannot be changed from type ["
                     + contentType()
                     + "] to ["
@@ -395,7 +395,7 @@ public abstract class FieldMapper extends Mapper {
         if (builder == null) {
             return (FieldMapper) mergeWith;
         }
-        Conflicts conflicts = new Conflicts(name());
+        Conflicts conflicts = new Conflicts(fullPath());
         builder.merge((FieldMapper) mergeWith, conflicts, mapperMergeContext);
         conflicts.check();
         return builder.build(mapperMergeContext.getMapperBuilderContext());
@@ -404,19 +404,19 @@ public abstract class FieldMapper extends Mapper {
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
         if (Objects.equals(this.getClass(), mergeWith.getClass()) == false) {
             throw new IllegalArgumentException(
-                "mapper [" + name() + "] cannot be changed from type [" + contentType() + "] to [" + mergeWith.contentType() + "]"
+                "mapper [" + fullPath() + "] cannot be changed from type [" + contentType() + "] to [" + mergeWith.contentType() + "]"
             );
         }
         if (Objects.equals(contentType(), mergeWith.contentType()) == false) {
             throw new IllegalArgumentException(
-                "mapper [" + name() + "] cannot be changed from type [" + contentType() + "] to [" + mergeWith.contentType() + "]"
+                "mapper [" + fullPath() + "] cannot be changed from type [" + contentType() + "] to [" + mergeWith.contentType() + "]"
             );
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(simpleName());
+        builder.startObject(leafName());
         doXContentBody(builder, params);
         return builder.endObject();
     }
@@ -489,7 +489,7 @@ public abstract class FieldMapper extends Mapper {
         if (syntheticSourceMode() == SyntheticSourceMode.FALLBACK) {
             if (copyTo.copyToFields().isEmpty() != true) {
                 throw new IllegalArgumentException(
-                    "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                    "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
                 );
             }
             // Nothing because it is handled at `ObjectMapper` level.
@@ -514,7 +514,7 @@ public abstract class FieldMapper extends Mapper {
             private boolean hasSyntheticSourceCompatibleKeywordField;
 
             public Builder add(FieldMapper.Builder builder) {
-                mapperBuilders.put(builder.name(), builder::build);
+                mapperBuilders.put(builder.leafName(), builder::build);
 
                 if (builder instanceof KeywordFieldMapper.Builder kwd) {
                     if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
@@ -526,7 +526,7 @@ public abstract class FieldMapper extends Mapper {
             }
 
             private void add(FieldMapper mapper) {
-                mapperBuilders.put(mapper.simpleName(), context -> mapper);
+                mapperBuilders.put(mapper.leafName(), context -> mapper);
 
                 if (mapper instanceof KeywordFieldMapper kwd) {
                     if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
@@ -536,12 +536,12 @@ public abstract class FieldMapper extends Mapper {
             }
 
             private void update(FieldMapper toMerge, MapperMergeContext context) {
-                if (mapperBuilders.containsKey(toMerge.simpleName()) == false) {
+                if (mapperBuilders.containsKey(toMerge.leafName()) == false) {
                     if (context.decrementFieldBudgetIfPossible(toMerge.getTotalFieldsCount())) {
                         add(toMerge);
                     }
                 } else {
-                    FieldMapper existing = mapperBuilders.get(toMerge.simpleName()).apply(context.getMapperBuilderContext());
+                    FieldMapper existing = mapperBuilders.get(toMerge.leafName()).apply(context.getMapperBuilderContext());
                     add(existing.merge(toMerge, context));
                 }
             }
@@ -559,7 +559,7 @@ public abstract class FieldMapper extends Mapper {
                     return empty();
                 } else {
                     FieldMapper[] mappers = new FieldMapper[mapperBuilders.size()];
-                    context = context.createChildContext(mainFieldBuilder.name(), null);
+                    context = context.createChildContext(mainFieldBuilder.leafName(), null);
                     int i = 0;
                     for (Map.Entry<String, Function<MapperBuilderContext, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
                         mappers[i++] = entry.getValue().apply(context);
@@ -574,7 +574,7 @@ public abstract class FieldMapper extends Mapper {
         private MultiFields(FieldMapper[] mappers) {
             this.mappers = mappers;
             // sort for consistent iteration order + serialization
-            Arrays.sort(this.mappers, Comparator.comparing(FieldMapper::name));
+            Arrays.sort(this.mappers, Comparator.comparing(FieldMapper::fullPath));
         }
 
         public void parse(FieldMapper mainField, DocumentParserContext context, Supplier<DocumentParserContext> multiFieldContextSupplier)
@@ -584,7 +584,7 @@ public abstract class FieldMapper extends Mapper {
             if (mappers.length == 0) {
                 return;
             }
-            context.path().add(mainField.simpleName());
+            context.path().add(mainField.leafName());
             for (FieldMapper mapper : mappers) {
                 mapper.parse(multiFieldContextSupplier.get());
             }
@@ -1314,7 +1314,7 @@ public abstract class FieldMapper extends Mapper {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
-            MapperMergeContext childContext = mapperMergeContext.createChildContext(in.simpleName(), null);
+            MapperMergeContext childContext = mapperMergeContext.createChildContext(in.leafName(), null);
             for (FieldMapper newSubField : in.multiFields.mappers) {
                 multiFieldsBuilder.update(newSubField, childContext);
             }

@@ -401,59 +401,52 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         public void run() {
             final List<Socket> openedSockets = new ArrayList<>();
             final List<InetAddress> failedAddresses = new ArrayList<>();
-            try {
-                final boolean allSocketsOpened = waitUntil(() -> {
-                    try {
-                        final InetAddress[] allAddresses;
-                        if (serverAddress instanceof Inet4Address) {
-                            allAddresses = NetworkUtils.getAllIPV4Addresses();
-                        } else {
-                            allAddresses = NetworkUtils.getAllIPV6Addresses();
+
+            final boolean allSocketsOpened = waitUntil(() -> {
+                try {
+                    final InetAddress[] allAddresses;
+                    if (serverAddress instanceof Inet4Address) {
+                        allAddresses = NetworkUtils.getAllIPV4Addresses();
+                    } else {
+                        allAddresses = NetworkUtils.getAllIPV6Addresses();
+                    }
+                    final List<InetAddress> inetAddressesToBind = Arrays.stream(allAddresses)
+                        .filter(addr -> openedSockets.stream().noneMatch(s -> addr.equals(s.getLocalAddress())))
+                        .filter(addr -> failedAddresses.contains(addr) == false)
+                        .collect(Collectors.toList());
+                    for (InetAddress localAddress : inetAddressesToBind) {
+                        try {
+                            final Socket socket = openMockSocket(serverAddress, serverPort, localAddress, portToBind);
+                            openedSockets.add(socket);
+                            logger.debug("opened socket [{}]", socket);
+                        } catch (NoRouteToHostException | ConnectException e) {
+                            logger.debug(() -> "marking address [" + localAddress + "] as failed due to:", e);
+                            failedAddresses.add(localAddress);
                         }
-                        final List<InetAddress> inetAddressesToBind = Arrays.stream(allAddresses)
-                            .filter(addr -> openedSockets.stream().noneMatch(s -> addr.equals(s.getLocalAddress())))
-                            .filter(addr -> failedAddresses.contains(addr) == false)
-                            .collect(Collectors.toList());
-                        for (InetAddress localAddress : inetAddressesToBind) {
-                            try {
-                                final Socket socket = openMockSocket(serverAddress, serverPort, localAddress, portToBind);
-                                openedSockets.add(socket);
-                                logger.debug("opened socket [{}]", socket);
-                            } catch (NoRouteToHostException | ConnectException e) {
-                                logger.debug(() -> "marking address [" + localAddress + "] as failed due to:", e);
-                                failedAddresses.add(localAddress);
-                            }
-                        }
-                        if (openedSockets.size() == 0) {
-                            logger.debug("Could not open any sockets from the available addresses");
-                            return false;
-                        }
-                        return true;
-                    } catch (IOException e) {
-                        logger.debug(() -> "caught exception while opening socket on [" + portToBind + "]", e);
+                    }
+                    if (openedSockets.size() == 0) {
+                        logger.debug("Could not open any sockets from the available addresses");
                         return false;
                     }
-                });
-
-                if (allSocketsOpened) {
-                    latch.countDown();
-                } else {
-                    success.set(false);
-                    IOUtils.closeWhileHandlingException(openedSockets);
-                    openedSockets.clear();
-                    latch.countDown();
-                    return;
+                    return true;
+                } catch (IOException e) {
+                    logger.debug(() -> "caught exception while opening socket on [" + portToBind + "]", e);
+                    return false;
                 }
-            } catch (InterruptedException e) {
-                logger.debug(() -> "interrupted while trying to open sockets on [" + portToBind + "]", e);
-                Thread.currentThread().interrupt();
+            });
+
+            if (allSocketsOpened) {
+                latch.countDown();
+            } else {
+                success.set(false);
+                IOUtils.closeWhileHandlingException(openedSockets);
+                openedSockets.clear();
+                latch.countDown();
+                return;
             }
 
             try {
-                closeLatch.await();
-            } catch (InterruptedException e) {
-                logger.debug("caught exception while waiting for close latch", e);
-                Thread.currentThread().interrupt();
+                safeAwait(closeLatch);
             } finally {
                 logger.debug("closing sockets on [{}]", portToBind);
                 IOUtils.closeWhileHandlingException(openedSockets);

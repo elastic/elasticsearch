@@ -1,5 +1,0 @@
-pr: 109632
-summary: Force execute inactive sink reaper
-area: ES|QL
-type: bug
-issues: []

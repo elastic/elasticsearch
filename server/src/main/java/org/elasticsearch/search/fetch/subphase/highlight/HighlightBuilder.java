@@ -121,7 +121,7 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
      */
     public HighlightBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_14_0)) {
             encoder(in.readOptionalString());
         }
         useExplicitFieldOrder(in.readBoolean());
@@ -131,7 +131,7 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_14_0)) {
             out.writeOptionalString(encoder);
         }
         out.writeBoolean(useExplicitFieldOrder);

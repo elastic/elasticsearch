@@ -14,18 +14,21 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.index.IndexResolution;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypeRegistry;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -64,23 +67,23 @@ public class IndexResolver {
         .build();
 
     private final Client client;
-    private final DataTypeRegistry typeRegistry;
 
-    public IndexResolver(Client client, DataTypeRegistry typeRegistry) {
+    public IndexResolver(Client client) {
         this.client = client;
-        this.typeRegistry = typeRegistry;
     }
 
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
     public void resolveAsMergedMapping(String indexWildcard, Set<String> fieldNames, ActionListener<IndexResolution> listener) {
-        client.fieldCaps(
+        client.execute(
+            EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames),
             listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
         );
     }
 
+    // public for testing only
     public IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
@@ -93,8 +96,9 @@ public class IndexResolver {
         // TODO flattened is simpler - could we get away with that?
         String[] names = fieldsCaps.keySet().toArray(new String[0]);
         Arrays.sort(names);
+        Set<String> forbiddenFields = new HashSet<>();
         Map<String, EsField> rootFields = new HashMap<>();
-        for (String name : names) {
+        name: for (String name : names) {
             Map<String, EsField> fields = rootFields;
             String fullName = name;
             boolean isAlias = false;
@@ -105,6 +109,9 @@ public class IndexResolver {
                     break;
                 }
                 String parent = name.substring(0, nextDot);
+                if (forbiddenFields.contains(parent)) {
+                    continue name;
+                }
                 EsField obj = fields.get(parent);
                 if (obj == null) {
                     obj = new EsField(parent, OBJECT, new HashMap<>(), false, true);
@@ -116,9 +123,16 @@ public class IndexResolver {
                 fields = obj.getProperties();
                 name = name.substring(nextDot + 1);
             }
+
+            List<IndexFieldCapabilities> caps = fieldsCaps.get(fullName);
+            if (allNested(caps)) {
+                forbiddenFields.add(name);
+                continue;
+            }
             // TODO we're careful to make isAlias match IndexResolver - but do we use it?
+
             EsField field = firstUnsupportedParent == null
-                ? createField(fieldCapsResponse, name, fullName, fieldsCaps.get(fullName), isAlias)
+                ? createField(fieldCapsResponse, name, fullName, caps, isAlias)
                 : new UnsupportedEsField(
                     fullName,
                     firstUnsupportedParent.getOriginalType(),
@@ -134,14 +148,23 @@ public class IndexResolver {
         }
         if (allEmpty) {
             // If all the mappings are empty we return an empty set of resolved indices to line up with QL
-            return IndexResolution.valid(new EsIndex(indexPattern, rootFields, Set.of()));
+            return IndexResolution.valid(new EsIndex(indexPattern, rootFields, Map.of()));
         }
 
-        Set<String> concreteIndices = new HashSet<>(fieldCapsResponse.getIndexResponses().size());
+        Map<String, IndexMode> concreteIndices = Maps.newMapWithExpectedSize(fieldCapsResponse.getIndexResponses().size());
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
-            concreteIndices.add(ir.getIndexName());
+            concreteIndices.put(ir.getIndexName(), ir.getIndexMode());
         }
         return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices));
+    }
+
+    private boolean allNested(List<IndexFieldCapabilities> caps) {
+        for (IndexFieldCapabilities cap : caps) {
+            if (false == cap.type().equalsIgnoreCase("nested")) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static Map<String, List<IndexFieldCapabilities>> collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {
@@ -172,7 +195,7 @@ public class IndexResolver {
     ) {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
-        DataType type = typeRegistry.fromEs(first.type(), first.metricType());
+        DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
         boolean aggregatable = first.isAggregatable();
         if (rest.isEmpty() == false) {
             for (IndexFieldCapabilities fc : rest) {
@@ -181,7 +204,7 @@ public class IndexResolver {
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
-                if (type != typeRegistry.fromEs(fc.type(), fc.metricType())) {
+                if (type != EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType())) {
                     return conflictingTypes(name, fullName, fieldCapsResponse);
                 }
             }
@@ -221,30 +244,14 @@ public class IndexResolver {
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
             if (fc != null) {
-                DataType type = typeRegistry.fromEs(fc.type(), fc.metricType());
+                DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType());
                 if (type == UNSUPPORTED) {
                     return unsupported(name, fc);
                 }
-                typesToIndices.computeIfAbsent(type.esType(), _key -> new TreeSet<>()).add(ir.getIndexName());
+                typesToIndices.computeIfAbsent(type.typeName(), _key -> new TreeSet<>()).add(ir.getIndexName());
             }
         }
-        StringBuilder errorMessage = new StringBuilder();
-        errorMessage.append("mapped as [");
-        errorMessage.append(typesToIndices.size());
-        errorMessage.append("] incompatible types: ");
-        boolean first = true;
-        for (Map.Entry<String, Set<String>> e : typesToIndices.entrySet()) {
-            if (first) {
-                first = false;
-            } else {
-                errorMessage.append(", ");
-            }
-            errorMessage.append("[");
-            errorMessage.append(e.getKey());
-            errorMessage.append("] in ");
-            errorMessage.append(e.getValue());
-        }
-        return new InvalidMappedField(name, errorMessage.toString());
+        return new InvalidMappedField(name, typesToIndices);
     }
 
     private EsField conflictingMetricTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {

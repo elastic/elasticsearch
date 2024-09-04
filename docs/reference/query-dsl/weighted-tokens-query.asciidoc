@@ -1,9 +1,11 @@
 [[query-dsl-weighted-tokens-query]]
 === Weighted tokens query
+
 ++++
 <titleabbrev>Weighted tokens</titleabbrev>
 ++++
 
+deprecated[8.15.0, This query has been replaced by the <<query-dsl-sparse-vector-query>> and will be removed in an upcoming release.]
 preview::[]
 
 The weighted tokens query requires a list of token-weight pairs that are sent in with a query rather than calculated using a {nlp} model.
@@ -40,32 +42,28 @@ POST _search
 === Top level parameters for `weighted_token`
 
 `<tokens>`:::
-(Required, dictionary)
-A dictionary of token-weight pairs.
+(Required, dictionary) A dictionary of token-weight pairs.
 
 `pruning_config` ::::
-(Optional, object)
-Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance.
+(Optional, object) Optional pruning configuration.
+If enabled, this will omit non-significant tokens from the query in order to improve query performance.
 Default: Disabled.
 +
 --
 Parameters for `<pruning_config>` are:
 
 `tokens_freq_ratio_threshold`::
-(Optional, integer)
-Tokens whose frequency is more than `tokens_freq_ratio_threshold` times the average frequency of all tokens in the specified field are considered outliers and pruned.
+(Optional, integer) Tokens whose frequency is more than `tokens_freq_ratio_threshold` times the average frequency of all tokens in the specified field are considered outliers and pruned.
 This value must between 1 and 100.
 Default: `5`.
 
 `tokens_weight_threshold`::
-(Optional, float)
-Tokens whose weight is less than `tokens_weight_threshold` are considered nonsignificant and pruned.
+(Optional, float) Tokens whose weight is less than `tokens_weight_threshold` are considered nonsignificant and pruned.
 This value must be between 0 and 1.
 Default: `0.4`.
 
 `only_score_pruned_tokens`::
-(Optional, boolean)
-If `true` we only input pruned tokens into scoring, and discard non-pruned tokens.
+(Optional, boolean) If `true` we only input pruned tokens into scoring, and discard non-pruned tokens.
 It is strongly recommended to set this to `false` for the main query, but this can be set to `true` for a rescore query to get more relevant results.
 Default: `false`.
 

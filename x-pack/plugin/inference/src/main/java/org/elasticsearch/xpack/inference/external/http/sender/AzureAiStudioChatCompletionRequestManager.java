@@ -15,8 +15,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioChatCompletionRequest;
-import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiErrorResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiExternalResponseHandler;
+import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.azureaistudio.AzureAiStudioChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 
@@ -37,13 +37,13 @@ public class AzureAiStudioChatCompletionRequestManager extends AzureAiStudioRequ
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        AzureAiStudioChatCompletionRequest request = new AzureAiStudioChatCompletionRequest(model, input);
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        AzureAiStudioChatCompletionRequest request = new AzureAiStudioChatCompletionRequest(model, docsInput);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
@@ -52,7 +52,7 @@ public class AzureAiStudioChatCompletionRequestManager extends AzureAiStudioRequ
         return new AzureMistralOpenAiExternalResponseHandler(
             "azure ai studio completion",
             new AzureAiStudioChatCompletionResponseEntity(),
-            AzureMistralOpenAiErrorResponseEntity::fromResponse
+            ErrorMessageResponseEntity::fromResponse
         );
     }
 

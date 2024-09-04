@@ -467,7 +467,8 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Updates the error property of a {@link Connector}.
+     * Updates the error property of a {@link Connector}. If error is non-null the resulting {@link ConnectorStatus}
+     * is 'error', otherwise it's 'connected'.
      *
      * @param connectorId The ID of the {@link Connector} to be updated.
      * @param error       An instance of error property of {@link Connector}, can be reset to [null].
@@ -475,6 +476,9 @@ public class ConnectorIndexService {
      */
     public void updateConnectorError(String connectorId, String error, ActionListener<UpdateResponse> listener) {
         try {
+
+            ConnectorStatus connectorStatus = Strings.isNullOrEmpty(error) ? ConnectorStatus.CONNECTED : ConnectorStatus.ERROR;
+
             final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
                 new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
                     .id(connectorId)
@@ -482,6 +486,7 @@ public class ConnectorIndexService {
                     .source(new HashMap<>() {
                         {
                             put(Connector.ERROR_FIELD.getPreferredName(), error);
+                            put(Connector.STATUS_FIELD.getPreferredName(), connectorStatus.toString());
                         }
                     })
             );

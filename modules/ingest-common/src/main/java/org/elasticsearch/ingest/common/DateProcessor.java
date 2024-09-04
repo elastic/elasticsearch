@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -45,7 +46,7 @@ public final class DateProcessor extends AbstractProcessor {
     private final String field;
     private final String targetField;
     private final List<String> formats;
-    private final List<Function<Map<String, Object>, Function<String, ZonedDateTime>>> dateParsers;
+    private final List<BiFunction<ZoneId, Locale, Function<String, ZonedDateTime>>> dateParsers;
     private final String outputFormat;
 
     DateProcessor(
@@ -80,14 +81,12 @@ public final class DateProcessor extends AbstractProcessor {
 
         for (String format : formats) {
             DateFormat dateFormat = DateFormat.fromString(format);
-            dateParsers.add((params) -> {
-                var documentTimezone = timezone == null ? null : timezone.newInstance(params).execute();
-                var documentLocale = locale == null ? null : locale.newInstance(params).execute();
-                return Cache.INSTANCE.getOrCompute(
+            dateParsers.add(
+                (documentTimezone, documentLocale) -> Cache.INSTANCE.getOrCompute(
                     new Cache.Key(format, documentTimezone, documentLocale),
-                    () -> dateFormat.getFunction(format, newDateTimeZone(documentTimezone), newLocale(documentLocale))
-                );
-            });
+                    () -> dateFormat.getFunction(format, documentTimezone, documentLocale)
+                )
+            );
         }
         this.outputFormat = outputFormat;
         formatter = DateFormatter.forPattern(this.outputFormat);
@@ -106,15 +105,27 @@ public final class DateProcessor extends AbstractProcessor {
         Object obj = ingestDocument.getFieldValue(field, Object.class);
         String value = null;
         if (obj != null) {
-            // Not use Objects.toString(...) here, because null gets changed to "null" which may confuse some date parsers
+            // Don't use Objects.toString(...) here, because null gets changed to "null" which may confuse some date parsers
             value = obj.toString();
+        }
+
+        // run (potential) mustache application just a single time for this document in order to
+        // extract the timezone and locale to use for date parsing
+        final ZoneId documentTimezone;
+        final Locale documentLocale;
+        final Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        try {
+            documentTimezone = newDateTimeZone(timezone == null ? null : timezone.newInstance(sourceAndMetadata).execute());
+            documentLocale = newLocale(locale == null ? null : locale.newInstance(sourceAndMetadata).execute());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("unable to parse date [" + value + "]", e);
         }
 
         ZonedDateTime dateTime = null;
         Exception lastException = null;
-        for (Function<Map<String, Object>, Function<String, ZonedDateTime>> dateParser : dateParsers) {
+        for (BiFunction<ZoneId, Locale, Function<String, ZonedDateTime>> dateParser : dateParsers) {
             try {
-                dateTime = dateParser.apply(ingestDocument.getSourceAndMetadata()).apply(value);
+                dateTime = dateParser.apply(documentTimezone, documentLocale).apply(value);
                 break;
             } catch (Exception e) {
                 // try the next parser and keep track of the exceptions
@@ -255,6 +266,6 @@ public final class DateProcessor extends AbstractProcessor {
             return fn;
         }
 
-        record Key(String format, String zoneId, String locale) {}
+        record Key(String format, ZoneId zoneId, Locale locale) {}
     }
 }

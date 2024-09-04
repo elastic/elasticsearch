@@ -396,7 +396,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                 // We can only safely do it because we will generate a new history uuid this shard.
                 final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
                 // Also advances the local checkpoint of the last commit to its max_seqno.
-                userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(commitInfo.maxSeqNo));
+                userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(commitInfo.maxSeqNo()));
             }
 
             // commit the new history id

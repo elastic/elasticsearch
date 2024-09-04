@@ -1,5 +1,0 @@
-pr: 109850
-summary: Ensure tasks preserve versions in `MasterService`
-area: Cluster Coordination
-type: bug
-issues: []

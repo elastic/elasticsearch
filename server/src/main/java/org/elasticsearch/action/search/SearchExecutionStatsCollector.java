@@ -38,7 +38,7 @@ public final class SearchExecutionStatsCollector extends DelegatingActionListene
 
     @SuppressWarnings("unchecked")
     public static
-        BiFunction<Transport.Connection, SearchActionListener<? super SearchPhaseResult>, ActionListener<? super SearchPhaseResult>>
+        BiFunction<Transport.Connection, ActionListener<? super SearchPhaseResult>, ActionListener<? super SearchPhaseResult>>
         makeWrapper(ResponseCollectorService service) {
         return (connection, originalListener) -> new SearchExecutionStatsCollector(
             (ActionListener<SearchPhaseResult>) originalListener,

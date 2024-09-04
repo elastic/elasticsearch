@@ -240,13 +240,20 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     if (nodes.getMasterNode() == null) {
                         logger.debug("no known master node, scheduling a retry");
                         retryOnNextState(currentStateVersion, null);
+                    } else if (clusterState.term() < request.masterTerm()) {
+                        logger.debug(
+                            "request routed to master in term [{}] but local term is [{}], waiting for local term bump",
+                            request.masterTerm(),
+                            clusterState.term()
+                        );
+                        retry(currentStateVersion, null, cs -> request.masterTerm() <= cs.term());
                     } else {
                         DiscoveryNode masterNode = nodes.getMasterNode();
                         logger.trace("forwarding request [{}] to master [{}]", actionName, masterNode);
                         transportService.sendRequest(
                             masterNode,
                             actionName,
-                            request,
+                            new TermOverridingMasterNodeRequest(request, clusterState.term()),
                             new ActionListenerResponseHandler<>(listener, responseReader, executor) {
                                 @Override
                                 public void handleException(final TransportException exp) {

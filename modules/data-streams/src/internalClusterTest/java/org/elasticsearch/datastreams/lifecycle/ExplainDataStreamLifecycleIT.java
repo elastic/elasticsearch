@@ -30,8 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamGlobalRetentionAction;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamGlobalRetentionAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
@@ -91,13 +89,20 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
         String dataStreamName = "metrics-foo";
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         indexDocs(dataStreamName, 1);
 
         assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { dataStreamName }
+            );
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                 .actionGet();
             assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -112,6 +117,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
         {
             ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
+                TEST_REQUEST_TIMEOUT,
                 new String[] {
                     DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                     DataStream.getDefaultBackingIndexName(dataStreamName, 2) }
@@ -152,6 +158,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         {
             // let's also explain with include_defaults=true
             ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
+                TEST_REQUEST_TIMEOUT,
                 new String[] {
                     DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                     DataStream.getDefaultBackingIndexName(dataStreamName, 2) },
@@ -173,6 +180,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         {
             // Let's also explain using the data stream name
             ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
+                TEST_REQUEST_TIMEOUT,
                 new String[] { dataStreamName }
             );
             ExplainDataStreamLifecycleAction.Response response = client().execute(
@@ -208,25 +216,22 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
          * This test makes sure that for system data streams, we correctly ignore the global retention when calling
          * ExplainDataStreamLifecycle. It is very similar to testExplainLifecycle, but only focuses on the retention for a system index.
          */
-        // Putting in place a global retention that we expect will be ignored by the system data stream:
-        final int globalRetentionSeconds = 10;
-        client().execute(
-            PutDataStreamGlobalRetentionAction.INSTANCE,
-            new PutDataStreamGlobalRetentionAction.Request(
-                TEST_REQUEST_TIMEOUT,
-                TimeValue.timeValueSeconds(globalRetentionSeconds),
-                TimeValue.timeValueSeconds(globalRetentionSeconds)
-            )
-        ).actionGet();
         try {
             String dataStreamName = SYSTEM_DATA_STREAM_NAME;
-            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                dataStreamName
+            );
             client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
             indexDocs(dataStreamName, 1);
 
             assertBusy(() -> {
-                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    new String[] { dataStreamName }
+                );
                 GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                     .actionGet();
                 assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -240,6 +245,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             });
 
             ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
+                TEST_REQUEST_TIMEOUT,
                 new String[] {
                     DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                     DataStream.getDefaultBackingIndexName(dataStreamName, 2) }
@@ -261,10 +267,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 );
             }
         } finally {
-            client().execute(
-                DeleteDataStreamGlobalRetentionAction.INSTANCE,
-                new DeleteDataStreamGlobalRetentionAction.Request(TEST_REQUEST_TIMEOUT)
-            );
+            // reset properties
         }
     }
 
@@ -275,14 +278,21 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
 
         String dataStreamName = "metrics-foo";
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         indexDocs(dataStreamName, 1);
 
         // let's allow one rollover to go through
         assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { dataStreamName }
+            );
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                 .actionGet();
             assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -303,6 +313,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         assertBusy(() -> {
             ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
+                TEST_REQUEST_TIMEOUT,
                 new String[] { writeIndexName }
             );
             ExplainDataStreamLifecycleAction.Response response = client().execute(
@@ -334,6 +345,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
+                TEST_REQUEST_TIMEOUT,
                 new String[] { writeIndexName }
             );
             ExplainDataStreamLifecycleAction.Response response = client().execute(
@@ -363,7 +375,11 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             null,
             DataStreamLifecycle.newBuilder().enabled(false).build()
         );
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "metrics-foo"
+        );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         indexDocs(dataStreamName, 4);
@@ -371,6 +387,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         assertBusy(() -> {
             ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
+                TEST_REQUEST_TIMEOUT,
                 new String[] { writeIndexName }
             );
             ExplainDataStreamLifecycleAction.Response response = client().execute(

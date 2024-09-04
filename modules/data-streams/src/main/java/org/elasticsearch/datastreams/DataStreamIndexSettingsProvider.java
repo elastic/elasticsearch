@@ -217,7 +217,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     private static void extractPath(List<String> routingPaths, Mapper mapper) {
         if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
             if (keywordFieldMapper.fieldType().isDimension()) {
-                routingPaths.add(mapper.name());
+                routingPaths.add(mapper.fullPath());
             }
         }
     }

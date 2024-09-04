@@ -59,7 +59,7 @@ public class MasterHistory implements ClusterStateListener {
     @SuppressWarnings("this-escape")
     public MasterHistory(ThreadPool threadPool, ClusterService clusterService) {
         this.masterHistory = new ArrayList<>();
-        this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
+        this.currentTimeMillisSupplier = threadPool.relativeTimeInMillisSupplier();
         this.maxHistoryAge = MAX_HISTORY_AGE_SETTING.get(clusterService.getSettings());
         this.clusterService = clusterService;
         clusterService.addListener(this);

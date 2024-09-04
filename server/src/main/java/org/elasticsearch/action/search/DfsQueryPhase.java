@@ -155,7 +155,8 @@ final class DfsQueryPhase extends SearchPhase {
             QueryBuilder query = new KnnScoreDocQueryBuilder(
                 scoreDocs.toArray(Lucene.EMPTY_SCORE_DOCS),
                 source.knnSearch().get(i).getField(),
-                source.knnSearch().get(i).getQueryVector()
+                source.knnSearch().get(i).getQueryVector(),
+                source.knnSearch().get(i).getSimilarity()
             ).boost(source.knnSearch().get(i).boost()).queryName(source.knnSearch().get(i).queryName());
             if (nestedPath != null) {
                 query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());

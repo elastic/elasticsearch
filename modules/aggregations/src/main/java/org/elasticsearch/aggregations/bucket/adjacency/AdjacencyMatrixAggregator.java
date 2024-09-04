@@ -239,8 +239,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>(0);
-        return new InternalAdjacencyMatrix(name, buckets, metadata());
+        return new InternalAdjacencyMatrix(name, List.of(), metadata());
     }
 
     final long bucketOrd(long owningBucketOrdinal, int filterOrd) {

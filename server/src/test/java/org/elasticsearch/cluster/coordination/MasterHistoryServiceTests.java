@@ -72,11 +72,11 @@ public class MasterHistoryServiceTests extends ESTestCase {
         assertNull(remoteHistory);
     }
 
-    private static MasterHistoryService createMasterHistoryService() throws Exception {
+    private static MasterHistoryService createMasterHistoryService() {
         var clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
+        when(threadPool.relativeTimeInMillisSupplier()).thenReturn(System::currentTimeMillis);
         TransportService transportService = mock(TransportService.class);
         return new MasterHistoryService(transportService, threadPool, clusterService);
     }

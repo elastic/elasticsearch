@@ -53,8 +53,9 @@ shard segments by `_tsid` and `@timestamp`.
 documents, the document `_id` is a hash of the document's dimensions and
 `@timestamp`. A TSDS doesn't support custom document `_id` values.
 
+
 * A TSDS uses <<synthetic-source,synthetic `_source`>>, and as a result is
-subject to a number of <<synthetic-source-restrictions,restrictions>>.
+subject to some <<synthetic-source-restrictions,restrictions>> and <<synthetic-source-modifications,modifications>> applied to the `_source` field.
 
 NOTE: A time series index can contain fields other than dimensions or metrics.
 
@@ -106,21 +107,9 @@ parameter:
 * <<number,`integer`>>
 * <<number,`long`>>
 * <<number,`unsigned_long`>>
+* <<boolean,`boolean`>>
 
 For a flattened field, use the `time_series_dimensions` parameter to configure an array of fields as dimensions. For details refer to <<flattened-params,`flattened`>>.
-
-[[dimension-limits]]
-.Dimension limits
-****
-In a TSDS, {es} uses dimensions to
-generate the document `_id` and <<tsid,`_tsid`>> values. The resulting `_id` is
-always a short encoded hash. To prevent the `_tsid` value from being overly
-large, {es} limits the number of dimensions for an index using the
-<<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
-index setting. While you can increase this limit, the resulting document `_tsid`
-value can't exceed 32KB. Additionally the field name of a dimension cannot be
-longer than 512 bytes and the each dimension value can't exceed 1kb.
-****
 
 [discrete]
 [[time-series-metric]]
@@ -289,11 +278,6 @@ created the initial backing index has:
 * an `index.time_series.end_time` value set to `now + index.look_ahead_time`
 
 Only data that falls inside that range can be indexed.
-
-In our <<create-tsds-index-template,TSDS example>>,
-`index.look_ahead_time` is set to three hours, so only documents with a
-`@timestamp` value that is within three hours previous or subsequent to the
-present time are accepted for indexing.
 
 You can use the <<indices-get-data-stream,get data stream API>> to check the
 accepted time range for writing to any TSDS.

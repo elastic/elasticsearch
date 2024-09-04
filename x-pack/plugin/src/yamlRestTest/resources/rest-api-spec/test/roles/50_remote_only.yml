@@ -71,6 +71,22 @@ teardown:
   - match: { remote_role.remote_cluster.0.clusters.0:  "my_remote*" }
   - match: { remote_role.remote_cluster.0.clusters.1:  "my_remote2*" }
 
+  # the query roles endpoint also shows the same role info
+  - do:
+      security.query_role:
+        body: >
+          {}
+  - match: { total: 1 }
+  - match: { count: 1 }
+  - match: { roles.0.name: "remote_role" }
+  - match: { roles.0.remote_indices.0.names.0:  "logs*" }
+  - match: { roles.0.remote_indices.0.privileges.0:  "read" }
+  - match: { roles.0.remote_indices.0.allow_restricted_indices:  false }
+  - match: { roles.0.remote_indices.0.clusters.0:  "*" }
+  - match: { roles.0.remote_cluster.0.privileges.0:  "monitor_enrich" }
+  - match: { roles.0.remote_cluster.0.clusters.0:  "my_remote*" }
+  - match: { roles.0.remote_cluster.0.clusters.1:  "my_remote2*" }
+
   - do:
       headers:
         Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="

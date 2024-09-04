@@ -42,15 +42,16 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class FileSettingsServiceIT extends ESIntegTestCase {
 
-    private static AtomicLong versionCounter = new AtomicLong(1);
+    private static final AtomicLong versionCounter = new AtomicLong(1);
 
-    private static String testJSON = """
+    private static final String testJSON = """
         {
              "metadata": {
                  "version": "%s",
@@ -63,7 +64,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
              }
         }""";
 
-    private static String testJSON43mb = """
+    private static final String testJSON43mb = """
         {
              "metadata": {
                  "version": "%s",
@@ -76,7 +77,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
              }
         }""";
 
-    private static String testCleanupJSON = """
+    private static final String testCleanupJSON = """
         {
              "metadata": {
                  "version": "%s",
@@ -87,7 +88,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
              }
         }""";
 
-    private static String testErrorJSON = """
+    private static final String testErrorJSON = """
         {
              "metadata": {
                  "version": "%s",
@@ -165,8 +166,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
     private void assertClusterStateSaveOK(CountDownLatch savedClusterState, AtomicLong metadataVersion, String expectedBytesPerSec)
         throws Exception {
-        boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
-        assertTrue(awaitSuccessful);
+        assertTrue(savedClusterState.await(20, TimeUnit.SECONDS));
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
             new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
@@ -180,11 +180,13 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb")
         );
-        assertEquals(
-            "java.lang.IllegalArgumentException: Failed to process request "
-                + "[org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest/unset] "
-                + "with errors: [[indices.recovery.max_bytes_per_sec] set as read-only by [file_settings]]",
-            expectThrows(ExecutionException.class, () -> clusterAdmin().updateSettings(req).get()).getMessage()
+        assertThat(
+            expectThrows(ExecutionException.class, () -> clusterAdmin().updateSettings(req).get()).getMessage(),
+            is(
+                "java.lang.IllegalArgumentException: Failed to process request "
+                    + "[org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest/unset] "
+                    + "with errors: [[indices.recovery.max_bytes_per_sec] set as read-only by [file_settings]]"
+            )
         );
     }
 
@@ -256,16 +258,15 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         internalCluster().restartNode(masterNode);
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest()).actionGet();
-        assertEquals(
-            1,
+        assertThat(
             clusterStateResponse.getState()
                 .metadata()
                 .reservedStateMetadata()
                 .get(FileSettingsService.NAMESPACE)
                 .handlers()
                 .get(ReservedClusterSettingsAction.NAME)
-                .keys()
-                .size()
+                .keys(),
+            hasSize(1)
         );
     }
 

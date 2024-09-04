@@ -7,7 +7,7 @@
 <titleabbrev>Stop {ilm}</titleabbrev>
 ++++
 
-Stop the {ilm} ({ilm-init}) plugin.
+Stop the <<index-lifecycle-management,{ilm}>> ({ilm-init}) plugin.
 
 [[ilm-stop-request]]
 ==== {api-request-title}

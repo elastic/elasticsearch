@@ -17,9 +17,10 @@ import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.common.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -78,9 +79,14 @@ public class HuggingFaceService extends HuggingFaceBaseService {
     }
 
     private static HuggingFaceEmbeddingsModel updateModelWithEmbeddingDetails(HuggingFaceEmbeddingsModel model, int embeddingSize) {
+        // default to cosine similarity
+        var similarity = model.getServiceSettings().similarity() == null
+            ? SimilarityMeasure.COSINE
+            : model.getServiceSettings().similarity();
+
         var serviceSettings = new HuggingFaceServiceSettings(
             model.getServiceSettings().uri(),
-            model.getServiceSettings().similarity(), // we don't know the similarity but use whatever the user specified
+            similarity,
             embeddingSize,
             model.getTokenLimit(),
             model.getServiceSettings().rateLimitSettings()

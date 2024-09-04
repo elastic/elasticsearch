@@ -45,7 +45,12 @@ public class ReleasableLongArray implements LongArray {
     }
 
     @Override
-    public long set(long index, long value) {
+    public long getAndSet(long index, long value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void set(long index, long value) {
         throw new UnsupportedOperationException();
     }
 

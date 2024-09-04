@@ -153,7 +153,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             return currentSafeCommitInfo;
         }
 
-        if (currentSafeCommitInfo.localCheckpoint == newSafeCommitLocalCheckpoint) {
+        if (currentSafeCommitInfo.localCheckpoint() == newSafeCommitLocalCheckpoint) {
             // the new commit could in principle have the same LCP but a different doc count due to extra operations between its LCP and
             // MSN, but that is a transient state since we'll eventually advance the LCP. The doc count is only used for heuristics around
             // expiring excessively-lagging retention leases, so a little inaccuracy is tolerable here.
@@ -164,7 +164,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             return new SafeCommitInfo(newSafeCommitLocalCheckpoint, getDocCountOfCommit(newSafeCommit));
         } catch (IOException ex) {
             logger.info("failed to get the total docs from the safe commit; use the total docs from the previous safe commit", ex);
-            return new SafeCommitInfo(newSafeCommitLocalCheckpoint, currentSafeCommitInfo.docCount);
+            return new SafeCommitInfo(newSafeCommitLocalCheckpoint, currentSafeCommitInfo.docCount());
         }
     }
 

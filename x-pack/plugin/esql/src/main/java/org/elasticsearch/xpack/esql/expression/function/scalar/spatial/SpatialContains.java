@@ -11,6 +11,9 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.geometry.Geometry;
@@ -29,7 +32,6 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -51,6 +53,12 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
  * Here we simply wire the rules together specific to ST_CONTAINS and QueryRelation.CONTAINS.
  */
 public class SpatialContains extends SpatialRelatesFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "SpatialContains",
+        SpatialContains::new
+    );
+
     // public for test access with reflection
     public static final SpatialRelationsContains GEO = new SpatialRelationsContains(
         SpatialCoordinateTypes.GEO,
@@ -118,20 +126,14 @@ public class SpatialContains extends SpatialRelatesFunction {
     )
     public SpatialContains(
         Source source,
-        @Param(
-            name = "geomA",
-            type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
-            description = "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. "
-                + "If `null`, the function returns `null`."
-        ) Expression left,
-        @Param(
-            name = "geomB",
-            type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
-            description = "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. "
-                + "If `null`, the function returns `null`.\n"
-                + "The second parameter must also have the same coordinate system as the first.\n"
-                + "This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
-        ) Expression right
+        @Param(name = "geomA", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }, description = """
+            Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`.
+            If `null`, the function returns `null`.""") Expression left,
+        @Param(name = "geomB", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }, description = """
+            Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`.
+            If `null`, the function returns `null`.
+            The second parameter must also have the same coordinate system as the first.
+            This means it is not possible to combine `geo_*` and `cartesian_*` parameters.""") Expression right
     ) {
         this(source, left, right, false, false);
     }
@@ -140,9 +142,18 @@ public class SpatialContains extends SpatialRelatesFunction {
         super(source, left, right, leftDocValues, rightDocValues);
     }
 
+    private SpatialContains(StreamInput in) throws IOException {
+        super(in, false, false);
+    }
+
     @Override
-    public ShapeField.QueryRelation queryRelation() {
-        return ShapeField.QueryRelation.CONTAINS;
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    public ShapeRelation queryRelation() {
+        return ShapeRelation.CONTAINS;
     }
 
     @Override
@@ -166,10 +177,10 @@ public class SpatialContains extends SpatialRelatesFunction {
     @Override
     public Object fold() {
         try {
-            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType, left());
+            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType(), left());
             Geometry rightGeom = makeGeometryFromLiteral(right());
-            Component2D[] components = asLuceneComponent2Ds(crsType, rightGeom);
-            return (crsType == SpatialCrsType.GEO)
+            Component2D[] components = asLuceneComponent2Ds(crsType(), rightGeom);
+            return (crsType() == SpatialCrsType.GEO)
                 ? GEO.geometryRelatesGeometries(docValueReader, components)
                 : CARTESIAN.geometryRelatesGeometries(docValueReader, components);
         } catch (IOException e) {
@@ -210,7 +221,7 @@ public class SpatialContains extends SpatialRelatesFunction {
                         SpatialContainsGeoSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                if (EsqlDataTypes.isSpatialPoint(spatialType)) {
+                if (DataType.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
@@ -242,7 +253,7 @@ public class SpatialContains extends SpatialRelatesFunction {
                         SpatialContainsCartesianSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                if (EsqlDataTypes.isSpatialPoint(spatialType)) {
+                if (DataType.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(

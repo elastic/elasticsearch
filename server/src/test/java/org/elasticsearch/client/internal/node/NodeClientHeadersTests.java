@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.AbstractClientHeadersTestCase;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.Transport;
@@ -54,7 +55,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     private static class InternalTransportAction extends TransportAction<ActionRequest, ActionResponse> {
 
         private InternalTransportAction(String actionName, TaskManager taskManager) {
-            super(actionName, EMPTY_FILTERS, taskManager);
+            super(actionName, EMPTY_FILTERS, taskManager, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         @Override

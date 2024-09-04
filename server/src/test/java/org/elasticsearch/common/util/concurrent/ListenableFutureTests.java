@@ -189,10 +189,10 @@ public class ListenableFutureTests extends ESTestCase {
             safeAwait(barrier); // release blocked executor
 
             if (success) {
-                expectThrows(EsRejectedExecutionException.class, future2::result);
+                expectThrows(ExecutionException.class, EsRejectedExecutionException.class, future2::result);
                 assertNull(future1.actionGet(10, TimeUnit.SECONDS));
             } else {
-                var exception = expectThrows(EsRejectedExecutionException.class, future2::result);
+                var exception = expectThrows(ExecutionException.class, EsRejectedExecutionException.class, future2::result);
                 assertEquals(1, exception.getSuppressed().length);
                 assertThat(exception.getSuppressed()[0], instanceOf(ElasticsearchException.class));
                 assertEquals(

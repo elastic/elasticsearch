@@ -90,8 +90,8 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
         @Override
         public PlaceHolderFieldMapper build(MapperBuilderContext context) {
-            PlaceHolderFieldType mappedFieldType = new PlaceHolderFieldType(context.buildFullName(name()), type, Map.of());
-            return new PlaceHolderFieldMapper(name(), mappedFieldType, multiFieldsBuilder.build(this, context), copyTo, unknownParams);
+            PlaceHolderFieldType mappedFieldType = new PlaceHolderFieldType(context.buildFullName(leafName()), type, Map.of());
+            return new PlaceHolderFieldMapper(leafName(), mappedFieldType, multiFieldsBuilder.build(this, context), copyTo, unknownParams);
         }
     }
 
@@ -277,7 +277,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new PlaceHolderFieldMapper.Builder(simpleName(), typeName()).init(this);
+        return new PlaceHolderFieldMapper.Builder(leafName(), typeName()).init(this);
     }
 
     @Override

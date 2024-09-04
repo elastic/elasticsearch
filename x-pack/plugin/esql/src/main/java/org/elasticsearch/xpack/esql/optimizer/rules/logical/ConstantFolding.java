@@ -5,13 +5,19 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer;
+package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 
-public class FoldNull extends org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull {
+public final class ConstantFolding extends OptimizerRules.OptimizerExpressionRule<Expression> {
+
+    public ConstantFolding() {
+        super(OptimizerRules.TransformDirection.DOWN);
+    }
+
     @Override
     public Expression rule(Expression e) {
-        return super.rule(e);
+        return e.foldable() ? Literal.of(e) : e;
     }
 }

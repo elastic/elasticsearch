@@ -4,44 +4,16 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
-package org.elasticsearch.xpack.esql.optimizer;
+package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-public class PhysicalOptimizerRules {
+public final class OptimizerRules {
 
-    public abstract static class ParameterizedOptimizerRule<SubPlan extends PhysicalPlan, P> extends ParameterizedRule<
-        SubPlan,
-        PhysicalPlan,
-        P> {
-
-        private final TransformDirection direction;
-
-        public ParameterizedOptimizerRule() {
-            this(TransformDirection.DOWN);
-        }
-
-        protected ParameterizedOptimizerRule(TransformDirection direction) {
-            this.direction = direction;
-        }
-
-        @Override
-        public final PhysicalPlan apply(PhysicalPlan plan, P context) {
-            return direction == TransformDirection.DOWN
-                ? plan.transformDown(typeToken(), t -> rule(t, context))
-                : plan.transformUp(typeToken(), t -> rule(t, context));
-        }
-
-        protected abstract PhysicalPlan rule(SubPlan plan, P context);
-    }
-
-    public abstract static class OptimizerRule<SubPlan extends PhysicalPlan> extends Rule<SubPlan, PhysicalPlan> {
+    public abstract static class OptimizerRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
 
         private final TransformDirection direction;
 
@@ -54,16 +26,16 @@ public class PhysicalOptimizerRules {
         }
 
         @Override
-        public final PhysicalPlan apply(PhysicalPlan plan) {
+        public final LogicalPlan apply(LogicalPlan plan) {
             return direction == TransformDirection.DOWN
                 ? plan.transformDown(typeToken(), this::rule)
                 : plan.transformUp(typeToken(), this::rule);
         }
 
-        protected abstract PhysicalPlan rule(SubPlan plan);
+        protected abstract LogicalPlan rule(SubPlan plan);
     }
 
-    public abstract static class OptimizerExpressionRule<E extends Expression> extends Rule<PhysicalPlan, PhysicalPlan> {
+    public abstract static class OptimizerExpressionRule<E extends Expression> extends Rule<LogicalPlan, LogicalPlan> {
 
         private final TransformDirection direction;
         // overriding type token which returns the correct class but does an uncheck cast to LogicalPlan due to its generic bound
@@ -76,13 +48,13 @@ public class PhysicalOptimizerRules {
         }
 
         @Override
-        public final PhysicalPlan apply(PhysicalPlan plan) {
+        public final LogicalPlan apply(LogicalPlan plan) {
             return direction == TransformDirection.DOWN
                 ? plan.transformExpressionsDown(expressionTypeToken, this::rule)
                 : plan.transformExpressionsUp(expressionTypeToken, this::rule);
         }
 
-        protected PhysicalPlan rule(PhysicalPlan plan) {
+        protected LogicalPlan rule(LogicalPlan plan) {
             return plan;
         }
 
@@ -91,5 +63,10 @@ public class PhysicalOptimizerRules {
         public Class<E> expressionToken() {
             return expressionTypeToken;
         }
+    }
+
+    public enum TransformDirection {
+        UP,
+        DOWN
     }
 }

@@ -64,12 +64,12 @@ Which query you use and which field you target in your queries depends on your c
 If you're using the `semantic_text` workflow it's quite simple.
 If not, it depends on which type of embeddings you're working with.
 
-[cols="3*", options="header"]
+[cols="30%, 30%, 40%", options="header"]
 |=======================================================================================================================================================================================================
 | Field type to query                    | Query to use                                      | Notes                                                                                                                                                             
-| <<semantic-text,`semantic_text`>>      | <<query-dsl-semantic-query,`semantic`>>           | The `semantic_text` field handles generating embeddings for you at index time and query time.                                                                     
-| <<sparse-vector,`sparse_vector`>>      | <<query-dsl-sparse-vector-query,`sparse_vector`>> | The `sparse_vector` query can generate query embeddings for you, but you can also provide your own. You are expected to provide embeddings at index time.
-| <<dense-vector,`dense_vector`>>        | <<query-dsl-knn-query,`knn`>>                     | The `knn` query can generate query embeddings for you, but you can also provide your own. You are expected to provide embeddings at index time.
+| <<semantic-text,`semantic_text`>>      | <<query-dsl-semantic-query,`semantic`>>           | The `semantic_text` field handles generating embeddings for you at index time and query time.                                                               
+| <<sparse-vector,`sparse_vector`>>      | <<query-dsl-sparse-vector-query,`sparse_vector`>> | The `sparse_vector` query can generate query embeddings for you, but you can also provide your own. Provide embeddings at index time.
+| <<dense-vector,`dense_vector`>>        | <<query-dsl-knn-query,`knn`>>                     | The `knn` query can generate query embeddings for you, but you can also provide your own. Provide embeddings at index time.
 |=======================================================================================================================================================================================================
 
 If you want {es} to generate embeddings at both index and query time, use the `semantic_text` field and the `semantic` query.

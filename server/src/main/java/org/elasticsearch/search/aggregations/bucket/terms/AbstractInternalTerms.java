@@ -198,7 +198,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         }
 
         if (sameTermBuckets.isEmpty() == false) {
-            sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
+            sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, new ArrayList<>(sameTermBuckets)));
         }
     }
 

@@ -1,0 +1,5 @@
+pr: 112508
+summary: "Revert \"[ML] Return both `modelId` and `inferenceId\"`"
+area: Machine Learning
+type: bug
+issues: []

@@ -3,7 +3,7 @@
 === `STATS ... BY`
 
 The `STATS ... BY` processing command groups rows according to a common value
-and calculate one or more aggregated values over the grouped rows.
+and calculates one or more aggregated values over the grouped rows.
 
 **Syntax**
 

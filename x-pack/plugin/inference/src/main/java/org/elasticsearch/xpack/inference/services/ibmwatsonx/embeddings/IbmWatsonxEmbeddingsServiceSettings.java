@@ -49,7 +49,11 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
 
     public static final String NAME = "ibmwatsonx_embeddings_service_settings";
 
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(360);
+    /**
+     * Rate limits are defined at <a href="https://www.ibm.com/docs/en/watsonx/saas?topic=learning-watson-machine-plans">Watson Machine Learning plans and compute usage</a>.
+     * For Lite plan, you've 120 requests per minute.
+     */
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
 
     public static IbmWatsonxEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();

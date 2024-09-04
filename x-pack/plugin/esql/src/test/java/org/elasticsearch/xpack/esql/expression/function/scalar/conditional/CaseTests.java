@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -23,6 +24,7 @@ import org.hamcrest.Matcher;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -32,6 +34,24 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CaseTests extends AbstractScalarFunctionTestCase {
+    private static final List<DataType> TYPES = List.of(
+        DataType.KEYWORD,
+        DataType.TEXT,
+        DataType.BOOLEAN,
+        DataType.DATETIME,
+        DataType.DATE_NANOS,
+        DataType.DOUBLE,
+        DataType.INTEGER,
+        DataType.LONG,
+        DataType.UNSIGNED_LONG,
+        DataType.IP,
+        DataType.VERSION,
+        DataType.CARTESIAN_POINT,
+        DataType.GEO_POINT,
+        DataType.CARTESIAN_SHAPE,
+        DataType.GEO_SHAPE,
+        DataType.NULL
+    );
 
     public CaseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -43,23 +63,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType type : List.of(
-            DataType.KEYWORD,
-            DataType.TEXT,
-            DataType.BOOLEAN,
-            DataType.DATETIME,
-            DataType.DATE_NANOS,
-            DataType.DOUBLE,
-            DataType.INTEGER,
-            DataType.LONG,
-            DataType.UNSIGNED_LONG,
-            DataType.IP,
-            DataType.VERSION,
-            DataType.CARTESIAN_POINT,
-            DataType.GEO_POINT,
-            DataType.CARTESIAN_SHAPE,
-            DataType.GEO_SHAPE
-        )) {
+        for (DataType type : TYPES) {
             twoAndThreeArgs(suppliers, true, true, type, List.of());
             twoAndThreeArgs(suppliers, false, false, type, List.of());
             twoAndThreeArgs(suppliers, null, false, type, List.of());
@@ -73,7 +77,13 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                     "Line -1:-1: java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
                 )
             );
+        }
+        suppliers = errorsForCasesWithoutExamples(
+            suppliers,
+            (includeOrdinal, validPerPosition, types) -> typeErrorMessage(includeOrdinal, types)
+        );
 
+        for (DataType type : TYPES) {
             fourAndFiveArgs(suppliers, true, randomSingleValuedCondition(), 0, type, List.of());
             fourAndFiveArgs(suppliers, false, true, 1, type, List.of());
             fourAndFiveArgs(suppliers, false, false, 2, type, List.of());
@@ -102,7 +112,9 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 )
             );
         }
-        return parameterSuppliersFromTypedData(suppliers);
+        return
+
+        parameterSuppliersFromTypedData(suppliers);
     }
 
     private static void twoAndThreeArgs(
@@ -225,6 +237,98 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 }
             )
         );
+
+        // Fill in some cases with null conditions or null values
+        if (cond == null) {
+            suppliers.add(
+                new TestCaseSupplier(TestCaseSupplier.nameFrom(Arrays.asList(DataType.NULL, type)), List.of(DataType.NULL, type), () -> {
+                    Object lhs = randomLiteral(type).value();
+                    List<TestCaseSupplier.TypedData> typedData = List.of(
+                        new TestCaseSupplier.TypedData(null, DataType.NULL, "cond"),
+                        new TestCaseSupplier.TypedData(lhs, type, "lhs")
+                    );
+                    return testCase(
+                        type,
+                        typedData,
+                        lhsOrRhs ? lhs : null,
+                        startsWith("CaseEvaluator[conditions=[ConditionEvaluator[condition="),
+                        false,
+                        null,
+                        addWarnings(warnings)
+                    );
+                })
+            );
+            suppliers.add(
+                new TestCaseSupplier(
+                    TestCaseSupplier.nameFrom(Arrays.asList(DataType.NULL, type, type)),
+                    List.of(DataType.NULL, type, type),
+                    () -> {
+                        Object lhs = randomLiteral(type).value();
+                        Object rhs = randomLiteral(type).value();
+                        List<TestCaseSupplier.TypedData> typedData = List.of(
+                            new TestCaseSupplier.TypedData(null, DataType.NULL, "cond"),
+                            new TestCaseSupplier.TypedData(lhs, type, "lhs"),
+                            new TestCaseSupplier.TypedData(rhs, type, "rhs")
+                        );
+                        return testCase(
+                            type,
+                            typedData,
+                            lhsOrRhs ? lhs : rhs,
+                            startsWith("CaseEvaluator[conditions=[ConditionEvaluator[condition="),
+                            false,
+                            null,
+                            addWarnings(warnings)
+                        );
+                    }
+                )
+            );
+        }
+        suppliers.add(
+            new TestCaseSupplier(
+                TestCaseSupplier.nameFrom(Arrays.asList(DataType.BOOLEAN, DataType.NULL, type)),
+                List.of(DataType.BOOLEAN, DataType.NULL, type),
+                () -> {
+                    Object rhs = randomLiteral(type).value();
+                    List<TestCaseSupplier.TypedData> typedData = List.of(
+                        cond(cond, "cond"),
+                        new TestCaseSupplier.TypedData(null, DataType.NULL, "lhs"),
+                        new TestCaseSupplier.TypedData(rhs, type, "rhs")
+                    );
+                    return testCase(
+                        type,
+                        typedData,
+                        lhsOrRhs ? null : rhs,
+                        startsWith("CaseEvaluator[conditions=[ConditionEvaluator[condition="),
+                        false,
+                        null,
+                        addWarnings(warnings)
+                    );
+                }
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                TestCaseSupplier.nameFrom(Arrays.asList(DataType.BOOLEAN, type, DataType.NULL)),
+                List.of(DataType.BOOLEAN, type, DataType.NULL),
+                () -> {
+                    Object lhs = randomLiteral(type).value();
+                    List<TestCaseSupplier.TypedData> typedData = List.of(
+                        cond(cond, "cond"),
+                        new TestCaseSupplier.TypedData(lhs, type, "lhs"),
+                        new TestCaseSupplier.TypedData(null, DataType.NULL, "rhs")
+                    );
+                    return testCase(
+                        type,
+                        typedData,
+                        lhsOrRhs ? lhs : null,
+                        startsWith("CaseEvaluator[conditions=[ConditionEvaluator[condition="),
+                        false,
+                        null,
+                        addWarnings(warnings)
+                    );
+                }
+            )
+        );
     }
 
     private static void fourAndFiveArgs(
@@ -338,7 +442,6 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                         }
                     )
                 );
-
             }
             case 1 -> {
                 suppliers.add(
@@ -682,5 +785,32 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             return testCase.getMatcher();
         }
         return super.allNullsMatcher();
+    }
+
+    private static String typeErrorMessage(boolean includeOrdinal, List<DataType> types) {
+        if (types.get(0) != DataType.BOOLEAN && types.get(0) != DataType.NULL) {
+            return typeErrorMessage(includeOrdinal, types, 0, "boolean");
+        }
+        DataType mainType = types.get(1);
+        for (int i = 2; i < types.size(); i++) {
+            if (i % 2 == 0 && i != types.size() - 1) {
+                // condition
+                if (types.get(i) != DataType.BOOLEAN && types.get(i) != DataType.NULL) {
+                    return typeErrorMessage(includeOrdinal, types, i, "boolean");
+                }
+            } else {
+                // value
+                if (types.get(i) != mainType) {
+                    return typeErrorMessage(includeOrdinal, types, i, mainType.typeName());
+                }
+            }
+        }
+        throw new IllegalStateException("can't find bad arg for " + types);
+    }
+
+    private static String typeErrorMessage(boolean includeOrdinal, List<DataType> types, int badArgPosition, String expectedTypeString) {
+        String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
+        String name = types.get(badArgPosition).typeName();
+        return ordinal + "argument of [] must be [" + expectedTypeString + "], found value [" + name + "] type [" + name + "]";
     }
 }

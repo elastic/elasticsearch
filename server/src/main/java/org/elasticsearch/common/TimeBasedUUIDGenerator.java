@@ -47,6 +47,8 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
         return SECURE_MUNGED_ADDRESS;
     }
 
+    static final int SIZE_IN_BYTES = 15;
+
     @Override
     public String getBase64UUID() {
         final int sequenceId = sequenceNumber.incrementAndGet() & 0xffffff;
@@ -61,7 +63,7 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
             sequenceId == 0 ? (lastTimestamp, currentTimeMillis) -> Math.max(lastTimestamp, currentTimeMillis) + 1 : Math::max
         );
 
-        final byte[] uuidBytes = new byte[15];
+        final byte[] uuidBytes = new byte[SIZE_IN_BYTES];
         int i = 0;
 
         // We have auto-generated ids, which are usually used for append-only workloads.

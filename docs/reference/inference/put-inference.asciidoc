@@ -39,6 +39,7 @@ The create {infer} API enables you to create an {infer} endpoint and configure a
 
 The following services are available through the {infer} API, click the links to review the configuration details of the services:
 
+* <<infer-service-alibabacloud-ai-search,AlibabaCloud AI Search>>
 * <<infer-service-amazon-bedrock,Amazon Bedrock>>
 * <<infer-service-anthropic,Anthropic>>
 * <<infer-service-azure-ai-studio,Azure AI Studio>>

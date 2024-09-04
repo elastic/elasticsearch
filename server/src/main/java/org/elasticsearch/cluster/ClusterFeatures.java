@@ -140,11 +140,10 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
         out.writeMap(nodeFeatureSetIndexes, StreamOutput::writeVInt);
     }
 
+    @SuppressWarnings("unchecked")
     private static Map<String, Set<String>> readCanonicalSets(StreamInput in) throws IOException {
-        List<Set<String>> featureSets = in.readCollectionAsList(i -> i.readCollectionAsImmutableSet(StreamInput::readString));
-        Map<String, Integer> nodeIndexes = in.readMap(StreamInput::readVInt);
-
-        return nodeIndexes.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> featureSets.get(e.getValue())));
+        Set<String>[] featureSets = in.readArray(i -> i.readCollectionAsImmutableSet(StreamInput::readString), Set[]::new);
+        return in.readImmutableMap(streamInput -> featureSets[streamInput.readVInt()]);
     }
 
     public static ClusterFeatures readFrom(StreamInput in) throws IOException {

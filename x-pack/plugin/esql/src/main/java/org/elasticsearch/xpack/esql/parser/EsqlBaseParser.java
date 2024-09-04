@@ -447,7 +447,7 @@ public class EsqlBaseParser extends ParserConfig {
         enterOuterAlt(_localctx, 6);
         {
         setState(141);
-        if (!(isDevVersion())) throw new FailedPredicateException(this, "isDevVersion()");
+        if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
         setState(142);
         metricsCommand();
         }
@@ -627,7 +627,7 @@ public class EsqlBaseParser extends ParserConfig {
         enterOuterAlt(_localctx, 13);
         {
         setState(157);
-        if (!(isDevVersion())) throw new FailedPredicateException(this, "isDevVersion()");
+        if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
         setState(158);
         inlinestatsCommand();
         }
@@ -636,7 +636,7 @@ public class EsqlBaseParser extends ParserConfig {
         enterOuterAlt(_localctx, 14);
         {
         setState(159);
-        if (!(isDevVersion())) throw new FailedPredicateException(this, "isDevVersion()");
+        if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
         setState(160);
         lookupCommand();
         }
@@ -645,7 +645,7 @@ public class EsqlBaseParser extends ParserConfig {
         enterOuterAlt(_localctx, 15);
         {
         setState(161);
-        if (!(isDevVersion())) throw new FailedPredicateException(this, "isDevVersion()");
+        if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
         setState(162);
         matchCommand();
         }
@@ -1018,7 +1018,7 @@ public class EsqlBaseParser extends ParserConfig {
         _ctx = _localctx;
         _prevctx = _localctx;
         setState(196);
-        if (!(isDevVersion())) throw new FailedPredicateException(this, "isDevVersion()");
+        if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
         setState(197);
         matchBooleanExpression();
         }
@@ -5339,25 +5339,25 @@ public class EsqlBaseParser extends ParserConfig {
   private boolean sourceCommand_sempred(SourceCommandContext _localctx, int predIndex) {
     switch (predIndex) {
     case 1:
-      return isDevVersion();
+      return this.isDevVersion();
     }
     return true;
   }
   private boolean processingCommand_sempred(ProcessingCommandContext _localctx, int predIndex) {
     switch (predIndex) {
     case 2:
-      return isDevVersion();
+      return this.isDevVersion();
     case 3:
-      return isDevVersion();
+      return this.isDevVersion();
     case 4:
-      return isDevVersion();
+      return this.isDevVersion();
     }
     return true;
   }
   private boolean booleanExpression_sempred(BooleanExpressionContext _localctx, int predIndex) {
     switch (predIndex) {
     case 5:
-      return isDevVersion();
+      return this.isDevVersion();
     case 6:
       return precpred(_ctx, 5);
     case 7:

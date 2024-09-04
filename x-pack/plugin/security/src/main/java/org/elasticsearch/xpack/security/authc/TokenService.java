@@ -470,7 +470,7 @@ public class TokenService {
      * verification that the token has not been revoked or is expired.
      */
     void tryAuthenticateToken(SecureString token, ActionListener<UserToken> listener) {
-        if (isEnabled() && token != null) {
+        if (shouldTryRealm() && token != null) {
             decodeToken(token.toString(), true, listener.delegateResponse((l, e) -> {
                 if (isShardNotAvailableException(e)) {
                     l.onResponse(null);
@@ -1964,8 +1964,10 @@ public class TokenService {
         }
     }
 
-    private boolean isEnabled() {
-        return enabled && Security.TOKEN_SERVICE_FEATURE.check(licenseState);
+    private boolean shouldTryRealm() {
+        // Check license without tracking because this is just checking if we should *try* the realm - if this realm doesn't match,
+        // the next realm in the list will be checked, and that's not "using the feature"
+        return enabled && Security.TOKEN_SERVICE_FEATURE.checkWithoutTracking(licenseState);
     }
 
     private void ensureEnabled() {

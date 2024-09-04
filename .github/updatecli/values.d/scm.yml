@@ -3,12 +3,8 @@ scm:
   owner: elastic
   repository: elasticsearch
   branch: main
+  commitusingapi: true
   # begin updatecli-compose policy values
   user: elasticmachine
   email: 42973632+elasticmachine@users.noreply.github.com
-  commitusingapi: true
   # end updatecli-compose policy values
-
-# This will be moved to the scm section in the future and use
-# commitusingapi instead.
-signedcommit: true

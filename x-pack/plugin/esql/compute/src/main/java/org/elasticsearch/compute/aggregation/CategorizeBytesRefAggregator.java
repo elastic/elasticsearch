@@ -48,7 +48,7 @@ import java.util.Map;
 @GroupingAggregator
 class CategorizeBytesRefAggregator {
     public static SingleState initSingle(BigArrays bigArrays) {
-        return new SingleState(bigArrays);
+        return new SingleState(bigArrays, createAnalyzer());
     }
 
     public static void combine(SingleState state, BytesRef v) {
@@ -80,7 +80,7 @@ class CategorizeBytesRefAggregator {
     }
 
     public static GroupingState initGrouping(BigArrays bigArrays) {
-        return new GroupingState(bigArrays);
+        return new GroupingState(bigArrays, createAnalyzer());
     }
 
     public static void combine(GroupingState state, int groupId, BytesRef v) {
@@ -103,33 +103,37 @@ class CategorizeBytesRefAggregator {
         return state.toFinal(driverContext.blockFactory(), selected);
     }
 
+    private static CategorizationAnalyzer createAnalyzer() {
+        // TODO: add correct analyzer, see also: CategorizationAnalyzerConfig::buildStandardCategorizationAnalyzer
+        return new CategorizationAnalyzer(
+            new CustomAnalyzer(
+                TokenizerFactory.newFactory("whitespace", WhitespaceTokenizer::new),
+                new CharFilterFactory[0],
+                new TokenFilterFactory[0]
+            ),
+            true
+        );
+    }
+
     public static class SingleState implements Releasable {
 
         private final CategorizationAnalyzer analyzer;
         private final CategorizationBytesRefHash bytesRefHash;
-        private final TokenListCategorizer categorizer; // TODO: reuse for group
+        private final TokenListCategorizer categorizer;
 
-        private SingleState(BigArrays bigArrays) {
-            // TODO: add correct analyzer, see also: CategorizationAnalyzerConfig::buildStandardCategorizationAnalyzer
-            analyzer = new CategorizationAnalyzer(
-                new CustomAnalyzer(
-                    TokenizerFactory.newFactory("whitespace", WhitespaceTokenizer::new),
-                    new CharFilterFactory[0],
-                    new TokenFilterFactory[0]
-                ),
-                true
-            );
+        private SingleState(BigArrays bigArrays, CategorizationAnalyzer analyzer) {
             bytesRefHash = new CategorizationBytesRefHash(new BytesRefHash(2048, bigArrays));
             categorizer = new TokenListCategorizer(bytesRefHash, CategorizationPartOfSpeechDictionary.getInstance(), 0.70f);
+            this.analyzer = analyzer;
         }
 
         void add(BytesRef v) {
             if (v == null || v.length == 0) {
                 return;
             }
-            try (TokenStream ts = analyzer.tokenStream("text", v.utf8ToString())) {
-                // TODO: unfilteredStringLen: 999 ???
-                categorizer.computeCategory(ts, 999, 1);
+            String s = v.utf8ToString();
+            try (TokenStream ts = analyzer.tokenStream("text", s)) {
+                categorizer.computeCategory(ts, s.length(), 1);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -206,15 +210,17 @@ class CategorizeBytesRefAggregator {
     public static class GroupingState implements Releasable {
 
         private final BigArrays bigArrays;
+        private final CategorizationAnalyzer analyzer;
         private final Map<Integer, SingleState> states;
 
-        private GroupingState(BigArrays bigArrays) {
+        private GroupingState(BigArrays bigArrays, CategorizationAnalyzer analyzer) {
             this.bigArrays = bigArrays;
+            this.analyzer = analyzer;
             states = new HashMap<>();
         }
 
         SingleState getState(int groupId) {
-            return states.computeIfAbsent(groupId, key -> new SingleState(bigArrays));
+            return states.computeIfAbsent(groupId, key -> new SingleState(bigArrays, analyzer));
         }
 
         void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {

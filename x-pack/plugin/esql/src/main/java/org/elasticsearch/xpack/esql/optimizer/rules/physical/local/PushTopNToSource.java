@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -26,8 +25,8 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
     protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
         PhysicalPlan plan = topNExec;
         PhysicalPlan child = topNExec.child();
-        if (LocalPhysicalPlanOptimizer.canPushSorts(child)
-            && canPushDownOrders(topNExec.order(), x -> LocalPhysicalPlanOptimizer.hasIdenticalDelegate(x, ctx.searchStats()))) {
+        if (canPushSorts(child)
+            && canPushDownOrders(topNExec.order(), x -> LucenePushdownUtils.hasIdenticalDelegate(x, ctx.searchStats()))) {
             var sorts = buildFieldSorts(topNExec.order());
             var limit = topNExec.limit();
 
@@ -40,9 +39,19 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         return plan;
     }
 
+    private static boolean canPushSorts(PhysicalPlan plan) {
+        if (plan instanceof EsQueryExec queryExec) {
+            return queryExec.canPushSorts();
+        }
+        if (plan instanceof ExchangeExec exchangeExec && exchangeExec.child() instanceof EsQueryExec queryExec) {
+            return queryExec.canPushSorts();
+        }
+        return false;
+    }
+
     private boolean canPushDownOrders(List<Order> orders, Predicate<FieldAttribute> hasIdenticalDelegate) {
         // allow only exact FieldAttributes (no expressions) for sorting
-        return orders.stream().allMatch(o -> LocalPhysicalPlanOptimizer.isPushableFieldAttribute(o.child(), hasIdenticalDelegate));
+        return orders.stream().allMatch(o -> LucenePushdownUtils.isPushableFieldAttribute(o.child(), hasIdenticalDelegate));
     }
 
     private List<EsQueryExec.FieldSort> buildFieldSorts(List<Order> orders) {

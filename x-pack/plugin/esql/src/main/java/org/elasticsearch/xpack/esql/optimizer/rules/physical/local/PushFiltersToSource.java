@@ -32,11 +32,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.*;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,13 +54,14 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             List<Expression> pushable = new ArrayList<>();
             List<Expression> nonPushable = new ArrayList<>();
             for (Expression exp : splitAnd(filterExec.condition())) {
-                (canPushToSource(exp, x -> LocalPhysicalPlanOptimizer.hasIdenticalDelegate(x, ctx.searchStats())) ? pushable : nonPushable)
-                    .add(exp);
+                (canPushToSource(exp, x -> LucenePushdownUtils.hasIdenticalDelegate(x, ctx.searchStats())) ? pushable : nonPushable).add(
+                    exp
+                );
             }
             // Combine GT, GTE, LT and LTE in pushable to Range if possible
             List<Expression> newPushable = combineEligiblePushableToRange(pushable);
             if (newPushable.size() > 0) { // update the executable with pushable conditions
-                Query queryDSL = LocalPhysicalPlanOptimizer.TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(newPushable));
+                Query queryDSL = PlannerUtils.TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(newPushable));
                 QueryBuilder planQuery = queryDSL.asBuilder();
                 var query = Queries.combine(Queries.Clause.FILTER, asList(queryExec.query(), planQuery));
                 queryExec = new EsQueryExec(
@@ -180,7 +181,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         } else if (exp instanceof CIDRMatch cidrMatch) {
             return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate) && Expressions.foldable(cidrMatch.matches());
         } else if (exp instanceof SpatialRelatesFunction bc) {
-            return bc.canPushToSource(LocalPhysicalPlanOptimizer::isAggregatable);
+            return bc.canPushToSource(LucenePushdownUtils::isAggregatable);
         } else if (exp instanceof MatchQueryPredicate mqp) {
             return mqp.field() instanceof FieldAttribute && DataType.isString(mqp.field().dataType());
         } else if (exp instanceof StringQueryPredicate) {
@@ -194,7 +195,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         Expression operation,
         Predicate<FieldAttribute> hasIdenticalDelegate
     ) {
-        if (LocalPhysicalPlanOptimizer.isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
+        if (LucenePushdownUtils.isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
             return true;
         }
         if (expression instanceof MetadataAttribute ma && ma.searchable()) {

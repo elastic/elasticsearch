@@ -121,7 +121,7 @@ setup:
   - match:  { responses.4.error.root_cause.0.type: illegal_argument_exception }
   - match:  { responses.4.error.root_cause.0.reason: "[rest_total_hits_as_int] cannot be used if the tracking of total hits is not accurate, got 1" }
   - match:  { responses.0.status: 200 }
-  - match:  { responses.1.status: 500 }
+  - match:  { responses.1.status: 400 }
   - match:  { responses.2.status: 200 }
   - match:  { responses.3.status: 400 }
 

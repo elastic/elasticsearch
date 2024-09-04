@@ -10,9 +10,9 @@ package org.elasticsearch.xcontent;
 
 import java.io.IOException;
 
-public class XContentEOFException extends IOException {
+public class XContentEOFException extends XContentParseException {
 
-    public XContentEOFException(IOException cause) {
-        super(cause);
+    public XContentEOFException(XContentLocation location, String message, Exception cause) {
+        super(location, message, cause);
     }
 }

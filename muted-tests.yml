@@ -170,9 +170,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/112421
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   issue: https://github.com/elastic/elasticsearch/issues/112423
-- class: org.elasticsearch.xpack.spatial.index.query.LegacyGeoShapeWithDocValuesQueryTests
-  method: testIndexPointsFromLine
-  issue: https://github.com/elastic/elasticsearch/issues/112438
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
   method: "testAggregateIntermediate {TestCase=<geo_point> #2}"
   issue: https://github.com/elastic/elasticsearch/issues/112461
@@ -185,6 +182,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ManyShardsIT
   method: testConcurrentQueries
   issue: https://github.com/elastic/elasticsearch/issues/112424
+- class: org.elasticsearch.xpack.inference.external.http.RequestBasedTaskRunnerTests
+  method: testLoopOneAtATime
+  issue: https://github.com/elastic/elasticsearch/issues/112471
 
 # Examples:
 #

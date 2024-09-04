@@ -13,6 +13,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
@@ -50,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Phased;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -292,14 +295,19 @@ public class EsqlSession {
                 }
                 // but keep the inputs needed by Grok/Dissect
                 references.addAll(re.input().references());
-            } else if (p instanceof Enrich) {
-                AttributeSet enrichRefs = p.references();
+            } else if (p instanceof Enrich enrich) {
+                AttributeSet enrichRefs = Expressions.references(enrich.enrichFields());
+                enrichRefs = enrichRefs.combine(enrich.matchField().references());
                 // Enrich adds an EmptyAttribute if no match field is specified
                 // The exact name of the field will be added later as part of enrichPolicyMatchFields Set
                 enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
                 references.addAll(enrichRefs);
             } else {
                 references.addAll(p.references());
+                if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
+                    // METRICS aggs generally rely on @timestamp without the user having to mention it.
+                    references.add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                }
                 // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
                     var ua = new UnresolvedAttribute(up.source(), up.name());
@@ -317,10 +325,11 @@ public class EsqlSession {
             // remove any already discovered UnresolvedAttributes that are in fact aliases defined later down in the tree
             // for example "from test | eval x = salary | stats max = max(x) by gender"
             // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
+            AttributeSet planRefs = Expressions.references(p.expressions());
             p.forEachExpressionDown(Alias.class, alias -> {
                 // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id = id"
                 // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
-                if (p.references().names().contains(alias.name())) {
+                if (planRefs.names().contains(alias.name())) {
                     return;
                 }
                 references.removeIf(attr -> matchByName(attr, alias.name(), keepCommandReferences.contains(attr)));

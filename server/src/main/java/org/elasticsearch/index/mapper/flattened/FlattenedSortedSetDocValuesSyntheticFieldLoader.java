@@ -12,12 +12,14 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.SortedSetDocValuesSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.stream.Stream;
 
-public class FlattenedSortedSetDocValuesSyntheticFieldLoader extends SortedSetDocValuesSyntheticFieldLoader {
+public class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
     private DocValuesFieldValues docValues = NO_VALUES;
     private final String fieldFullPath;
     private final String keyedFieldFullPath;
@@ -31,7 +33,6 @@ public class FlattenedSortedSetDocValuesSyntheticFieldLoader extends SortedSetDo
      * @param leafName                the name of the leaf field to use in the rendered {@code _source}
      */
     public FlattenedSortedSetDocValuesSyntheticFieldLoader(String fieldFullPath, String keyedFieldFullPath, String leafName) {
-        super(fieldFullPath, leafName, null, false);
         this.fieldFullPath = fieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
         this.leafName = leafName;
@@ -40,6 +41,11 @@ public class FlattenedSortedSetDocValuesSyntheticFieldLoader extends SortedSetDo
     @Override
     public String fieldName() {
         return fieldFullPath;
+    }
+
+    @Override
+    public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+        return Stream.empty();
     }
 
     @Override
@@ -67,16 +73,6 @@ public class FlattenedSortedSetDocValuesSyntheticFieldLoader extends SortedSetDo
         b.startObject(leafName);
         docValues.write(b);
         b.endObject();
-    }
-
-    @Override
-    protected BytesRef convert(BytesRef value) {
-        return value;
-    }
-
-    @Override
-    protected BytesRef preserve(BytesRef value) {
-        return BytesRef.deepCopyOf(value);
     }
 
     private interface DocValuesFieldValues {

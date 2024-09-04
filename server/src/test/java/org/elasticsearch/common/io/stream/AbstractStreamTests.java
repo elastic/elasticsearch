@@ -761,6 +761,17 @@ public abstract class AbstractStreamTests extends ESTestCase {
         }
     }
 
+    public void testOptional() throws IOException {
+        try (var output = new BytesStreamOutput()) {
+            output.writeOptional(StreamOutput::writeString, "not-null");
+            output.writeOptional(StreamOutput::writeString, null);
+
+            final var input = getStreamInput(output.bytes());
+            assertEquals("not-null", input.readOptional(StreamInput::readString));
+            assertNull(input.readOptional(StreamInput::readString));
+        }
+    }
+
     private void assertSerialization(
         CheckedConsumer<StreamOutput, IOException> outputAssertions,
         CheckedConsumer<StreamInput, IOException> inputAssertions,

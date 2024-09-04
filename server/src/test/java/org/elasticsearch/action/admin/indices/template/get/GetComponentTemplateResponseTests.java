@@ -88,7 +88,7 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
             response.toXContent(builder, EMPTY_PARAMS);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(null))
+            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(null, randomBoolean()))
                 .getConditions()
                 .keySet()) {
                 assertThat(serialized, containsString(label));

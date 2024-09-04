@@ -1,0 +1,6 @@
+pr: 112226
+summary: "Fix \"unexpected field [remote_cluster]\" for CCS (RCS 1.0) when using API\
+  \ key that references `remote_cluster`"
+area: Security
+type: bug
+issues: []

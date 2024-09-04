@@ -176,4 +176,20 @@ public class UUIDTests extends ESTestCase {
         );
         return bytesPerDoc;
     }
+
+    public void testStringLength() {
+        assertEquals(UUIDs.RANDOM_BASED_UUID_STRING_LENGTH, getUnpaddedBase64StringLength(RandomBasedUUIDGenerator.SIZE_IN_BYTES));
+        assertEquals(UUIDs.RANDOM_BASED_UUID_STRING_LENGTH, UUIDs.randomBase64UUID().length());
+        assertEquals(UUIDs.RANDOM_BASED_UUID_STRING_LENGTH, UUIDs.randomBase64UUID(random()).length());
+        try (var secureString = UUIDs.randomBase64UUIDSecureString()) {
+            assertEquals(UUIDs.RANDOM_BASED_UUID_STRING_LENGTH, secureString.toString().length());
+        }
+
+        assertEquals(UUIDs.TIME_BASED_UUID_STRING_LENGTH, getUnpaddedBase64StringLength(TimeBasedUUIDGenerator.SIZE_IN_BYTES));
+        assertEquals(UUIDs.TIME_BASED_UUID_STRING_LENGTH, UUIDs.base64UUID().length());
+    }
+
+    private static int getUnpaddedBase64StringLength(int sizeInBytes) {
+        return (int) Math.ceil(sizeInBytes * 4.0 / 3.0);
+    }
 }

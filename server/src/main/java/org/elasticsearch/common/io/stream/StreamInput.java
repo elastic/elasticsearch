@@ -1095,8 +1095,23 @@ public abstract class StreamInput extends InputStream {
         return readBoolean() ? readArray(reader, arraySupplier) : null;
     }
 
+    /**
+     * Reads a possibly-null value using the given {@link org.elasticsearch.common.io.stream.Writeable.Reader}.
+     *
+     * @see StreamOutput#writeOptionalWriteable
+     */
+    // just an alias for readOptional() since we don't actually care whether T extends Writeable
     @Nullable
     public <T extends Writeable> T readOptionalWriteable(Writeable.Reader<T> reader) throws IOException {
+        return readOptional(reader);
+    }
+
+    /**
+     * Reads a possibly-null value using the given {@link org.elasticsearch.common.io.stream.Writeable.Reader}.
+     *
+     * @see StreamOutput#writeOptional
+     */
+    public <T> T readOptional(Writeable.Reader<T> reader) throws IOException {
         if (readBoolean()) {
             T t = reader.read(this);
             if (t == null) {

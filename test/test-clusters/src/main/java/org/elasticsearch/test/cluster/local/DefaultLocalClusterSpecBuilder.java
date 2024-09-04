@@ -23,6 +23,7 @@ public final class DefaultLocalClusterSpecBuilder extends AbstractLocalClusterSp
         this.settings(new DefaultSettingsProvider());
         this.environment(new DefaultEnvironmentProvider());
         this.rolesFile(Resource.fromClasspath("default_test_roles.yml"));
+        this.plugin("test-features");
     }
 
     @Override

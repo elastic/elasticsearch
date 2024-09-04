@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SameThreadExecutorService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -29,7 +28,6 @@ import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
@@ -134,8 +132,6 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         try {
             beforeMerge(onGoingMerge);
             super.doMerge(mergeSource, merge);
-        } catch (AlreadyClosedException ignore) {
-            // Intentially ignored in order not to fail `IndexWriter` when we already shutting down the service.
         } finally {
             long tookMS = TimeValue.nsecToMSec(System.nanoTime() - timeNS);
 

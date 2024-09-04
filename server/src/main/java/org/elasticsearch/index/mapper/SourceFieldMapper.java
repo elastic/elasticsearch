@@ -299,7 +299,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             c.getIndexSettings().getMode(),
             c.getSettings(),
             c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK),
-                INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(c.getSettings())
+            INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(c.getSettings())
         )
     );
 

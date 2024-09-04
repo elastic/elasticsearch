@@ -386,9 +386,9 @@ public class RecoverySettings {
      * This setting is not registered and should be used exclusively in a serverless environment.
      */
     public static final Setting<Boolean> INDICES_RECOVERY_SOURCE_ENABLED_SETTING = Setting.boolSetting(
-            "indices.recovery.recovery_source.enabled",
-            true,
-            Property.NodeScope
+        "indices.recovery.recovery_source.enabled",
+        true,
+        Property.NodeScope
     );
 
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);

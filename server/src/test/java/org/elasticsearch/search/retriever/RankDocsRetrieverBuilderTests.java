@@ -110,8 +110,7 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
             assertThat(bq.must().size(), equalTo(0));
             assertThat(bq.should().size(), greaterThanOrEqualTo(1));
             assertThat(bq.should().get(0), instanceOf(RankDocsQueryBuilder.class));
-            assertNotNull(source.postFilter());
-            assertThat(source.postFilter(), instanceOf(RankDocsQueryBuilder.class));
+            assertNull(source.postFilter());
         } else {
             assertThat(bq.must().size(), equalTo(1));
             assertThat(bq.must().get(0), instanceOf(RankDocsQueryBuilder.class));

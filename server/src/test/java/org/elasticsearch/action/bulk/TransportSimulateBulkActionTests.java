@@ -214,7 +214,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
          * (4) An indexing request to a nonexistent index that matches a V1 template and is invalid with respect to the mappings
          * (5) An indexing request to a nonexistent index that matches a V2 template and is valid with respect to the mappings
          * (6) An indexing request to a nonexistent index that matches a V2 template and is invalid with respect to the mappings
-         * (6) An indexing request to a nonexistent index that matches no templates
+         * (7) An indexing request to a nonexistent index that matches no templates
          */
         Task task = mock(Task.class); // unused
         BulkRequest bulkRequest = new SimulateBulkRequest((Map<String, Map<String, Object>>) null);

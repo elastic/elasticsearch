@@ -107,8 +107,8 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         assertThat(response.getItems().length, equalTo(2));
         assertThat(response.getItems()[0].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
         assertNull(((SimulateIndexResponse) response.getItems()[0].getResponse()).getException());
-        assertNull(((SimulateIndexResponse) response.getItems()[1].getResponse()).getException());
         assertThat(response.getItems()[1].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+        assertNull(((SimulateIndexResponse) response.getItems()[1].getResponse()).getException());
     }
 
     public void testMappingValidationIndexDoesNotExistsV2Template() throws IOException {

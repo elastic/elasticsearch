@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 
-public class TempNameUtils {
+class TempNameUtils {
     static int TO_STRING_LIMIT = 16;
 
     public static String temporaryName(Expression inner, Expression outer, int suffix) {

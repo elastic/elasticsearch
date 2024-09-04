@@ -33,7 +33,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 
-public class PushDownUtils {
+class PushDownUtils {
     /**
      * Pushes LogicalPlans which generate new attributes (Eval, Grok/Dissect, Enrich), past OrderBys and Projections.
      * Although it seems arbitrary whether the OrderBy or the generating plan is executed first, this transformation ensures that OrderBys

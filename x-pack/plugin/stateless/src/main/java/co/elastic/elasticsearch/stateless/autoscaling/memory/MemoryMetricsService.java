@@ -295,8 +295,8 @@ public class MemoryMetricsService implements ClusterStateListener {
                     for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
                         ShardId shardId = new ShardId(indexMetadata.getIndex(), id);
                         ShardRouting newShardRouting = event.state().routingTable().shardRoutingTable(shardId).primaryShard();
+                        final ShardMemoryMetrics shardMemoryMetrics = this.shardMemoryMetrics.get(shardId);
                         if (newShardRouting.assignedToNode()) {
-                            final ShardMemoryMetrics shardMemoryMetrics = this.shardMemoryMetrics.get(shardId);
                             assert shardMemoryMetrics != null;
                             final String lastKnownShardNodeId = shardMemoryMetrics.getMetricShardNodeId();
                             final String newShardNodeId = newShardRouting.currentNodeId();
@@ -304,6 +304,8 @@ public class MemoryMetricsService implements ClusterStateListener {
                                 // preserve last-known value, since shard has moved and no mapping change happened
                                 shardMemoryMetrics.update(newShardRouting.currentNodeId(), relativeTimeInNanos());
                             }
+                        } else {
+                            shardMemoryMetrics.update(MetricQuality.MINIMUM, relativeTimeInNanos());
                         }
                     }
                 }

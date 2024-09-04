@@ -734,7 +734,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         assertTrue(ingestionLoads.toString(), ingestionLoads.stream().allMatch(load -> load.metricQuality().equals(MetricQuality.MISSING)));
     }
 
-    private static void markNodesForShutdown(List<DiscoveryNode> shuttingDownNodes, List<SingleNodeShutdownMetadata.Type> shutdownTypes) {
+    public static void markNodesForShutdown(List<DiscoveryNode> shuttingDownNodes, List<SingleNodeShutdownMetadata.Type> shutdownTypes) {
         shuttingDownNodes.forEach(node -> {
             final var type = randomFrom(shutdownTypes);
             assertAcked(

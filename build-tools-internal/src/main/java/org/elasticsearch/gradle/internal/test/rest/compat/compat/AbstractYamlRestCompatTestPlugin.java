@@ -35,6 +35,7 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.language.jvm.tasks.ProcessResources;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -213,6 +214,16 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
             .named(RestResourcesPlugin.COPY_YAML_TESTS_TASK)
             .flatMap(CopyRestTestsTask::getOutputResourceDir);
 
+        // ensure we include other non rest spec related test resources
+        project.getTasks()
+            .withType(ProcessResources.class)
+            .named(yamlCompatTestSourceSet.getProcessResourcesTaskName())
+            .configure(processResources -> {
+                processResources.from(sourceSets.getByName(YamlRestTestPlugin.YAML_REST_TEST).getResources(), spec -> {
+                    spec.exclude("rest-api-spec/**");
+                });
+            });
+
         // setup the test task
         TaskProvider<? extends Test> yamlRestCompatTestTask = registerTestTask(project, yamlCompatTestSourceSet);
         yamlRestCompatTestTask.configure(testTask -> {
@@ -225,7 +236,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
             testTask.setClasspath(
                 yamlCompatTestSourceSet.getRuntimeClasspath()
                     // remove the "normal" api and tests
-                    .minus(project.files(new File(yamlTestSourceSet.getOutput().getResourcesDir(), "rest-api-spec")))
+                    .minus(project.files(yamlTestSourceSet.getOutput().getResourcesDir()))
                     .minus(project.files(originalYamlSpecsDir))
                     .minus(project.files(originalYamlTestsDir))
             );

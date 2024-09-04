@@ -190,7 +190,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         plan.frozen(),
                         plan.metadataFields(),
                         plan.indexMode(),
-                        context.indexResolution().toString()
+                        context.indexResolution().toString(),
+                        plan.commandName()
                     );
             }
             TableIdentifier table = plan.table();
@@ -202,7 +203,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.frozen(),
                     plan.metadataFields(),
                     plan.indexMode(),
-                    "invalid [" + table + "] resolution to [" + context.indexResolution() + "]"
+                    "invalid [" + table + "] resolution to [" + context.indexResolution() + "]",
+                    plan.commandName()
                 );
             }
 

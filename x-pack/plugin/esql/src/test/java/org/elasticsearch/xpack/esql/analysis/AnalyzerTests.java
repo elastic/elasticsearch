@@ -95,7 +95,8 @@ public class AnalyzerTests extends ESTestCase {
         false,
         List.of(),
         IndexMode.STANDARD,
-        null
+        null,
+        "FROM"
     );
 
     private static final int MAX_LIMIT = EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);

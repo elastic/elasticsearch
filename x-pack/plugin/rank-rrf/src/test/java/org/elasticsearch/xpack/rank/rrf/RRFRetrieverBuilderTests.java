@@ -129,7 +129,15 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         try (
             XContentParser parser = createParser(
                 JsonXContent.jsonXContent,
-                "{\"retriever\":{\"rrf_nl\":{\"retrievers\":[{\"rrf_nl\":{\"retrievers\":[{\"rrf_nl\":{\"retrievers\":[{\"rrf_nl\":{\"retrievers\":[{\"standard\":{}}]}}]}}]}}]}}}"
+                "{\"retriever\":{\"rrf_nl\":"
+                    + "{\"retrievers\":[{\"rrf_nl\":"
+                    + "{\"retrievers\":[{\"rrf_nl\":"
+                    + "{\"retrievers\":[{\"rrf_nl\":"
+                    + "{\"retrievers\":[{\"standard\":{}}]"
+                    + "}}]"
+                    + "}}]"
+                    + "}}]"
+                    + "}}}"
             )
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();

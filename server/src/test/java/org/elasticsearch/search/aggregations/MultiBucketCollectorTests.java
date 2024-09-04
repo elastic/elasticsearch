@@ -290,6 +290,7 @@ public class MultiBucketCollectorTests extends ESTestCase {
             randomBoolean(),
             Arrays.asList(scoringBucketCollector1, scoringBucketCollector2)
         ).getLeafCollector(null);
+        leafBucketCollector.setScorer(scorable);
         leafBucketCollector.collect(0, 0);
         // Even though both leaf collectors called scorable.score(), it only got called once thanks to caching
         assertEquals(1, scorable.numScoreCalls);

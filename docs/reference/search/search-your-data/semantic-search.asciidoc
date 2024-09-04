@@ -64,7 +64,7 @@ If not, it depends on which type of embeddings you're working with.
 [cols="3*", options="header"]
 |=======================================================================================================================================================================================================
 | Field type to query                    | Query to use                                      | Notes                                                                                                                                                             
-| <<semantic-text,`semantic_text`>> .    | <<query-dsl-semantic-query,`semantic`>> .         | The `semantic_text` field handles generating embeddings for you at index time and query time.                                                                     
+| <<semantic-text,`semantic_text`>>      | <<query-dsl-semantic-query,`semantic`>>           | The `semantic_text` field handles generating embeddings for you at index time and query time.                                                                     
 | <<sparse-vector,`sparse_vector`>>      | <<query-dsl-sparse-vector-query,`sparse vector`>> | The `sparse_vector` query can generate query embeddings for you, but you can also provide your own. You are expected to provide embeddings at index time.
 | <<dense-vector,`dense_vector`>>        | <<query-dsl-knn-query,`knn`>>                     | The `knn` query can generate query embeddings for you, but you can also provide your own. You are expected to provide embeddings at index time.
 |=======================================================================================================================================================================================================

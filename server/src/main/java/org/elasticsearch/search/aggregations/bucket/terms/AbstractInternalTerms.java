@@ -210,7 +210,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             }
         }
         for (List<B> sameTermBuckets : bucketMap.values()) {
-            sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, new ArrayList<>(sameTermBuckets)));
+            sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
         }
     }
 

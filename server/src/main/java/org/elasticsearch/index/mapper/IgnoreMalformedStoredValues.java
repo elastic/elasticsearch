@@ -79,6 +79,9 @@ public abstract class IgnoreMalformedStoredValues {
      */
     public abstract void write(XContentBuilder b) throws IOException;
 
+    /**
+     * Remove stored values for this document and return to clean state to process next document.
+     */
     public abstract void reset();
 
     private static final Empty EMPTY = new Empty();

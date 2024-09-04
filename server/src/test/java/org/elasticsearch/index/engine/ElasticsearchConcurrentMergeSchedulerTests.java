@@ -26,7 +26,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ElasticsearchConcurrentMergeSchedulerTest extends ESTestCase {
+public class ElasticsearchConcurrentMergeSchedulerTests extends ESTestCase {
 
     public void testDoMergeIgnoresAlreadyClosedException() throws Exception {
         String index = randomAlphaOfLength(8);

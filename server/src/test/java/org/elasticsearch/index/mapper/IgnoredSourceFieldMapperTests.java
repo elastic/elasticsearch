@@ -49,7 +49,10 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     }
 
     private MapperService createMapperServiceWithStoredArraySource(XContentBuilder mappings) throws IOException {
-        Settings settings = Settings.builder().put(getIndexSettings()).put(Mapper.STORE_ARRAY_SOURCE_SETTING.getKey(), "arrays").build();
+        Settings settings = Settings.builder()
+            .put(getIndexSettings())
+            .put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays")
+            .build();
         return createMapperService(settings, mappings);
     }
 

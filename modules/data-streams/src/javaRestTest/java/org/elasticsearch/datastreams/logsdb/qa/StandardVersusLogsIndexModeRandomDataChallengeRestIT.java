@@ -127,7 +127,7 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
     @Override
     public void contenderSettings(Settings.Builder builder) {
         if (storeArraySource) {
-            builder.put(Mapper.STORE_ARRAY_SOURCE_SETTING.getKey(), "arrays");
+            builder.put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays");
         }
     }
 

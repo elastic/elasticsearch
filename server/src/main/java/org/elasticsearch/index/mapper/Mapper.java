@@ -24,9 +24,9 @@ import java.util.function.Function;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
-    public static final NodeFeature STORE_SOURCE_MAPPER_PARAM = new NodeFeature("mapper.source.store_param");
+    public static final NodeFeature SYNTHETIC_SOURCE_KEEP_FEATURE = new NodeFeature("mapper.synthetic_source_keep");
 
-    static final String STORE_SOURCE_PARAM = "store_source";
+    static final String SYNTHETIC_SOURCE_KEEP_PARAM = "synthetic_source_keep";
 
     // Only relevant for synthetic source mode.
     public enum StoreSourceMode {
@@ -48,7 +48,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             if (input.equals(ARRAYS.name)) {
                 return ARRAYS;
             }
-            throw new IllegalArgumentException("Unknown " + STORE_SOURCE_PARAM + " value [" + input + "]");
+            throw new IllegalArgumentException("Unknown " + SYNTHETIC_SOURCE_KEEP_PARAM + " value [" + input + "]");
         }
 
         @Override
@@ -62,13 +62,13 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     // Only relevant for indexes configured with synthetic source mode. Otherwise, it has no effect.
     // Controls the default behavior for storing the source of leaf fields and objects, in singleton or array form.
     // Setting to StoreSourceMode.ALL is equivalent to disabling synthetic source, so this is not allowed.
-    public static final Setting<StoreSourceMode> STORE_ARRAY_SOURCE_SETTING = Setting.enumSetting(
+    public static final Setting<StoreSourceMode> SYNTHETIC_SOURCE_KEEP_INDEX_SETTING = Setting.enumSetting(
         StoreSourceMode.class,
-        "index.mapping.store_source",
+        "index.mapping.synthetic_source_keep",
         StoreSourceMode.NONE,
         value -> {
             if (value == StoreSourceMode.ALL) {
-                throw new IllegalArgumentException("index.mapping.store_source can't be set to [" + value.toString() + "]");
+                throw new IllegalArgumentException("index.mapping.synthetic_source_keep can't be set to [" + value.toString() + "]");
             }
         },
         Setting.Property.IndexScope,

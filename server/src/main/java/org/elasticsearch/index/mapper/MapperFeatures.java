@@ -35,7 +35,7 @@ public class MapperFeatures implements FeatureSpecification {
             ObjectMapper.SUBOBJECTS_AUTO,
             KeywordFieldMapper.KEYWORD_NORMALIZER_SYNTHETIC_SOURCE,
             SourceFieldMapper.SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX,
-            Mapper.STORE_SOURCE_MAPPER_PARAM
+            Mapper.SYNTHETIC_SOURCE_KEEP_FEATURE
         );
     }
 }

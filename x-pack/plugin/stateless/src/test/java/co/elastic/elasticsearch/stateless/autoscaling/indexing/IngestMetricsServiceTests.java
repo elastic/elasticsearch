@@ -32,11 +32,18 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -118,14 +125,9 @@ public class IngestMetricsServiceTests extends ESTestCase {
 
         var service = new IngestMetricsService(clusterSettings(Settings.EMPTY), () -> 0, memoryMetricsService);
 
-        service.clusterChanged(
-            new ClusterChangedEvent(
-                "Local node elected as master",
-                clusterState(DiscoveryNodes.builder(nodes).masterNodeId(localNode.getId()).build()),
-                clusterState(nodes)
-            )
-        );
-        var indexTierMetrics = service.getIndexTierMetrics(ClusterState.EMPTY_STATE);
+        final var state = clusterState(DiscoveryNodes.builder(nodes).masterNodeId(localNode.getId()).build());
+        service.clusterChanged(new ClusterChangedEvent("Local node elected as master", state, clusterState(nodes)));
+        var indexTierMetrics = service.getIndexTierMetrics(state);
         var metricQualityCount = indexTierMetrics.getNodesLoad()
             .stream()
             .collect(Collectors.groupingBy(NodeIngestLoadSnapshot::metricQuality, Collectors.counting()));
@@ -173,14 +175,15 @@ public class IngestMetricsServiceTests extends ESTestCase {
         fakeClock.addAndGet(TimeValue.timeValueSeconds(1).nanos());
         service.trackNodeIngestLoad(clusterState2, indexNode.getId(), 2, 1.5);
 
-        var indexTierMetrics = service.getIndexTierMetrics(ClusterState.EMPTY_STATE);
+        var indexTierMetrics = service.getIndexTierMetrics(clusterState2);
         assertThat(indexTierMetrics.getNodesLoad(), hasSize(1));
 
         var indexNodeLoad = indexTierMetrics.getNodesLoad().get(0);
         assertThat(indexNodeLoad.load(), is(equalTo(1.5)));
         assertThat(indexTierMetrics.toString(), indexNodeLoad.metricQuality(), is(equalTo(MetricQuality.EXACT)));
 
-        if (randomBoolean()) {
+        final var indexNodeLeaves = randomBoolean();
+        if (indexNodeLeaves) {
             service.clusterChanged(
                 new ClusterChangedEvent("index node leaves", clusterState(nodesWithElectedMaster), clusterState(nodesWithIndexingNode))
             );
@@ -188,12 +191,17 @@ public class IngestMetricsServiceTests extends ESTestCase {
 
         fakeClock.addAndGet(inaccurateMetricTime.getNanos());
 
-        var indexTierMetricsAfterNodeMetricIsInaccurate = service.getIndexTierMetrics(ClusterState.EMPTY_STATE);
-        assertThat(indexTierMetricsAfterNodeMetricIsInaccurate.getNodesLoad(), hasSize(1));
-
-        var indexNodeLoadAfterMissingMetrics = indexTierMetricsAfterNodeMetricIsInaccurate.getNodesLoad().get(0);
-        assertThat(indexNodeLoadAfterMissingMetrics.load(), is(equalTo(1.5)));
-        assertThat(indexNodeLoadAfterMissingMetrics.metricQuality(), is(equalTo(MetricQuality.MINIMUM)));
+        final var currentClusterState = indexNodeLeaves ? clusterState(nodesWithElectedMaster) : clusterState(nodesWithIndexingNode);
+        var indexTierMetricsAfterNodeMetricIsInaccurate = service.getIndexTierMetrics(currentClusterState);
+        if (indexNodeLeaves) {
+            // We clean it up
+            assertThat(indexTierMetricsAfterNodeMetricIsInaccurate.getNodesLoad(), hasSize(0));
+        } else {
+            assertThat(indexTierMetricsAfterNodeMetricIsInaccurate.getNodesLoad(), hasSize(1));
+            var indexNodeLoadAfterMissingMetrics = indexTierMetricsAfterNodeMetricIsInaccurate.getNodesLoad().get(0);
+            assertThat(indexNodeLoadAfterMissingMetrics.load(), is(equalTo(1.5)));
+            assertThat(indexNodeLoadAfterMissingMetrics.metricQuality(), is(equalTo(MetricQuality.MINIMUM)));
+        }
 
         // The node re-joins before the metric is considered to be inaccurate
         if (randomBoolean()) {
@@ -202,7 +210,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             fakeClock.addAndGet(TimeValue.timeValueSeconds(1).nanos());
             service.trackNodeIngestLoad(clusterState3, indexNode.getId(), 3, 0.5);
 
-            var indexTierMetricsAfterNodeReJoins = service.getIndexTierMetrics(ClusterState.EMPTY_STATE);
+            var indexTierMetricsAfterNodeReJoins = service.getIndexTierMetrics(clusterState3);
             assertThat(indexTierMetricsAfterNodeReJoins.getNodesLoad(), hasSize(1));
 
             var indexNodeLoadAfterRejoining = indexTierMetricsAfterNodeReJoins.getNodesLoad().get(0);
@@ -212,7 +220,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             // The node do not re-join after the max time
             fakeClock.addAndGet(staleLoadWindow.getNanos());
 
-            var indexTierMetricsAfterTTLExpires = service.getIndexTierMetrics(ClusterState.EMPTY_STATE);
+            var indexTierMetricsAfterTTLExpires = service.getIndexTierMetrics(currentClusterState);
             assertThat(indexTierMetricsAfterTTLExpires.getNodesLoad(), hasSize(0));
         }
     }
@@ -240,7 +248,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             service.trackNodeIngestLoad(clusterState, indexNode.getId(), seqNo, randomIngestionLoad());
         }
 
-        var indexTierMetrics = service.getIndexTierMetrics(ClusterState.EMPTY_STATE);
+        var indexTierMetrics = service.getIndexTierMetrics(clusterState);
         assertThat(indexTierMetrics.getNodesLoad().toString(), indexTierMetrics.getNodesLoad(), hasSize(1));
 
         var indexNodeLoad = indexTierMetrics.getNodesLoad().get(0);
@@ -331,19 +339,42 @@ public class IngestMetricsServiceTests extends ESTestCase {
 
         final var nodes2 = DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).build();
         final var nodesWithElectedMaster2 = DiscoveryNodes.builder(nodes2).masterNodeId(masterNode.getId()).build();
-        final var clusterState2 = ClusterState.builder(ClusterName.DEFAULT).nodes(nodesWithElectedMaster2).build();
+        final var clusterState2Builder = ClusterState.builder(ClusterName.DEFAULT).nodes(nodesWithElectedMaster2);
+        final var leftUnassignedShards = randomBoolean();
+        if (leftUnassignedShards) {
+            var index = new Index((randomIdentifier()), randomUUID());
+            clusterState2Builder.routingTable(
+                RoutingTable.builder()
+                    .add(IndexRoutingTable.builder(index).addShard(createUnassignedShardRouting(index, indexNode.getId())).build())
+                    .build()
+            );
+        }
+        final var clusterState2 = clusterState2Builder.build();
         service.clusterChanged(new ClusterChangedEvent("node dropped", clusterState2, clusterState1));
 
         indexTierMetrics = service.getIndexTierMetrics(clusterState2);
-        assertThat(indexTierMetrics.getNodesLoad().toString(), indexTierMetrics.getNodesLoad(), hasSize(2));
-        assertTrue(indexTierMetrics.getNodesLoad().stream().anyMatch(load -> load.metricQuality().equals(MetricQuality.MINIMUM)));
-        assertTrue(indexTierMetrics.getNodesLoad().stream().anyMatch(load -> load.metricQuality().equals(MetricQuality.EXACT)));
+        if (leftUnassignedShards) {
+            assertThat(indexTierMetrics.getNodesLoad().toString(), indexTierMetrics.getNodesLoad(), hasSize(2));
+            assertTrue(indexTierMetrics.getNodesLoad().stream().anyMatch(load -> load.metricQuality().equals(MetricQuality.EXACT)));
+            assertTrue(indexTierMetrics.getNodesLoad().stream().anyMatch(load -> load.metricQuality().equals(MetricQuality.MINIMUM)));
+        } else {
+            assertThat(indexTierMetrics.getNodesLoad().toString(), indexTierMetrics.getNodesLoad(), hasSize(1));
+            assertTrue(indexTierMetrics.getNodesLoad().stream().anyMatch(load -> load.metricQuality().equals(MetricQuality.EXACT)));
+        }
 
-        // TODO: a delayed metric from a non-existing node can turn the metric back into exact. This doesn't seem to be correct
-        // since if all values are exact we could potentially scale down.
         service.trackNodeIngestLoad(clusterState2, indexNode.getId(), seqNo + 1, randomIngestionLoad());
         indexTierMetrics = service.getIndexTierMetrics(clusterState2);
-        assertThat(indexTierMetrics.getNodesLoad().toString(), indexTierMetrics.getNodesLoad(), hasSize(2));
+        if (leftUnassignedShards) {
+            assertThat(indexTierMetrics.getNodesLoad().toString(), indexTierMetrics.getNodesLoad(), hasSize(2));
+            assertTrue(indexTierMetrics.getNodesLoad().stream().anyMatch(load -> load.metricQuality().equals(MetricQuality.EXACT)));
+            assertTrue(indexTierMetrics.getNodesLoad().stream().anyMatch(load -> load.metricQuality().equals(MetricQuality.MINIMUM)));
+            final var clusterStateWithoutUnassignedShards = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(nodesWithElectedMaster2)
+                .build();
+            service.clusterChanged(new ClusterChangedEvent("shard assigned", clusterStateWithoutUnassignedShards, clusterState2));
+            indexTierMetrics = service.getIndexTierMetrics(clusterStateWithoutUnassignedShards);
+        }
+        assertThat(indexTierMetrics.getNodesLoad().toString(), indexTierMetrics.getNodesLoad(), hasSize(1));
         assertTrue(indexTierMetrics.getNodesLoad().stream().allMatch(load -> load.metricQuality().equals(MetricQuality.EXACT)));
     }
 
@@ -360,14 +391,13 @@ public class IngestMetricsServiceTests extends ESTestCase {
 
         var service = new IngestMetricsService(clusterSettings(Settings.EMPTY), () -> 0, memoryMetricsService);
 
-        service.clusterChanged(
-            new ClusterChangedEvent(
-                "Local node elected as master",
-                clusterState(DiscoveryNodes.builder(nodes).masterNodeId(localNode.getId()).build()),
-                clusterState(nodes)
-            )
+        final var clusterStateWithLocalNodeElectedAsMaster = clusterState(
+            DiscoveryNodes.builder(nodes).masterNodeId(localNode.getId()).build()
         );
-        var indexTierMetrics = service.getIndexTierMetrics(ClusterState.EMPTY_STATE);
+        service.clusterChanged(
+            new ClusterChangedEvent("Local node elected as master", clusterStateWithLocalNodeElectedAsMaster, clusterState(nodes))
+        );
+        var indexTierMetrics = service.getIndexTierMetrics(clusterStateWithLocalNodeElectedAsMaster);
         var metricQualityCount = indexTierMetrics.getNodesLoad()
             .stream()
             .collect(Collectors.groupingBy(NodeIngestLoadSnapshot::metricQuality, Collectors.counting()));
@@ -375,15 +405,18 @@ public class IngestMetricsServiceTests extends ESTestCase {
         // When the node hasn't published a metric yet, we consider it as missing
         assertThat(indexTierMetrics.getNodesLoad().toString(), metricQualityCount.get(MetricQuality.MISSING), is(equalTo(1L)));
 
+        final var clusterStateWithRemoteNodeElectedAsMaster = clusterState(
+            DiscoveryNodes.builder(nodes).masterNodeId(remoteNode.getId()).build()
+        );
         service.clusterChanged(
             new ClusterChangedEvent(
                 "Remote node elected as master",
-                clusterState(DiscoveryNodes.builder(nodes).masterNodeId(remoteNode.getId()).build()),
-                clusterState(DiscoveryNodes.builder(nodes).masterNodeId(localNode.getId()).build())
+                clusterStateWithRemoteNodeElectedAsMaster,
+                clusterStateWithLocalNodeElectedAsMaster
             )
         );
 
-        var indexTierMetricsAfterMasterHandover = service.getIndexTierMetrics(ClusterState.EMPTY_STATE);
+        var indexTierMetricsAfterMasterHandover = service.getIndexTierMetrics(clusterStateWithRemoteNodeElectedAsMaster);
         assertThat(indexTierMetricsAfterMasterHandover.getNodesLoad(), is(empty()));
     }
 
@@ -484,7 +517,8 @@ public class IngestMetricsServiceTests extends ESTestCase {
         assertExactIngestionLoads(service, publishedLoads4, state4);
     }
 
-    // Tests that if during shutdown some nodes leave (w/o having shutdown marker), we'd still consider them.
+    // Tests that if during shutdown some nodes leave (w/o having shutdown marker), we'd still consider them if they leave
+    // unassigned shards behind.
     public void testIngestLoadMetricsAdjustmentForUnexpectedNodeLeaves() {
         // Initial state
         final List<DiscoveryNode> nodes = IntStream.range(0, between(1, 8))
@@ -509,16 +543,14 @@ public class IngestMetricsServiceTests extends ESTestCase {
             () -> 0,
             memoryMetricsService
         );
-        service.clusterChanged(new ClusterChangedEvent("test", initialState, ClusterState.EMPTY_STATE));
+        service.clusterChanged(new ClusterChangedEvent("initial", initialState, ClusterState.EMPTY_STATE));
         final LongSupplier seqNoSupplier = new AtomicLong(randomLongBetween(0, 100))::getAndIncrement;
         final List<Double> publishedLoads1 = trackRandomIngestionLoads(service, seqNoSupplier, initialState);
         assertExactIngestionLoads(service, publishedLoads1, initialState);
 
-        final List<DiscoveryNode> shuttingDownNodes = randomSubsetOf(
-            Math.min(between(1, 3), initialState.nodes().size()),
-            initialState.nodes().getAllNodes()
-        );
+        final List<DiscoveryNode> shuttingDownNodes = randomSubsetOf(1, initialState.nodes().getAllNodes());
         final var nodeShutdownMetadata = createShutdownMetadata(shuttingDownNodes);
+
         final List<DiscoveryNode> newNodes = IntStream.range(
             initialState.nodes().size(),
             initialState.nodes().size() + shuttingDownNodes.size()
@@ -539,6 +571,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         assertFalse(readMetrics2.isEmpty());
         assertEquals(publishedLoads2.size(), readMetrics2.size());
         assertIngestionLoadWeightApplied(service, publishedLoads2, readMetrics2);
+
         final var stateWithAllNodes = stateWithNewNodes(stateWithShutDowns, newNodes);
         service.clusterChanged(new ClusterChangedEvent("node-join", stateWithAllNodes, stateWithShutDowns));
         final var publishedLoads3 = trackRandomIngestionLoads(service, seqNoSupplier, stateWithAllNodes);
@@ -546,17 +579,27 @@ public class IngestMetricsServiceTests extends ESTestCase {
         assertFalse(readMetrics3.isEmpty());
         assertEquals(publishedLoads3.size(), readMetrics3.size());
         assertIngestionLoadWeightApplied(service, publishedLoads3, readMetrics3);
-        // some non-shutting down node disappears
-        final var droppingNodesCount = randomIntBetween(1, newNodes.size());
+
+        // some non-shutting down nodes disappears
+        final var droppingNodes = randomSubsetOf(1, newNodes);
         final ClusterState stateWithSomeNodesMissing = stateWithNewNodes(
             stateWithShutDowns,
-            randomSubsetOf(newNodes.size() - droppingNodesCount, newNodes)
+            newNodes.stream().filter(n -> droppingNodes.contains(n) == false).toList()
         );
+        final var nodesWithUnassignedShards = randomSubsetOf(droppingNodes);
+        final var clusterStateBuilderWithUnassignedShards = ClusterState.builder(stateWithSomeNodesMissing);
+        final var routingTableBuilder = RoutingTable.builder();
+        nodesWithUnassignedShards.forEach(node -> {
+            var index = new Index(randomIdentifier(), randomUUID());
+            routingTableBuilder.add(IndexRoutingTable.builder(index).addShard(createUnassignedShardRouting(index, node.getId())).build());
+        });
+        final var clusterStateWithUnassignedShards = clusterStateBuilderWithUnassignedShards.routingTable(routingTableBuilder).build();
         assertThat(stateWithSomeNodesMissing.nodes().size(), lessThan(stateWithAllNodes.nodes().size()));
-        service.clusterChanged(new ClusterChangedEvent("nodes-dropped", stateWithSomeNodesMissing, stateWithAllNodes));
-        final var publishedLoads4 = trackRandomIngestionLoads(service, seqNoSupplier, stateWithSomeNodesMissing);
-        final var readMetrics4 = service.getIndexTierMetrics(stateWithSomeNodesMissing).getNodesLoad();
-        assertThat(readMetrics4.size(), equalTo(publishedLoads4.size() + droppingNodesCount));
+        service.clusterChanged(new ClusterChangedEvent("nodes-dropped", clusterStateWithUnassignedShards, stateWithAllNodes));
+        final var publishedLoads4 = trackRandomIngestionLoads(service, seqNoSupplier, clusterStateWithUnassignedShards);
+        final var readMetrics4 = service.getIndexTierMetrics(clusterStateWithUnassignedShards).getNodesLoad();
+        assertThat(readMetrics4.size(), equalTo(publishedLoads4.size() + nodesWithUnassignedShards.size()));
+        assertTrue(readMetrics4.stream().allMatch(load -> load.metricQuality().equals(MetricQuality.MINIMUM)));
     }
 
     public void testCalculateIngestLoadMetric() {
@@ -596,6 +639,27 @@ public class IngestMetricsServiceTests extends ESTestCase {
             lowLoads.forEach(load -> assertTrue(calculatedLoads.stream().anyMatch(e -> doublesEquals(e.load(), load * lowWeight))));
             highLoads.forEach(load -> assertTrue(calculatedLoads.stream().anyMatch(e -> doublesEquals(e.load(), load * highWeight))));
         }
+    }
+
+    private static ShardRouting createUnassignedShardRouting(Index index, String lastAllocationNodeId) {
+        return ShardRouting.newUnassigned(
+            new ShardId(index, 0),
+            true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(
+                UnassignedInfo.Reason.NODE_LEFT,
+                null,
+                null,
+                0,
+                0,
+                0,
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Set.of(),
+                lastAllocationNodeId
+            ),
+            ShardRouting.Role.INDEX_ONLY
+        );
     }
 
     private ClusterState stateWithNewNodes(ClusterState state, List<DiscoveryNode> nodes) {

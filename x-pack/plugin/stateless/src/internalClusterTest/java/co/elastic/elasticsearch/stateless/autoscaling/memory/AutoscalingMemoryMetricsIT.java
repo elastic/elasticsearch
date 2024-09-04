@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
+import co.elastic.elasticsearch.serverless.autoscaling.ServerlessAutoscalingPlugin;
+import co.elastic.elasticsearch.serverless.autoscaling.action.GetIndexTierMetrics;
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
@@ -29,10 +31,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -40,6 +44,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
@@ -47,9 +53,12 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +70,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.AutoscalingIndexingMetricsIT.markNodesForShutdown;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_PERCENT;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_FIELD_MEMORY_OVERHEAD;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SEGMENT_MEMORY_OVERHEAD;
@@ -89,6 +99,14 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         // publish metric once per second
         .put(PUBLISHING_FREQUENCY_SETTING.getKey(), TimeValue.timeValueSeconds(1))
         .build();
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.concatLists(
+            List.of(TestTelemetryPlugin.class, ShutdownPlugin.class, ServerlessAutoscalingPlugin.class),
+            super.nodePlugins()
+        );
+    }
 
     public void testCreateIndexWithMapping() throws Exception {
         startMasterNode();
@@ -433,7 +451,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         assertBusy(() -> {
             final var totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
                 .estimateTierMemoryUsage();
-            assertThat(totalIndexMappingSizeIndexCreate.metricQuality(), equalTo(MetricQuality.MISSING));
+            assertThat(totalIndexMappingSizeIndexCreate.metricQuality(), equalTo(MetricQuality.MINIMUM));
         });
 
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNode2));
@@ -1020,6 +1038,59 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
                 }
             }
         });
+    }
+
+    public void testUnassignedShardCausesMinimumMemoryMetric() throws Exception {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.require._name", indexNode).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, between(10, 20));
+        assertBusy(() -> {
+            final var memoryMetrics = getMemoryMetrics();
+            assertThat(memoryMetrics.nodeMemoryInBytes(), greaterThan(0L));
+            assertThat(memoryMetrics.totalMemoryInBytes(), greaterThan(0L));
+            assertThat(memoryMetrics.quality(), equalTo(MetricQuality.EXACT));
+        });
+        // Doesn't matter if it is a planned removal or not
+        if (randomBoolean()) {
+            markNodesForShutdown(
+                clusterService().state().nodes().getAllNodes().stream().filter(n -> n.getName().equals(indexNode)).toList(),
+                Arrays.stream(SingleNodeShutdownMetadata.Type.values()).filter(SingleNodeShutdownMetadata.Type::isRemovalType).toList()
+            );
+        }
+        assertTrue(internalCluster().stopNode(indexNode));
+        ensureRed(indexName);
+        // The shard is unassigned, so it should cause the memory metrics to be MINIMUM
+        assertBusy(() -> {
+            final var memoryMetrics = getMemoryMetrics();
+            assertThat(memoryMetrics.nodeMemoryInBytes(), greaterThan(0L));
+            assertThat(memoryMetrics.totalMemoryInBytes(), greaterThan(0L));
+            assertThat(memoryMetrics.quality(), equalTo(MetricQuality.MINIMUM));
+        });
+        startIndexNode();
+        // The shard is unassigned and memory metrics are still reported as MINIMUM
+        assertBusy(() -> {
+            final var memoryMetrics = getMemoryMetrics();
+            assertThat(memoryMetrics.nodeMemoryInBytes(), greaterThan(0L));
+            assertThat(memoryMetrics.totalMemoryInBytes(), greaterThan(0L));
+            assertThat(memoryMetrics.quality(), equalTo(MetricQuality.MINIMUM));
+        });
+        updateIndexSettings(Settings.builder().putNull("index.routing.allocation.require._name"), indexName);
+        ensureGreen(indexName);
+        assertBusy(() -> {
+            final var memoryMetrics = getMemoryMetrics();
+            assertThat(memoryMetrics.nodeMemoryInBytes(), greaterThan(0L));
+            assertThat(memoryMetrics.totalMemoryInBytes(), greaterThan(0L));
+            assertThat(memoryMetrics.quality(), equalTo(MetricQuality.EXACT));
+        });
+    }
+
+    private static MemoryMetrics getMemoryMetrics() {
+        return safeGet(
+            client().execute(GetIndexTierMetrics.INSTANCE, new GetIndexTierMetrics.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+        ).getMetrics().getMemoryMetrics();
     }
 
     static void snapshotMetrics(MemoryMetricsService memoryMetricsService, Map<ShardId, MemoryMetricsService.ShardMemoryMetrics> out) {

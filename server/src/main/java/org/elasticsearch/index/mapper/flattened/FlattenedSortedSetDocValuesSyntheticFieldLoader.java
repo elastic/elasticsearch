@@ -16,10 +16,8 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.stream.Stream;
 
-public class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+public class FlattenedSortedSetDocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
     private DocValuesFieldValues docValues = NO_VALUES;
     private final String fieldFullPath;
     private final String keyedFieldFullPath;
@@ -41,11 +39,6 @@ public class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLo
     @Override
     public String fieldName() {
         return fieldFullPath;
-    }
-
-    @Override
-    public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        return Stream.empty();
     }
 
     @Override

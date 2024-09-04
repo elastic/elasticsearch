@@ -101,11 +101,11 @@ public class BulkItemRequest implements Writeable, Accountable {
         out.writeOptionalWriteable(primaryResponse);
     }
 
-    public void writeThin(StreamOutput out) throws IOException {
-        out.writeVInt(id);
-        DocWriteRequest.writeDocumentRequestThin(out, request);
-        out.writeOptionalWriteable(primaryResponse == null ? null : primaryResponse::writeThin);
-    }
+    public static final Writer<BulkItemRequest> THIN_WRITER = (out, item) -> {
+        out.writeVInt(item.id);
+        DocWriteRequest.writeDocumentRequestThin(out, item.request);
+        out.writeOptional(BulkItemResponse.THIN_WRITER, item.primaryResponse);
+    };
 
     @Override
     public long ramBytesUsed() {

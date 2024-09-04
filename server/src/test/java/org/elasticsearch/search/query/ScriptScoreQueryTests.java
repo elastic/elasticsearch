@@ -72,7 +72,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
         w.commit();
         reader = DirectoryReader.open(w);
         searcher = newSearcher(reader);
-        leafReaderContext = reader.leaves().get(0);
+        leafReaderContext = searcher.getTopReaderContext().leaves().get(0);
     }
 
     @After

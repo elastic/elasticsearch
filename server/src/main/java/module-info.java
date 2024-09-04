@@ -190,6 +190,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.file;
     exports org.elasticsearch.common.geo;
     exports org.elasticsearch.common.hash;
+    exports org.elasticsearch.injection.api;
     exports org.elasticsearch.injection.guice;
     exports org.elasticsearch.injection.guice.binder;
     exports org.elasticsearch.injection.guice.internal;

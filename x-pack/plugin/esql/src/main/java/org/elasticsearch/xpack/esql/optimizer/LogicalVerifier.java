@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.optimizer.OptimizerRules.DependencyConsistency;
+import org.elasticsearch.xpack.esql.optimizer.rules.DependencyConsistency;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 public final class LogicalVerifier {

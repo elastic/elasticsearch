@@ -628,7 +628,7 @@ Which results in:
 [[analysis-kuromoji-hiragana-uppercase]]
 ==== `hiragana_uppercase` token filter
 
-The `hiragana_uppercase` token filter normalizes small letters (捨て仮名) in hiragana into normal letters.
+The `hiragana_uppercase` token filter normalizes small letters (捨て仮名) in hiragana into standard letters.
 This filter is useful if you want to search against old style Japanese text such as
 patents, legal documents, contract policies, etc.
 
@@ -695,7 +695,7 @@ Which results in:
 [[analysis-kuromoji-katakana-uppercase]]
 ==== `katakana_uppercase` token filter
 
-The `katakana_uppercase` token filter normalizes small letters (捨て仮名) in katakana into normal letters.
+The `katakana_uppercase` token filter normalizes small letters (捨て仮名) in katakana into standard letters.
 This filter is useful if you want to search against old style Japanese text such as
 patents, legal documents, contract policies, etc.
 

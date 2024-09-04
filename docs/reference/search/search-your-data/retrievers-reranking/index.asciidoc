@@ -1,6 +1,8 @@
 [[retrievers-reranking-overview]]
 == Retrievers and reranking
 
+These resources are high-level overviews of the retriever syntax and semantic reranking.
+
 * <<retrievers-overview>>
 * <<semantic-reranking>>
 

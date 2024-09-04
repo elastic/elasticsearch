@@ -476,11 +476,11 @@ public enum MultiValueMode implements Writeable {
 
         @Override
         protected int pick(SortedSetDocValues values) throws IOException {
-            long maxOrd = -1;
-            for (int i = 0; i < values.docValueCount(); i++) {
-                maxOrd = values.nextOrd();
+            int count = values.docValueCount();
+            for (int i = 0; i < count - 1; ++i) {
+                values.nextOrd();
             }
-            return Math.toIntExact(maxOrd);
+            return Math.toIntExact(values.nextOrd());
         }
 
         @Override

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -92,14 +93,9 @@ public final class PlanNamedTypes {
             of(PhysicalPlan.class, EsSourceExec.ENTRY),
             of(PhysicalPlan.class, EvalExec.ENTRY),
             of(PhysicalPlan.class, EnrichExec.class, PlanNamedTypes::writeEnrichExec, PlanNamedTypes::readEnrichExec),
-            of(PhysicalPlan.class, ExchangeExec.class, PlanNamedTypes::writeExchangeExec, PlanNamedTypes::readExchangeExec),
-            of(PhysicalPlan.class, ExchangeSinkExec.class, PlanNamedTypes::writeExchangeSinkExec, PlanNamedTypes::readExchangeSinkExec),
-            of(
-                PhysicalPlan.class,
-                ExchangeSourceExec.class,
-                PlanNamedTypes::writeExchangeSourceExec,
-                PlanNamedTypes::readExchangeSourceExec
-            ),
+            of(PhysicalPlan.class, ExchangeExec.ENTRY),
+            of(PhysicalPlan.class, ExchangeSinkExec.ENTRY),
+            of(PhysicalPlan.class, ExchangeSourceExec.ENTRY),
             of(PhysicalPlan.class, FieldExtractExec.class, PlanNamedTypes::writeFieldExtractExec, PlanNamedTypes::readFieldExtractExec),
             of(PhysicalPlan.class, FilterExec.class, PlanNamedTypes::writeFilterExec, PlanNamedTypes::readFilterExec),
             of(PhysicalPlan.class, FragmentExec.class, PlanNamedTypes::writeFragmentExec, PlanNamedTypes::readFragmentExec),
@@ -166,53 +162,12 @@ public final class PlanNamedTypes {
         } else {
             if (enrich.concreteIndices().keySet().equals(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))) {
                 String concreteIndex = enrich.concreteIndices().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                new EsIndex(concreteIndex, Map.of(), Set.of(concreteIndex)).writeTo(out);
+                new EsIndex(concreteIndex, Map.of(), Map.of(concreteIndex, IndexMode.STANDARD)).writeTo(out);
             } else {
                 throw new IllegalStateException("expected a single concrete enrich index; got " + enrich.concreteIndices());
             }
         }
         out.writeNamedWriteableCollection(enrich.enrichFields());
-    }
-
-    static ExchangeExec readExchangeExec(PlanStreamInput in) throws IOException {
-        return new ExchangeExec(
-            Source.readFrom(in),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readBoolean(),
-            in.readPhysicalPlanNode()
-        );
-    }
-
-    static void writeExchangeExec(PlanStreamOutput out, ExchangeExec exchangeExec) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeNamedWriteableCollection(exchangeExec.output());
-        out.writeBoolean(exchangeExec.isInBetweenAggs());
-        out.writePhysicalPlanNode(exchangeExec.child());
-    }
-
-    static ExchangeSinkExec readExchangeSinkExec(PlanStreamInput in) throws IOException {
-        return new ExchangeSinkExec(
-            Source.readFrom(in),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readBoolean(),
-            in.readPhysicalPlanNode()
-        );
-    }
-
-    static void writeExchangeSinkExec(PlanStreamOutput out, ExchangeSinkExec exchangeSinkExec) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeNamedWriteableCollection(exchangeSinkExec.output());
-        out.writeBoolean(exchangeSinkExec.isIntermediateAgg());
-        out.writePhysicalPlanNode(exchangeSinkExec.child());
-    }
-
-    static ExchangeSourceExec readExchangeSourceExec(PlanStreamInput in) throws IOException {
-        return new ExchangeSourceExec(Source.readFrom(in), in.readNamedWriteableCollectionAsList(Attribute.class), in.readBoolean());
-    }
-
-    static void writeExchangeSourceExec(PlanStreamOutput out, ExchangeSourceExec exchangeSourceExec) throws IOException {
-        out.writeNamedWriteableCollection(exchangeSourceExec.output());
-        out.writeBoolean(exchangeSourceExec.isIntermediateAgg());
     }
 
     static FieldExtractExec readFieldExtractExec(PlanStreamInput in) throws IOException {

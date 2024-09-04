@@ -39,6 +39,11 @@ public class Drop extends UnaryPlan {
     }
 
     @Override
+    public String commandName() {
+        return "DROP";
+    }
+
+    @Override
     public boolean expressionsResolved() {
         return Resolvables.resolved(removals);
     }

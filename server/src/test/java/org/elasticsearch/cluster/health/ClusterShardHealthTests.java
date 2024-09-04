@@ -114,14 +114,14 @@ public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase
         boolean primaryActive = instance.isPrimaryActive();
 
         switch (randomIntBetween(0, 7)) {
-            case 0 -> shardId = instance.getShardId() + between(1, 10);
+            case 0 -> shardId += between(1, 10);
             case 1 -> status = randomValueOtherThan(status, () -> randomFrom(ClusterHealthStatus.values()));
-            case 2 -> activeShards = instance.getActiveShards() + between(1, 10);
-            case 3 -> relocatingShards = instance.getRelocatingShards() + between(1, 10);
-            case 4 -> initializingShards = instance.getInitializingShards() + between(1, 10);
-            case 5 -> unassignedShards = instance.getUnassignedShards() + between(1, 10);
-            case 6 -> unassignedPrimaryShards = instance.getUnassignedPrimaryShards() + between(1, 10);
-            case 7 -> primaryActive = instance.isPrimaryActive() ? false : true;
+            case 2 -> activeShards += between(1, 10);
+            case 3 -> relocatingShards += between(1, 10);
+            case 4 -> initializingShards += between(1, 10);
+            case 5 -> unassignedShards += between(1, 10);
+            case 6 -> unassignedPrimaryShards += between(1, 10);
+            case 7 -> primaryActive = primaryActive ? false : true;
             default -> throw new UnsupportedOperationException();
         }
 

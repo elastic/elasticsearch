@@ -272,12 +272,12 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
         ClusterStateHealth clusterStateHealth = instance.getClusterStateHealth();
 
         switch (randomIntBetween(0, 6)) {
-            case 0 -> clusterName = instance.getClusterName() + randomAlphaOfLengthBetween(2, 5);
-            case 1 -> numberOfPendingTasks = instance.getNumberOfPendingTasks() + between(1, 10);
-            case 2 -> numberOfInFlightFetch = instance.getNumberOfInFlightFetch() + between(1, 10);
-            case 3 -> delayedUnassignedShards = instance.getDelayedUnassignedShards() + between(1, 10);
+            case 0 -> clusterName += randomAlphaOfLengthBetween(2, 5);
+            case 1 -> numberOfPendingTasks += between(1, 10);
+            case 2 -> numberOfInFlightFetch += between(1, 10);
+            case 3 -> delayedUnassignedShards += between(1, 10);
             case 4 -> taskMaxWaitingTime = new TimeValue(instance.getTaskMaxWaitingTime().millis() + between(1, 10));
-            case 5 -> timedOut = instance.isTimedOut() ? false : true;
+            case 5 -> timedOut = timedOut ? false : true;
             case 6 -> clusterStateHealth = new ClusterStateHealth(
                 clusterStateHealth.getActivePrimaryShards() + between(1, 10),
                 clusterStateHealth.getActiveShards(),

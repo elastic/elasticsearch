@@ -150,26 +150,24 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
         int unassignedPrimaryShards = instance.getUnassignedPrimaryShards();
         int activePrimaryShards = instance.getActivePrimaryShards();
         ClusterHealthStatus status = instance.getStatus();
-        Map<Integer, ClusterShardHealth> shards = instance.getShards();
+        Map<Integer, ClusterShardHealth> shards = new HashMap<>(instance.getShards());
 
         switch (randomIntBetween(0, 10)) {
-            case 0 -> index = instance.getIndex() + randomAlphaOfLengthBetween(2, 5);
-            case 1 -> numberOfShards = instance.getNumberOfShards() + between(1, 10);
-            case 2 -> numberOfReplicas = instance.getNumberOfReplicas() + between(1, 10);
-            case 3 -> activeShards = instance.getActiveShards() + between(1, 10);
-            case 4 -> relocatingShards = instance.getRelocatingShards() + between(1, 10);
-            case 5 -> initializingShards = instance.getInitializingShards() + between(1, 10);
-            case 6 -> unassignedShards = instance.getUnassignedShards() + between(1, 10);
-            case 7 -> unassignedPrimaryShards = instance.getUnassignedPrimaryShards() + between(1, 10);
-            case 8 -> activePrimaryShards = instance.getActivePrimaryShards() + between(1, 10);
+            case 0 -> index += randomAlphaOfLengthBetween(2, 5);
+            case 1 -> numberOfShards += between(1, 10);
+            case 2 -> numberOfReplicas += between(1, 10);
+            case 3 -> activeShards += between(1, 10);
+            case 4 -> relocatingShards += between(1, 10);
+            case 5 -> initializingShards += between(1, 10);
+            case 6 -> unassignedShards += between(1, 10);
+            case 7 -> unassignedPrimaryShards += between(1, 10);
+            case 8 -> activePrimaryShards += between(1, 10);
             case 9 -> status = randomValueOtherThan(instance.getStatus(), () -> randomFrom(ClusterHealthStatus.values()));
             case 10 -> {
                 if (instance.getShards().isEmpty()) {
                     shards = Map.of(0, ClusterShardHealthTests.randomShardHealth(0));
                 } else {
-                    var iterator = shards.entrySet().iterator();
-                    iterator.next();
-                    iterator.remove();
+                    shards.remove(shards.keySet().iterator().next());
                 }
             }
             default -> throw new UnsupportedOperationException();

@@ -21,13 +21,14 @@ public enum RestApiVersion {
 
     V_8(8),
 
-    @UpdateForV9 // v9 will not need to support the v7 REST API
     V_7(7);
 
     public final byte major;
 
-    private static final RestApiVersion CURRENT = V_9;
-    private static final RestApiVersion PREVIOUS = V_8;
+    @UpdateForV9
+    // We need to bump current and previous to V_9 and V_8, respectively
+    private static final RestApiVersion CURRENT = V_8;
+    private static final RestApiVersion PREVIOUS = V_7;
 
     RestApiVersion(int major) {
         this.major = (byte) major;
@@ -65,6 +66,8 @@ public enum RestApiVersion {
         };
     }
 
+    @UpdateForV9
+    // Right now we return api version 8 for major version 9 until we bump the api version above
     public static RestApiVersion forMajor(int major) {
         switch (major) {
             case 7 -> {
@@ -74,7 +77,7 @@ public enum RestApiVersion {
                 return V_8;
             }
             case 9 -> {
-                return V_9;
+                return V_8;
             }
             default -> throw new IllegalArgumentException("Unknown REST API version " + major);
         }

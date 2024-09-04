@@ -114,7 +114,7 @@ setup:
 
   - match:  { responses.0.hits.total:     2  }
   - match:  { responses.1.error.root_cause.0.type: x_content_e_o_f_exception }
-  - match:  { responses.1.error.root_cause.0.reason: "/Unexpected.end.of.input/" }
+  - match:  { responses.1.error.root_cause.0.reason: "/\\[1:22\\].Unexpected.end.of.file/" }
   - match:  { responses.2.hits.total:     1  }
   - match:  { responses.3.error.root_cause.0.type: parsing_exception }
   - match:  { responses.3.error.root_cause.0.reason: "/unknown.query.\\[unknown\\]/" }

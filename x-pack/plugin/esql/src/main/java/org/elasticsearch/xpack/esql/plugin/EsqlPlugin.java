@@ -114,7 +114,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
         setupSharedSecrets();
         return List.of(
-            new PlanExecutor(new IndexResolver(services.client())),
+            new PlanExecutor(new IndexResolver(services.client()), services.telemetryProvider().getMeterRegistry()),
             new ExchangeService(services.clusterService().getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
             blockFactory
         );

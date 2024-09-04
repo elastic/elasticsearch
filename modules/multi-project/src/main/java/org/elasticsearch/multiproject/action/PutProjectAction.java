@@ -35,6 +35,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -121,7 +122,6 @@ public class PutProjectAction extends ActionType<AcknowledgedResponse> {
             }
             return stateBuilder.build();
         }
-
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -138,12 +138,16 @@ public class PutProjectAction extends ActionType<AcknowledgedResponse> {
         private static final ConstructingObjectParser<Request, Request.Factory> PARSER = new ConstructingObjectParser<>(
             "put_project_request",
             false,
-            (a, factory) -> factory.create(new ProjectId((String) a[0]))
+            (a, factory) -> factory.create((ProjectId) a[0])
         );
 
         static {
-            // TODO: this should use ProjectId's XContent parser when we implement it
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), PROJECT_ID_FIELD);
+            PARSER.declareField(
+                ConstructingObjectParser.constructorArg(),
+                (p, c) -> ProjectId.fromXContent(p),
+                PROJECT_ID_FIELD,
+                ObjectParser.ValueType.STRING
+            );
         }
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, ProjectId projectId) {

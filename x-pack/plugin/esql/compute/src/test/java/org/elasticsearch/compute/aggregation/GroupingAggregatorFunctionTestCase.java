@@ -286,7 +286,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertSimpleOutput(origInput, results);
     }
 
-    public final void testMulitvaluedNullGroupsAndValues() {
+    public final void testMultivaluedNullGroupsAndValues() {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(50, 60);
@@ -298,7 +298,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertSimpleOutput(origInput, results);
     }
 
-    public final void testMulitvaluedNullGroup() {
+    public final void testMultivaluedNullGroup() {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(1, 2);  // TODO revert
@@ -309,7 +309,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertSimpleOutput(origInput, results);
     }
 
-    public final void testMulitvaluedNullValues() {
+    public final void testMultivaluedNullValues() {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(50, 60);

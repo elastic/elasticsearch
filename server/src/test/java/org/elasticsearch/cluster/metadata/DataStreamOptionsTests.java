@@ -18,35 +18,23 @@ public class DataStreamOptionsTests extends AbstractXContentSerializingTestCase<
 
     @Override
     protected Writeable.Reader<DataStreamOptions> instanceReader() {
-        return DataStreamOptions::new;
+        return DataStreamOptions::read;
     }
 
     @Override
     protected DataStreamOptions createTestInstance() {
-        return new DataStreamOptions(
-            randomBoolean() ? null : DataStreamLifecycleTests.randomLifecycle(),
-            randomBoolean() ? null : DataStreamFailureStoreTests.randomFailureStore()
-        );
+        return new DataStreamOptions(randomBoolean() ? null : DataStreamFailureStoreTests.randomFailureStore());
     }
 
     @Override
     protected DataStreamOptions mutateInstance(DataStreamOptions instance) throws IOException {
-        var lifecycle = instance.lifecycle();
-        var failureStore = instance.failureStore();
-        if (randomBoolean()) {
-            if (lifecycle == null) {
-                lifecycle = DataStreamLifecycleTests.randomLifecycle();
-            } else {
-                lifecycle = randomBoolean() ? null : randomValueOtherThan(lifecycle, DataStreamLifecycleTests::randomLifecycle);
-            }
+        var failureStore = instance.getFailureStore();
+        if (failureStore == null) {
+            failureStore = DataStreamFailureStoreTests.randomFailureStore();
         } else {
-            if (failureStore == null) {
-                failureStore = DataStreamFailureStoreTests.randomFailureStore();
-            } else {
-                failureStore = randomBoolean() ? null : new DataStreamFailureStore(failureStore.enabled() == false);
-            }
+            failureStore = randomBoolean() ? null : new DataStreamFailureStore(failureStore.enabled() == false);
         }
-        return new DataStreamOptions(lifecycle, failureStore);
+        return new DataStreamOptions(failureStore);
     }
 
     @Override

@@ -228,7 +228,8 @@ public class JwtUtil {
         throws SettingsException {
         try {
             final Path path = JwtUtil.resolvePath(environment, jwkSetPathPkc);
-            return Files.readAllBytes(path);
+            byte[] bytes = AccessController.doPrivileged((PrivilegedExceptionAction<byte[]>) () -> Files.readAllBytes(path));
+            return bytes;
         } catch (Exception e) {
             throw new SettingsException(
                 "Failed to read contents for setting [" + jwkSetConfigKeyPkc + "] value [" + jwkSetPathPkc + "].",

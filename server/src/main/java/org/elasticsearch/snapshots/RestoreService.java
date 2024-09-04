@@ -1343,8 +1343,12 @@ public final class RestoreService implements ClusterStateApplier {
                 if (currentIndexMetadata == null) {
                     // Index doesn't exist - create it and start recovery
                     // Make sure that the index we are about to create has a valid name
-                    ensureValidIndexName(currentState, snapshotIndexMetadata, renamedIndexName);
-                    shardLimitValidator.validateShardLimit(snapshotIndexMetadata.getSettings(), currentState);
+                    ensureValidIndexName(currentState.metadata(), currentState.routingTable(), snapshotIndexMetadata, renamedIndexName);
+                    shardLimitValidator.validateShardLimit(
+                        snapshotIndexMetadata.getSettings(),
+                        currentState.nodes(),
+                        currentState.metadata()
+                    );
 
                     final IndexMetadata.Builder indexMdBuilder = restoreToCreateNewIndex(
                         snapshotIndexMetadata,
@@ -1789,9 +1793,14 @@ public final class RestoreService implements ClusterStateApplier {
         return indexMdBuilder;
     }
 
-    private void ensureValidIndexName(ClusterState currentState, IndexMetadata snapshotIndexMetadata, String renamedIndexName) {
+    private void ensureValidIndexName(
+        Metadata metadata,
+        RoutingTable routingTable,
+        IndexMetadata snapshotIndexMetadata,
+        String renamedIndexName
+    ) {
         final boolean isHidden = snapshotIndexMetadata.isHidden();
-        MetadataCreateIndexService.validateIndexName(renamedIndexName, currentState);
+        MetadataCreateIndexService.validateIndexName(renamedIndexName, metadata, routingTable);
         createIndexService.validateDotIndex(renamedIndexName, isHidden);
         createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetadata.getSettings(), false);
     }

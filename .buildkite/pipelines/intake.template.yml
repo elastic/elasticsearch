@@ -83,6 +83,7 @@ steps:
   - trigger: elasticsearch-dra-workflow
     label: Trigger DRA snapshot workflow
     async: true
+    skip: "don't try to publish for this test branch"
     build:
       branch: "$BUILDKITE_BRANCH"
       commit: "$BUILDKITE_COMMIT"

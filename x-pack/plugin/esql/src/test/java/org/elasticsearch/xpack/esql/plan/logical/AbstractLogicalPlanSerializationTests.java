@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelationSerializationTests;
@@ -28,10 +27,6 @@ public abstract class AbstractLogicalPlanSerializationTests<T extends LogicalPla
             return LookupSerializationTests.randomLookup(depth + 1);
         }
         return randomBoolean() ? EsRelationSerializationTests.randomEsRelation() : LocalRelationSerializationTests.randomLocalRelation();
-    }
-
-    public static List<Attribute> randomFieldAttributes(int min, int max, boolean onlyRepresentable) {
-        return randomList(min, max, () -> FieldAttributeTests.createFieldAttribute(0, onlyRepresentable));
     }
 
     @Override

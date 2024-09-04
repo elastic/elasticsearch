@@ -11,11 +11,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
+import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.IndexProperties;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.ManagedBy;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -30,7 +32,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -43,31 +45,35 @@ import org.elasticsearch.transport.TransportService;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
-public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction<
+public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction<
     GetDataStreamAction.Request,
     GetDataStreamAction.Response> {
 
-    private static final Logger LOGGER = LogManager.getLogger(GetDataStreamsTransportAction.class);
+    private static final Logger LOGGER = LogManager.getLogger(TransportGetDataStreamsAction.class);
     private final SystemIndices systemIndices;
     private final ClusterSettings clusterSettings;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final Client client;
 
     @Inject
-    public GetDataStreamsTransportAction(
+    public TransportGetDataStreamsAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        Client client
     ) {
         super(
             GetDataStreamAction.NAME,
@@ -78,11 +84,12 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
             GetDataStreamAction.Request::new,
             indexNameExpressionResolver,
             GetDataStreamAction.Response::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.systemIndices = systemIndices;
         this.globalRetentionSettings = globalRetentionSettings;
         clusterSettings = clusterService.getClusterSettings();
+        this.client = client;
     }
 
     @Override
@@ -92,9 +99,42 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         ClusterState state,
         ActionListener<GetDataStreamAction.Response> listener
     ) throws Exception {
-        listener.onResponse(
-            innerOperation(state, request, indexNameExpressionResolver, systemIndices, clusterSettings, globalRetentionSettings)
-        );
+        if (request.verbose()) {
+            DataStreamsStatsAction.Request req = new DataStreamsStatsAction.Request();
+            req.indices(request.indices());
+            client.execute(DataStreamsStatsAction.INSTANCE, req, new ActionListener<>() {
+                @Override
+                public void onResponse(DataStreamsStatsAction.Response response) {
+                    final Map<String, Long> maxTimestamps = Arrays.stream(response.getDataStreams())
+                        .collect(
+                            Collectors.toMap(
+                                DataStreamsStatsAction.DataStreamStats::getDataStream,
+                                DataStreamsStatsAction.DataStreamStats::getMaximumTimestamp
+                            )
+                        );
+                    listener.onResponse(
+                        innerOperation(
+                            state,
+                            request,
+                            indexNameExpressionResolver,
+                            systemIndices,
+                            clusterSettings,
+                            globalRetentionSettings,
+                            maxTimestamps
+                        )
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        } else {
+            listener.onResponse(
+                innerOperation(state, request, indexNameExpressionResolver, systemIndices, clusterSettings, globalRetentionSettings, null)
+            );
+        }
     }
 
     static GetDataStreamAction.Response innerOperation(
@@ -103,7 +143,8 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices,
         ClusterSettings clusterSettings,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        @Nullable Map<String, Long> maxTimestamps
     ) {
         List<DataStream> dataStreams = getDataStreams(state, indexNameExpressionResolver, request);
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
@@ -216,7 +257,8 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                     ilmPolicyName,
                     timeSeries,
                     backingIndicesSettingsValues,
-                    indexTemplatePreferIlmValue
+                    indexTemplatePreferIlmValue,
+                    maxTimestamps == null ? null : maxTimestamps.get(dataStream.getName())
                 )
             );
         }

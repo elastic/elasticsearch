@@ -581,6 +581,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         assertThat(clusterStateHealth.getInitializingShards(), equalTo(counter.initializing));
         assertThat(clusterStateHealth.getRelocatingShards(), equalTo(counter.relocating));
         assertThat(clusterStateHealth.getUnassignedShards(), equalTo(counter.unassigned));
+        assertThat(clusterStateHealth.getUnassignedPrimaryShards(), equalTo(counter.unassignedPrimary));
         assertThat(clusterStateHealth.getActiveShardsPercent(), is(allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0))));
     }
 }

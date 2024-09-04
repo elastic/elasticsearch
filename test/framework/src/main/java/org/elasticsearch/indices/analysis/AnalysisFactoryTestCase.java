@@ -118,7 +118,6 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         entry("portugueselightstem", MovedToAnalysisCommon.class),
         entry("portugueseminimalstem", MovedToAnalysisCommon.class),
         entry("reversestring", MovedToAnalysisCommon.class),
-        entry("romaniannormalization", MovedToAnalysisCommon.class),
         entry("russianlightstem", MovedToAnalysisCommon.class),
         entry("scandinavianfolding", MovedToAnalysisCommon.class),
         entry("scandinaviannormalization", MovedToAnalysisCommon.class),
@@ -198,7 +197,9 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         entry("daitchmokotoffsoundex", Void.class),
         entry("persianstem", Void.class),
         // not exposed
-        entry("word2vecsynonym", Void.class)
+        entry("word2vecsynonym", Void.class),
+        // not exposed
+        entry("romaniannormalization", Void.class)
     );
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = Map.of(

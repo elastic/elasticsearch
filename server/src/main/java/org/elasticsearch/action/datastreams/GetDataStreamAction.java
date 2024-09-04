@@ -58,6 +58,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
         private boolean includeDefaults = false;
+        private boolean verbose = false;
 
         public Request(TimeValue masterNodeTimeout, String[] names) {
             super(masterNodeTimeout);
@@ -79,6 +80,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             return names;
         }
 
+        public boolean verbose() {
+            return verbose;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -93,6 +98,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             } else {
                 this.includeDefaults = false;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.GET_DATA_STREAMS_VERBOSE)) {
+                this.verbose = in.readBoolean();
+            } else {
+                this.verbose = false;
+            }
         }
 
         @Override
@@ -103,6 +113,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeBoolean(includeDefaults);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.GET_DATA_STREAMS_VERBOSE)) {
+                out.writeBoolean(verbose);
+            }
         }
 
         @Override
@@ -112,12 +125,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             Request request = (Request) o;
             return Arrays.equals(names, request.names)
                 && indicesOptions.equals(request.indicesOptions)
-                && includeDefaults == request.includeDefaults;
+                && includeDefaults == request.includeDefaults
+                && verbose == request.verbose;
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(indicesOptions, includeDefaults);
+            int result = Objects.hash(indicesOptions, includeDefaults, verbose);
             result = 31 * result + Arrays.hashCode(names);
             return result;
         }
@@ -154,6 +168,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         public Request includeDefaults(boolean includeDefaults) {
             this.includeDefaults = includeDefaults;
+            return this;
+        }
+
+        public Request verbose(boolean verbose) {
+            this.verbose = verbose;
             return this;
         }
     }
@@ -197,6 +216,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 "time_since_last_auto_shard_event_millis"
             );
             public static final ParseField FAILURE_STORE_ENABLED = new ParseField("enabled");
+            public static final ParseField MAXIMUM_TIMESTAMP = new ParseField("maximum_timestamp");
 
             private final DataStream dataStream;
             private final ClusterHealthStatus dataStreamStatus;
@@ -208,6 +228,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             private final TimeSeries timeSeries;
             private final Map<Index, IndexProperties> indexSettingsValues;
             private final boolean templatePreferIlmValue;
+            @Nullable
+            private final Long maximumTimestamp;
 
             public DataStreamInfo(
                 DataStream dataStream,
@@ -216,7 +238,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 @Nullable String ilmPolicyName,
                 @Nullable TimeSeries timeSeries,
                 Map<Index, IndexProperties> indexSettingsValues,
-                boolean templatePreferIlmValue
+                boolean templatePreferIlmValue,
+                @Nullable Long maximumTimestamp
             ) {
                 this.dataStream = dataStream;
                 this.dataStreamStatus = dataStreamStatus;
@@ -225,6 +248,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 this.timeSeries = timeSeries;
                 this.indexSettingsValues = indexSettingsValues;
                 this.templatePreferIlmValue = templatePreferIlmValue;
+                this.maximumTimestamp = maximumTimestamp;
             }
 
             @SuppressWarnings("unchecked")
@@ -236,7 +260,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     in.readOptionalString(),
                     in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null,
                     in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readMap(Index::new, IndexProperties::new) : Map.of(),
-                    in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true
+                    in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true,
+                    in.getTransportVersion().onOrAfter(TransportVersions.GET_DATA_STREAMS_VERBOSE) ? in.readOptionalVLong() : null
                 );
             }
 
@@ -271,6 +296,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return templatePreferIlmValue;
             }
 
+            @Nullable
+            public Long getMaximumTimestamp() {
+                return maximumTimestamp;
+            }
+
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
@@ -283,6 +313,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
                     out.writeMap(indexSettingsValues);
                     out.writeBoolean(templatePreferIlmValue);
+                }
+                if (out.getTransportVersion().onOrAfter(TransportVersions.GET_DATA_STREAMS_VERBOSE)) {
+                    out.writeOptionalVLong(maximumTimestamp);
                 }
             }
 
@@ -331,6 +364,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), dataStream.isAllowCustomRouting());
                 builder.field(REPLICATED.getPreferredName(), dataStream.isReplicated());
                 builder.field(ROLLOVER_ON_WRITE.getPreferredName(), dataStream.rolloverOnWrite());
+                if (this.maximumTimestamp != null) {
+                    builder.field(MAXIMUM_TIMESTAMP.getPreferredName(), this.maximumTimestamp);
+                }
                 addAutoShardingEvent(builder, params, dataStream.getAutoShardingEvent());
                 if (timeSeries != null) {
                     builder.startObject(TIME_SERIES.getPreferredName());
@@ -431,7 +467,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     && Objects.equals(indexTemplate, that.indexTemplate)
                     && Objects.equals(ilmPolicyName, that.ilmPolicyName)
                     && Objects.equals(timeSeries, that.timeSeries)
-                    && Objects.equals(indexSettingsValues, that.indexSettingsValues);
+                    && Objects.equals(indexSettingsValues, that.indexSettingsValues)
+                    && Objects.equals(maximumTimestamp, that.maximumTimestamp);
             }
 
             @Override
@@ -443,7 +480,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     ilmPolicyName,
                     timeSeries,
                     indexSettingsValues,
-                    templatePreferIlmValue
+                    templatePreferIlmValue,
+                    maximumTimestamp
                 );
             }
         }

@@ -18,7 +18,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.NoMergeScheduler;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -59,7 +59,7 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
     public void testEmptySegment() throws Exception {
         IndexWriterConfig iwc = newIndexWriterConfig();
         // No merges
-        iwc.setMergeScheduler(NoMergeScheduler.INSTANCE);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, iwc);
         ShapeIndexer indexer = new CartesianShapeIndexer(FIELD_NAME);

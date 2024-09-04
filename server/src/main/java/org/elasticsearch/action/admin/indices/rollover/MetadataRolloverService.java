@@ -180,10 +180,6 @@ public class MetadataRolloverService {
         };
     }
 
-    public static void validateIndexName(ClusterState state, String index) {
-        MetadataCreateIndexService.validateIndexName(index, state);
-    }
-
     /**
      * Returns the names that rollover would use, but does not perform the actual rollover
      */
@@ -253,7 +249,8 @@ public class MetadataRolloverService {
         final Boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.exists(createIndexRequest.settings())
             ? IndexMetadata.INDEX_HIDDEN_SETTING.get(createIndexRequest.settings())
             : null;
-        MetadataCreateIndexService.validateIndexName(rolloverIndexName, currentState); // fails if the index already exists
+        MetadataCreateIndexService.validateIndexName(rolloverIndexName, metadata, currentState.routingTable()); // fails if the index
+                                                                                                                // already exists
         checkNoDuplicatedAliasInIndexTemplate(metadata, rolloverIndexName, aliasName, isHidden);
         if (onlyValidate) {
             return new RolloverResult(rolloverIndexName, sourceIndexName, currentState);
@@ -329,7 +326,8 @@ public class MetadataRolloverService {
         final Tuple<String, Long> nextIndexAndGeneration = dataStream.nextWriteIndexAndGeneration(metadata, dataStreamIndices);
         final String newWriteIndexName = nextIndexAndGeneration.v1();
         final long newGeneration = nextIndexAndGeneration.v2();
-        MetadataCreateIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
+        MetadataCreateIndexService.validateIndexName(newWriteIndexName, metadata, currentState.routingTable()); // fails if the index
+                                                                                                                // already exists
         if (onlyValidate) {
             return new RolloverResult(newWriteIndexName, isLazyCreation ? NON_EXISTENT_SOURCE : originalWriteIndex.getName(), currentState);
         }

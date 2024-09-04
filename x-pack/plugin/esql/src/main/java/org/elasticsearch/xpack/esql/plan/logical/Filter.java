@@ -63,6 +63,11 @@ public class Filter extends UnaryPlan {
     }
 
     @Override
+    public String commandName() {
+        return "WHERE";
+    }
+
+    @Override
     public boolean expressionsResolved() {
         return condition.resolved();
     }

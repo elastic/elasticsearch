@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -145,6 +146,23 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertFalse("user shouldn't be found", resp.found());
         DeleteRoleResponse resp2 = new DeleteRoleRequestBuilder(client()).name("role").get();
         assertFalse("role shouldn't be found", resp2.found());
+    }
+
+    public void testDisablingOwnUser() throws Exception {
+        preparePutUser("joe", "s3krit-password", hasher, SecuritySettingsSource.TEST_ROLE).get();
+        GetUsersResponse resp = new GetUsersRequestBuilder(client()).usernames("joe").get();
+        assertTrue("user should exist", resp.hasUsers());
+        String token = basicAuthHeaderValue("joe", new SecureString("s3krit-password"));
+        var joeClient = client().filterWithHeader(Collections.singletonMap("Authorization", token));
+        var joeSelfDisableRequest = new PutUserRequestBuilder(joeClient).username("joe")
+            .password("s3krit-password".toCharArray(), hasher)
+            .roles(SecuritySettingsSource.TEST_ROLE)
+            .enabled(false);
+        ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class, joeSelfDisableRequest::get);
+        assertThat(
+            ex.getMessage(),
+            containsString("native and reserved realm users may not update the enabled status of their own account")
+        );
     }
 
     public void testGettingUserThatDoesntExist() throws Exception {

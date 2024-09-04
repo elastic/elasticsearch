@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -890,7 +891,13 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 indicesWithMappingHash.computeIfAbsent(index, k -> new ArrayList<>()).add(index);
             } else {
                 indexResponses.add(
-                    new FieldCapabilitiesIndexResponse(index, null, FieldCapabilitiesIndexResponseTests.randomFieldCaps(), true)
+                    new FieldCapabilitiesIndexResponse(
+                        index,
+                        null,
+                        FieldCapabilitiesIndexResponseTests.randomFieldCaps(),
+                        true,
+                        randomFrom(IndexMode.values())
+                    )
                 );
             }
         }

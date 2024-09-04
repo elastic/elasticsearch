@@ -184,17 +184,21 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.field("default_rollover_used", defaultRolloverUsed);
 
             builder.startObject("data_retention");
-            builder.field("configured_data_stream", dataRetentionStats.dataStreamCount());
-            builder.field("minimum_millis", dataRetentionStats.minMillis);
-            builder.field("maximum_millis", dataRetentionStats.maxMillis);
-            builder.field("average_millis", dataRetentionStats.avgMillis);
+            builder.field("configured_data_streams", dataRetentionStats.dataStreamCount());
+            if (dataRetentionStats.dataStreamCount() > 0) {
+                builder.field("minimum_millis", dataRetentionStats.minMillis);
+                builder.field("maximum_millis", dataRetentionStats.maxMillis);
+                builder.field("average_millis", dataRetentionStats.avgMillis);
+            }
             builder.endObject();
 
             builder.startObject("effective_retention");
-            builder.field("retained_data_stream", effectiveRetentionStats.dataStreamCount());
-            builder.field("minimum_millis", effectiveRetentionStats.minMillis);
-            builder.field("maximum_millis", effectiveRetentionStats.maxMillis);
-            builder.field("average_millis", effectiveRetentionStats.avgMillis);
+            builder.field("retained_data_streams", effectiveRetentionStats.dataStreamCount());
+            if (effectiveRetentionStats.dataStreamCount() > 0) {
+                builder.field("minimum_millis", effectiveRetentionStats.minMillis);
+                builder.field("maximum_millis", effectiveRetentionStats.maxMillis);
+                builder.field("average_millis", effectiveRetentionStats.avgMillis);
+            }
             builder.endObject();
 
             builder.startObject("global_retention");

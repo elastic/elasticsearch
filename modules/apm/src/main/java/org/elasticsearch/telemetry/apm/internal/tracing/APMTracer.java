@@ -438,7 +438,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             ? includeAutomaton
             : Operations.minus(includeAutomaton, excludeAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
 
-        return new CharacterRunAutomaton(finalAutomaton);
+        return new CharacterRunAutomaton(Operations.determinize(finalAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
     }
 
     private static Automaton patternsToAutomaton(List<String> patterns) {

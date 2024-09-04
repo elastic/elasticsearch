@@ -15,8 +15,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.search.RemoteClusterActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterSnapshotStats;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,15 +40,16 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.UsageService;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
-import java.util.stream.Collectors;
 
+/**
+ * Transport action implementing _cluster/stats API.
+ */
 public class TransportClusterStatsAction extends TransportClusterStatsBaseAction<ClusterStatsResponse> {
 
     public static final ActionType<ClusterStatsResponse> TYPE = new ActionType<>("cluster:monitor/stats");
@@ -203,32 +204,27 @@ public class TransportClusterStatsAction extends TransportClusterStatsBaseAction
         }
         var remotes = remoteClusterService.getRegisteredRemoteClusterNames();
 
-        var remotesListener = new PlainActionFuture<Collection<RemoteClusterStatsResponse>>();
-        GroupedActionListener<RemoteClusterStatsResponse> groupListener = new GroupedActionListener<>(remotes.size(), remotesListener);
+        var remotesListener = new PlainActionFuture<Map<String, RemoteClusterStatsResponse>>();
+        var groupListener = new RemoteClusterActionListener<>(remotes.size(), remotesListener);
 
         for (String clusterAlias : remotes) {
             ClusterStatsRequest remoteRequest = request.subRequest();
             var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                 clusterAlias,
                 remoteClientResponseExecutor,
-                RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
             );
-            // TODO: this should collect all successful requests, not fail once one of them fails
             remoteClusterClient.execute(
                 TransportRemoteClusterStatsAction.REMOTE_TYPE,
                 remoteRequest,
-                groupListener.delegateFailure((l, r) -> {
-                    r.setRemoteName(clusterAlias);
-                    l.onResponse(r);
-                })
+                groupListener.remoteListener(clusterAlias)
             );
 
         }
 
         try {
-            Collection<RemoteClusterStatsResponse> remoteStats = remotesListener.get();
-            // Convert the list to map
-            return remoteStats.stream().collect(Collectors.toMap(RemoteClusterStatsResponse::getRemoteName, r -> r));
+            // TODO: how do we report errors?
+            return remotesListener.get();
         } catch (InterruptedException | ExecutionException e) {
             logger.log(Level.ERROR, "Failed to get remote cluster stats: ", ExceptionsHelper.unwrapCause(e));
             return Map.of();

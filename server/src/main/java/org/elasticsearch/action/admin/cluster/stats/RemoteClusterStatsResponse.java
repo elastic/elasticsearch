@@ -31,7 +31,6 @@ public class RemoteClusterStatsResponse extends BaseNodesResponse<ClusterStatsNo
     private final long indicesBytes;
     private final long heapBytes;
     private final long memBytes;
-    private String remoteName;
 
     public Set<String> getVersions() {
         return versions;
@@ -59,14 +58,6 @@ public class RemoteClusterStatsResponse extends BaseNodesResponse<ClusterStatsNo
 
     public long getMemBytes() {
         return memBytes;
-    }
-
-    public String getRemoteName() {
-        return remoteName;
-    }
-
-    public void setRemoteName(String remoteName) {
-        this.remoteName = remoteName;
     }
 
     public RemoteClusterStatsResponse(
@@ -135,20 +126,4 @@ public class RemoteClusterStatsResponse extends BaseNodesResponse<ClusterStatsNo
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<ClusterStatsNodeResponse> nodes) throws IOException {}
-
-    /**
-     * Default empty response, can be used in case the cluster did not respond.
-     */
-    public static final RemoteClusterStatsResponse EMPTY = new RemoteClusterStatsResponse(
-        ClusterName.DEFAULT,
-        "",
-        ClusterHealthStatus.RED,
-        Set.of(),
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
-    );
 }

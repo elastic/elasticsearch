@@ -142,7 +142,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
 
         if (CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
             builder.startObject("ccs");
-            if (remoteClustersStats != null) {
+            if (remoteClustersStats != null && remoteClustersStats.isEmpty() == false) {
                 builder.field("clusters", remoteClustersStats);
             }
             ccsMetrics.toXContent(builder, params);

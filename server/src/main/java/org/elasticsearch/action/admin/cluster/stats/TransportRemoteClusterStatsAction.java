@@ -29,9 +29,13 @@ import org.elasticsearch.usage.UsageService;
 import java.util.HashSet;
 import java.util.List;
 
+/**
+ * Transport action for remote cluster stats. It returs a reduced answer since most of the stats from the remote
+ * cluster are not needed.
+ */
 public class TransportRemoteClusterStatsAction extends TransportClusterStatsBaseAction<RemoteClusterStatsResponse> {
 
-    public static final ActionType<RemoteClusterStatsResponse> TYPE = new ActionType<>("cluster:monitor/remote_stats");
+    public static final ActionType<RemoteClusterStatsResponse> TYPE = new ActionType<>("cluster:monitor/stats/remote");
     public static final RemoteClusterActionType<RemoteClusterStatsResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
         TYPE.name(),
         RemoteClusterStatsResponse::new

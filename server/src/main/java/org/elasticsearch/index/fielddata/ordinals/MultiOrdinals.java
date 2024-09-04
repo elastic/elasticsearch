@@ -152,6 +152,7 @@ public class MultiOrdinals extends Ordinals {
 
         private long currentOffset;
         private long currentEndOffset;
+        private int count;
 
         MultiDocs(MultiOrdinals ordinals, ValuesHolder values) {
             this.valueCount = ordinals.valueCount;
@@ -169,6 +170,7 @@ public class MultiOrdinals extends Ordinals {
         public boolean advanceExact(int docId) {
             currentOffset = docId != 0 ? endOffsets.get(docId - 1) : 0;
             currentEndOffset = endOffsets.get(docId);
+            count = Math.toIntExact(currentEndOffset - currentOffset);
             return currentOffset != currentEndOffset;
         }
 
@@ -180,7 +182,7 @@ public class MultiOrdinals extends Ordinals {
 
         @Override
         public int docValueCount() {
-            return Math.toIntExact(currentEndOffset - currentOffset);
+            return count;
         }
 
         @Override

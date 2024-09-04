@@ -17,7 +17,7 @@
     },
     {
       "enabled": true,
-      "pipeline_slug": "elasticsearch-pull-request-check-serverless-submodule",
+      "pipeline_slug": "elasticsearch-serverless-es-pr-check",
       "allow_org_users": true,
       "allowed_repo_permissions": [
         "admin",

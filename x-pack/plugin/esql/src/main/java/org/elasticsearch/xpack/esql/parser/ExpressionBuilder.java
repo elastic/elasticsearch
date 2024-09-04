@@ -605,7 +605,18 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Literal pattern = visitString(ctx.pattern);
         RegexMatch<?> result = switch (type) {
             case EsqlBaseParser.LIKE -> new WildcardLike(source, left, new WildcardPattern(pattern.fold().toString()));
-            case EsqlBaseParser.RLIKE -> new RLike(source, left, new RLikePattern(pattern.fold().toString()));
+            case EsqlBaseParser.RLIKE -> {
+                var patternString = pattern.fold().toString();
+                var rlike = new RLike(source, left, new RLikePattern(patternString));
+                try {
+                    // the pattern could be invalid
+                    // this forces to build the automaton, so that in case it will fail right away with a meaningful error message
+                    rlike.pattern().matchesAll();
+                } catch (IllegalArgumentException e) {
+                    throw new ParsingException(source, "Invalid regex pattern for RLIKE [{}]: [{}]", patternString, e.getMessage());
+                }
+                yield rlike;
+            }
             default -> throw new ParsingException("Invalid predicate type for [{}]", source.text());
         };
         return ctx.NOT() == null ? result : new Not(source, result);

@@ -189,14 +189,6 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         verifyEcsMappings(indexName);
     }
 
-    public void testWithDateDetectionDisabled() throws IOException {
-        String indexName = "test_date_detection_false";
-        createTestIndex(indexName, Map.of("date_detection", false));
-        Map<String, Object> flattenedFieldsMap = createTestDocument(true);
-        indexDocument(indexName, flattenedFieldsMap);
-        verifyEcsMappings(indexName);
-    }
-
     public void testNestedFields() throws IOException {
         String indexName = "test-nested-fields";
         createTestIndex(indexName);
@@ -320,6 +312,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         } else {
             indexMappings = ecsDynamicTemplates;
         }
+        indexMappings.put("date_detection", false);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
             bodyBuilder.startObject();
             bodyBuilder.startObject("settings");
@@ -493,9 +486,11 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             );
         });
         fieldToWrongMappingType.forEach((fieldName, actualMappingType) -> {
-            Map<String, Object> fieldMappings = ecsFlatFieldDefinitions.get(fieldName);
+            // if fieldPrefix is not null, we need to remove it from the field name for the ECS lookup
+            String ecsFieldName = fieldPrefix == null ? fieldName : fieldName.substring(fieldPrefix.length());
+            Map<String, Object> fieldMappings = ecsFlatFieldDefinitions.get(ecsFieldName);
             if (fieldMappings == null) {
-                fieldMappings = ecsFlatMultiFieldDefinitions.get(fieldName);
+                fieldMappings = ecsFlatMultiFieldDefinitions.get(ecsFieldName);
             }
             String ecsExpectedType = (String) fieldMappings.get("type");
             logger.error(

@@ -178,7 +178,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         then:
         result.task(':check').outcome == TaskOutcome.UP_TO_DATE
         result.task(':checkRestCompat').outcome == TaskOutcome.UP_TO_DATE
-        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.NO_SOURCE
+        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SKIPPED
         result.task(transformTask).outcome == TaskOutcome.SKIPPED

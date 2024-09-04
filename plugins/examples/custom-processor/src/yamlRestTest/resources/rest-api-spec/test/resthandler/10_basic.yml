@@ -6,7 +6,9 @@
           {
             "processors": [
               {
-                "repeat" : {}
+                "repeat" : {
+                  "field": "test"
+                }
               }
             ]
           }

@@ -1,6 +1,7 @@
 package org.elasticsearch.example.customprocessor;
 
 import org.elasticsearch.ingest.AbstractProcessor;
+import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
@@ -11,19 +12,21 @@ import java.util.Map;
  */
 public class ExampleRepeatProcessor extends AbstractProcessor {
     public static final String TYPE = "repeat";
-    public static final String FIELD_TO_REPEAT = "to_repeat";
 
-    ExampleRepeatProcessor(String tag, String description) {
+    private final String field;
+
+    ExampleRepeatProcessor(String tag, String description, String field) {
         super(tag, description);
+        this.field = field;
     }
 
     @Override
     public IngestDocument execute(IngestDocument document) {
-        Object val = document.getFieldValue(FIELD_TO_REPEAT, Object.class, true);
+        Object val = document.getFieldValue(field, Object.class, true);
 
         if (val instanceof String string) {
             String repeated = string.concat(string);
-            document.setFieldValue(FIELD_TO_REPEAT, repeated);
+            document.setFieldValue(field, repeated);
         }
         return document;
     }
@@ -42,7 +45,8 @@ public class ExampleRepeatProcessor extends AbstractProcessor {
             String description,
             Map<String, Object> config
         ) {
-            return new ExampleRepeatProcessor(tag, description);
+            String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
+            return new ExampleRepeatProcessor(tag, description, field);
         }
     }
 }

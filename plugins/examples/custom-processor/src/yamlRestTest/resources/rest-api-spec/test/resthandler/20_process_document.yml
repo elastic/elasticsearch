@@ -7,7 +7,9 @@
           {
             "processors": [
               {
-                "repeat" : {}
+                "repeat" : {
+                  "field": "to_repeat"
+                }
               }
             ]
           }
@@ -38,7 +40,9 @@
           {
             "processors": [
               {
-                "repeat" : {}
+                "repeat" : {
+                  "field": "to_repeat"
+                }
               }
             ]
           }

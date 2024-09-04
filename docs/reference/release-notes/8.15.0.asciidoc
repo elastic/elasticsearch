@@ -26,6 +26,10 @@ memory lock feature (issue: {es-issue}111847[#111847])
 <<api-conventions-number-values,incorrectly>> assume that this value will be within a particular range (e.g. that it fits into a 32-bit
 signed integer) may encounter errors (issue: {es-issue}111854[#111854])
 
+* Elasticsearch will not start if custom role mappings are configured using the
+`xpack.security.authc.realms.*.files.role_mapping` configuration option. As a workaround, custom role mappings
+can be configured using the https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role-mapping.html[REST API] (issue: {es-issue}112503[#112503])
+
 [[breaking-8.15.0]]
 [float]
 === Breaking changes

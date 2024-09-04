@@ -5,6 +5,13 @@ coming[8.15.1]
 
 Also see <<breaking-changes-8.15,Breaking changes in 8.15>>.
 
+[[known-issues-8.15.1]]
+[float]
+=== Known issues
+* Elasticsearch will not start if custom role mappings are configured using the
+`xpack.security.authc.realms.*.files.role_mapping` configuration option. As a workaround, custom role mappings
+can be configured using the https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role-mapping.html[REST API] (issue: {es-issue}112503[#112503])
+
 [[bug-8.15.1]]
 [float]
 === Bug fixes

@@ -23,7 +23,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.util.Random;
 import java.util.concurrent.Flow;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -158,7 +157,7 @@ public class StreamingResponseHandlerTests extends ESTestCase {
         verify(downstreamSubscriber, times(1)).onSubscribe(downstream.capture());
         var downstreamSubscription = downstream.getValue();
 
-        var requestCount = new Random().nextInt(2, 100);
+        var requestCount = randomIntBetween(2, 200);
         downstreamSubscription.request(requestCount);
         verify(upstreamSubscription, times(1)).request(requestCount);
     }

@@ -90,7 +90,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             clusterList.forEach(c -> m.put(c.getClusterAlias(), c));
             this.clusterInfo = m;
         }
-        this.skipUnavailablePredicate = Predicates.always();
+        this.skipUnavailablePredicate = Predicates.always(); // TODO: problematic? or is this only needed on the primary coord?
     }
 
     public void setOverallTookTime(TimeValue took) {

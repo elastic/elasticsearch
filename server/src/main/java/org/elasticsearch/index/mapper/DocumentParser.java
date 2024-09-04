@@ -689,7 +689,6 @@ public final class DocumentParser {
                 && (objectMapper.storeArraySource()
                     || (context.storeSourceModeFromIndexSettings() == Mapper.StoreSourceMode.ARRAYS
                         && objectMapper instanceof NestedObjectMapper == false)
-
                     || objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME);
             boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
                 && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;

@@ -1,25 +1,10 @@
 tests:
-- class: "org.elasticsearch.xpack.textstructure.structurefinder.TimestampFormatFinderTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/108855"
-  method: "testGuessIsDayFirstFromLocale"
-- class: "org.elasticsearch.test.rest.ClientYamlTestSuiteIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/108857"
-  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}"
 - class: "org.elasticsearch.upgrades.SearchStatesIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108991"
   method: "testCanMatch"
 - class: "org.elasticsearch.upgrades.MlTrainedModelsUpgradeIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108993"
   method: "testTrainedModelInference"
-- class: "org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109188"
-  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}"
-- class: "org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109189"
-  method: "test {p0=esql/70_locale/Date format with Italian locale}"
-- class: "org.elasticsearch.xpack.test.rest.XPackRestIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109200"
-  method: "test {p0=esql/70_locale/Date format with Italian locale}"
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-async-query-api/line_17}
   issue: https://github.com/elastic/elasticsearch/issues/109260

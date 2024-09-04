@@ -45,6 +45,7 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
         );
         getDataStreamsRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         getDataStreamsRequest.indicesOptions(IndicesOptions.fromRequest(request, getDataStreamsRequest.indicesOptions()));
+        getDataStreamsRequest.verbose(request.paramAsBoolean("verbose", false));
         return channel -> client.execute(GetDataStreamAction.INSTANCE, getDataStreamsRequest, new RestToXContentListener<>(channel));
     }
 
@@ -56,5 +57,21 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
     @Override
     public Set<String> supportedCapabilities() {
         return Set.of(DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY);
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return Set.of(
+            "name",
+            "include_defaults",
+            "timeout",
+            "master_timeout",
+            RestRequest.PATH_RESTRICTED,
+            IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+            IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+            IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+            IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
+            "verbose"
+        );
     }
 }

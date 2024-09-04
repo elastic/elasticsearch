@@ -56,8 +56,10 @@ class RandomBasedUUIDGenerator implements UUIDGenerator {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(getUUIDBytes(random));
     }
 
+    static final int SIZE_IN_BYTES = 16;
+
     private static byte[] getUUIDBytes(Random random) {
-        final byte[] randomBytes = new byte[16];
+        final byte[] randomBytes = new byte[SIZE_IN_BYTES];
         random.nextBytes(randomBytes);
         /* Set the version to version 4 (see http://www.ietf.org/rfc/rfc4122.txt)
          * The randomly or pseudo-randomly generated version.

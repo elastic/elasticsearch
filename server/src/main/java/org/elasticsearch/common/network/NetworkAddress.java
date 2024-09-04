@@ -57,7 +57,7 @@ public final class NetworkAddress {
      * @return formatted string
      */
     public static String format(InetAddress address) {
-        return format(address, new PortsRange(""));
+        return InetAddresses.toAddrString(address);
     }
 
     /**
@@ -96,7 +96,7 @@ public final class NetworkAddress {
      * @return formatted string
      */
     public static String format(InetAddress address, int port) {
-        return format(address, new PortsRange(String.valueOf(port)));
+        return (address instanceof Inet6Address ? InetAddresses.toUriString(address) : InetAddresses.toAddrString(address)) + ":" + port;
     }
 
     /**

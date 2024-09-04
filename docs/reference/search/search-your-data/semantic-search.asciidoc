@@ -10,14 +10,14 @@ Pieces of content with similar meaning have similar representations.
 
 You have several options for using NLP models in the {stack}:
 
-* use the <<semantic-search-semantic-text, `semantic_text` workflow>> (recommended)
-* use the <<semantic-search-inference, {infer} API workflow>>
+* use the `semantic_text` workflow (recommended)
+* use the {infer} API workflow
 * deploy models directly in {es}
 
+Refer to <<using-nlp-models,this section>> to choose your workflow.
 
-[[semantic-search-diagram]]
-.A simplified representation of encoding textual concepts as vectors
-image::images/search/vector-search-oversimplification.png[A simplified representation of encoding textual concepts as vectors,align="center"]
+You can also store your own embeddings in {es} as vectors.
+Refer to <<using-query,this section>> for guidance on which query type to use for semantic search.
 
 At query time, {es} can use the same NLP model to convert a query into embeddings, enabling you to find documents with similar text embeddings.
 
@@ -31,13 +31,16 @@ We recommend using this approach because it abstracts away a lot of manual work.
 All you need to do is create an {infer} endpoint and an index mapping to start ingesting, embedding, and querying data.
 There is no need to define model-related settings and parameters, or to create {infer} ingest pipelines.
 Refer to the <<put-inference-api, Create an {infer} endpoint API>> documentation for a list of supported services.
+The <<semantic-search-semantic-text, Semantic search with `semantic_text`>> tutorial shows you the process end-to-end.
 
 The <<semantic-search-inference, {infer} API workflow>> is more complex but offers greater control over the {infer} endpoint configuration.
 You need to create an {infer} endpoint, provide various model-related settings and parameters, define an index mapping, and set up an {infer} ingest pipeline with the appropriate settings.
+The <<semantic-search-inference, Semantic search with the {infer} API>> tutorial shows you the process end-to-end.
 
 You can also deploy NLP in {es} manually, without using an {infer} endpoint.
 This is the most complex and labor intensive workflow for performing semantic search in the {stack}.
 You need to select an NLP model from the {ml-docs}/ml-nlp-model-ref.html#ml-nlp-model-ref-text-embedding[list of supported dense and sparse vector models], deploy it using the Eland client, create an index mapping, and set up a suitable ingest pipeline to start ingesting and querying data.
+the <<semantic-search-deployed-nlp-model, Semantic search with a model deployed in {es}>> tutorial shows you the process end-to-end.
 
 
 [discrete]
@@ -52,9 +55,9 @@ If not, it depends on which type of embeddings you're working with.
 [cols="3*", options="header"]
 |=======================================================================================================================================================================================================
 | Field type to query                    | Query to use                                      | Notes                                                                                                                                                             
-| <<semantic-text,`semantic_text`>> | <<query-dsl-semantic-query,`semantic`>> .         | The `semantic_text` field handles generating embeddings for you at index time and query time.                                                                     
-| <<sparse-vector,`sparse_vector`>> | <<query-dsl-sparse-vector-query,`sparse vector`>> | The `sparse_vector` query can generate query embeddings for you, but you can also provide your own. You are expected to provide embeddings at index time.
-| <<dense-vector,`dense_vector`>>   | <<query-dsl-knn-query,`knn`>>                     | The `knn` query can generate query embeddings for you, but you can also provide your own. You are expected to provide embeddings at index time.
+| <<semantic-text,`semantic_text`>> .    | <<query-dsl-semantic-query,`semantic`>> .         | The `semantic_text` field handles generating embeddings for you at index time and query time.                                                                     
+| <<sparse-vector,`sparse_vector`>>      | <<query-dsl-sparse-vector-query,`sparse vector`>> | The `sparse_vector` query can generate query embeddings for you, but you can also provide your own. You are expected to provide embeddings at index time.
+| <<dense-vector,`dense_vector`>>        | <<query-dsl-knn-query,`knn`>>                     | The `knn` query can generate query embeddings for you, but you can also provide your own. You are expected to provide embeddings at index time.
 |=======================================================================================================================================================================================================
 
 If you want {es} to generate embeddings for you both index and query time, use the `semantic_text` field and the `semantic` query.

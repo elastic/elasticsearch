@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -36,9 +35,9 @@ public class PropagateEmptyRelation extends OptimizerRules.OptimizerRule<UnaryPl
             // only care about non-grouped aggs might return something (count)
             if (plan instanceof Aggregate agg && agg.groupings().isEmpty()) {
                 List<Block> emptyBlocks = aggsFromEmpty(agg.aggregates());
-                p = LogicalPlanOptimizer.skipPlan(plan, LocalSupplier.of(emptyBlocks.toArray(Block[]::new)));
+                p = replacePlanByRelation(plan, LocalSupplier.of(emptyBlocks.toArray(Block[]::new)));
             } else {
-                p = LogicalPlanOptimizer.skipPlan(plan);
+                p = PruneEmptyPlans.skipPlan(plan);
             }
         }
         return p;
@@ -68,5 +67,9 @@ public class PropagateEmptyRelation extends OptimizerRules.OptimizerRule<UnaryPl
         var wrapper = BlockUtils.wrapperFor(blockFactory, PlannerUtils.toElementType(aggFunc.dataType()), 1);
         wrapper.accept(value);
         blocks.add(wrapper.builder().build());
+    }
+
+    private static LogicalPlan replacePlanByRelation(UnaryPlan plan, LocalSupplier supplier) {
+        return new LocalRelation(plan.source(), plan.output(), supplier);
     }
 }

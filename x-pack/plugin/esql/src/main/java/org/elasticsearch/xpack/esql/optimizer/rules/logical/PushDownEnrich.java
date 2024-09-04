@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 public final class PushDownEnrich extends OptimizerRules.OptimizerRule<Enrich> {
     @Override
     protected LogicalPlan rule(Enrich en) {
-        return LogicalPlanOptimizer.pushGeneratingPlanPastProjectAndOrderBy(en);
+        return PushDownUtils.pushGeneratingPlanPastProjectAndOrderBy(en);
     }
 }

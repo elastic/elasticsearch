@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -31,7 +30,7 @@ public final class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
                 return filter.child();
             }
             if (FALSE.equals(condition) || Expressions.isNull(condition)) {
-                return LogicalPlanOptimizer.skipPlan(filter);
+                return PruneEmptyPlans.skipPlan(filter);
             }
         }
 

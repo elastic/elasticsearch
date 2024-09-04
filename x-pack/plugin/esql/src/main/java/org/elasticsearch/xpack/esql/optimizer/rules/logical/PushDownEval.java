@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 public final class PushDownEval extends OptimizerRules.OptimizerRule<Eval> {
     @Override
     protected LogicalPlan rule(Eval eval) {
-        return LogicalPlanOptimizer.pushGeneratingPlanPastProjectAndOrderBy(eval);
+        return PushDownUtils.pushGeneratingPlanPastProjectAndOrderBy(eval);
     }
 }

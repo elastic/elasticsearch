@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -59,7 +58,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
             var attributes = new AttributeSet(Expressions.asAttributes(enrich.enrichFields()));
             plan = maybePushDownPastUnary(filter, enrich, attributes::contains);
         } else if (child instanceof Project) {
-            return LogicalPlanOptimizer.pushDownPastProject(filter);
+            return PushDownUtils.pushDownPastProject(filter);
         } else if (child instanceof OrderBy orderBy) {
             // swap the filter with its child
             plan = orderBy.replaceChild(filter.with(orderBy.child(), condition));

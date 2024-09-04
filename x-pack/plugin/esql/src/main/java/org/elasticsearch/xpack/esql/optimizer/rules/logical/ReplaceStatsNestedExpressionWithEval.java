@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Stats;
@@ -152,6 +151,6 @@ public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.O
     }
 
     static String syntheticName(Expression expression, AggregateFunction af, int counter) {
-        return LogicalPlanOptimizer.temporaryName(expression, af, counter);
+        return TempNameUtils.temporaryName(expression, af, counter);
     }
 }

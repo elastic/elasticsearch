@@ -54,7 +54,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             List<Expression> pushable = new ArrayList<>();
             List<Expression> nonPushable = new ArrayList<>();
             for (Expression exp : splitAnd(filterExec.condition())) {
-                (canPushToSource(exp, x -> LucenePushdownUtils.hasIdenticalDelegate(x, ctx.searchStats())) ? pushable : nonPushable).add(
+                (canPushToSource(exp, x -> LucenePushDownUtils.hasIdenticalDelegate(x, ctx.searchStats())) ? pushable : nonPushable).add(
                     exp
                 );
             }
@@ -181,7 +181,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         } else if (exp instanceof CIDRMatch cidrMatch) {
             return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate) && Expressions.foldable(cidrMatch.matches());
         } else if (exp instanceof SpatialRelatesFunction bc) {
-            return bc.canPushToSource(LucenePushdownUtils::isAggregatable);
+            return bc.canPushToSource(LucenePushDownUtils::isAggregatable);
         } else if (exp instanceof MatchQueryPredicate mqp) {
             return mqp.field() instanceof FieldAttribute && DataType.isString(mqp.field().dataType());
         } else if (exp instanceof StringQueryPredicate) {
@@ -195,7 +195,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         Expression operation,
         Predicate<FieldAttribute> hasIdenticalDelegate
     ) {
-        if (LucenePushdownUtils.isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
+        if (LucenePushDownUtils.isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
             return true;
         }
         if (expression instanceof MetadataAttribute ma && ma.searchable()) {

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -21,7 +20,7 @@ public final class PushDownAndCombineOrderBy extends OptimizerRules.OptimizerRul
             // combine orders
             return new OrderBy(orderBy.source(), childOrder.child(), orderBy.order());
         } else if (child instanceof Project) {
-            return LogicalPlanOptimizer.pushDownPastProject(orderBy);
+            return PushDownUtils.pushDownPastProject(orderBy);
         }
 
         return orderBy;

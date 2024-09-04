@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -80,7 +79,7 @@ public final class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Agg
                         var attr = aggFuncToAttr.get(af);
                         // the agg doesn't exist in the Aggregate, create an alias for it and save its attribute
                         if (attr == null) {
-                            var temporaryName = LogicalPlanOptimizer.temporaryName(af, agg, counter[0]++);
+                            var temporaryName = TempNameUtils.temporaryName(af, agg, counter[0]++);
                             // create a synthetic alias (so it doesn't clash with a user defined name)
                             var newAlias = new Alias(agg.source(), temporaryName, af, null, true);
                             attr = newAlias.toAttribute();

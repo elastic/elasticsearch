@@ -26,7 +26,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         PhysicalPlan plan = topNExec;
         PhysicalPlan child = topNExec.child();
         if (canPushSorts(child)
-            && canPushDownOrders(topNExec.order(), x -> LucenePushdownUtils.hasIdenticalDelegate(x, ctx.searchStats()))) {
+            && canPushDownOrders(topNExec.order(), x -> LucenePushDownUtils.hasIdenticalDelegate(x, ctx.searchStats()))) {
             var sorts = buildFieldSorts(topNExec.order());
             var limit = topNExec.limit();
 
@@ -51,7 +51,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
 
     private boolean canPushDownOrders(List<Order> orders, Predicate<FieldAttribute> hasIdenticalDelegate) {
         // allow only exact FieldAttributes (no expressions) for sorting
-        return orders.stream().allMatch(o -> LucenePushdownUtils.isPushableFieldAttribute(o.child(), hasIdenticalDelegate));
+        return orders.stream().allMatch(o -> LucenePushDownUtils.isPushableFieldAttribute(o.child(), hasIdenticalDelegate));
     }
 
     private List<EsQueryExec.FieldSort> buildFieldSorts(List<Order> orders) {

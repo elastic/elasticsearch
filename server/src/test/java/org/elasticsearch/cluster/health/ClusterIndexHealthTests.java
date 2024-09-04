@@ -165,7 +165,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
             case 9 -> status = randomValueOtherThan(instance.getStatus(), () -> randomFrom(ClusterHealthStatus.values()));
             case 10 -> {
                 if (instance.getShards().isEmpty()) {
-                    shards = Collections.singletonMap(0, ClusterShardHealthTests.randomShardHealth(0));
+                    shards = Map.of(0, ClusterShardHealthTests.randomShardHealth(0));
                 } else {
                     var iterator = shards.entrySet().iterator();
                     iterator.next();

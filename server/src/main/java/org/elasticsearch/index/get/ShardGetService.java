@@ -369,7 +369,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 .source(leafStoredFieldLoader, docIdAndVersion.docId);
 
             if (fetchSourceContext.hasFilter()) {
-                source = source.filter(fetchSourceContext.filter());
+                source = source.filter(fetchSourceContext.filter(mapperService.mappingLookup()));
             }
             sourceBytes = source.internalSourceRef();
         }

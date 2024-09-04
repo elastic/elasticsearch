@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,7 +33,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Context used to fetch the {@code _source}.
@@ -44,8 +44,18 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static final ParseField INCLUDE_VECTORS = new ParseField("include_vectors");
 
     public static final boolean DEFAULT_INCLUDE_VECTORS = Boolean.TRUE;
-    public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, DEFAULT_INCLUDE_VECTORS);
-    public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(false, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, DEFAULT_INCLUDE_VECTORS);
+    public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(
+        true,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        DEFAULT_INCLUDE_VECTORS
+    );
+    public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(
+        false,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        DEFAULT_INCLUDE_VECTORS
+    );
     private final boolean fetchSource;
     private final String[] includes;
     private final String[] excludes;
@@ -62,8 +72,15 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return new FetchSourceContext(fetchSource, includes, excludes, DEFAULT_INCLUDE_VECTORS);
     }
 
-    public static FetchSourceContext of(boolean fetchSource, @Nullable String[] includes, @Nullable String[] excludes, boolean includeVectors) {
-        if ((includes == null || includes.length == 0) && (excludes == null || excludes.length == 0) && includeVectors == DEFAULT_INCLUDE_VECTORS) {
+    public static FetchSourceContext of(
+        boolean fetchSource,
+        @Nullable String[] includes,
+        @Nullable String[] excludes,
+        boolean includeVectors
+    ) {
+        if ((includes == null || includes.length == 0)
+            && (excludes == null || excludes.length == 0)
+            && includeVectors == DEFAULT_INCLUDE_VECTORS) {
             return of(fetchSource);
         }
         return new FetchSourceContext(fetchSource, includes, excludes, includeVectors);
@@ -88,6 +105,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         out.writeBoolean(fetchSource);
         out.writeStringArray(includes);
         out.writeStringArray(excludes);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.HIDE_VECTOR_FIELDS)) {
+            out.writeBoolean(includeVectors);
+        }
     }
 
     public boolean fetchSource() {
@@ -106,62 +126,44 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return this.includeVectors;
     }
 
-    public boolean filterVectors() {
-        return this.includeVectors == Boolean.FALSE;
-    }
-
     public boolean hasFilter() {
-        return this.includes.length > 0 || this.excludes.length > 0;
+        return this.includes.length > 0 || this.excludes.length > 0 || this.includeVectors == Boolean.FALSE;
     }
 
-    public SourceFilter filter() {
-//        if (includeVectors() == null) {
-//            String[] inferenceFields = mappingLookup
-//                .get()
-//                .inferenceFields()
-//                .keySet()
-//                .stream()
-//                .map(s -> s + ".inference.chunks.embedding")
-//                .toArray(String[]::new);
-//            return new SourceFilter(this.includes, ArrayUtils.concat(this.excludes, inferenceFields));
-//        } else if (includeVectors()) {
-//            return new SourceFilter(this.includes, this.excludes);
-//        } else {
-//            String[] excludeFields = excludes();
-//            String[] inferenceFields = mappingLookup
-//                .get()
-//                .inferenceFields()
-//                .keySet()
-//                .stream()
-//                .map(s -> s + ".inference.chunks.embedding")
-//                .toArray(String[]::new);
-//
-//            excludeFields = ArrayUtils.concat(excludeFields, inferenceFields);
-//
-//            String[] denseVectors = mappingLookup
-//                .get()
-//                .getFullNameToFieldType()
-//                .entrySet()
-//                .stream()
-//                .filter(entry -> entry.getValue() instanceof DenseVectorFieldMapper.DenseVectorFieldType)
-//                .map(Map.Entry::getKey)
-//                .toArray(String[]::new);
-//            excludeFields = ArrayUtils.concat(excludeFields, denseVectors);
-//
-//            String[] sparseVectors = mappingLookup
-//                .get()
-//                .getFullNameToFieldType()
-//                .entrySet()
-//                .stream()
-//                .filter(entry -> entry.getValue() instanceof SparseVectorFieldMapper.SparseVectorFieldType)
-//                .map(Map.Entry::getKey)
-//                .toArray(String[]::new);
-//            excludeFields = ArrayUtils.concat(excludeFields, sparseVectors);
-//
-//            return new SourceFilter(this.includes, excludeFields);
-//        }
+    public SourceFilter filter(MappingLookup mappingLookup) {
+        if (includeVectors()) {
+            return new SourceFilter(includes, excludes);
+        } else {
+            if (mappingLookup == null) {
+                throw new IllegalArgumentException("MappingLookup must not be null when filtering vectors");
+            }
+            String[] excludeFields = excludes();
+            String[] inferenceFields = mappingLookup.inferenceFields()
+                .keySet()
+                .stream()
+                .map(s -> s + ".inference.chunks.embedding")
+                .toArray(String[]::new);
 
-        return new SourceFilter(includes, excludes);
+            excludeFields = ArrayUtils.concat(excludeFields, inferenceFields);
+
+            String[] denseVectors = mappingLookup.getFullNameToFieldType()
+                .entrySet()
+                .stream()
+                .filter(entry -> entry.getValue() instanceof DenseVectorFieldMapper.DenseVectorFieldType)
+                .map(Map.Entry::getKey)
+                .toArray(String[]::new);
+            excludeFields = ArrayUtils.concat(excludeFields, denseVectors);
+
+            String[] sparseVectors = mappingLookup.getFullNameToFieldType()
+                .entrySet()
+                .stream()
+                .filter(entry -> entry.getValue() instanceof SparseVectorFieldMapper.SparseVectorFieldType)
+                .map(Map.Entry::getKey)
+                .toArray(String[]::new);
+            excludeFields = ArrayUtils.concat(excludeFields, sparseVectors);
+
+            return new SourceFilter(this.includes, excludeFields);
+        }
     }
 
     public static FetchSourceContext parseFromRestRequest(RestRequest request) {
@@ -310,6 +312,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             builder.startObject();
             builder.array(INCLUDES_FIELD.getPreferredName(), includes);
             builder.array(EXCLUDES_FIELD.getPreferredName(), excludes);
+            builder.field(INCLUDE_VECTORS.getPreferredName(), includeVectors);
             builder.endObject();
         } else {
             builder.value(false);
@@ -327,6 +330,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         if (fetchSource != that.fetchSource) return false;
         if (Arrays.equals(excludes, that.excludes) == false) return false;
         if (Arrays.equals(includes, that.includes) == false) return false;
+        if (includeVectors != that.includeVectors) return false;
 
         return true;
     }
@@ -336,6 +340,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         int result = (fetchSource ? 1 : 0);
         result = 31 * result + Arrays.hashCode(includes);
         result = 31 * result + Arrays.hashCode(excludes);
+        result = 31 * result + (includeVectors ? 1 : 0);
         return result;
     }
 }

@@ -348,7 +348,9 @@ public class UpdateHelper {
         }
         BytesReference sourceFilteredAsBytes = sourceAsBytes;
         if (request.fetchSource().hasFilter()) {
-            sourceFilteredAsBytes = Source.fromMap(source, sourceContentType).filter(request.fetchSource().filter()).internalSourceRef();
+            sourceFilteredAsBytes = Source.fromMap(source, sourceContentType)
+                .filter(request.fetchSource().filter(null))
+                .internalSourceRef();
         }
 
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)

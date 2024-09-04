@@ -511,7 +511,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         SourceProvider sourceProvider,
         Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider
     ) {
-        // TODO can we assert that this is only called during FetchPhase?
+        // This isn't called only during fetch phase: there's scenarios where fetch phase is executed as part of the query phase,
+        // as well as runtime fields loaded from _source that do need a source provider as part of executing the query
         this.lookup = new SearchLookup(
             this::getFieldType,
             (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.apply(

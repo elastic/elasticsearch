@@ -9,6 +9,7 @@ package org.elasticsearch.blobcache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -25,6 +26,7 @@ import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -327,7 +329,11 @@ public class SharedBytes extends AbstractRefCounted {
                 int startPosition = dst.position();
                 dst.put(startPosition, mappedByteBuffer, position, bytesRead).position(startPosition + bytesRead);
             } else {
-                bytesRead = fileChannel.read(dst, pageStart + position);
+                try {
+                    bytesRead = fileChannel.read(dst, pageStart + position);
+                } catch (ClosedChannelException e) {
+                    throw new AlreadyClosedException("Cache has been closed", e);
+                }
             }
             readBytes.accept(bytesRead);
             return bytesRead;
@@ -339,7 +345,12 @@ public class SharedBytes extends AbstractRefCounted {
             assert position % PAGE_SIZE == 0;
             assert src.remaining() % PAGE_SIZE == 0;
             checkOffsets(position, src.remaining());
-            int bytesWritten = fileChannel.write(src, pageStart + position);
+            int bytesWritten;
+            try {
+                bytesWritten = fileChannel.write(src, pageStart + position);
+            } catch (ClosedChannelException e) {
+                throw new AlreadyClosedException("Cache has been closed", e);
+            }
             writeBytes.accept(bytesWritten);
             return bytesWritten;
         }

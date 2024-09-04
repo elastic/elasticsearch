@@ -38,7 +38,6 @@ public class Drop extends UnaryPlan {
         return removals;
     }
 
-    @Override
     public String commandName() {
         return "DROP";
     }

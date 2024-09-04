@@ -34,7 +34,8 @@ public class MapperFeatures implements FeatureSpecification {
             BooleanFieldMapper.BOOLEAN_DIMENSION,
             ObjectMapper.SUBOBJECTS_AUTO,
             KeywordFieldMapper.KEYWORD_NORMALIZER_SYNTHETIC_SOURCE,
-            SourceFieldMapper.SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX
+            SourceFieldMapper.SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX,
+            Mapper.SYNTHETIC_SOURCE_KEEP_FEATURE
         );
     }
 }

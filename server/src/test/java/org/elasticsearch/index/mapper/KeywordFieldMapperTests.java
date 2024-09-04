@@ -377,7 +377,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testDimensionMultiValuedFieldTSDB() throws Throwable {
+    public void testDimensionMultiValuedFieldTSDB() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true);
@@ -387,7 +387,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
     }
 
-    public void testDimensionMultiValuedFieldNonTSDB() throws Throwable {
+    public void testDimensionMultiValuedFieldNonTSDB() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true);

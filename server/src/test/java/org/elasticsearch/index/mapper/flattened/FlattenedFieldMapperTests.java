@@ -193,7 +193,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testDimensionMultiValuedFieldTSDB() throws Throwable {
+    public void testDimensionMultiValuedFieldTSDB() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimensions", List.of("key1", "key2", "field3.key3"));
@@ -206,7 +206,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("Dimension field [field.key1] cannot be a multi-valued field"));
     }
 
-    public void testDimensionMultiValuedFieldNonTSDB() throws Throwable {
+    public void testDimensionMultiValuedFieldNonTSDB() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimensions", List.of("key1", "key2", "field3.key3"));

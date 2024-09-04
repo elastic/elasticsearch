@@ -9,7 +9,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -75,21 +74,19 @@ public abstract class RemoteClusterAware {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
         Set<String> clustersToRemove = new HashSet<>();
         for (String index : requestIndices) {
-            boolean negativeIndex = index.charAt(0) == '-';
             // ensure that `index` is a remote name and not a datemath expression which includes ':' symbol
-            // since datemath expression after evaluation should not contain ':' symbol
-            String realIndexName = negativeIndex ? index.substring(1) : index;
-            String probe = IndexNameExpressionResolver.resolveDateMathExpression(realIndexName);
-            int i = probe.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
-            if (i >= 0) {
+            boolean isDateMathExpression = (index.charAt(0) == '<' || index.startsWith("-<"));
+            int i = index.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
+            if (isDateMathExpression == false && i >= 0) {
                 if (isRemoteClusterClientEnabled == false) {
                     assert remoteClusterNames.isEmpty() : remoteClusterNames;
                     throw new IllegalArgumentException("node [" + nodeName + "] does not have the remote cluster client role enabled");
                 }
-                String remoteClusterName = realIndexName.substring(0, i);
+                int startIdx = index.charAt(0) == '-' ? 1 : 0;
+                String remoteClusterName = index.substring(startIdx, i);
                 List<String> clusters = ClusterNameExpressionResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
-                String indexName = realIndexName.substring(i + 1);
-                if (negativeIndex) {
+                String indexName = index.substring(i + 1);
+                if (startIdx == 1) {
                     if (indexName.equals("*") == false) {
                         throw new IllegalArgumentException(
                             Strings.format(

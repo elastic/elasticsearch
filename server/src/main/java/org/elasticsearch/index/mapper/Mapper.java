@@ -29,16 +29,16 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     static final String SYNTHETIC_SOURCE_KEEP_PARAM = "synthetic_source_keep";
 
     // Only relevant for synthetic source mode.
-    public enum StoreSourceMode {
+    public enum SourceKeepMode {
         NONE("none"),      // No source recording
         ARRAYS("arrays"),  // Store source for arrays of mapped fields
         ALL("all");        // Store source for both singletons and arrays of mapped fields
 
-        StoreSourceMode(String name) {
+        SourceKeepMode(String name) {
             this.name = name;
         }
 
-        static StoreSourceMode from(String input) {
+        static SourceKeepMode from(String input) {
             if (input.equals(NONE.name)) {
                 return NONE;
             }
@@ -62,12 +62,12 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     // Only relevant for indexes configured with synthetic source mode. Otherwise, it has no effect.
     // Controls the default behavior for storing the source of leaf fields and objects, in singleton or array form.
     // Setting to StoreSourceMode.ALL is equivalent to disabling synthetic source, so this is not allowed.
-    public static final Setting<StoreSourceMode> SYNTHETIC_SOURCE_KEEP_INDEX_SETTING = Setting.enumSetting(
-        StoreSourceMode.class,
+    public static final Setting<SourceKeepMode> SYNTHETIC_SOURCE_KEEP_INDEX_SETTING = Setting.enumSetting(
+        SourceKeepMode.class,
         "index.mapping.synthetic_source_keep",
-        StoreSourceMode.NONE,
+        SourceKeepMode.NONE,
         value -> {
-            if (value == StoreSourceMode.ALL) {
+            if (value == SourceKeepMode.ALL) {
                 throw new IllegalArgumentException("index.mapping.synthetic_source_keep can't be set to [" + value.toString() + "]");
             }
         },

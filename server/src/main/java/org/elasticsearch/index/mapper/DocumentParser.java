@@ -687,13 +687,13 @@ public final class DocumentParser {
         if (context.canAddIgnoredField()) {
             boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
                 && (objectMapper.storeArraySource()
-                    || (context.storeSourceModeFromIndexSettings() == Mapper.StoreSourceMode.ARRAYS
+                    || (context.storeSourceModeFromIndexSettings() == Mapper.SourceKeepMode.ARRAYS
                         && objectMapper instanceof NestedObjectMapper == false)
                     || objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME);
             boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
                 && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
             boolean fieldWithStoredArraySource = mapper instanceof FieldMapper fieldMapper
-                && context.storeSourceModeFromIndexSettings() == Mapper.StoreSourceMode.ARRAYS;
+                && context.storeSourceModeFromIndexSettings() == Mapper.SourceKeepMode.ARRAYS;
             boolean dynamicRuntimeContext = context.dynamic() == ObjectMapper.Dynamic.RUNTIME;
             if (objectRequiresStoringSource || fieldWithFallbackSyntheticSource || dynamicRuntimeContext || fieldWithStoredArraySource) {
                 Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);

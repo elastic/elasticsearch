@@ -798,11 +798,11 @@ public final class IndexSettings {
      * The default mode for storing source, for all mappers not overriding this setting.
      * This is only relevant for indexes configured with synthetic-source code.
      */
-    public Mapper.StoreSourceMode storeSourceMode() {
+    public Mapper.SourceKeepMode storeSourceMode() {
         return storeSourceMode;
     }
 
-    private final Mapper.StoreSourceMode storeSourceMode;
+    private final Mapper.SourceKeepMode storeSourceMode;
 
     /**
      * Returns the default search fields for this index.

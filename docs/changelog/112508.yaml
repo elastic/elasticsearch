@@ -1,5 +1,5 @@
 pr: 112508
-summary: "Revert \"[ML] Return both `modelId` and `inferenceId\"`"
+summary: "[ML] Create Inference API will no longer return model_id and now only return inference_id"
 area: Machine Learning
 type: bug
 issues: []

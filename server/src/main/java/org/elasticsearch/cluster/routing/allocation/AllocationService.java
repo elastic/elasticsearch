@@ -43,7 +43,10 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.rest.RestStatus;
@@ -297,46 +300,89 @@ public class AllocationService {
      * Returns an updated cluster state if changes were necessary, or the identical cluster if no changes were required.
      */
     public ClusterState adaptAutoExpandReplicas(ClusterState clusterState) {
-        final Supplier<RoutingAllocation> allocationSupplier = () -> new RoutingAllocation(
-            allocationDeciders,
-            clusterState,
-            clusterInfoService.getClusterInfo(),
-            snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime()
+        final LazyInitializable<RoutingAllocation, RuntimeException> lazyAllocation = new LazyInitializable<>(
+            () -> new RoutingAllocation(
+                allocationDeciders,
+                clusterState,
+                clusterInfoService.getClusterInfo(),
+                snapshotsInfoService.snapshotShardSizes(),
+                currentNanoTime()
+            )
         );
+        final Supplier<RoutingAllocation> allocationSupplier = lazyAllocation::getOrCompute;
+
+        GlobalRoutingTable.Builder routingBuilder = null;
+        Metadata.Builder metadataBuilder = null;
+        for (var entry : clusterState.metadata().projects().entrySet()) {
+            var projectId = entry.getKey();
+            var tuple = adaptAutoExpandReplicas(entry.getValue(), clusterState.routingTable(projectId), allocationSupplier);
+            if (tuple != null) {
+                if (metadataBuilder == null) {
+                    metadataBuilder = Metadata.builder(clusterState.metadata());
+                }
+                metadataBuilder.put(tuple.v1());
+
+                if (routingBuilder == null) {
+                    routingBuilder = GlobalRoutingTable.builder(clusterState.globalRoutingTable());
+                }
+                routingBuilder.put(projectId, tuple.v2());
+            }
+        }
+
+        if (metadataBuilder == null) {
+            // No projects were updated
+            return clusterState;
+        }
+
+        final ClusterState fixedState = ClusterState.builder(clusterState)
+            .routingTable(routingBuilder.build())
+            .metadata(metadataBuilder)
+            .build();
+        assert hasAutoExpandReplicaChanges(fixedState.metadata(), allocationSupplier) == false;
+        return fixedState;
+    }
+
+    private static boolean hasAutoExpandReplicaChanges(Metadata metadata, Supplier<RoutingAllocation> allocationSupplier) {
+        return metadata.projects()
+            .values()
+            .stream()
+            .anyMatch(project -> AutoExpandReplicas.getAutoExpandReplicaChanges(project, allocationSupplier).size() > 0);
+    }
+
+    @Nullable
+    private Tuple<ProjectMetadata.Builder, RoutingTable.Builder> adaptAutoExpandReplicas(
+        ProjectMetadata project,
+        RoutingTable projectRoutingTable,
+        Supplier<RoutingAllocation> allocationSupplier
+    ) {
         final Map<Integer, List<String>> autoExpandReplicaChanges = AutoExpandReplicas.getAutoExpandReplicaChanges(
-            clusterState.metadata(),
+            project,
             allocationSupplier
         );
         if (autoExpandReplicaChanges.isEmpty()) {
-            return clusterState;
-        } else {
-            final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, clusterState.routingTable());
-            final Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
-            for (Map.Entry<Integer, List<String>> entry : autoExpandReplicaChanges.entrySet()) {
-                final int numberOfReplicas = entry.getKey();
-                final String[] indices = entry.getValue().toArray(Strings.EMPTY_ARRAY);
-                // we do *not* update the in sync allocation ids as they will be removed upon the first index
-                // operation which make these copies stale
-                routingTableBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
-                metadataBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
-                // update settings version for each index
-                for (final String index : indices) {
-                    final IndexMetadata indexMetadata = metadataBuilder.get(index);
-                    final IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexMetadata).settingsVersion(
-                        1 + indexMetadata.getSettingsVersion()
-                    );
-                    metadataBuilder.put(indexMetadataBuilder);
-                }
-                logger.info("updating number_of_replicas to [{}] for indices {}", numberOfReplicas, indices);
-            }
-            final ClusterState fixedState = ClusterState.builder(clusterState)
-                .routingTable(routingTableBuilder.build())
-                .metadata(metadataBuilder)
-                .build();
-            assert AutoExpandReplicas.getAutoExpandReplicaChanges(fixedState.metadata(), allocationSupplier).isEmpty();
-            return fixedState;
+            return null;
         }
+
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, projectRoutingTable);
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(project);
+        for (Map.Entry<Integer, List<String>> entry : autoExpandReplicaChanges.entrySet()) {
+            final int numberOfReplicas = entry.getKey();
+            final String[] indices = entry.getValue().toArray(Strings.EMPTY_ARRAY);
+            // we do *not* update the in sync allocation ids as they will be removed upon the first index
+            // operation which make these copies stale
+            routingTableBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
+            projectBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
+            // update settings version for each index
+            for (final String index : indices) {
+                final IndexMetadata indexMetadata = projectBuilder.get(index);
+                final IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexMetadata).settingsVersion(
+                    1 + indexMetadata.getSettingsVersion()
+                );
+                projectBuilder.put(indexMetadataBuilder);
+            }
+            logger.info("in project [{}] updating number_of_replicas to [{}] for indices {}", project.id(), numberOfReplicas, indices);
+        }
+        return new Tuple<>(projectBuilder, routingTableBuilder);
     }
 
     /**
@@ -528,7 +574,7 @@ public class AllocationService {
 
     private void reroute(RoutingAllocation allocation, RerouteStrategy rerouteStrategy) {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
-        assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), () -> allocation).isEmpty()
+        assert hasAutoExpandReplicaChanges(allocation.metadata(), () -> allocation) == false
             : "auto-expand replicas out of sync with number of nodes in the cluster";
         assert assertInitialized();
         rerouteStrategy.removeDelayMarkers(allocation);

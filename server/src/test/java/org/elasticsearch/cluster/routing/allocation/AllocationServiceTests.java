@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class AllocationServiceTests extends ESTestCase {
 
@@ -352,6 +353,150 @@ public class AllocationServiceTests extends ESTestCase {
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
             .build();
         assertThat(AllocationService.getHealthStatus(red), is(ClusterHealthStatus.RED));
+    }
+
+    public void testAutoExpandReplicas() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 1)
+            .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+            .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+            .build();
+        final ClusterSettings clusterSettings = createBuiltInClusterSettings(settings);
+        final AllocationService allocationService = new AllocationService(
+            new AllocationDeciders(
+                Arrays.asList(new SameShardAllocationDecider(clusterSettings), new ThrottlingAllocationDecider(clusterSettings))
+            ),
+            null,
+            new EmptyClusterInfoService(),
+            EmptySnapshotsInfoService.INSTANCE,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+        );
+
+        final ProjectId project1 = new ProjectId(randomUUID());
+        final var project2 = new ProjectId(randomUUID());
+        final var project3 = new ProjectId(randomUUID());
+
+        // return same cluster state when there are no changes
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(
+                ProjectMetadata.builder(project1).put(IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 1)))
+            )
+            .build();
+        assertThat(allocationService.adaptAutoExpandReplicas(state), sameInstance(state));
+
+        final DiscoveryNode node1 = DiscoveryNodeUtils.create("n1");
+        final DiscoveryNode node2 = DiscoveryNodeUtils.create("n2");
+        final DiscoveryNode node3 = DiscoveryNodeUtils.create("n3");
+
+        final DiscoveryNodes singleNode = DiscoveryNodes.builder().add(node1).build();
+        final DiscoveryNodes twoNodes = DiscoveryNodes.builder().add(node1).add(node2).build();
+        final DiscoveryNodes threeNodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
+
+        // single project, 1 index with auto-expand-replicas
+        state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(singleNode)
+            .putProjectMetadata(
+                ProjectMetadata.builder(project1)
+                    .put(
+                        IndexMetadata.builder("index")
+                            .settings(
+                                settings(IndexVersion.current()).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                            )
+                    )
+            )
+            .build();
+        // 1 node == 0 replicas == no change
+        ClusterState expanded = allocationService.adaptAutoExpandReplicas(state);
+        assertThat(expanded, sameInstance(state));
+        assertThat(expanded.metadata().getProject(project1).index("index").getNumberOfReplicas(), is(0));
+
+        // 2 nodes == 1 replica == changed state
+        state = ClusterState.builder(state).nodes(twoNodes).build();
+        expanded = allocationService.adaptAutoExpandReplicas(state);
+        assertThat(expanded, not(sameInstance(state)));
+        assertThat(expanded.metadata().getProject(project1).index("index").getNumberOfReplicas(), is(1));
+
+        // 3 nodes == 1 replica == no change
+        state = ClusterState.builder(expanded).nodes(threeNodes).build();
+        expanded = allocationService.adaptAutoExpandReplicas(state);
+        assertThat(expanded.metadata().getProject(project1).index("index").getNumberOfReplicas(), is(1));
+        assertThat(expanded, sameInstance(state));
+
+        // multiple project, multiple indices, some with auto-expand-replicas
+        state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(singleNode)
+            .putProjectMetadata(
+                ProjectMetadata.builder(project1)
+                    .put(
+                        IndexMetadata.builder("expand-1")
+                            .settings(
+                                settings(IndexVersion.current()).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                            )
+                    )
+                    .put(IndexMetadata.builder("regular").settings(indexSettings(IndexVersion.current(), 1, 1)))
+            )
+            .putProjectMetadata(
+                ProjectMetadata.builder(project2)
+                    .put(IndexMetadata.builder("regular").settings(indexSettings(IndexVersion.current(), 1, 1)))
+                    .put(
+                        IndexMetadata.builder("expand-all")
+                            .settings(
+                                settings(IndexVersion.current()).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                            )
+                    )
+                    .put(
+                        IndexMetadata.builder("expand-1")
+                            .settings(
+                                settings(IndexVersion.current()).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                            )
+                    )
+            )
+            .putProjectMetadata(
+                ProjectMetadata.builder(project3)
+                    .put(IndexMetadata.builder("regular").settings(indexSettings(IndexVersion.current(), 1, 1)))
+            )
+            .build();
+
+        // 1 node == 0 replicas == no change
+        expanded = allocationService.adaptAutoExpandReplicas(state);
+        assertThat(expanded, sameInstance(state));
+        assertThat(expanded.metadata().getProject(project1).index("expand-1").getNumberOfReplicas(), is(0));
+        assertThat(expanded.metadata().getProject(project2).index("expand-1").getNumberOfReplicas(), is(0));
+        assertThat(expanded.metadata().getProject(project2).index("expand-all").getNumberOfReplicas(), is(0));
+
+        // 2 nodes == 1 replica == change
+        state = ClusterState.builder(expanded).nodes(twoNodes).build();
+        expanded = allocationService.adaptAutoExpandReplicas(state);
+        assertThat(expanded, not(sameInstance(state)));
+        assertThat(expanded.metadata().getProject(project1).index("expand-1").getNumberOfReplicas(), is(1));
+        assertThat(expanded.metadata().getProject(project2).index("expand-1").getNumberOfReplicas(), is(1));
+        assertThat(expanded.metadata().getProject(project2).index("expand-all").getNumberOfReplicas(), is(1));
+
+        // 3 nodes == 1 or 2 replicas == change
+        state = ClusterState.builder(expanded).nodes(threeNodes).build();
+        expanded = allocationService.adaptAutoExpandReplicas(state);
+        assertThat(expanded, not(sameInstance(state)));
+        assertThat(expanded.metadata().getProject(project1).index("expand-1").getNumberOfReplicas(), is(1));
+        assertThat(expanded.metadata().getProject(project2).index("expand-1").getNumberOfReplicas(), is(1));
+        assertThat(expanded.metadata().getProject(project2).index("expand-all").getNumberOfReplicas(), is(2));
+
+        final DiscoveryNodes threeDifferentNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.create("alt1"))
+            .add(DiscoveryNodeUtils.create("alt2"))
+            .add(DiscoveryNodeUtils.create("alt3"))
+            .build();
+        // 3 different nodes == 1 or 2 replicas == no change
+        state = ClusterState.builder(expanded).nodes(threeDifferentNodes).build();
+        expanded = allocationService.adaptAutoExpandReplicas(state);
+        assertThat(expanded, sameInstance(state));
     }
 
     private static final String FAKE_IN_SYNC_ALLOCATION_ID = "_in_sync_"; // so we can allocate primaries anywhere

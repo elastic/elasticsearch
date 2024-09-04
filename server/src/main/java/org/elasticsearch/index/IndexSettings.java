@@ -795,7 +795,7 @@ public final class IndexSettings {
     private final IndexRouting indexRouting;
 
     /**
-     * The default mode for storing source, for all mappers not overriding setting.
+     * The default mode for storing source, for all mappers not overriding this setting.
      * This is only relevant for indexes configured with synthetic-source code.
      */
     public Mapper.StoreSourceMode storeSourceMode() {

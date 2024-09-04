@@ -300,22 +300,22 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         ---
         one:
         - do:
-            do_.some.key_that_was_replaced:
-              index: "test"
-              id: 1
-              keyvalue : replacedkeyvalue
             do_.some.key_to_replace_in_two:
               no_change_here: "because it's not in test 'two'"
             warnings:
             - "warning1"
             - "warning2"
             headers:
-              Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
-              Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+              Content-Type: "application/vnd.elasticsearch+json;compatible-with=8"
+              Accept: "application/vnd.elasticsearch+json;compatible-with=8"
             allowed_warnings:
             - "added allowed warning"
             allowed_warnings_regex:
             - "added allowed warning regex .* [0-9]"
+            do_.some.key_that_was_replaced:
+              index: "test"
+              id: 1
+              keyvalue : "replacedkeyvalue"
         - match:
             _source.values:
             - "z"
@@ -332,13 +332,14 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         - is_false: "replaced_value"
         - is_true: "value_not_to_replace"
         - is_false: "value_not_to_replace"
-        - length: { key.in_length_that_was_replaced: 1 }
-        - length: { value_to_replace: 99 }
+        - length:
+            key.in_length_that_was_replaced: 1
+        - length:
+            value_to_replace: 99
         - match:
             _source.added:
               name: "jake"
               likes: "cheese"
-
         ---
         two:
         - skip:
@@ -347,17 +348,17 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
             get:
               index: "test2"
               id: 1
-            do_.some.key_that_was_replaced_in_two:
-                changed_here: "because it is in test 'two'"
             headers:
-              Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
-              Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+              Content-Type: "application/vnd.elasticsearch+json;compatible-with=8"
+              Accept: "application/vnd.elasticsearch+json;compatible-with=8"
             warnings_regex:
             - "regex warning here .* [a-z]"
             allowed_warnings:
             - "added allowed warning"
             allowed_warnings_regex:
             - "added allowed warning regex .* [0-9]"
+            do_.some.key_that_was_replaced_in_two:
+              changed_here: "because it is in test 'two'"
         - match:
             _source.values:
             - "foo"
@@ -369,12 +370,12 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         - is_false: "replaced_value"
         - is_true: "value_not_to_replace"
         - is_false: "value_not_to_replace"
-        - length: { value_not_to_replace: 1 }
+        - length:
+            value_not_to_replace: 1
         ---
         "use cat with no header":
           - do:
-              cat.indices:
-                {}
+              cat.indices: {}
               allowed_warnings:
                 - "added allowed warning"
               allowed_warnings_regex:
@@ -382,7 +383,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
           - match: {}
         """.stripIndent()).readAll()
 
-        expectedAll.eachWithIndex{ ObjectNode expected, int i ->
+        expectedAll.eachWithIndex { ObjectNode expected, int i ->
             if(expected != actual.get(i)) {
                 println("\nTransformed Test:")
                 SequenceWriter sequenceWriter = WRITER.writeValues(System.out)

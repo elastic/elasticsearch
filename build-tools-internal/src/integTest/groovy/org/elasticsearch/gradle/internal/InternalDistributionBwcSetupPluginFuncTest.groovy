@@ -27,7 +27,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
         """
-        execute("git branch origin/8.0", file("cloned"))
+        execute("git branch origin/8.x", file("cloned"))
         execute("git branch origin/7.16", file("cloned"))
         execute("git branch origin/7.15", file("cloned"))
     }

@@ -34,6 +34,7 @@ We recommend using this approach because it abstracts away a lot of manual work.
 All you need to do is create an {infer} endpoint and an index mapping to start ingesting, embedding, and querying data.
 There is no need to define model-related settings and parameters, or to create {infer} ingest pipelines.
 Refer to the <<put-inference-api, Create an {infer} endpoint API>> documentation for a list of supported services.
+
 The <<semantic-search-semantic-text, Semantic search with `semantic_text`>> tutorial shows you the process end-to-end.
 
 [discrete]
@@ -41,6 +42,7 @@ The <<semantic-search-semantic-text, Semantic search with `semantic_text`>> tuto
 
 The <<semantic-search-inference, {infer} API workflow>> is more complex but offers greater control over the {infer} endpoint configuration.
 You need to create an {infer} endpoint, provide various model-related settings and parameters, define an index mapping, and set up an {infer} ingest pipeline with the appropriate settings.
+
 The <<semantic-search-inference, Semantic search with the {infer} API>> tutorial shows you the process end-to-end.
 
 [discrete]
@@ -49,7 +51,8 @@ The <<semantic-search-inference, Semantic search with the {infer} API>> tutorial
 You can also deploy NLP in {es} manually, without using an {infer} endpoint.
 This is the most complex and labor intensive workflow for performing semantic search in the {stack}.
 You need to select an NLP model from the {ml-docs}/ml-nlp-model-ref.html#ml-nlp-model-ref-text-embedding[list of supported dense and sparse vector models], deploy it using the Eland client, create an index mapping, and set up a suitable ingest pipeline to start ingesting and querying data.
-the <<semantic-search-deployed-nlp-model, Semantic search with a model deployed in {es}>> tutorial shows you the process end-to-end.
+
+The <<semantic-search-deployed-nlp-model, Semantic search with a model deployed in {es}>> tutorial shows you the process end-to-end.
 
 
 [discrete]
@@ -65,11 +68,11 @@ If not, it depends on which type of embeddings you're working with.
 |=======================================================================================================================================================================================================
 | Field type to query                    | Query to use                                      | Notes                                                                                                                                                             
 | <<semantic-text,`semantic_text`>>      | <<query-dsl-semantic-query,`semantic`>>           | The `semantic_text` field handles generating embeddings for you at index time and query time.                                                                     
-| <<sparse-vector,`sparse_vector`>>      | <<query-dsl-sparse-vector-query,`sparse vector`>> | The `sparse_vector` query can generate query embeddings for you, but you can also provide your own. You are expected to provide embeddings at index time.
+| <<sparse-vector,`sparse_vector`>>      | <<query-dsl-sparse-vector-query,`sparse_vector`>> | The `sparse_vector` query can generate query embeddings for you, but you can also provide your own. You are expected to provide embeddings at index time.
 | <<dense-vector,`dense_vector`>>        | <<query-dsl-knn-query,`knn`>>                     | The `knn` query can generate query embeddings for you, but you can also provide your own. You are expected to provide embeddings at index time.
 |=======================================================================================================================================================================================================
 
-If you want {es} to generate embeddings for you both index and query time, use the `semantic_text` field and the `semantic` query.
+If you want {es} to generate embeddings at both index and query time, use the `semantic_text` field and the `semantic` query.
 If you want to bring your own embeddings, store them in {es} and use the `sparse_vector` or `dense_vector` field type and the associated query depending on the NLP model you used for generating the embeddings.
 
 IMPORTANT: For the easiest way to perform semantic search in the {stack}, refer to the <<semantic-search-semantic-text, `semantic_text`>> end-to-end tutorial.

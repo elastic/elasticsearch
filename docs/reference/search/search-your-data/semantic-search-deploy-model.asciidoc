@@ -8,7 +8,7 @@
 [IMPORTANT]
 ====
 * For the easiest way to perform semantic search in the {stack}, refer to the <<semantic-search-semantic-text, `semantic_text`>> end-to-end tutorial.
-* This tutorial was written before the {infer} endpoint and `semantic_text` options were introduced which makes this as the most complicated option. We recommend to use another method to perform semantic search. 
+* This tutorial was written before the {infer} endpoint and `semantic_text` options were introduced. Today we have simpler options for performing semantic search. 
 ====
 
 This guide shows you how to implement semantic search with models deployed in {es}: from selecting an NLP model, to writing queries.

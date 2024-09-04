@@ -84,7 +84,9 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
     protected void doExecute(Task task, GetAsyncResultRequest request, ActionListener<AsyncSearchResponse> listener) {
         ActionListener<AsyncSearchResponse> listenerWithHeaders = listener.map(response -> {
             threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, response.isRunning() ? "?1" : "?0");
-            threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, response.getId());
+            if (response.getId() != null) {
+                threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, response.getId());
+            }
             return response;
         });
 

@@ -9,10 +9,7 @@ setup:
       indices.create:
         index: test_2
         body:
-          mappings:
-            properties:
-              field:
-                type: keyword
+          mappings: {}
 ---
 "Get /{index}/_mapping with empty mappings":
 
@@ -32,7 +29,7 @@ setup:
   - do:
       indices.get_mapping: {}
 
-  - is_true: test_1
+  - is_true: test_1.mappings
   - is_true: test_2.mappings
 
 ---
@@ -42,7 +39,7 @@ setup:
       indices.get_mapping:
         index: test_1
 
-  - is_true: test_1
+  - is_true: test_1.mappings
   - is_false: test_2
 
 
@@ -54,7 +51,7 @@ setup:
       indices.get_mapping:
         index: _all
 
-  - is_true: test_1
+  - is_true: test_1.mappings
   - is_true: test_2.mappings
 
 ---
@@ -64,7 +61,7 @@ setup:
       indices.get_mapping:
         index: '*'
 
-  - is_true: test_1
+  - is_true: test_1.mappings
   - is_true: test_2.mappings
 
 ---
@@ -74,7 +71,7 @@ setup:
       indices.get_mapping:
         index: test_1,test_2
 
-  - is_true: test_1
+  - is_true: test_1.mappings
   - is_true: test_2.mappings
 
 ---

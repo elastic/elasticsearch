@@ -26,6 +26,9 @@ At query time, {es} can use the same NLP model to convert a query into embedding
 [[using-nlp-models]]
 === Choose a semantic search workflow
 
+[discrete]
+==== The `semantic_text` workflow
+
 The simplest way to use NLP models in the {stack} is through the <<semantic-search-semantic-text, `semantic_text` workflow>>.
 We recommend using this approach because it abstracts away a lot of manual work.
 All you need to do is create an {infer} endpoint and an index mapping to start ingesting, embedding, and querying data.
@@ -33,9 +36,15 @@ There is no need to define model-related settings and parameters, or to create {
 Refer to the <<put-inference-api, Create an {infer} endpoint API>> documentation for a list of supported services.
 The <<semantic-search-semantic-text, Semantic search with `semantic_text`>> tutorial shows you the process end-to-end.
 
+[discrete]
+==== The {infer} API workflow
+
 The <<semantic-search-inference, {infer} API workflow>> is more complex but offers greater control over the {infer} endpoint configuration.
 You need to create an {infer} endpoint, provide various model-related settings and parameters, define an index mapping, and set up an {infer} ingest pipeline with the appropriate settings.
 The <<semantic-search-inference, Semantic search with the {infer} API>> tutorial shows you the process end-to-end.
+
+[discrete]
+==== Model deployment workflow
 
 You can also deploy NLP in {es} manually, without using an {infer} endpoint.
 This is the most complex and labor intensive workflow for performing semantic search in the {stack}.

@@ -216,7 +216,7 @@ public class TransportVersions {
     public static final TransportVersion GLOBAL_RETENTION_TELEMETRY = def(8_740_00_0);
     public static final TransportVersion ROUTING_TABLE_VERSION_REMOVED = def(8_741_00_0);
     public static final TransportVersion ML_SCHEDULED_EVENT_TIME_SHIFT_CONFIGURATION = def(8_742_00_0);
-    public static final TransportVersion HIDE_VECTOR_FIELDS = def(8_739_00_0);
+    public static final TransportVersion HIDE_VECTORS_FROM_SOURCE = def(8_743_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

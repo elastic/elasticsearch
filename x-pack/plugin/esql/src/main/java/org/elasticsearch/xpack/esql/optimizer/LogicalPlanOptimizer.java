@@ -109,6 +109,14 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return rules();
     }
 
+    protected static List<Batch<LogicalPlan>> rules() {
+        var skip = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
+        var defaultTopN = new Batch<>("Add default TopN", new AddDefaultTopN());
+        var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
+
+        return asList(substitutions(), operators(), skip, cleanup(), defaultTopN, label);
+    }
+
     protected static Batch<LogicalPlan> substitutions() {
         return new Batch<>(
             "Substitutions",
@@ -175,13 +183,5 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
     protected static Batch<LogicalPlan> cleanup() {
         return new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN());
-    }
-
-    protected static List<Batch<LogicalPlan>> rules() {
-        var skip = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
-        var defaultTopN = new Batch<>("Add default TopN", new AddDefaultTopN());
-        var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
-
-        return asList(substitutions(), operators(), skip, cleanup(), defaultTopN, label);
     }
 }

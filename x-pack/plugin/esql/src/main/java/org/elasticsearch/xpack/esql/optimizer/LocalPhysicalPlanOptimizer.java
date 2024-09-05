@@ -32,6 +32,7 @@ import static java.util.Arrays.asList;
  * the compute engine)
  */
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
+
     private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
 
     public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
@@ -48,6 +49,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             throw new VerificationException(failures);
         }
         return plan;
+    }
+
+    @Override
+    protected List<Batch<PhysicalPlan>> batches() {
+        return rules(true);
     }
 
     protected List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
@@ -71,8 +77,4 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         return asList(pushdown, fieldExtraction);
     }
 
-    @Override
-    protected List<Batch<PhysicalPlan>> batches() {
-        return rules(true);
-    }
 }

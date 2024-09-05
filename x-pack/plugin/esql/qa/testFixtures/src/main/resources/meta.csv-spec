@@ -18,7 +18,7 @@ synopsis:keyword
 "boolean|cartesian_point|cartesian_shape|date|geo_point|geo_shape|integer|ip|keyword|long|text|version coalesce(first:boolean|cartesian_point|cartesian_shape|date|geo_point|geo_shape|integer|ip|keyword|long|text|version, ?rest...:boolean|cartesian_point|cartesian_shape|date|geo_point|geo_shape|integer|ip|keyword|long|text|version)"
 "keyword concat(string1:keyword|text, string2...:keyword|text)"
 "double cos(angle:double|integer|long|unsigned_long)"
-"double cosh(angle:double|integer|long|unsigned_long)"
+"double cosh(number:double|integer|long|unsigned_long)"
 "long count(?field:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version)"
 "long count_distinct(field:boolean|date|double|integer|ip|keyword|long|text|version, ?precision:integer|long|unsigned_long)"
 "integer date_diff(unit:keyword|text, startTimestamp:date, endTimestamp:date)"
@@ -71,7 +71,7 @@ double pi()
 "keyword|text rtrim(string:keyword|text)"
 "double signum(number:double|integer|long|unsigned_long)"
 "double sin(angle:double|integer|long|unsigned_long)"
-"double sinh(angle:double|integer|long|unsigned_long)"
+"double sinh(number:double|integer|long|unsigned_long)"
 "keyword split(string:keyword|text, delim:keyword|text)"
 "double sqrt(number:double|integer|long|unsigned_long)"
 "geo_point|cartesian_point st_centroid_agg(field:geo_point|cartesian_point)"
@@ -86,7 +86,7 @@ double pi()
 "keyword substring(string:keyword|text, start:integer, ?length:integer)"
 "long|double sum(number:double|integer|long)"
 "double tan(angle:double|integer|long|unsigned_long)"
-"double tanh(angle:double|integer|long|unsigned_long)"
+"double tanh(number:double|integer|long|unsigned_long)"
 double tau()
 "keyword to_base64(string:keyword|text)"
 "boolean to_bool(field:boolean|keyword|text|double|long|unsigned_long|integer)"
@@ -142,7 +142,7 @@ cidr_match    |[ip, blockX]                        |[ip, "keyword|text"]        
 coalesce      |first                               |"boolean|cartesian_point|cartesian_shape|date|geo_point|geo_shape|integer|ip|keyword|long|text|version"                                   |Expression to evaluate.
 concat        |[string1, string2]                  |["keyword|text", "keyword|text"]                                                                                                  |[Strings to concatenate., Strings to concatenate.]
 cos           |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
-cosh          |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
+cosh          |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 count         |field                               |"boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version"                                |Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows).
 count_distinct|[field, precision]                  |["boolean|date|double|integer|ip|keyword|long|text|version", "integer|long|unsigned_long"]                                        |[Column or literal for which to count the number of distinct values., Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000.]
 date_diff     |[unit, startTimestamp, endTimestamp]|["keyword|text", date, date]                                                                                                      |[Time difference unit, A string representing a start timestamp, A string representing an end timestamp]
@@ -195,7 +195,7 @@ round         |[number, decimals]                  |["double|integer|long|unsign
 rtrim         |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 signum        |number                              |"double|integer|long|unsigned_long"                                                                                               |"Numeric expression. If `null`, the function returns `null`."
 sin           |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
-sinh          |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
+sinh          |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 split         |[string, delim]                     |["keyword|text", "keyword|text"]                                                                                                  |[String expression. If `null`\, the function returns `null`., Delimiter. Only single byte delimiters are currently supported.]
 sqrt          |number                              |"double|integer|long|unsigned_long"                                                                                               |"Numeric expression. If `null`, the function returns `null`."
 st_centroid_ag|field                               |"geo_point|cartesian_point"                                                                                                       |[""]
@@ -210,7 +210,7 @@ starts_with   |[str, prefix]                       |["keyword|text", "keyword|te
 substring     |[string, start, length]             |["keyword|text", integer, integer]                                                                                                |[String expression. If `null`\, the function returns `null`., Start position., Length of the substring from the start position. Optional; if omitted\, all positions after `start` are returned.]
 sum           |number                              |"double|integer|long"                                                                                                             |[""]
 tan           |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
-tanh          |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
+tanh          |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 tau           |null                                |null                                                                                                                              |null
 to_base64     |string                              |"keyword|text"                                                                                                                    |A string.
 to_bool       |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
@@ -266,7 +266,7 @@ cidr_match    |Returns true if the provided IP is contained in one of the provid
 coalesce      |Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.
 concat        |Concatenates two or more strings.
 cos           |Returns the {wikipedia}/Sine_and_cosine[cosine] of an angle.
-cosh          |Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine] of an angle.
+cosh          |Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine] of a number.
 count         |Returns the total number (count) of input values.
 count_distinct|Returns the approximate number of distinct values.
 date_diff     |Subtracts the `startTimestamp` from the `endTimestamp` and returns the difference in multiples of `unit`. If `startTimestamp` is later than the `endTimestamp`, negative values are returned.
@@ -318,8 +318,8 @@ right         |Return the substring that extracts 'length' chars from 'str' star
 round         |Rounds a number to the specified number of decimal places. Defaults to 0, which returns the nearest integer. If the precision is a negative number, rounds to the number of digits left of the decimal point.
 rtrim         |Removes trailing whitespaces from a string.
 signum        |Returns the sign of the given number. It returns `-1` for negative numbers, `0` for `0` and `1` for positive numbers.
-sin           |Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric function of an angle.
-sinh          |Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of an angle.
+sin           |Returns the {wikipedia}/Sine_and_cosine[Sine] trigonometric function of an angle.
+sinh          |Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of a number.
 split         |Split a single valued string into multiple strings.
 sqrt          |Returns the square root of a number. The input can be any numeric value, the return value is always a double. Square roots of negative numbers and infinities are null.
 st_centroid_ag|Calculate the spatial centroid over a field with spatial point geometry type.
@@ -334,7 +334,7 @@ starts_with   |Returns a boolean that indicates whether a keyword string starts 
 substring     |Returns a substring of a string, specified by a start position and an optional length.
 sum           |The sum of a numeric expression.
 tan           |Returns the {wikipedia}/Sine_and_cosine[Tangent] trigonometric function of an angle.
-tanh          |Returns the {wikipedia}/Hyperbolic_functions[Tangent] hyperbolic function of an angle.
+tanh          |Returns the {wikipedia}/Hyperbolic_functions[Tangent] hyperbolic function of a number.
 tau           |Returns the https://tauday.com/tau-manifesto[ratio] of a circle's circumference to its radius.
 to_base64     |Encode a string to a base64 string.
 to_bool       |Converts an input value to a boolean value. A string value of *true* will be case-insensitive converted to the Boolean *true*. For anything else, including the empty string, the function will return *false*. The numerical value of *0* will be converted to *false*, anything else will be converted to *true*.
@@ -500,8 +500,8 @@ META FUNCTIONS
 ;
 
 name:keyword |                      synopsis:keyword                  |argNames:keyword  |        argTypes:keyword            |             argDescriptions:keyword                             | returnType:keyword |                                             description:keyword                     | optionalArgs:boolean | variadic:boolean | isAggregation:boolean
-sin          |"double sin(angle:double|integer|long|unsigned_long)"   |angle             |"double|integer|long|unsigned_long" | "An angle, in radians. If `null`, the function returns `null`." | double             | "Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric function of an angle." | false                | false            | false
-sinh         |"double sinh(angle:double|integer|long|unsigned_long)"  |angle             |"double|integer|long|unsigned_long" | "An angle, in radians. If `null`, the function returns `null`." | double             | "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of an angle."        | false                | false            | false
+sin          |"double sin(angle:double|integer|long|unsigned_long)"   |angle             |"double|integer|long|unsigned_long" | "An angle, in radians. If `null`, the function returns `null`." | double             | "Returns the {wikipedia}/Sine_and_cosine[Sine] trigonometric function of an angle." | false                | false            | false
+sinh         |"double sinh(number:double|integer|long|unsigned_long)" |number            |"double|integer|long|unsigned_long" | "Numeric expression. If `null`, the function returns `null`."   | double             | "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of a number."        | false                | false            | false
 ;
 
 countFunctions#[skip:-8.15.99]

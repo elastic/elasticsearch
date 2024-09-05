@@ -53,8 +53,8 @@ public abstract class TopBucketBuilder<B extends InternalMultiBucketAggregation.
      * @param size the requested size of the list
      * @param order the sort order of the buckets
      * @param nonCompetitive called with non-competitive buckets
-     * @param reduce xxxx
-     * @param reduceContext xxxx
+     * @param reduce function to reduce a list of buckets
+     * @param reduceContext the reduce context
      */
     public static <B extends InternalMultiBucketAggregation.InternalBucket> TopBucketBuilder<B> build(
         int size,

@@ -1429,8 +1429,8 @@ public final class TextFieldMapper extends FieldMapper {
         b.store.toXContent(builder, includeDefaults);
         multiFields().toXContent(builder, params);
         copyTo().toXContent(builder);
-        if (storeSourceMode().isPresent()) {
-            storeSourceMode().get().toXContent(builder);
+        if (sourceKeepMode().isPresent()) {
+            sourceKeepMode().get().toXContent(builder);
         }
         b.meta.toXContent(builder, includeDefaults);
         b.indexOptions.toXContent(builder, includeDefaults);

@@ -358,9 +358,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             super.onScriptError = onScriptError.getValue();
             return new KeywordFieldMapper(
                 leafName(),
+                fieldtype,
                 buildFieldType(context, fieldtype),
                 builderParams(this, context),
-                fieldtype,
                 context.isSourceSynthetic(),
                 this
             );
@@ -867,9 +867,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private KeywordFieldMapper(
         String simpleName,
+        FieldType fieldType,
         KeywordFieldType mappedFieldType,
         BuilderParams builderParams,
-        FieldType fieldType,
         boolean isSyntheticSource,
         Builder builder
     ) {

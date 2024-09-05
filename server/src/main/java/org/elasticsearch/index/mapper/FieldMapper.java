@@ -79,14 +79,14 @@ public abstract class FieldMapper extends Mapper {
     /**
      * @param multiFields       sub fields of this mapper
      * @param copyTo            copyTo fields of this mapper
-     * @param storeSourceMode   mode for storing the field source in synthetic source mode
+     * @param sourceKeepMode   mode for storing the field source in synthetic source mode
      * @param hasScript         whether a script is defined for the field
      * @param onScriptError     the behaviour for when the defined script fails at runtime
      */
     protected record BuilderParams(
         MultiFields multiFields,
         CopyTo copyTo,
-        Optional<SourceKeepMode> storeSourceMode,
+        Optional<SourceKeepMode> sourceKeepMode,
         boolean hasScript,
         OnScriptError onScriptError
     ) {
@@ -139,8 +139,8 @@ public abstract class FieldMapper extends Mapper {
         return builderParams.multiFields;
     }
 
-    public Optional<SourceKeepMode> storeSourceMode() {
-        return builderParams.storeSourceMode;
+    public Optional<SourceKeepMode> sourceKeepMode() {
+        return builderParams.sourceKeepMode;
     }
 
     /**
@@ -427,8 +427,8 @@ public abstract class FieldMapper extends Mapper {
         getMergeBuilder().toXContent(builder, params);
         builderParams.multiFields.toXContent(builder, params);
         builderParams.copyTo.toXContent(builder);
-        if (builderParams.storeSourceMode.isPresent()) {
-            builderParams.storeSourceMode.get().toXContent(builder);
+        if (builderParams.sourceKeepMode.isPresent()) {
+            builderParams.sourceKeepMode.get().toXContent(builder);
         }
     }
 
@@ -1293,7 +1293,7 @@ public abstract class FieldMapper extends Mapper {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
         protected CopyTo copyTo = CopyTo.EMPTY;
-        protected Optional<SourceKeepMode> storeSourceMode = Optional.empty();
+        protected Optional<SourceKeepMode> sourceKeepMode = Optional.empty();
         protected boolean hasScript = false;
         protected OnScriptError onScriptError = null;
 
@@ -1321,7 +1321,7 @@ public abstract class FieldMapper extends Mapper {
             return new BuilderParams(
                 multiFieldsBuilder.build(mainFieldBuilder, context),
                 copyTo,
-                storeSourceMode,
+                sourceKeepMode,
                 hasScript,
                 onScriptError
             );
@@ -1336,7 +1336,7 @@ public abstract class FieldMapper extends Mapper {
                 multiFieldsBuilder.update(newSubField, childContext);
             }
             this.copyTo = in.builderParams.copyTo;
-            this.storeSourceMode = in.builderParams.storeSourceMode;
+            this.sourceKeepMode = in.builderParams.sourceKeepMode;
             validate();
         }
 
@@ -1432,7 +1432,7 @@ public abstract class FieldMapper extends Mapper {
                         continue;
                     }
                     case SYNTHETIC_SOURCE_KEEP_PARAM -> {
-                        storeSourceMode = Optional.of(SourceKeepMode.from(XContentMapValues.nodeStringValue(propNode)));
+                        sourceKeepMode = Optional.of(SourceKeepMode.from(XContentMapValues.nodeStringValue(propNode)));
                         iterator.remove();
                         continue;
                     }

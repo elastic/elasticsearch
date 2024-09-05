@@ -181,7 +181,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 """;
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
-                assertTrue(searchSourceBuilder.fetchSource().includeVectors());
+                assertNull(searchSourceBuilder.fetchSource().includeVectors());
             }
         }
         {

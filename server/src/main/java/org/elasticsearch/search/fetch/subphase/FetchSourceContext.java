@@ -43,7 +43,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
     public static final ParseField INCLUDE_VECTORS = new ParseField("include_vectors");
 
-    public static final boolean DEFAULT_INCLUDE_VECTORS = Boolean.TRUE;
+    public static final Boolean DEFAULT_INCLUDE_VECTORS = null;
     public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(
         true,
         Strings.EMPTY_ARRAY,
@@ -59,7 +59,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     private final boolean fetchSource;
     private final String[] includes;
     private final String[] excludes;
-    private final boolean includeVectors;
+    private final Boolean includeVectors;
 
     public static FetchSourceContext of(boolean fetchSource) {
         return fetchSource ? FETCH_SOURCE : DO_NOT_FETCH_SOURCE;
@@ -76,7 +76,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         boolean fetchSource,
         @Nullable String[] includes,
         @Nullable String[] excludes,
-        boolean includeVectors
+        @Nullable Boolean includeVectors
     ) {
         if ((includes == null || includes.length == 0)
             && (excludes == null || excludes.length == 0)
@@ -93,7 +93,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return of(fetchSource, includes, excludes);
     }
 
-    private FetchSourceContext(boolean fetchSource, @Nullable String[] includes, @Nullable String[] excludes, boolean includeVectors) {
+    private FetchSourceContext(boolean fetchSource, @Nullable String[] includes, @Nullable String[] excludes, @Nullable Boolean includeVectors) {
         this.fetchSource = fetchSource;
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
@@ -122,7 +122,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return this.excludes;
     }
 
-    public boolean includeVectors() {
+    public Boolean includeVectors() {
         return this.includeVectors;
     }
 
@@ -207,7 +207,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         boolean fetchSource = true;
         String[] includes = Strings.EMPTY_ARRAY;
         String[] excludes = Strings.EMPTY_ARRAY;
-        boolean includeVectors = Boolean.TRUE;
+        Boolean includeVectors = null;
         if (token == XContentParser.Token.VALUE_BOOLEAN) {
             fetchSource = parser.booleanValue();
         } else if (token == XContentParser.Token.VALUE_STRING) {

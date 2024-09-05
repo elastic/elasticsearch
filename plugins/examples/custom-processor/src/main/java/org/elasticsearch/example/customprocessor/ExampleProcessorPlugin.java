@@ -18,9 +18,6 @@ public class ExampleProcessorPlugin extends Plugin implements IngestPlugin {
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Map.of(
-            ExampleRepeatProcessor.TYPE, new ExampleRepeatProcessor.Factory()
-        );
-
+        return Map.of(ExampleRepeatProcessor.TYPE, new ExampleRepeatProcessor.Factory());
     }
 }

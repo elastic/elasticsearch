@@ -765,7 +765,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
     }
 
     // test for ES-8431
-    public void testRelocationsWithUploadDelayed() throws Exception {
+    public void testRelocationIsNotBlockedByRefreshes() throws Exception {
         var maxNonUploadedCommits = randomIntBetween(4, 5);
         var nodeSettings = Settings.builder()
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), maxNonUploadedCommits)
@@ -774,6 +774,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         startIndexNode(nodeSettings);
         startSearchNode(nodeSettings);
         ensureStableCluster(3);
+        final String[] nodeNames = internalCluster().getNodeNames();
 
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
@@ -788,7 +789,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
             while (running.get()) {
                 try {
                     // the refresh is important to provoke the original deadlock issue.
-                    indexDocsAndRefresh(indexName, randomIntBetween(10, 50));
+                    indexDocsAndRefresh(client(randomFrom(nodeNames)), indexName, randomIntBetween(10, 50));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -798,7 +799,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
 
         var searchingThread = new Thread(() -> {
             while (running.get()) {
-                assertResponse(prepareSearch(indexName).setQuery(matchAllQuery()), response -> {});
+                assertResponse(client(randomFrom(nodeNames)).prepareSearch(indexName).setQuery(matchAllQuery()), response -> {});
                 searchingStarted.countDown();
             }
         }, "search-thread");

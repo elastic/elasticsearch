@@ -33,16 +33,14 @@ public class Categorize extends AggregateFunction implements ToAggregator {
         Categorize::new
     );
 
-    @FunctionInfo(returnType = { "keyword", "text" }, preview = true, description = "... ", appendix = """
-        [WARNING]
-        ====
-        This can use a significant amount of memory and ES|QL doesn't yet
-        grow aggregations beyond memory. So this aggregation will work until
-        it is used to collect more values than can fit into memory. Once it
-        collects too many values it will fail the query with
-        a <<circuit-breaker-errors, Circuit Breaker Error>>.
-        ====""", isAggregation = true, examples = @Example(file = "string", tag = "values-grouped"))
-    public Categorize(Source source, @Param(name = "field", type = { "keyword", "text" }) Expression v) {
+    @FunctionInfo(
+        returnType = { "text" },
+        preview = true,
+        description = "The categorization of a text field.",
+        isAggregation = true,
+        examples = @Example(file = "string", tag = "categorize"))
+    public Categorize(Source source, @Param(name = "field", type = { "keyword", "text" }, description = "Name of the column to categorize."
+    ) Expression v) {
         super(source, v);
     }
 

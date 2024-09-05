@@ -12,6 +12,7 @@ synopsis:keyword
 "double|date bin(field:integer|long|double|date, buckets:integer|long|double|date_period|time_duration, ?from:integer|long|double|date|keyword|text, ?to:integer|long|double|date|keyword|text)"
 "double|date bucket(field:integer|long|double|date, buckets:integer|long|double|date_period|time_duration, ?from:integer|long|double|date|keyword|text, ?to:integer|long|double|date|keyword|text)"
 "boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version case(condition:boolean, trueValue...:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version)"
+"text categorize(field:keyword|text)"
 "double cbrt(number:double|integer|long|unsigned_long)"
 "double|integer|long|unsigned_long ceil(number:double|integer|long|unsigned_long)"
 "boolean cidr_match(ip:ip, blockX...:keyword|text)"
@@ -136,6 +137,7 @@ avg           |number                              |"double|integer|long"       
 bin           |[field, buckets, from, to]          |["integer|long|double|date", "integer|long|double|date_period|time_duration", "integer|long|double|date|keyword|text", "integer|long|double|date|keyword|text"]  |[Numeric or date expression from which to derive buckets., Target number of buckets\, or desired bucket size if `from` and `to` parameters are omitted., Start of the range. Can be a number\, a date or a date expressed as a string., End of the range. Can be a number\, a date or a date expressed as a string.]
 bucket        |[field, buckets, from, to]          |["integer|long|double|date", "integer|long|double|date_period|time_duration", "integer|long|double|date|keyword|text", "integer|long|double|date|keyword|text"]  |[Numeric or date expression from which to derive buckets., Target number of buckets\, or desired bucket size if `from` and `to` parameters are omitted., Start of the range. Can be a number\, a date or a date expressed as a string., End of the range. Can be a number\, a date or a date expressed as a string.]
 case          |[condition, trueValue]              |[boolean, "boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version"]                     |[A condition., The value that's returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches.]
+categorize    |field                               |"keyword|text"                                                                                                                    |"Name of the column to categorize."
 cbrt          |number                              |"double|integer|long|unsigned_long"                                                                                               |"Numeric expression. If `null`, the function returns `null`."
 ceil          |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 cidr_match    |[ip, blockX]                        |[ip, "keyword|text"]                                                                                                              |[IP address of type `ip` (both IPv4 and IPv6 are supported)., CIDR block to test the IP against.]
@@ -260,6 +262,7 @@ avg           |The average of a numeric field.
 bin           |Creates groups of values - buckets - out of a datetime or numeric input. The size of the buckets can either be provided directly, or chosen based on a recommended count and values range.
 bucket        |Creates groups of values - buckets - out of a datetime or numeric input. The size of the buckets can either be provided directly, or chosen based on a recommended count and values range.
 case          |Accepts pairs of conditions and values. The function returns the value that belongs to the first condition that evaluates to `true`.  If the number of arguments is odd, the last argument is the default value which is returned when no condition matches. If the number of arguments is even, and no condition matches, the function returns `null`.
+categorize    |The categorization of a text field.
 cbrt          |Returns the cube root of a number. The input can be any numeric value, the return value is always a double. Cube roots of infinities are null.
 ceil          |Round a number up to the nearest integer.
 cidr_match    |Returns true if the provided IP is contained in one of the provided CIDR blocks.
@@ -386,6 +389,7 @@ avg           |double                                                           
 bin           |"double|date"                                                                                                               |[false, false, true, true]  |false           |false
 bucket        |"double|date"                                                                                                               |[false, false, true, true]  |false           |false
 case          |"boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version"                          |[false, false]              |true            |false
+categorize    |"text"                                                                                                                      |false                       |false           |true           
 cbrt          |double                                                                                                                      |false                       |false           |false
 ceil          |"double|integer|long|unsigned_long"                                                                                         |false                       |false           |false
 cidr_match    |boolean                                                                                                                     |[false, false]              |true            |false
@@ -508,5 +512,5 @@ countFunctions#[skip:-8.15.99]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-115    | 115    | 115
+116    | 116    | 116
 ;

@@ -1,8 +1,5 @@
 [[elasticsearch-intro]]
-== Getting started with Elasticsearch
-++++
-<titleabbrev>Getting started</titleabbrev>
-++++
+== {es} basics
 
 This guide covers the essential basics for getting started with {es}.
 

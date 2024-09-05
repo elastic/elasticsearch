@@ -57,8 +57,7 @@ Defining your own mappings enables you to:
 * Define which fields contain numbers, dates, or geolocations.
 * Use data types that cannot be automatically detected (such as `geo_point` and `geo_shape`.)
 * Choose date value <<mapping-date-format,formats>>, including custom date formats.
-* Create custom rules to control the mapping for
-  <<dynamic-mapping,dynamically added fields>>.
+* Create custom rules to control the mapping for <<dynamic-mapping,dynamically added fields>>.
 * Optimize fields for partial matching.
 * Perform language-specific text analysis.
 

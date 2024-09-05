@@ -389,7 +389,7 @@ public class DateUtils {
     }
 
     // check for all textual fields, and localized zone offset
-    private static final Predicate<String> CONTAINS_CHANGING_TEXT_SPECIFIERS = System.getProperty("java.locale.providers")
+    private static final Predicate<String> CONTAINS_CHANGING_TEXT_SPECIFIERS = System.getProperty("java.locale.providers", "")
         .contains("COMPAT") ? Pattern.compile("[EcqLGaO]").asPredicate() : Predicates.never();
 
     @UpdateForV9    // this can be removed, we will only use CLDR on v9

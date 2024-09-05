@@ -116,7 +116,6 @@ public abstract class DocumentParserContext {
     private Field version;
     private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
-    private final Set<String> copyToFields;
 
     // Indicates if the source for this context has been cloned and gets parsed multiple times.
     private boolean clonedSource;
@@ -137,7 +136,6 @@ public abstract class DocumentParserContext {
         ObjectMapper parent,
         ObjectMapper.Dynamic dynamic,
         Set<String> fieldsAppliedFromTemplates,
-        Set<String> copyToFields,
         DynamicMapperSize dynamicMapperSize,
         boolean clonedSource
     ) {
@@ -156,7 +154,6 @@ public abstract class DocumentParserContext {
         this.parent = parent;
         this.dynamic = dynamic;
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
-        this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
         this.clonedSource = clonedSource;
     }
@@ -178,7 +175,6 @@ public abstract class DocumentParserContext {
             parent,
             dynamic,
             in.fieldsAppliedFromTemplates,
-            in.copyToFields,
             in.dynamicMappersSize,
             in.clonedSource
         );
@@ -206,7 +202,6 @@ public abstract class DocumentParserContext {
             DocumentDimensions.fromIndexSettings(mappingParserContext.getIndexSettings()),
             parent,
             dynamic,
-            new HashSet<>(),
             new HashSet<>(),
             new DynamicMapperSize(),
             false
@@ -359,11 +354,15 @@ public abstract class DocumentParserContext {
     }
 
     public void markFieldAsCopyTo(String fieldName) {
-        copyToFields.add(fieldName);
+        if (mappingLookup.isSourceSynthetic()) {
+            // Mark this field as containing copied data
+            // meaning it should not be present in synthetic _source (to be consistent with stored _source).
+            ignoredFieldValues.add(IgnoredSourceFieldMapper.NameValue.fromContext(this, fieldName, XContentDataHelper.nothing()));
+        }
     }
 
-    public boolean isCopyToField(String name) {
-        return copyToFields.contains(name);
+    public boolean isCopyToDestinationField(String name) {
+        return mappingLookup.fieldTypesLookup().getCopyToDestinationFields().contains(name);
     }
 
     /**

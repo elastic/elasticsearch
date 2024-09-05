@@ -71,6 +71,19 @@ public final class XContentDataHelper {
     }
 
     /**
+     * Returns a special encoded value that signals that values of this field
+     * should not be present in synthetic source.
+     *
+     * An example is a field that has values copied to it using copy_to.
+     * While that field "looks" like a regular field it should not be present in
+     * synthetic _source same as it wouldn't be present in stored source.
+     * @return
+     */
+    public static BytesRef nothing() {
+        return new BytesRef(new byte[] { VOID_ENCODING });
+    }
+
+    /**
      * Decode the value in the passed {@link BytesRef} and add it as a value to the
      * passed build. The assumption is that the passed value has encoded using the function
      * {@link #encodeToken(XContentParser)} above.
@@ -90,6 +103,7 @@ public final class XContentDataHelper {
             case DOUBLE_ENCODING -> TypeUtils.DOUBLE.decodeAndWrite(b, r);
             case FLOAT_ENCODING -> TypeUtils.FLOAT.decodeAndWrite(b, r);
             case NULL_ENCODING -> TypeUtils.NULL.decodeAndWrite(b, r);
+            case VOID_ENCODING -> TypeUtils.VOID.decodeAndWrite(b, r);
             default -> throw new IllegalArgumentException("Can't decode " + r);
         }
     }
@@ -103,19 +117,22 @@ public final class XContentDataHelper {
      * @throws IOException
      */
     static void writeMerged(XContentBuilder b, String fieldName, List<BytesRef> encodedParts) throws IOException {
-        if (encodedParts.isEmpty()) {
+        var partsWithData = encodedParts.stream().filter(XContentDataHelper::isDataPresent).toList();
+
+        if (partsWithData.isEmpty()) {
             return;
         }
 
-        if (encodedParts.size() == 1) {
+        if (partsWithData.size() == 1) {
+            var part = partsWithData.get(0);
             b.field(fieldName);
-            XContentDataHelper.decodeAndWrite(b, encodedParts.get(0));
+            XContentDataHelper.decodeAndWrite(b, part);
             return;
         }
 
         b.startArray(fieldName);
 
-        for (var encodedValue : encodedParts) {
+        for (var encodedValue : partsWithData) {
             Optional<XContentType> encodedXContentType = switch ((char) encodedValue.bytes[encodedValue.offset]) {
                 case CBOR_OBJECT_ENCODING, JSON_OBJECT_ENCODING, YAML_OBJECT_ENCODING, SMILE_OBJECT_ENCODING -> Optional.of(
                     getXContentType(encodedValue)
@@ -156,6 +173,10 @@ public final class XContentDataHelper {
         }
 
         b.endArray();
+    }
+
+    public static boolean isDataPresent(BytesRef encoded) {
+        return encoded.bytes[encoded.offset] != VOID_ENCODING;
     }
 
     /**
@@ -256,6 +277,7 @@ public final class XContentDataHelper {
     private static final char JSON_OBJECT_ENCODING = 'j';
     private static final char YAML_OBJECT_ENCODING = 'y';
     private static final char SMILE_OBJECT_ENCODING = 's';
+    private static final char VOID_ENCODING = 'v';
 
     private enum TypeUtils {
         STRING(STRING_ENCODING) {
@@ -482,6 +504,24 @@ public final class XContentDataHelper {
                     case YAML_OBJECT_ENCODING -> decodeAndWriteXContent(b, XContentType.YAML, r);
                     default -> throw new IllegalArgumentException("Can't decode " + r);
                 }
+            }
+        },
+        VOID(VOID_ENCODING) {
+            @Override
+            StoredField buildStoredField(String name, XContentParser parser) throws IOException {
+                return new StoredField(name, encode(parser));
+            }
+
+            @Override
+            byte[] encode(XContentParser parser) {
+                byte[] bytes = new byte[] { getEncoding() };
+                assertValidEncoding(bytes);
+                return bytes;
+            }
+
+            @Override
+            void decodeAndWrite(XContentBuilder b, BytesRef r) {
+                // NOOP
             }
         };
 

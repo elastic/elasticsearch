@@ -34,12 +34,7 @@ public final class DelayedBucket<B extends InternalMultiBucketAggregation.Intern
     /**
      * Build a delayed bucket.
      */
-    public DelayedBucket(
-        // AggregationReduceContext reduceContext,
-        List<B> toReduce
-    ) {
-        // this.reduce = reduce;
-        // this.reduceContext = reduceContext;
+    public DelayedBucket(List<B> toReduce) {
         this.toReduce = toReduce;
     }
 

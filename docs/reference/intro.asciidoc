@@ -14,7 +14,7 @@ You can use it in two ways:
 This guide covers:
 
 * <<elasticsearch-intro-what-is-es>> Learn about {es} and some of its main use cases.
-* <<elasticsearch-intro-deploy>>. Understand your options for deploying {es} in different environments.
+* <<elasticsearch-intro-deploy>>. Understand your options for deploying {es} in different environments, including a fast local dev setup.
 * <<documents-indices>>. Understand {es}'s most important primitives and how it stores data.
 * <<es-ingestion-overview>>. Understand your options for ingesting data into {es}.
 * <<search-analyze>>. Understand your options for searching and analyzing data in {es}.
@@ -54,7 +54,7 @@ https://www.elastic.co/guide/en/starting-with-the-elasticsearch-platform-and-its
 *******************************
 
 [[elasticsearch-intro-deploy]]
-=== Deployment options
+=== Run {es}
 
 To use {es}, you need a running instance of the {es} service.
 You can deploy {es} in various ways.
@@ -194,7 +194,7 @@ This is useful when you have a mix of known and unknown fields in your data.
 
 // New html page
 [[es-ingestion-overview]]
-=== Ingestion options
+=== Add data to {es}
 
 There are multiple ways to ingest data into {es}.
 
@@ -220,7 +220,7 @@ metadata.
 However, the real power of {es} comes from its advanced search and analytics capabilities.
 
 The primary tool for interacting with {es} today is the <<query-dsl, Query DSL>>.
-We'll be using the Query DSL for the examples in this guide.
+We'll be using the Query DSL for most of our examples.
 
 [TIP]
 ====
@@ -235,8 +235,8 @@ We'll be using the Query DSL for the examples in this guide.
 
 * <<full-text-queries,*Full-text search*>>. Search text that has been analyzed and indexed to support full-text search based on relevance.
 * <<keyword,*Keyword search*>>. Search for exact matches using `keyword` fields.
-* <<semantic-search-semantic-text,*Semantic search*>>. Search `semantic_field` fields using dense or sparse vector search on embeddings generated in your {es} cluster.
-* <<knn-search,*K-nearest neighbors (kNN) search*>>. Search for similar dense vectors using the kNN algorithm for embeddings generated outside of {es}.
+* <<semantic-search-semantic-text,*Semantic search*>>. Search `semantic_text` fields using dense or sparse vector search on embeddings generated in your {es} cluster.
+* <<knn-search,*Vector search*>>. Search for similar dense vectors using the kNN algorithm for embeddings generated outside of {es}.
 * <<geo-queries,*Geospatial search*>>. Search for locations and calculate spatial relationships using geospatial queries.
 
 Learn about the full range of queries supported by the <<query-dsl,Query DSL>>.
@@ -270,10 +270,6 @@ Robust integration with {kib} for querying, visualizing, and analyzing data.
 Does not yet support full-text search.
 | <<esql-rest,`_query`>>
 
-| https://www.elastic.co/guide/en/elasticsearch/client/index.html[Programming languages]
-| Client libraries and APIs for interacting with Elasticsearch using your programming language of choice. Includes Java, Python, JavaScript, Rust, and more.
-| For application development. Enables data indexing, searching, updating, and aggregation directly from your application code.
-| N/A
 
 | <<eql,EQL>>
 | Event Query Language (EQL) is a query language for event-based time series data. Data must contain an `@timestamp` field to use EQL.

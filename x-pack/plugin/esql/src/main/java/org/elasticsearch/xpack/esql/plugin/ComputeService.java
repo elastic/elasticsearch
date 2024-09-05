@@ -277,7 +277,7 @@ public class ComputeService {
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
-        EsqlExecutionInfo exin,
+        EsqlExecutionInfo executionInfo,
         ComputeListener computeListener
     ) {
         var planWithReducer = configuration.pragmas().nodeLevelReduction() == false
@@ -294,11 +294,21 @@ public class ComputeService {
         QueryBuilder requestFilter = PlannerUtils.requestFilter(planWithReducer, x -> true);
         var lookupListener = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
         // SearchShards API can_match is done in lookupDataNodes
-        lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, exin, ActionListener.wrap(dataNodes -> {
+        lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodeResult -> {
             try (RefCountingListener refs = new RefCountingListener(lookupListener)) {
+                // update ExecutionInfo with shard counts (total and skipped)
+                executionInfo.swapCluster(
+                    clusterAlias,
+                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(dataNodeResult.totalShards())
+                        .setSuccessfulShards(dataNodeResult.totalShards())
+                        .setSkippedShards(dataNodeResult.skippedShards())
+                        .setFailedShards(0)
+                        .build()
+                );
+
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
-                for (DataNode node : dataNodes) {
+                for (DataNode node : dataNodeResult.dataNodes()) {
                     var queryPragmas = configuration.pragmas();
                     ExchangeService.openExchange(
                         transportService,
@@ -512,13 +522,18 @@ public class ComputeService {
         }
     }
 
-    record DataNode(Transport.Connection connection, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {
+    record DataNode(Transport.Connection connection, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {}
 
-    }
+    /**
+     * Result from lookupDataNodes where can_match is performed to determine what shards can be skipped
+     * and which target nodes are needed for running the ES|QL query
+     * @param dataNodes list of DataNode to perform the ES|QL query on
+     * @param totalShards Total number of shards (from can_match phase), including skipped shards
+     * @param skippedShards Number of skipped shards (from can_match phase)
+     */
+    record DataNodeResult(List<DataNode> dataNodes, int totalShards, int skippedShards) {}
 
-    record RemoteCluster(String clusterAlias, Transport.Connection connection, String[] concreteIndices, OriginalIndices originalIndices) {
-
-    }
+    record RemoteCluster(String clusterAlias, Transport.Connection connection, String[] concreteIndices, OriginalIndices originalIndices) {}
 
     /**
      * Performs can_match and find the target nodes for the given target indices and filter.
@@ -532,8 +547,7 @@ public class ComputeService {
         QueryBuilder filter,
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
-        EsqlExecutionInfo executionInfo,
-        ActionListener<List<DataNode>> listener
+        ActionListener<DataNodeResult> listener
     ) {
         ActionListener<SearchShardsResponse> searchShardsListener = listener.map(resp -> {
             Map<String, DiscoveryNode> nodes = new HashMap<>();
@@ -571,17 +585,7 @@ public class ComputeService {
                 Map<Index, AliasFilter> aliasFilters = nodeToAliasFilters.getOrDefault(e.getKey(), Map.of());
                 dataNodes.add(new DataNode(transportService.getConnection(node), e.getValue(), aliasFilters));
             }
-            final int countShards = totalShards;
-            final int skipped = skippedShards;
-            executionInfo.swapCluster(
-                clusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(countShards)
-                    .setSuccessfulShards(countShards)
-                    .setSkippedShards(skipped)
-                    .setFailedShards(0)
-                    .build()
-            );
-            return dataNodes;
+            return new DataNodeResult(dataNodes, totalShards, skippedShards);
         });
         SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
             originalIndices.indices(),

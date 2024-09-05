@@ -56,6 +56,15 @@ public class StreamingRestChunkedToXContentListener implements ActionListener<In
     private final AtomicBoolean isLastPart = new AtomicBoolean(false);
     private final RestChannel channel;
     private final ToXContent.Params params;
+
+    /**
+     * A listener for the first part of the next entry to become available for transmission.
+     * Chunks are sent one at a time through the completion of this listener.
+     * This listener is initialized in {@link #initializeStream(InferenceAction.Response)} before the first chunk is requested.
+     * When a chunk is ready, this listener is completed with the converted {@link ChunkedRestResponseBodyPart}.
+     * After transmitting the chunk, {@link #requestNextChunk(ActionListener)} will set the next listener and request the next
+     * chunk. This cycle will repeat until this listener completes with the DONE chunk and the stream closes.
+     */
     private SubscribableListener<ChunkedRestResponseBodyPart> nextBodyPartListener;
 
     public StreamingRestChunkedToXContentListener(RestChannel channel) {
@@ -190,6 +199,8 @@ public class StreamingRestChunkedToXContentListener implements ActionListener<In
             if (isLastPart.get() == false) {
                 this.subscription = subscription;
                 subscription.request(1);
+            } else {
+                subscription.cancel();
             }
         }
 
@@ -207,7 +218,6 @@ public class StreamingRestChunkedToXContentListener implements ActionListener<In
             if (isLastPart.compareAndSet(false, true)) {
                 logger.error("A failure occurred in ElasticSearch while streaming the response.", throwable);
                 nextBodyPartListener().onResponse(new ServerSentEventResponseBodyPart(ServerSentEvents.ERROR, errorChunk(throwable)));
-                subscription.cancel();
             }
         }
 

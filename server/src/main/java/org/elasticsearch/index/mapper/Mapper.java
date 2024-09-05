@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -53,7 +54,15 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             if (input.equals(ARRAYS.name)) {
                 return ARRAYS;
             }
-            throw new IllegalArgumentException("Unknown " + SYNTHETIC_SOURCE_KEEP_PARAM + " value [" + input + "]");
+            throw new IllegalArgumentException(
+                "Unknown "
+                    + SYNTHETIC_SOURCE_KEEP_PARAM
+                    + " value ["
+                    + input
+                    + "], accepted values are ["
+                    + String.join(",", Arrays.stream(SourceKeepMode.values()).map(SourceKeepMode::toString).toList())
+                    + "]"
+            );
         }
 
         @Override

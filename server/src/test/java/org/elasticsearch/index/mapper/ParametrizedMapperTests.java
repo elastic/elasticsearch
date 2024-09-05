@@ -446,7 +446,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         String mappingThrows = """
             {"type":"test_mapper","variable":"foo","required":"value","synthetic_source_keep":"no-such-value"}""";
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fromMapping(mappingThrows));
-        assertEquals("Unknown synthetic_source_keep value [no-such-value]", e.getMessage());
+        assertEquals("Unknown synthetic_source_keep value [no-such-value], accepted values are [none,arrays,all]", e.getMessage());
     }
 
     public void testNullables() {

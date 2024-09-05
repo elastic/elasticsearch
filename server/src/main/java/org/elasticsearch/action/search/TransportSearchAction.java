@@ -1285,16 +1285,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     Executor asyncSearchExecutor(final String[] indices) {
-        final List<String> executorsForIndices = Arrays.stream(indices).map(executorSelector::executorForSearch).toList();
-        if (executorsForIndices.size() == 1) { // all indices have same executor
-            return threadPool.executor(executorsForIndices.get(0));
+        boolean seenSystem = false;
+        boolean seenCritical = false;
+        for (String index : indices) {
+            final String executorName = executorSelector.executorForSearch(index);
+            switch (executorName) {
+                case SYSTEM_READ -> seenSystem = true;
+                case SYSTEM_CRITICAL_READ -> seenCritical = true;
+                default -> {
+                    return threadPool.executor(executorName);
+                }
+            }
         }
-        if (executorsForIndices.size() == 2
-            && executorsForIndices.contains(SYSTEM_READ)
-            && executorsForIndices.contains(SYSTEM_CRITICAL_READ)) { // mix of critical and non critical system indices
-            return threadPool.executor(SYSTEM_READ);
+        final String executor;
+        if (seenSystem == false && seenCritical) {
+            executor = SYSTEM_CRITICAL_READ;
+        } else if (seenSystem) {
+            executor = SYSTEM_READ;
+        } else {
+            executor = ThreadPool.Names.SEARCH;
         }
-        return threadPool.executor(ThreadPool.Names.SEARCH);
+        return threadPool.executor(executor);
     }
 
     static BiFunction<String, String, Transport.Connection> buildConnectionLookup(

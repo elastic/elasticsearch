@@ -40,7 +40,7 @@ public class IncrementalBulkService {
         Setting.Property.Dynamic
     );
     private final Client client;
-    private final AtomicBoolean enabled = new AtomicBoolean(true);
+    private final AtomicBoolean enabledForTests = new AtomicBoolean(true);
     private final IndexingPressure indexingPressure;
     private final ThreadContext threadContext;
 
@@ -61,14 +61,14 @@ public class IncrementalBulkService {
     }
 
     private void ensureEnabled() {
-        if (enabled.get() == false) {
+        if (enabledForTests.get() == false) {
             throw new AssertionError("Unexpected incremental bulk request");
         }
     }
 
     // This method only exists to tests that the feature flag works. Remove once we no longer need the flag.
     public void setForTests(boolean value) {
-        enabled.set(value);
+        enabledForTests.set(value);
     }
 
     public static class Enabled implements Supplier<Boolean> {

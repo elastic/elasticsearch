@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -37,5 +38,9 @@ public record ProjectId(String id) implements Writeable, ToXContent {
 
     public static ProjectId fromXContent(XContentParser parser) throws IOException {
         return new ProjectId(parser.text());
+    }
+
+    public static ProjectId ofNullable(@Nullable String id, @Nullable ProjectId fallback) {
+        return id == null ? fallback : new ProjectId(id);
     }
 }

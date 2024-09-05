@@ -58,6 +58,11 @@ public class Limit extends UnaryPlan {
     }
 
     @Override
+    public String commandName() {
+        return "LIMIT";
+    }
+
+    @Override
     public boolean expressionsResolved() {
         return limit.resolved();
     }

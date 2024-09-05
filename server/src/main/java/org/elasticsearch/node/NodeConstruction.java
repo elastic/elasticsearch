@@ -895,8 +895,7 @@ class NodeConstruction {
         final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(
             client,
             indexingLimits,
-            threadPool.getThreadContext(),
-            clusterService.getClusterSettings()
+            threadPool.getThreadContext()
         );
 
         ActionModule actionModule = new ActionModule(

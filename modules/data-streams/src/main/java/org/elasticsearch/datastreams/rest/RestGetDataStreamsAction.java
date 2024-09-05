@@ -62,7 +62,6 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedQueryParameters() {
-
         return Sets.union(
             RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS,
             Set.of(

@@ -95,7 +95,6 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -175,7 +174,6 @@ import java.util.function.Supplier;
 import java.util.function.ToLongBiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
-import java.util.stream.StreamSupport;
 
 import static java.util.Collections.shuffle;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
@@ -6612,121 +6610,6 @@ public class InternalEngineTests extends EngineTestCase {
                 }
                 recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
                 assertThat(getDocIds(engine, true), equalTo(docs));
-            }
-        }
-    }
-
-    @UpdateForV9
-    // below we were looking for an index version between minimum compatible and 8.0.0 and this has been updated but might need to be
-    // verified if that is the correct behavior
-    public void testRecoverFromHardDeletesIndex() throws Exception {
-        IndexWriterFactory hardDeletesWriter = (directory, iwc) -> new IndexWriter(directory, iwc) {
-            boolean isTombstone(Iterable<? extends IndexableField> doc) {
-                return StreamSupport.stream(doc.spliterator(), false).anyMatch(d -> d.name().equals(Lucene.SOFT_DELETES_FIELD));
-            }
-
-            @Override
-            public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
-                if (isTombstone(doc)) {
-                    return 0;
-                }
-                return super.addDocument(doc);
-            }
-
-            @Override
-            public long addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
-                if (StreamSupport.stream(docs.spliterator(), false).anyMatch(this::isTombstone)) {
-                    return 0;
-                }
-                return super.addDocuments(docs);
-            }
-
-            @Override
-            public long softUpdateDocument(Term term, Iterable<? extends IndexableField> doc, Field... softDeletes) throws IOException {
-                if (isTombstone(doc)) {
-                    return super.deleteDocuments(term);
-                } else {
-                    return super.updateDocument(term, doc);
-                }
-            }
-
-            @Override
-            public long softUpdateDocuments(Term term, Iterable<? extends Iterable<? extends IndexableField>> docs, Field... softDeletes)
-                throws IOException {
-                if (StreamSupport.stream(docs.spliterator(), false).anyMatch(this::isTombstone)) {
-                    return super.deleteDocuments(term);
-                } else {
-                    return super.updateDocuments(term, docs);
-                }
-            }
-        };
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        Path translogPath = createTempDir();
-        List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean());
-        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata())
-            .settings(
-                Settings.builder()
-                    .put(defaultSettings.getSettings())
-                    .put(
-                        IndexMetadata.SETTING_VERSION_CREATED,
-                        // This might need to be updated for the version 9.0 bump
-                        IndexVersionUtils.randomCompatibleVersion(random())
-                    )
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
-            )
-            .build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
-        try (Store store = createStore()) {
-            EngineConfig config = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
-            final List<DocIdSeqNoAndSource> docs;
-            try (
-                InternalEngine hardDeletesEngine = createEngine(
-                    indexSettings,
-                    store,
-                    translogPath,
-                    newMergePolicy(),
-                    hardDeletesWriter,
-                    null,
-                    globalCheckpoint::get
-                )
-            ) {
-                for (Engine.Operation op : operations) {
-                    applyOperation(hardDeletesEngine, op);
-                    if (randomBoolean()) {
-                        hardDeletesEngine.syncTranslog();
-                        globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), hardDeletesEngine.getPersistedLocalCheckpoint()));
-                    }
-                    if (randomInt(100) < 10) {
-                        hardDeletesEngine.refresh("test");
-                    }
-                    if (randomInt(100) < 5) {
-                        hardDeletesEngine.flush(true, true);
-                    }
-                }
-                docs = getDocIds(hardDeletesEngine, true);
-            }
-            // We need to remove min_retained_seq_no commit tag as the actual hard-deletes engine does not have it.
-            store.trimUnsafeCommits(translogPath);
-            Map<String, String> userData = new HashMap<>(store.readLastCommittedSegmentsInfo().userData);
-            userData.remove(Engine.MIN_RETAINED_SEQNO);
-            IndexWriterConfig indexWriterConfig = new IndexWriterConfig(null).setOpenMode(IndexWriterConfig.OpenMode.APPEND)
-                .setIndexCreatedVersionMajor(IndexVersion.current().luceneVersion().major)
-                .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                .setCommitOnClose(false)
-                .setMergePolicy(NoMergePolicy.INSTANCE);
-            try (IndexWriter writer = new IndexWriter(store.directory(), indexWriterConfig)) {
-                writer.setLiveCommitData(userData.entrySet());
-                writer.commit();
-            }
-            try (InternalEngine softDeletesEngine = new InternalEngine(config)) { // do not recover from translog
-                assertThat(softDeletesEngine.getLastCommittedSegmentInfos().userData, equalTo(userData));
-                assertThat(softDeletesEngine.getVersionMap().keySet(), empty());
-                recoverFromTranslog(softDeletesEngine, translogHandler, Long.MAX_VALUE);
-                if (randomBoolean()) {
-                    engine.forceMerge(randomBoolean(), 1, false, UUIDs.randomBase64UUID());
-                }
-                assertThat(getDocIds(softDeletesEngine, true), equalTo(docs));
-                assertConsistentHistoryBetweenTranslogAndLuceneIndex(softDeletesEngine);
             }
         }
     }

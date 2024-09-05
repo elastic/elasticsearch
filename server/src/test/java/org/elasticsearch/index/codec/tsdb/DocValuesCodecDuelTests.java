@@ -141,6 +141,9 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             for (int i = 0; i < docIdsToAdvanceTo.length; i++) {
                 int docId = docIdsToAdvanceTo[i];
                 int baselineTarget = assertAdvance(docId, baselineReader, contenderReader, baseline, contender);
+                if (baselineTarget == NO_MORE_DOCS) {
+                    break;
+                }
                 assertEquals(baseline.ordValue(), contender.ordValue());
                 assertEquals(baseline.lookupOrd(baseline.ordValue()), contender.lookupOrd(contender.ordValue()));
                 i = shouldSkipDocIds(i, docId, baselineTarget, docIdsToAdvanceTo);

@@ -23,7 +23,16 @@ import java.util.List;
  */
 public abstract class PhysicalPlan extends QueryPlan<PhysicalPlan> {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(AggregateExec.ENTRY, DissectExec.ENTRY, EsSourceExec.ENTRY);
+        return List.of(
+            AggregateExec.ENTRY,
+            DissectExec.ENTRY,
+            EsQueryExec.ENTRY,
+            EsSourceExec.ENTRY,
+            EvalExec.ENTRY,
+            ExchangeExec.ENTRY,
+            ExchangeSinkExec.ENTRY,
+            ExchangeSourceExec.ENTRY
+        );
     }
 
     public PhysicalPlan(Source source, List<PhysicalPlan> children) {

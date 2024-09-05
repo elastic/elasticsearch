@@ -134,7 +134,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
 
-    public void testNullWithoutIgnoreMissing() throws Exception {
+    public void testNullWithoutIgnoreMissing() {
         GeoIpProcessor processor = new GeoIpProcessor(
             randomAlphaOfLength(10),
             null,
@@ -156,7 +156,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("field [source_field] is null, cannot extract geoip information."));
     }
 
-    public void testNonExistentWithoutIgnoreMissing() throws Exception {
+    public void testNonExistentWithoutIgnoreMissing() {
         GeoIpProcessor processor = new GeoIpProcessor(
             randomAlphaOfLength(10),
             null,
@@ -526,7 +526,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     /**
      * Don't silently do DNS lookups or anything trappy on bogus data
      */
-    public void testInvalid() throws Exception {
+    public void testInvalid() {
         GeoIpProcessor processor = new GeoIpProcessor(
             randomAlphaOfLength(10),
             null,
@@ -803,7 +803,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             }
 
             @Override
-            InputStream databaseInputStream() throws IOException {
+            InputStream databaseInputStream() {
                 return databaseInputStreamSupplier.get();
             }
 

@@ -545,4 +545,9 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             executeCompletionListeners();
         }
     }
+
+    @Override
+    public boolean isAsync() {
+        return true;
+    }
 }

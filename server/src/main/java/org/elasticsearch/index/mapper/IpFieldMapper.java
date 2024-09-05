@@ -47,6 +47,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -625,7 +626,9 @@ public class IpFieldMapper extends FieldMapper {
                 "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new SortedSetDocValuesSyntheticFieldLoader(fullPath(), leafName(), null, ignoreMalformed) {
+
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
             @Override
             protected BytesRef convert(BytesRef value) {
                 byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
@@ -637,6 +640,12 @@ public class IpFieldMapper extends FieldMapper {
                 // No need to copy because convert has made a deep copy
                 return value;
             }
-        };
+        });
+
+        if (ignoreMalformed) {
+            layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
+        }
+
+        return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
     }
 }

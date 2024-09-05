@@ -16,7 +16,7 @@ DELETE _application/analytics/my_analytics_collection
 // TEARDOWN
 ////
 
-Creates an Analytics Collection.
+Creates a <<behavioral-analytics-overview,Behavioral Analytics>> Collection.
 
 [[put-analytics-collection-request]]
 ==== {api-request-title}

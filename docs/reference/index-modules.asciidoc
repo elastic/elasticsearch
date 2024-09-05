@@ -113,7 +113,7 @@ Index mode supports the following values:
 
 `time_series`::: Index mode optimized for storage of metrics documented in <<tsds-index-settings,TSDS Settings>>.
 
-`logs`::: Index mode optimized for storage of logs. It applies default sort settings on the `hostname` and `timestamp` fields and uses <<synthetic-source,synthetic `_source`>>. <<index-modules-index-sorting,Index sorting>> on different fields is still allowed.
+`logsdb`::: Index mode optimized for storage of logs. It applies default sort settings on the `hostname` and `timestamp` fields and uses <<synthetic-source,synthetic `_source`>>. <<index-modules-index-sorting,Index sorting>> on different fields is still allowed.
 preview:[]
 
 [[routing-partition-size]] `index.routing_partition_size`::

@@ -17,7 +17,7 @@ import java.util.List;
 /**
  * {@link QueryPhaseRankCoordinatorContext} is running on the coordinator node and is
  * responsible for combining the query phase results from the shards and rank them accordingly.
- * The output is a `window_size` ranked list of ordered results from all shards.
+ * The output is a `rank_window_size` ranked list of ordered results from all shards.
  * Note: Currently this can use only sort by score; sort by field is not supported.
  */
 public abstract class QueryPhaseRankCoordinatorContext {

@@ -14,7 +14,6 @@ import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
-import org.elasticsearch.nativeaccess.lib.SystemdLibrary;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 
@@ -36,8 +35,6 @@ public class JdkNativeLibraryProvider extends NativeLibraryProvider {
                 JdkMacCLibrary::new,
                 Kernel32Library.class,
                 JdkKernel32Library::new,
-                SystemdLibrary.class,
-                JdkSystemdLibrary::new,
                 ZstdLibrary.class,
                 JdkZstdLibrary::new,
                 VectorLibrary.class,

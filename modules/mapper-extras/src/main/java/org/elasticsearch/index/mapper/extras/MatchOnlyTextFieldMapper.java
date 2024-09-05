@@ -447,7 +447,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), leafName(), null) {
+        return new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), leafName()) {
             @Override
             protected void write(XContentBuilder b, Object value) throws IOException {
                 b.value((String) value);

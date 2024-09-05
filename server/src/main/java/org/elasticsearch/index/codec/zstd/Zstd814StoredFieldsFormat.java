@@ -47,7 +47,7 @@ public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFi
     public static final String MODE_KEY = Zstd814StoredFieldsFormat.class.getSimpleName() + ".mode";
 
     public enum Mode {
-        BEST_SPEED(0, BEST_SPEED_BLOCK_SIZE, 128),
+        BEST_SPEED(0, BEST_SPEED_BLOCK_SIZE, 96),
         BEST_COMPRESSION(3, BEST_COMPRESSION_BLOCK_SIZE, 2048);
 
         final int level, blockSizeInBytes, blockDocCount;
@@ -76,6 +76,10 @@ public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFi
             );
         }
         return super.fieldsWriter(directory, si, context);
+    }
+
+    public Mode getMode() {
+        return mode;
     }
 
     private static class ZstdCompressionMode extends CompressionMode {

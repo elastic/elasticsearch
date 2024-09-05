@@ -166,6 +166,37 @@ public class StandardRetrieverBuilderParsingTests extends AbstractXContentTestCa
         }
     }
 
+    public void testIsCompound() {
+        StandardRetrieverBuilder standardRetriever = createTestInstance();
+        assertFalse(standardRetriever.isCompound());
+    }
+
+    public void testTopDocsQuery() throws IOException {
+        StandardRetrieverBuilder standardRetriever = createTestInstance();
+        final int preFilters = standardRetriever.preFilterQueryBuilders.size();
+        if (standardRetriever.queryBuilder == null) {
+            if (preFilters > 0) {
+                expectThrows(IllegalArgumentException.class, standardRetriever::topDocsQuery);
+            }
+        } else {
+            QueryBuilder topDocsQuery = standardRetriever.topDocsQuery();
+            assertNotNull(topDocsQuery);
+            if (preFilters > 0) {
+                assertThat(topDocsQuery, instanceOf(BoolQueryBuilder.class));
+                assertThat(((BoolQueryBuilder) topDocsQuery).filter().size(), equalTo(1 + preFilters));
+                assertThat(((BoolQueryBuilder) topDocsQuery).filter().get(0), instanceOf(standardRetriever.queryBuilder.getClass()));
+                for (int i = 0; i < preFilters; i++) {
+                    assertThat(
+                        ((BoolQueryBuilder) topDocsQuery).filter().get(i + 1),
+                        instanceOf(standardRetriever.preFilterQueryBuilders.get(i).getClass())
+                    );
+                }
+            } else {
+                assertThat(topDocsQuery, instanceOf(standardRetriever.queryBuilder.getClass()));
+            }
+        }
+    }
+
     private static void assertEqualQueryOrMatchAllNone(QueryBuilder actual, QueryBuilder expected) {
         assertThat(actual, anyOf(instanceOf(MatchAllQueryBuilder.class), instanceOf(MatchNoneQueryBuilder.class), equalTo(expected)));
     }

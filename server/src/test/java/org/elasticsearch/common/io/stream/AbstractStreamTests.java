@@ -9,6 +9,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -25,6 +26,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -48,6 +50,10 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static java.time.Instant.ofEpochSecond;
+import static java.time.ZonedDateTime.ofInstant;
+import static org.elasticsearch.TransportVersions.ZDT_NANOS_SUPPORT;
+import static org.elasticsearch.TransportVersions.ZDT_NANOS_SUPPORT_BROKEN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -717,24 +723,77 @@ public abstract class AbstractStreamTests extends ESTestCase {
             input.readBytes(new byte[len], 0, len);
 
             assertEquals(-1, input.read());
+            assertEquals(-1, input.read(new byte[2], 0, 2));
+        }
+    }
+
+    public void testZonedDateTimeSerialization() throws IOException {
+        checkZonedDateTimeSerialization(ZDT_NANOS_SUPPORT);
+    }
+
+    public void testZonedDateTimeMillisBwcSerializationV1() throws IOException {
+        checkZonedDateTimeSerialization(TransportVersionUtils.getPreviousVersion(ZDT_NANOS_SUPPORT_BROKEN));
+    }
+
+    public void testZonedDateTimeMillisBwcSerialization() throws IOException {
+        checkZonedDateTimeSerialization(TransportVersionUtils.getPreviousVersion(ZDT_NANOS_SUPPORT));
+    }
+
+    public void checkZonedDateTimeSerialization(TransportVersion tv) throws IOException {
+        assertGenericRoundtrip(ofInstant(Instant.EPOCH, randomZone()), tv);
+        assertGenericRoundtrip(ofInstant(ofEpochSecond(1), randomZone()), tv);
+        // just want to test a large number that will use 5+ bytes
+        long maxEpochSecond = Integer.MAX_VALUE;
+        long minEpochSecond = tv.between(ZDT_NANOS_SUPPORT_BROKEN, ZDT_NANOS_SUPPORT) ? 0 : Integer.MIN_VALUE;
+        assertGenericRoundtrip(ofInstant(ofEpochSecond(maxEpochSecond), randomZone()), tv);
+        assertGenericRoundtrip(ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond)), randomZone()), tv);
+        assertGenericRoundtrip(ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond), 1_000_000), randomZone()), tv);
+        assertGenericRoundtrip(ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond), 999_000_000), randomZone()), tv);
+        if (tv.onOrAfter(ZDT_NANOS_SUPPORT)) {
+            assertGenericRoundtrip(
+                ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond), 999_999_999), randomZone()),
+                tv
+            );
+            assertGenericRoundtrip(
+                ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond), randomIntBetween(0, 999_999_999)), randomZone()),
+                tv
+            );
+        }
+    }
+
+    public void testOptional() throws IOException {
+        try (var output = new BytesStreamOutput()) {
+            output.writeOptional(StreamOutput::writeString, "not-null");
+            output.writeOptional(StreamOutput::writeString, null);
+
+            final var input = getStreamInput(output.bytes());
+            assertEquals("not-null", input.readOptional(StreamInput::readString));
+            assertNull(input.readOptional(StreamInput::readString));
         }
     }
 
     private void assertSerialization(
         CheckedConsumer<StreamOutput, IOException> outputAssertions,
-        CheckedConsumer<StreamInput, IOException> inputAssertions
+        CheckedConsumer<StreamInput, IOException> inputAssertions,
+        TransportVersion transportVersion
     ) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(transportVersion);
             outputAssertions.accept(output);
             final StreamInput input = getStreamInput(output.bytes());
+            input.setTransportVersion(transportVersion);
             inputAssertions.accept(input);
         }
     }
 
     private void assertGenericRoundtrip(Object original) throws IOException {
+        assertGenericRoundtrip(original, TransportVersion.current());
+    }
+
+    private void assertGenericRoundtrip(Object original, TransportVersion transportVersion) throws IOException {
         assertSerialization(output -> { output.writeGenericValue(original); }, input -> {
             Object read = input.readGenericValue();
             assertThat(read, equalTo(original));
-        });
+        }, transportVersion);
     }
 }

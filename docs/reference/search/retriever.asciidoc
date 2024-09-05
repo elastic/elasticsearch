@@ -198,7 +198,7 @@ GET my-embeddings/_search
 
 An <<rrf, RRF>> retriever returns top documents based on the RRF formula,
 equally weighting two or more child retrievers.
-Reciprocal rank fusion (RRF) is a method for combining multiple result 
+Reciprocal rank fusion (RRF) is a method for combining multiple result
 sets with different relevance indicators into a single result set.
 
 ===== Parameters
@@ -207,7 +207,9 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-constant]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-window-size]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-window-size]
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-filter]
 
 ===== Restrictions
 
@@ -225,7 +227,7 @@ A simple hybrid search example (lexical search + dense vector search) combining 
 ----
 GET /restaurants/_search
 {
-  "retriever": { 
+  "retriever": {
     "rrf": { <1>
       "retrievers": [ <2>
         {
@@ -250,7 +252,7 @@ GET /restaurants/_search
           }
         }
       ],
-      "rank_constant": 0.3, <5>
+      "rank_constant": 1, <5>
       "rank_window_size": 50  <6>
     }
   }
@@ -340,6 +342,10 @@ Currently you can:
 ** Refer to the <<text-similarity-reranker-retriever-example-eland,example>> on this page for a step-by-step guide.
 
 ===== Parameters
+`retriever`::
+(Required, <<retriever, retriever>>)
++
+The child retriever that generates the initial set of top documents to be re-ranked.
 
 `field`::
 (Required, `string`)
@@ -365,6 +371,13 @@ The number of top documents to consider in the re-ranking process. Defaults to `
 (Optional, `float`)
 +
 Sets a minimum threshold score for including documents in the re-ranked results. Documents with similarity scores below this threshold will be excluded. Note that score calculations vary depending on the model used.
+
+`filter`::
+(Optional, <<query-dsl, query object or list of query objects>>)
++
+Applies the specified <<query-dsl-bool-query, boolean query filter>> to the child  <<retriever, retriever>>.
+If the child retriever already specifies any filters, then this top-level filter is applied in conjuction
+with the filter defined in the child retriever.
 
 ===== Restrictions
 
@@ -441,13 +454,13 @@ eland_import_hub_model \
 +
 [source,js]
 ----
-PUT _inference/rerank/my-msmarco-minilm-model 
+PUT _inference/rerank/my-msmarco-minilm-model
 {
   "service": "elasticsearch",
   "service_settings": {
     "num_allocations": 1,
     "num_threads": 1,
-    "model_id": "cross-encoder__ms-marco-minilm-l-6-v2" 
+    "model_id": "cross-encoder__ms-marco-minilm-l-6-v2"
   }
 }
 ----

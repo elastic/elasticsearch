@@ -18,6 +18,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
@@ -52,7 +53,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
         public Builder(String name) {
             // Subobjects are not currently supported.
-            super(name, Explicit.IMPLICIT_FALSE);
+            super(name, Optional.of(Subobjects.DISABLED));
         }
 
         @Override
@@ -103,7 +104,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
         int priority
     ) {
         // Subobjects are not currently supported.
-        super(name, fullPath, enabled, Explicit.IMPLICIT_FALSE, Explicit.IMPLICIT_FALSE, dynamic, mappers);
+        super(name, fullPath, enabled, Optional.of(Subobjects.DISABLED), Explicit.IMPLICIT_FALSE, dynamic, mappers);
         this.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
         this.priority = priority;
         if (priority < 0) {

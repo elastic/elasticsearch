@@ -1,0 +1,6 @@
+pr: 111994
+summary: Merge multiple ignored source entires for the same field
+area: Logs
+type: bug
+issues:
+ - 111694

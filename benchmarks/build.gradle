@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.TestUtil
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -29,6 +30,7 @@ tasks.named("javadoc").configure { enabled = false }
 configurations {
   expression
   painless
+  nativeLib
 }
 
 dependencies {
@@ -37,6 +39,7 @@ dependencies {
     // us to invoke the JMH uberjar as usual.
     exclude group: 'net.sf.jopt-simple', module: 'jopt-simple'
   }
+  api(project(':libs:elasticsearch-h3'))
   api(project(':modules:aggregations'))
   api(project(':x-pack:plugin:esql-core'))
   api(project(':x-pack:plugin:esql'))
@@ -44,6 +47,7 @@ dependencies {
   implementation project(path: ':libs:elasticsearch-simdvec')
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))
+  nativeLib(project(':libs:elasticsearch-native'))
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
   // Dependencies of JMH
@@ -75,17 +79,8 @@ tasks.register("copyPainless", Copy) {
 tasks.named("run").configure {
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
   args << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
-  dependsOn "copyExpression", "copyPainless"
-  systemProperty 'java.library.path', file("../libs/native/libraries/build/platform/${platformName()}-${os.arch}")
-}
-
-String platformName() {
-  String name = System.getProperty("os.name");
-  if (name.startsWith("Mac")) {
-    return "darwin";
-  } else {
-    return name.toLowerCase(Locale.ROOT);
-  }
+  dependsOn "copyExpression", "copyPainless", configurations.nativeLib
+  systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
 }
 
 spotless {

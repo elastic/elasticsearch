@@ -42,13 +42,11 @@ public final class Source implements Writeable {
         if (in.readBoolean() == false) {
             return EMPTY;
         }
-        int line = in.readInt();
-        int column = in.readInt();
-        int charPositionInLine = column - 1;
+        SourcePositions positions = new SourcePositions(in);
+        int charPositionInLine = positions.column - 1;
 
-        int length = in.readInt();
-        String text = sourceText(in.sourceText(), line, column, length);
-        return new Source(new Location(line, charPositionInLine), text);
+        String text = sourceText(in.sourceText(), positions.line, positions.column, positions.length);
+        return new Source(new Location(positions.line, charPositionInLine), text);
     }
 
     /**
@@ -57,13 +55,11 @@ public final class Source implements Writeable {
      * and there is no chance of getting a {@link PlanStreamInput}.
      */
     public static Source readEmpty(StreamInput in) throws IOException {
-        if (in.readBoolean() == false) {
-            return EMPTY;
+        if (in.readBoolean()) {
+            // Read it and throw it away because we're always returning empty.
+            new SourcePositions(in);
         }
-        in.readInt();
-        in.readInt();
-        in.readInt();
-        return Source.EMPTY;
+        return EMPTY;
     }
 
     @Override
@@ -73,9 +69,7 @@ public final class Source implements Writeable {
             return;
         }
         out.writeBoolean(true);
-        out.writeInt(location.getLineNumber());
-        out.writeInt(location.getColumnNumber());
-        out.writeInt(text.length());
+        new SourcePositions(location.getLineNumber(), location.getColumnNumber(), text.length()).writeTo(out);
     }
 
     // TODO: rename to location()
@@ -145,4 +139,19 @@ public final class Source implements Writeable {
         return offset;
     }
 
+    /**
+     * Offsets into the source string that we use for serialization.
+     */
+    private record SourcePositions(int line, int column, int length) implements Writeable {
+        SourcePositions(StreamInput in) throws IOException {
+            this(in.readInt(), in.readInt(), in.readInt());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeInt(line);
+            out.writeInt(column);
+            out.writeInt(length);
+        }
+    }
 }

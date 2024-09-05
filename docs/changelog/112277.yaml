@@ -1,0 +1,5 @@
+pr: 112277
+summary: Upgrade `repository-azure` dependencies
+area: Snapshot/Restore
+type: upgrade
+issues: []

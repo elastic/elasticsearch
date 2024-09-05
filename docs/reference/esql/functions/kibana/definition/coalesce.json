@@ -74,19 +74,19 @@
       "params" : [
         {
           "name" : "first",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Expression to evaluate."
         },
         {
           "name" : "rest",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : true,
           "description" : "Other expression to evaluate."
         }
       ],
       "variadic" : true,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [

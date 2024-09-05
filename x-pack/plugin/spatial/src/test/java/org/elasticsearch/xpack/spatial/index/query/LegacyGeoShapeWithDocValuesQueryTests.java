@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -221,15 +222,7 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
         assertHitCount(client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", multiPoint)), 1L);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86118")
-    @Override
-    public void testIndexPointsFromLine() throws Exception {
-        super.testIndexPointsFromLine();
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86118")
-    @Override
-    public void testIndexPointsFromPolygon() throws Exception {
-        super.testIndexPointsFromPolygon();
+    protected boolean ignoreLons(double[] lons) {
+        return Arrays.stream(lons).anyMatch(v -> v == 180);
     }
 }

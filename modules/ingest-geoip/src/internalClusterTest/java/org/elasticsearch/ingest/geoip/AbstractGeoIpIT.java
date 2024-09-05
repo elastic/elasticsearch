@@ -16,16 +16,13 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.StreamsUtils;
 import org.junit.ClassRule;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
 
 public abstract class AbstractGeoIpIT extends ESIntegTestCase {
     private static final boolean useFixture = Booleans.parseBoolean(System.getProperty("geoip_use_service", "false")) == false;
@@ -45,23 +42,7 @@ public abstract class AbstractGeoIpIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(final int nodeOrdinal, final Settings otherSettings) {
         final Path databasePath = createTempDir();
-        try {
-            Files.createDirectories(databasePath);
-            Files.copy(
-                new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb")),
-                databasePath.resolve("GeoLite2-City.mmdb")
-            );
-            Files.copy(
-                new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb")),
-                databasePath.resolve("GeoLite2-Country.mmdb")
-            );
-            Files.copy(
-                new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-ASN.mmdb")),
-                databasePath.resolve("GeoLite2-ASN.mmdb")
-            );
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        copyDefaultDatabases(databasePath);
         return Settings.builder()
             .put("ingest.geoip.database_path", databasePath)
             .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false)

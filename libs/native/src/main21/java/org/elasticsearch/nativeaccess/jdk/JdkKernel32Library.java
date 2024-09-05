@@ -56,7 +56,7 @@ class JdkKernel32Library implements Kernel32Library {
     );
     private static final MethodHandle SetProcessWorkingSetSize$mh = downcallHandleWithError(
         "SetProcessWorkingSetSize",
-        FunctionDescriptor.of(ADDRESS, JAVA_LONG, JAVA_LONG)
+        FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, JAVA_LONG, JAVA_LONG)
     );
     private static final MethodHandle GetCompressedFileSizeW$mh = downcallHandleWithError(
         "GetCompressedFileSizeW",
@@ -115,7 +115,7 @@ class JdkKernel32Library implements Kernel32Library {
 
         @Override
         public Address add(long offset) {
-            return new JdkAddress(MemorySegment.ofAddress(address.address()));
+            return new JdkAddress(MemorySegment.ofAddress(address.address() + offset));
         }
     }
 

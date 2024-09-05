@@ -18,10 +18,6 @@ final class FloatState implements AggregatorState {
     private float value;
     private boolean seen;
 
-    FloatState() {
-        this(0);
-    }
-
     FloatState(float init) {
         this.value = init;
     }

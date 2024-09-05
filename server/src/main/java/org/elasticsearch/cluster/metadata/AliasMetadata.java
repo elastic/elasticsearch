@@ -396,6 +396,8 @@ public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentF
                     } else if ("is_hidden".equals(currentFieldName)) {
                         builder.isHidden(parser.booleanValue());
                     }
+                } else if (token == null) {
+                    throw new IllegalArgumentException("unexpected null token while parsing alias");
                 }
             }
             return builder.build();

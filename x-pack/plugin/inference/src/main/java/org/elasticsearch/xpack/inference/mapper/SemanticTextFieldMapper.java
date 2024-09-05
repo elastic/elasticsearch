@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -60,6 +60,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -320,7 +321,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             IndexVersion indexVersionCreated,
             Map<String, String> meta
         ) {
-            super(name, false, false, false, TextSearchInfo.NONE, meta);
+            super(name, true, false, false, TextSearchInfo.NONE, meta);
             this.inferenceId = inferenceId;
             this.modelSettings = modelSettings;
             this.inferenceField = inferenceField;
@@ -381,6 +382,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
+        }
+
+        @Override
+        public boolean fieldHasValue(FieldInfos fieldInfos) {
+            return fieldInfos.fieldInfo(getEmbeddingsFieldName(name())) != null;
         }
 
         public QueryBuilder semanticQuery(InferenceResults inferenceResults, float boost, String queryName) {
@@ -469,7 +475,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Nullable SemanticTextField.ModelSettings modelSettings,
         Function<Query, BitSetProducer> bitSetProducer
     ) {
-        return new ObjectMapper.Builder(INFERENCE_FIELD, Explicit.EXPLICIT_TRUE).dynamic(ObjectMapper.Dynamic.FALSE)
+        return new ObjectMapper.Builder(INFERENCE_FIELD, Optional.of(ObjectMapper.Subobjects.ENABLED)).dynamic(ObjectMapper.Dynamic.FALSE)
             .add(createChunksField(indexVersionCreated, modelSettings, bitSetProducer))
             .build(context);
     }

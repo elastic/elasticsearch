@@ -43,7 +43,7 @@ public class ListEqualMatcher extends GenericEqualsMatcher<List<?>> {
                     actualSettings,
                     expectedMappings,
                     expectedSettings,
-                    "List lengths do no match, " + prettyPrintCollections(actualList, expectedList)
+                    "List lengths do not match, " + prettyPrintCollections(actualList, expectedList)
                 )
             );
         }

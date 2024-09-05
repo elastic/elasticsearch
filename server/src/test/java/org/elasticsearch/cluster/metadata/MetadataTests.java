@@ -2517,8 +2517,9 @@ public class MetadataTests extends ESTestCase {
                 );
             }
         }
-        if (context != Metadata.XContentContext.API) {
-            chunkCount += 2; // start/end "project":{}
+        if (context != Metadata.XContentContext.API || params.paramAsBoolean("multi-project", false)) {
+            chunkCount += 2; // start/end "projects":[]
+            chunkCount += 3L * metadata.projects().size(); // open/close + id-field
         }
 
         chunkCount += metadata.projects()

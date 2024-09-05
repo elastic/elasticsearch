@@ -1318,13 +1318,7 @@ public abstract class FieldMapper extends Mapper {
         }
 
         protected BuilderParams builderParams(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
-            return new BuilderParams(
-                multiFieldsBuilder.build(mainFieldBuilder, context),
-                copyTo,
-                sourceKeepMode,
-                hasScript,
-                onScriptError
-            );
+            return new BuilderParams(multiFieldsBuilder.build(mainFieldBuilder, context), copyTo, sourceKeepMode, hasScript, onScriptError);
         }
 
         protected void merge(FieldMapper in, Conflicts conflicts, MapperMergeContext mapperMergeContext) {

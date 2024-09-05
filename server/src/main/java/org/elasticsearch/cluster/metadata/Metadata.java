@@ -1052,6 +1052,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return this;
         }
 
+        public ProjectMetadata.Builder getProject(ProjectId projectId) {
+            return projectMetadata.get(projectId);
+        }
+
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
             getSingleProject().put(indexMetadataBuilder);
             return this;

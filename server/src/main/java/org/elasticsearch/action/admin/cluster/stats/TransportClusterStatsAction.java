@@ -8,14 +8,13 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.search.RemoteClusterActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterSnapshotStats;
@@ -43,7 +42,6 @@ import org.elasticsearch.usage.UsageService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 
@@ -89,6 +87,14 @@ public class TransportClusterStatsAction extends TransportClusterStatsBaseAction
         this.settings = settings;
     }
 
+    private ActionFuture<Map<String, RemoteClusterStatsResponse>> remoteFuture;
+
+    @Override
+    protected void doExecute(Task task, ClusterStatsRequest request, ActionListener<ClusterStatsResponse> listener) {
+        remoteFuture = getStatsFromRemotes(request);
+        super.doExecute(task, request, listener);
+    }
+
     @Override
     protected void newResponseAsync(
         final Task task,
@@ -111,8 +117,7 @@ public class TransportClusterStatsAction extends TransportClusterStatsBaseAction
             clusterService.threadPool().absoluteTimeInMillis()
         );
 
-        // TODO: this should not be happening here but leaving it here for now until we figure out proper
-        // threading/async model for this
+        // This will wait until remotes are done if it didn't happen yet
         var remoteClusterStats = getRemoteClusterStats(request);
 
         final ListenableFuture<MappingStats> mappingStatsStep = new ListenableFuture<>();
@@ -178,7 +183,7 @@ public class TransportClusterStatsAction extends TransportClusterStatsBaseAction
             return null;
         }
         Map<String, ClusterStatsResponse.RemoteClusterStats> remoteClustersStats = new HashMap<>();
-        Map<String, RemoteClusterStatsResponse> remoteData = getStatsFromRemotes(request);
+        Map<String, RemoteClusterStatsResponse> remoteData = resolveRemoteClusterStats();
 
         for (String clusterAlias : remoteClusterService.getRegisteredRemoteClusterNames()) {
             RemoteClusterConnection remoteConnection = remoteClusterService.getRemoteClusterConnection(clusterAlias);
@@ -196,16 +201,27 @@ public class TransportClusterStatsAction extends TransportClusterStatsBaseAction
         return remoteClustersStats;
     }
 
-    private Map<String, RemoteClusterStatsResponse> getStatsFromRemotes(ClusterStatsRequest request) {
-        // TODO: make correct pool
-        final var remoteClientResponseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
-        if (request.doRemotes() == false) {
+    private Map<String, RemoteClusterStatsResponse> resolveRemoteClusterStats() {
+        try {
+            return remoteFuture.actionGet();
+        } catch (ElasticsearchException e) {
+            logger.warn("Failed to get remote cluster stats", e);
             return Map.of();
         }
+    }
+
+    private ActionFuture<Map<String, RemoteClusterStatsResponse>> getStatsFromRemotes(ClusterStatsRequest request) {
+        if (request.doRemotes() == false) {
+            // this will never be used since getRemoteClusterStats has the same check
+            return null;
+        }
+
+        // TODO: make correct pool
+        final var remoteClientResponseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
         var remotes = remoteClusterService.getRegisteredRemoteClusterNames();
 
-        var remotesListener = new PlainActionFuture<Map<String, RemoteClusterStatsResponse>>();
-        var groupListener = new RemoteClusterActionListener<>(remotes.size(), remotesListener);
+        var remotesFuture = new PlainActionFuture<Map<String, RemoteClusterStatsResponse>>();
+        var groupListener = new RemoteClusterActionListener<>(remotes.size(), remotesFuture);
 
         for (String clusterAlias : remotes) {
             ClusterStatsRequest remoteRequest = request.subRequest();
@@ -222,13 +238,6 @@ public class TransportClusterStatsAction extends TransportClusterStatsBaseAction
 
         }
 
-        try {
-            // TODO: how do we report errors?
-            return remotesListener.get();
-        } catch (InterruptedException | ExecutionException e) {
-            logger.log(Level.ERROR, "Failed to get remote cluster stats: ", ExceptionsHelper.unwrapCause(e));
-            return Map.of();
-        }
+        return remotesFuture;
     }
-
 }

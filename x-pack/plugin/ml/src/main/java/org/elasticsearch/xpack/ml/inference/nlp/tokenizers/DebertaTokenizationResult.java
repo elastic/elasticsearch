@@ -127,7 +127,7 @@ public class DebertaTokenizationResult extends TokenizationResult {
                 spanPrev,
                 seqId,
                 seqPairOffset
-            ); // TODO verify
+            );
         }
 
         @Override

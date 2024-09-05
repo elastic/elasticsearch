@@ -93,7 +93,7 @@ public class BwcVersions {
         assertCurrentVersionMatchesParsed(currentVersionProperty);
 
         this.unreleased = computeUnreleased();
-        this.minimumWireCompatibleVersion = MINIMUM_WIRE_COMPATIBLE_VERSION;
+        this.minimumWireCompatibleVersion = minimumWireCompatibleVersion;
     }
 
     // Visible for testing
@@ -261,7 +261,7 @@ public class BwcVersions {
     }
 
     public List<Version> getWireCompatible() {
-        return filterSupportedVersions(versions.stream().filter(v -> v.compareTo(MINIMUM_WIRE_COMPATIBLE_VERSION) >= 0).toList());
+        return filterSupportedVersions(versions.stream().filter(v -> v.compareTo(minimumWireCompatibleVersion) >= 0).toList());
     }
 
     public void withWireCompatible(BiConsumer<Version, String> versionAction) {

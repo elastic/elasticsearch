@@ -32,13 +32,25 @@ public class Warnings {
     };
 
     /**
-     * Create a new warnings object based on the given mode
+     * Create a new warnings object based on the given mode which warns that
+     * it treats the result as {@code null}.
      * @param warningsMode The warnings collection strategy to use
      * @param source used to indicate where in the query the warning occurred
      * @return A warnings collector object
      */
     public static Warnings createWarnings(DriverContext.WarningsMode warningsMode, Source source) {
         return createWarnings(warningsMode, source, "treating result as null");
+    }
+
+    /**
+     * Create a new warnings object based on the given mode which warns that
+     * it treats the result as {@code false}.
+     * @param warningsMode The warnings collection strategy to use
+     * @param source used to indicate where in the query the warning occurred
+     * @return A warnings collector object
+     */
+    public static Warnings createWarningsTreatedAsFalse(DriverContext.WarningsMode warningsMode, Source source) {
+        return createWarnings(warningsMode, source, "treating result as false");
     }
 
     /**

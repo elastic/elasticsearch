@@ -103,9 +103,12 @@ public final class Case extends EsqlScalarFunction {
             type = {
                 "boolean",
                 "cartesian_point",
+                "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
+                "geo_shape",
                 "integer",
                 "ip",
                 "keyword",
@@ -224,16 +227,11 @@ public final class Case extends EsqlScalarFunction {
             if (condition.condition.foldable() == false) {
                 return false;
             }
-            Object o = condition.condition.fold();
-            if (o instanceof List) {
+            if (Boolean.TRUE.equals(condition.condition.fold())) {
                 /*
                  * multivalued fields fold to null which folds to false.
                  * So they *are* foldable if the value is foldable.
                  */
-                continue;
-            }
-            Boolean b = (Boolean) o;
-            if (b != null && b) {
                 return condition.value.foldable();
             }
         }
@@ -267,13 +265,11 @@ public final class Case extends EsqlScalarFunction {
                 continue;
             }
             modified = true;
-            Object o = condition.condition.fold();
-            if (o instanceof List) {
-                // multivalued field folds to null which folds to false
-                continue;
-            }
-            Boolean b = (Boolean) condition.condition.fold();
-            if (b != null && b) {
+            if (Boolean.TRUE.equals(condition.condition.fold())) {
+                /*
+                 * multivalued fields fold to null which folds to false.
+                 * So they *are* foldable if the value is foldable.
+                 */
                 newChildren.add(condition.value);
                 return finishPartialFold(newChildren);
             }
@@ -335,7 +331,7 @@ public final class Case extends EsqlScalarFunction {
                  * Rather than go into depth about this in the warning message,
                  * we just say "false".
                  */
-                Warnings.createWarnings(driverContext.warningsMode(), conditionSource, "treating result as false"),
+                Warnings.createWarningsTreatedAsFalse(driverContext.warningsMode(), conditionSource),
                 condition.get(driverContext),
                 value.get(driverContext)
             );

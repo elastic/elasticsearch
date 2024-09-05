@@ -93,6 +93,11 @@ public class EsqlCapabilities {
         AGG_TOP_IP_SUPPORT,
 
         /**
+         * {@code CASE} properly handling multivalue conditions.
+         */
+        CASE_MV,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,

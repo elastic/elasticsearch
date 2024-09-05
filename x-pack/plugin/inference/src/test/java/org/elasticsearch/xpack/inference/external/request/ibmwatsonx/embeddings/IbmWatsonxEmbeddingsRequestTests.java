@@ -56,7 +56,7 @@ public class IbmWatsonxEmbeddingsRequestTests extends ESTestCase {
             requestMap,
             is(
 
-                Map.of("project_id", "project_id", "model_id","model", "inputs", List.of(input))
+                Map.of("project_id", "project_id", "model_id", "model", "inputs", List.of(input))
 
             )
         );
@@ -89,7 +89,7 @@ public class IbmWatsonxEmbeddingsRequestTests extends ESTestCase {
             requestMap,
             is(
 
-                Map.of("project_id", "project_id", "model_id","model", "inputs", List.of("ab"))
+                Map.of("project_id", "project_id", "model_id", "model", "inputs", List.of("ab"))
 
             )
         );
@@ -112,7 +112,6 @@ public class IbmWatsonxEmbeddingsRequestTests extends ESTestCase {
         var truncatedRequest = request.truncate();
         assertTrue(truncatedRequest.getTruncationInfo()[0]);
     }
-
 
     public static IbmWatsonxEmbeddingsRequest createRequest(
         String model,

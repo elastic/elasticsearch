@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
+
 public class IbmWatsonxEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_SingleRequest() throws IOException {
         var entity = new IbmWatsonxEmbeddingsRequestEntity(List.of("abc"), "model", "project_id");

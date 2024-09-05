@@ -168,7 +168,7 @@ public class IndexVersions {
 
     @UpdateForV9
     // This needs to be bumped to V8_0_0 and all old references removed
-    public static final IndexVersion MINIMUM_COMPATIBLE = V_7_0_0;
+    public static final IndexVersion MINIMUM_COMPATIBLE = V_8_0_0;
 
     static final NavigableMap<Integer, IndexVersion> VERSION_IDS = getAllVersionIds(IndexVersions.class);
     static final IndexVersion LATEST_DEFINED;

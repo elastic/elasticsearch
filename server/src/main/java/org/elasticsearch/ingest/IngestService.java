@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -1222,17 +1221,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // when only the part of the cluster state that a component is interested in, is updated.)
         ingestClusterStateListeners.forEach(consumer -> consumer.accept(state));
 
-        IngestMetadata newIngestMetadata = null;
-        for (ProjectMetadata project : state.getMetadata().projects().values()) {
-            IngestMetadata projectIngestMetadata = project.custom(IngestMetadata.TYPE);
-            if (projectIngestMetadata == null) {
-                continue;
-            }
-            if (newIngestMetadata != null) {
-                throw new UnsupportedOperationException("There are multiple projects with ingest metadata");
-            }
-            newIngestMetadata = projectIngestMetadata;
-        }
+        IngestMetadata newIngestMetadata = state.metadata().getSingleProjectCustom(IngestMetadata.TYPE);
         if (newIngestMetadata == null) {
             return;
         }

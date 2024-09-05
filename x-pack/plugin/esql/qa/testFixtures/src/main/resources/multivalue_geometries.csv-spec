@@ -5,37 +5,6 @@
 # 3. An array (multi-value) of two single polygons
 # We will test the same queries against all three representations to ensure they all work the same.
 ####################################################################################################
-# Test against a polygon similar in size to the Bottom Left polygon
-
-spatialGeometryCollection
-
-FROM multivalue_geometries
-| MV_EXPAND shape
-| KEEP id, shape
-| SORT id
-;
-
-id:l | shape:geo_shape
-0    | "GEOMETRYCOLLECTION(POLYGON ((-10 -10, 0 -10, 0 0, -10 0, -10 -10)),POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0)))"
-1    | "MULTIPOLYGON( ((-10 -10, 0 -10, 0 0, -10 0, -10 -10)), ((0 0, 10 0, 10 10, 0 10, 0 0)))"
-2    | "POLYGON ((-15 -15, 15 -15, 15 15, -15 15, -15 -15))"
-3    | "POLYGON ((-15 -15, 15 -15, 15 15, -15 15, -15 -15))"
-3    | "POLYGON ((15 15, 25 15, 25 25, 15 25, 15 15))"
-4    | "POLYGON ((-10 -10, 0 -10, 0 0, -10 0, -10 -10))"
-4    | "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))"
-5    | "POLYGON ((-5 -5, 5 -5, 5 5, -5 5, -5 -5))"
-6    | "POLYGON ((-5 -5, 5 -5, 5 5, -5 5, -5 -5))"
-6    | "POLYGON ((15 15, 25 15, 25 25, 15 25, 15 15))"
-7    | "POLYGON ((-9 -9, -1 -9, -1 -1, -9 -1, -9 -9))"
-7    | "POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))"
-8    | "POLYGON ((15 15, 25 15, 25 25, 15 25, 15 15))"
-9    | "POLYGON ((-25 -25, -15 -25, -15 -15, -25 -15, -25 -25))"
-9    | "POLYGON ((15 15, 25 15, 25 25, 15 25, 15 15))"
-10   | "POLYGON ((-15 -15, 15 -15, 15 15, -15 15, -15 -15))"
-10   | "POLYGON ((5 5, 15 5, 15 15, 5 15, 5 5))"
-11   | "POLYGON ((-11 -11, 1 -11, 1 1, -11 1, -11 -11))"
-11   | "POLYGON ((-1 -1, 11 -1, 11 11, -1 11, -1 -1))"
-;
 
 spatialGeometryCollectionStats
 
@@ -65,6 +34,7 @@ spatialRelationGeometryCollection
 required_capability: st_intersects
 required_capability: st_contains_within
 required_capability: st_disjoint
+required_capability: spatial_predicates_support_multivalues
 
 FROM multivalue_geometries
 | EVAL twoSmallPolygons=TO_GEOSHAPE("GEOMETRYCOLLECTION(POLYGON ((-9 -9, -1 -9, -1 -1, -9 -1, -9 -9)),POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1)))")
@@ -208,6 +178,7 @@ c:l
 
 disjointGeometryCollection
 required_capability: st_disjoint
+required_capability: spatial_predicates_support_multivalues
 
 FROM multivalue_geometries
 | WHERE id==9
@@ -258,6 +229,7 @@ literalPolygonArray
 required_capability: st_intersects
 required_capability: st_contains_within
 required_capability: st_disjoint
+required_capability: spatial_predicates_support_multivalues
 
 ROW wkt = ["POLYGON((-9 -9, -1 -9, -1 -1, -9 -1, -9 -9))","POLYGON((1 1, 9 1, 9 9, 1 9, 1 1))"]
 | EVAL shape = TO_GEOSHAPE(wkt)

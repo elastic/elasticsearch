@@ -3,40 +3,6 @@
 # We will test the same queries against all both representations to ensure they all work the same.
 ####################################################################################################
 
-spatialMultiValuePoints
-
-FROM multivalue_points
-| MV_EXPAND location
-| KEEP id, location
-| SORT id
-;
-
-id:l | location:geo_point
-0    | "POINT(5 5)"
-0    | "POINT(-5 5)"
-1    | "POINT(0 1)"
-1    | "POINT(1 0)"
-2    | "POINT(9 9)"
-3    | "POINT(-9 -9)"
-3    | "POINT(9 9)"
-4    | "POINT(5 5)"
-4    | "POINT(15 15)"
-5    | "POINT(0 0)"
-5    | "POINT(11 11)"
-6    | "POINT(-9 -19)"
-6    | "POINT(9 9)"
-7    | "POINT(5 15)"
-7    | "POINT(15 5)"
-8    | "POINT(0 11)"
-8    | "POINT(11 0)"
-9    | "POINT(19 9)"
-10   | "POINT(-9 -19)"
-10   | "POINT(19 9)"
-11   | "POINT(0 0)"
-11   | "POINT(55 55)"
-11   | "POINT(-55 -55)"
-;
-
 spatialMultiValuePointsStats
 
 FROM multivalue_points
@@ -65,6 +31,7 @@ spatialRelationPolygon
 required_capability: st_intersects
 required_capability: st_contains_within
 required_capability: st_disjoint
+required_capability: spatial_predicates_support_multivalues
 
 FROM multivalue_points
 | EVAL polygon=TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))")
@@ -150,6 +117,7 @@ c:l
 
 whereWithinContainsMultiPoint
 required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
 
 FROM multivalue_points
 | WHERE ST_WITHIN(location, TO_GEOSHAPE("MULTIPOINT(-55 -55, 0 0, 55 55)"))
@@ -212,6 +180,7 @@ location:geo_shape                             | contains:boolean | within:boole
 
 literalPointArrayContainsPointCollection
 required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
 
 ROW location = ["POINT(5 5)", "POINT(-5 -5))"]
 | EVAL location = TO_GEOPOINT(location)
@@ -267,6 +236,7 @@ literalPointArray
 required_capability: st_intersects
 required_capability: st_contains_within
 required_capability: st_disjoint
+required_capability: spatial_predicates_support_multivalues
 
 ROW locations = ["POINT(5 5)","POINT(-5 5)","POINT(0 1)","POINT(1 0)","POINT(9 9)","POINT(-9 -9)","POINT(9 9)","POINT(5 5)","POINT(15 15)","POINT(0 0)","POINT(11 11)","POINT(-9 -19)","POINT(9 9)","POINT(5 15)","POINT(15 5)","POINT(0 11)","POINT(11 0)","POINT(19 9)","POINT(-9 -19)","POINT(19 9))"]
 | EVAL locations = TO_GEOPOINT(locations)

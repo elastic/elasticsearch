@@ -31,17 +31,7 @@ public abstract class StringStoredFieldFieldLoader implements SourceLoader.Synth
 
     @Override
     public final Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        return Stream.of(Map.entry(name, new SourceLoader.SyntheticFieldLoader.StoredFieldLoader() {
-            @Override
-            public void advanceToDoc(int docId) {
-                values = emptyList();
-            }
-
-            @Override
-            public void load(List<Object> newValues) {
-                values = newValues;
-            }
-        }));
+        return Stream.of(Map.entry(name, newValues -> values = newValues));
     }
 
     @Override
@@ -65,6 +55,12 @@ public abstract class StringStoredFieldFieldLoader implements SourceLoader.Synth
                 }
                 b.endArray();
         }
+        reset();
+    }
+
+    @Override
+    public void reset() {
+        values = emptyList();
     }
 
     protected abstract void write(XContentBuilder b, Object value) throws IOException;

@@ -33,6 +33,11 @@ dependencies {
   internalClusterTestImplementation project(':test:fixtures:url-fixture')
 }
 
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+  task.skipTest("repository_url/10_basic/Restore with repository-url using file://", "Error message has changed")
+  task.skipTest("repository_url/10_basic/Restore with repository-url using http://", "Error message has changed")
+}
+
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     'javax.servlet.ServletContextEvent',

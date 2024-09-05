@@ -1871,14 +1871,9 @@ public class SearchQueryIT extends ESIntegTestCase {
      * Test range with a custom locale, e.g. "de" in this case. Documents here mention the day of week
      * as "Mi" for "Mittwoch (Wednesday" and "Do" for "Donnerstag (Thursday)" and the month in the query
      * as "Dez" for "Dezember (December)".
-     * Note: this test currently needs the JVM arg `-Djava.locale.providers=SPI,COMPAT` to be set.
-     * When running with gradle this is done implicitly through the BuildPlugin, but when running from
-     * an IDE this might need to be set manually in the run configuration. See also CONTRIBUTING.md section
-     * on "Configuring IDEs And Running Tests".
      */
     public void testRangeQueryWithLocaleMapping() throws Exception {
         assumeTrue("need java 9 for testing ", JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0);
-        assert ("SPI,COMPAT".equals(System.getProperty("java.locale.providers"))) : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
 
         assertAcked(
             prepareCreate("test").addMapping(
@@ -1888,7 +1883,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                     .startObject("date_field")
                     .field("type", "date")
                     .field("format", "E, d MMM yyyy HH:mm:ss Z")
-                    .field("locale", "de")
+                    .field("locale", "fr")
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1897,17 +1892,21 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "1").setSource("date_field", "Mi, 06 Dez 2000 02:55:00 -0800"),
-            client().prepareIndex("test", "type1", "2").setSource("date_field", "Do, 07 Dez 2000 02:55:00 -0800")
+            client().prepareIndex("test", "type1", "1").setSource("date_field", "mer., 6 déc. 2000 02:55:00 -0800"),
+            client().prepareIndex("test", "type1", "2").setSource("date_field", "jeu., 7 déc. 2000 02:55:00 -0800")
         );
 
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.rangeQuery("date_field").gte("Di, 05 Dez 2000 02:55:00 -0800").lte("Do, 07 Dez 2000 00:00:00 -0800"))
+            .setQuery(
+                QueryBuilders.rangeQuery("date_field").gte("mar., 5 déc. 2000 02:55:00 -0800").lte("jeu., 7 déc. 2000 00:00:00 -0800")
+            )
             .get();
         assertHitCount(searchResponse, 1L);
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.rangeQuery("date_field").gte("Di, 05 Dez 2000 02:55:00 -0800").lte("Fr, 08 Dez 2000 00:00:00 -0800"))
+            .setQuery(
+                QueryBuilders.rangeQuery("date_field").gte("mar., 5 déc. 2000 02:55:00 -0800").lte("ven., 8 déc. 2000 00:00:00 -0800")
+            )
             .get();
         assertHitCount(searchResponse, 2L);
     }

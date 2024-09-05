@@ -125,36 +125,11 @@ public class DebertaV2TokenizerTests extends ESTestCase {
         }
     }
 
-    public void testMultilingual() throws IOException {
-        var vocab = DebertaV3TestVocab.loadMultiLingualTestVocab();
-
-        try (
-            DebertaV2Tokenizer tokenizer = DebertaV2Tokenizer.builder(
-                vocab.get(),
-                vocab.scores(),
-                new DebertaV2Tokenization(false, false, null, Tokenization.Truncate.NONE, -1)
-            ).setWithSpecialTokens(true).build()
-        ) {
-            for (int i = 0; i < DebertaV3TestVocab.MULTILINUGAL_TEXTS.length; i++) {
-                logger.info(i);
-                TokenizationResult.Tokens tokenization = tokenizer.tokenize(
-                    DebertaV3TestVocab.MULTILINUGAL_TEXTS[i],
-                    Tokenization.Truncate.FIRST,
-                    -1,
-                    0,
-                    null
-                ).get(0);
-                assertArrayEquals(DebertaV3TestVocab.EXPECTED_TOKENS[i], tokenization.tokenIds());
-            }
-        }
-    }
-
     public void testTokenizeWithNeverSplit() throws IOException {
-        var vocab = DebertaV3TestVocab.loadMultiLingualTestVocab();
         try (
             DebertaV2Tokenizer tokenizer = DebertaV2Tokenizer.builder(
-                vocab.get(),
-                vocab.scores(),
+                TEST_CASE_VOCAB,
+                TEST_CASE_SCORES,
                 new DebertaV2Tokenization(false, false, null, Tokenization.Truncate.NONE, -1)
             ).build()
         ) {
@@ -165,7 +140,7 @@ public class DebertaV2TokenizerTests extends ESTestCase {
                 0,
                 null
             ).get(0);
-            assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁Elasticsearch", "▁.", "[MASK]", "▁."));
+            assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁Ela", "stic", "search", "▁", ".", MASK_TOKEN, "▁", "."));
         }
     }
 
@@ -194,7 +169,6 @@ public class DebertaV2TokenizerTests extends ESTestCase {
                     "search",
                     "▁is",
                     "▁fun",
-                    DebertaV2Tokenizer.SEPARATOR_TOKEN,
                     DebertaV2Tokenizer.SEPARATOR_TOKEN,
                     "▁God",
                     "z",

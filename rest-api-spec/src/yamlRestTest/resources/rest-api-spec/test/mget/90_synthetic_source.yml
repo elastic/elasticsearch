@@ -196,10 +196,10 @@ text with copy_to:
             _source:
               mode: synthetic
             properties:
-              text:
+              kubernetes_event_message:
                 type: match_only_text
-                copy_to: text_copy
-              text_copy:
+                copy_to: message
+              message:
                 type: text
                 store: true
 
@@ -208,14 +208,14 @@ text with copy_to:
         index:   test-text-copy-to
         id:      1
         body:
-          text: the quick brown fox
+          kubernetes_event_message: the quick brown fox
 
   - do:
       index:
         index: test-text-copy-to
         id:      2
         body:
-          text: jumped over the lazy dog
+          kubernetes_event_message: jumped over the lazy dog
 
   - do:
       mget:
@@ -226,15 +226,15 @@ text with copy_to:
   - match: {docs.0._id: "1"}
   - match:
       docs.0._source:
-        text: the quick brown fox
-        text_copy: the quick brown fox
+        kubernetes_event_message: the quick brown fox
+        message: the quick brown fox
 
   - match: {docs.1._index: "test-text-copy-to"}
   - match: {docs.1._id: "2"}
   - match:
       docs.1._source:
-        text: jumped over the lazy dog
-        text_copy: jumped over the lazy dog
+        kubernetes_event_message: jumped over the lazy dog
+        message: jumped over the lazy dog
 
 ---
 force_synthetic_source_ok:

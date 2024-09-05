@@ -113,7 +113,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 
@@ -367,8 +366,14 @@ public class OpenIdConnectAuthenticator {
     private JWKSet readJwkSetFromFile(String jwkSetPath) throws IOException, ParseException {
         final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
         // avoid using JWKSet.loadFile() as it does not close FileInputStream internally
-        String jwkSet = Files.readString(path, StandardCharsets.UTF_8);
-        return JWKSet.parse(jwkSet);
+        try {
+            String jwkSet = AccessController.doPrivileged(
+                (PrivilegedExceptionAction<String>) () -> Files.readString(path, StandardCharsets.UTF_8)
+            );
+            return JWKSet.parse(jwkSet);
+        } catch (PrivilegedActionException ex) {
+            throw (IOException) ex.getException();
+        }
     }
 
     /**

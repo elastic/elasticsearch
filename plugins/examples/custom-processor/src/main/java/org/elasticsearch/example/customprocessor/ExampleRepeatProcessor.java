@@ -12,6 +12,7 @@ import java.util.Map;
  */
 public class ExampleRepeatProcessor extends AbstractProcessor {
     public static final String TYPE = "repeat";
+    public static final String FIELD_KEY_NAME = "field";
 
     private final String field;
 
@@ -45,7 +46,7 @@ public class ExampleRepeatProcessor extends AbstractProcessor {
             String description,
             Map<String, Object> config
         ) {
-            String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
+            String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, FIELD_KEY_NAME);
             return new ExampleRepeatProcessor(tag, description, field);
         }
     }

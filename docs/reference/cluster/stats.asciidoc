@@ -40,6 +40,10 @@ If a node does not respond before its timeout expires, the response does not inc
 However, timed out nodes are included in the response's `_nodes.failed` property.
 Defaults to no timeout.
 
+`include_remotes`::
+(Optional, Boolean) If `true`, includes remote cluster information in the response.
+Defaults to no remote cluster information.
+
 [role="child_attributes"]
 [[cluster-stats-api-response-body]]
 ==== {api-response-body-title}
@@ -1314,6 +1318,56 @@ Each repository type may also include other statistics about the repositories of
 [%collapsible%open]
 =====
 
+`clusters`:::
+(object) Contains remote cluster settings and metrics collected from them. Only present if `include_remotes` option is
+set to `true` and there are any remote clusters configured. If the node filter is specified, it will be passed
+to the remote clusters.
+The keys are cluster names, and the values are per-cluster data.
+
++
+.Properties of `clusters`
+[%collapsible%open]
+======
+`cluster_uuid`:::
+(string) The UUID of the remote cluster.
+
+`mode`:::
+(string) The <<sniff-proxy-modes, connection mode>> used to communicate with the remote cluster.
+
+`skip_unavailable`:::
+(Boolean) The `skip_unavailable` <<skip-unavailable-clusters, setting>> used for this remote cluster.
+
+`transport.compress`:::
+(string) Transport compression setting used for this remote cluster.
+
+`version`:::
+(array of strings) The list of {es} versions used by the nodes on the remote cluster.
+
+`status`:::
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
++
+See <<cluster-health>>.
+
+`nodes_count`:::
+(integer) The total count of nodes in the remote cluster.
+
+`shards_count`:::
+(integer) The total number of shards in the remote cluster.
+
+`indices_count`:::
+(integer) The total number of indices in the remote cluster.
+
+`indices_total_size_bytes`:::
+(integer) Total data set size, in bytes, of all shards assigned to selected nodes.
+
+`max_heap_bytes`:::
+(integer) Maximum amount of memory, in bytes, available for use by the heap across the nodes of the remote cluster.
+
+`mem_total_bytes`:::
+(string) Total amount, in bytes, of physical memory across the nodes of the remote cluster.
+
+======
+
 
 `_search`:::
 (object) Contains the telemetry information about the <<modules-cross-cluster-search, {ccs}>> usage in the cluster.
@@ -1812,3 +1866,36 @@ This API can be restricted to a subset of the nodes using <<cluster-nodes,node f
 --------------------------------------------------
 GET /_cluster/stats/nodes/node1,node*,master:false
 --------------------------------------------------
+
+This API call will return data about the remote clusters if any are configured:
+
+[source,console]
+--------------------------------------------------
+GET /_cluster/stats?include_remotes=true
+--------------------------------------------------
+The resulting response will contain the `ccs` object with information about the remote clusters:
+
+[source, js]
+--------------------------------------------------
+{
+  "ccs": {
+    "clusters": {
+      "remote_cluster": {
+        "cluster_uuid": "YjAvIhsCQ9CbjWZb2qJw3Q",
+        "mode": "sniff",
+        "skip_unavailable": false,
+        "transport.compress": "true",
+        "version": ["8.16.0"],
+        "status": "green",
+        "nodes_count": 10,
+        "shards_count": 420,
+        "indices_count": 10,
+        "indices_total_size_bytes": 6232658362,
+        "max_heap_bytes": 1037959168,
+        "mem_total_bytes": 137438953472
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[skip:TODO]

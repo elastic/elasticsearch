@@ -42,7 +42,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest(
-            request.paramAsBoolean("remotes", false),
+            request.paramAsBoolean("include_remotes", false),
             request.paramAsStringArray("nodeId", null)
         );
         clusterStatsRequest.timeout(getTimeout(request));

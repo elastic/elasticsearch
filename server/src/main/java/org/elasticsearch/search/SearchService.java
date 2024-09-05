@@ -1779,14 +1779,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     @SuppressWarnings("unchecked")
     public static boolean queryStillMatchesAfterRewrite(ShardSearchRequest request, QueryRewriteContext context) throws IOException {
         Rewriteable.rewrite(request.getRewriteable(), context, false);
-        boolean canMatch = request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
-        if (canRewriteToMatchNone(request.source())) {
-            canMatch &= request.source()
-                .subSearches()
-                .stream()
-                .anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchNoneQueryBuilder == false);
+        if (request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder) {
+            return false;
         }
-        return canMatch;
+        final var source = request.source();
+        return canRewriteToMatchNone(source) == false
+            || source.subSearches().stream().anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchNoneQueryBuilder == false);
     }
 
     /**
@@ -1806,19 +1804,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return aggregations == null || aggregations.mustVisitAllDocs() == false;
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @SuppressWarnings("unchecked")
     private void rewriteAndFetchShardRequest(IndexShard shard, ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
-        ActionListener<Rewriteable> actionListener = listener.delegateFailureAndWrap((l, r) -> {
-            if (request.readerId() != null) {
-                l.onResponse(request);
-            } else {
-                shard.ensureShardSearchActive(b -> l.onResponse(request));
-            }
-        });
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here.
         // AliasFilters and other things may need to be rewritten on the data node, but not per individual shard.
-        // These are uncommon-cases but we are very efficient doing the rewrite here.
-        Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getDataRewriteContext(request::nowInMillis), actionListener);
+        // These are uncommon-cases, but we are very efficient doing the rewrite here.
+        Rewriteable.rewriteAndFetch(
+            request.getRewriteable(),
+            indicesService.getDataRewriteContext(request::nowInMillis),
+            request.readerId() == null
+                ? listener.delegateFailureAndWrap((l, r) -> shard.ensureShardSearchActive(b -> l.onResponse(request)))
+                : listener.safeMap(r -> request)
+        );
     }
 
     /**

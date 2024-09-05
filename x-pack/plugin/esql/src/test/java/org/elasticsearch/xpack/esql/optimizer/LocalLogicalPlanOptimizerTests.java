@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -467,7 +468,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Expression inn = isNotNull(fieldA);
         Filter f = new Filter(EMPTY, relation, inn);
 
-        assertEquals(f, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+        assertEquals(f, new InferIsNotNull().apply(f));
     }
 
     public void testIsNotNullOnOperatorWithOneField() {
@@ -477,7 +478,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
 
-        assertEquals(expected, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+        assertEquals(expected, new InferIsNotNull().apply(f));
     }
 
     public void testIsNotNullOnOperatorWithTwoFields() {
@@ -488,7 +489,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
 
-        assertEquals(expected, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+        assertEquals(expected, new InferIsNotNull().apply(f));
     }
 
     public void testIsNotNullOnFunctionWithOneField() {
@@ -500,7 +501,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
 
-        assertEquals(expected, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+        assertEquals(expected, new InferIsNotNull().apply(f));
     }
 
     public void testIsNotNullOnFunctionWithTwoFields() {
@@ -512,7 +513,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
 
-        assertEquals(expected, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+        assertEquals(expected, new InferIsNotNull().apply(f));
     }
 
     private IsNotNull isNotNull(Expression field) {

@@ -48,27 +48,36 @@ final class ComputeListener implements Releasable {
 
     private final EsqlExecutionInfo esqlExecutionInfo;
 
-    // for use by top level ComputeListener
-    ComputeListener(
+    public static ComputeListener createComputeListener(
         TransportService transportService,
         CancellableTask task,
         EsqlExecutionInfo executionInfo,
         ActionListener<ComputeResponse> delegate
     ) {
-        this.transportService = transportService;
-        this.task = task;
-        this.responseHeaders = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
-        this.collectedProfiles = Collections.synchronizedList(new ArrayList<>());
-        this.esqlExecutionInfo = executionInfo;
-        this.refs = new RefCountingListener(1, ActionListener.wrap(ignored -> {
-            responseHeaders.finish();
-            var result = new ComputeResponse(collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList());
-            delegate.onResponse(result);
-        }, e -> delegate.onFailure(failureCollector.getFailure())));
+        return new ComputeListener(transportService, task, null, executionInfo, delegate);
     }
 
-    // this constructor is for use on remote nodes only
-    ComputeListener(
+    /**
+     * Create a ComputeListener, specifying a clusterAlias. For use on remote clusters in the ComputeService.ClusterRequestHandler.
+     * The final ComputeResponse that is sent back to the querying cluster will have metadata about the search in the ComputeResponse:
+     * took time, and shard "accounting" (total, successful, skipped, failed),
+     * @param clusterAlias alias of the remote cluster on which the remote query is being done
+     * @param transportService
+     * @param task
+     * @param executionInfo to accumulate metadata about the search
+     * @param delegate
+     */
+    public static ComputeListener createOnRemote(
+        String clusterAlias,
+        TransportService transportService,
+        CancellableTask task,
+        EsqlExecutionInfo executionInfo,
+        ActionListener<ComputeResponse> delegate
+    ) {
+        return new ComputeListener(transportService, task, clusterAlias, executionInfo, delegate);
+    }
+
+    private ComputeListener(
         TransportService transportService,
         CancellableTask task,
         String clusterAlias,
@@ -80,19 +89,24 @@ final class ComputeListener implements Releasable {
         this.responseHeaders = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
         this.collectedProfiles = Collections.synchronizedList(new ArrayList<>());
         this.esqlExecutionInfo = executionInfo;
-        // for remote executions - this ComputeResponse is created on the remote cluster/node and will be serialized back and
-        // received by the acquireCompute method callback on the coordinating cluster
         this.refs = new RefCountingListener(1, ActionListener.wrap(ignored -> {
             responseHeaders.finish();
-            EsqlExecutionInfo.Cluster cluster = esqlExecutionInfo.getCluster(clusterAlias);
-            var result = new ComputeResponse(
-                collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList(),
-                cluster.getTook(),
-                cluster.getTotalShards(),
-                cluster.getSuccessfulShards(),
-                cluster.getSkippedShards(),
-                cluster.getFailedShards()
-            );
+            ComputeResponse result;
+            if (clusterAlias == null) {
+                result = new ComputeResponse(collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList());
+            } else {
+                // for remote executions - this ComputeResponse is created on the remote cluster/node and will be serialized back and
+                // received by the acquireCompute method callback on the coordinating cluster
+                EsqlExecutionInfo.Cluster cluster = esqlExecutionInfo.getCluster(clusterAlias);
+                result = new ComputeResponse(
+                    collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList(),
+                    cluster.getTook(),
+                    cluster.getTotalShards(),
+                    cluster.getSuccessfulShards(),
+                    cluster.getSkippedShards(),
+                    cluster.getFailedShards()
+                );
+            }
             delegate.onResponse(result);
         }, e -> delegate.onFailure(failureCollector.getFailure())));
     }
@@ -115,7 +129,7 @@ final class ComputeListener implements Releasable {
     }
 
     /**
-     * Acquires a new listener that collects compute result. This listener will also collects warnings emitted during compute
+     * Acquires a new listener that collects compute result. This listener will also collect warnings emitted during compute
      */
     ActionListener<ComputeResponse> acquireCompute() {
         return acquireAvoid().map(resp -> {

@@ -174,7 +174,7 @@ public class ComputeService {
                 null
             );
             try (
-                var computeListener = new ComputeListener(
+                var computeListener = ComputeListener.createComputeListener(
                     transportService,
                     rootTask,
                     executionInfo,
@@ -203,7 +203,7 @@ public class ComputeService {
         try (
             Releasable ignored = exchangeSource.addEmptySink();
             // this is the top level ComputeListener called once at the end (e.g., once all clusters have finished for a CCS)
-            var computeListener = new ComputeListener(transportService, rootTask, executionInfo, listener.map(r -> {
+            var computeListener = ComputeListener.createComputeListener(transportService, rootTask, executionInfo, listener.map(r -> {
                 long tookTimeMillis = System.currentTimeMillis() - configuration.getQueryStartTimeMillis();
                 executionInfo.setOverallTookTime(new TimeValue(tookTimeMillis));
                 return new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo);
@@ -778,7 +778,7 @@ public class ComputeService {
                 request.indices(),
                 request.indicesOptions()
             );
-            try (var computeListener = new ComputeListener(transportService, (CancellableTask) task, null, listener)) {
+            try (var computeListener = ComputeListener.createComputeListener(transportService, (CancellableTask) task, null, listener)) {
                 runComputeOnDataNode((CancellableTask) task, sessionId, reducePlan, request, computeListener);
             }
         }
@@ -802,11 +802,12 @@ public class ComputeService {
             // to the coordinating cluster
             EsqlExecutionInfo execInfo = new EsqlExecutionInfo();
             execInfo.swapCluster(clusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(clusterAlias, Arrays.toString(request.indices())));
-            try (var computeListener = new ComputeListener(transportService, (CancellableTask) task, clusterAlias, execInfo, listener)) {
+            CancellableTask cancellable = (CancellableTask) task;
+            try (var computeListener = ComputeListener.createOnRemote(clusterAlias, transportService, cancellable, execInfo, listener)) {
                 runComputeOnRemoteCluster(
                     clusterAlias,
                     request.sessionId(),
-                    (CancellableTask) task,
+                    cancellable,
                     request.configuration(),
                     (ExchangeSinkExec) plan,
                     Set.of(remoteClusterPlan.targetIndices()),

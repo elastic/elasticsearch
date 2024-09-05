@@ -312,8 +312,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        ActionListener<SearchResponse> loggingAndMetrics = new SearchResponseActionListener((SearchTask) task, listener);
-        executeRequest((SearchTask) task, searchRequest, loggingAndMetrics, AsyncSearchActionProvider::new);
+        executeRequest(
+            (SearchTask) task,
+            searchRequest,
+            new SearchResponseActionListener((SearchTask) task, listener),
+            AsyncSearchActionProvider::new
+        );
     }
 
     void executeRequest(
@@ -498,7 +502,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 // We set the keep alive to -1 to indicate that we don't need the pit id in the response.
                 // This is needed since we delete the pit prior to sending the response so the id doesn't exist anymore.
                 source.pointInTimeBuilder(new PointInTimeBuilder(resp.getPointInTimeId()).setKeepAlive(TimeValue.MINUS_ONE));
-                executeRequest(task, original, new ActionListener<>() {
+                var pitListener = new SearchResponseActionListener(task, listener) {
                     @Override
                     public void onResponse(SearchResponse response) {
                         // we need to close the PIT first so we delay the release of the response to after the closing
@@ -514,7 +518,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     public void onFailure(Exception e) {
                         closePIT(client, original.source().pointInTimeBuilder(), () -> listener.onFailure(e));
                     }
-                }, searchPhaseProvider);
+                };
+                executeRequest(task, original, pitListener, searchPhaseProvider);
             }));
         } else {
             Rewriteable.rewriteAndFetch(
@@ -1846,7 +1851,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponseActionListener(SearchTask task, ActionListener<SearchResponse> listener) {
             this.task = task;
             this.listener = listener;
-            usageBuilder = new CCSUsage.Builder();
+            if (listener instanceof SearchResponseActionListener srListener) {
+                usageBuilder = srListener.usageBuilder;
+            } else {
+                usageBuilder = new CCSUsage.Builder();
+            }
         }
 
         /**

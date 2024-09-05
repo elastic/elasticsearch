@@ -147,7 +147,7 @@ and how it should be stored.
 When adding documents to {es}, you have two options for mappings:
 
 * <<mapping-dynamic, Dynamic mapping>>. Let {es} automatically detect the data types and create the mappings for you. This is great for getting started quickly, but can lead to unexpected results for complex data.
-* <<mapping-explicit, Explicit mapping>>. Define the mappings up front by specifying data types for each field. Recommended for production use cases because you have much more control over how your data is indexed.
+* <<mapping-explicit, Explicit mapping>>. Define the mappings up front by specifying data types for each field. Recommended for production use cases, because you have much more control over how your data is indexed.
 
 [TIP]
 ====

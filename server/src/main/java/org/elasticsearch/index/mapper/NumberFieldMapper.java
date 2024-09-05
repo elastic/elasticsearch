@@ -1995,7 +1995,6 @@ public class NumberFieldMapper extends FieldMapper {
         return super.syntheticSourceSupport();
     }
 
-
     // For testing only:
     void setAllowMultipleValues(boolean allowMultipleValues) {
         this.allowMultipleValues = allowMultipleValues;

@@ -1041,25 +1041,6 @@ flattened field:
   - is_false: fields
 
 ---
-flattened field no doc values:
-  - requires:
-      cluster_features: ["gte_v8.8.0"]
-      reason: support for synthetic source on flattened fields added in 8.8.0
-
-  - do:
-      catch: /field \[flattened\] of type \[flattened\] doesn't support synthetic source because it doesn't have doc values/
-      indices.create:
-        index: test
-        body:
-          mappings:
-            _source:
-              mode: synthetic
-            properties:
-              flattened:
-                type: flattened
-                doc_values: false
-
----
 flattened field with ignore_above:
   - requires:
       cluster_features: ["mapper.track_ignored_source"]

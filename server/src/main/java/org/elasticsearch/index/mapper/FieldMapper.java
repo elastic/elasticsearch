@@ -450,20 +450,19 @@ public abstract class FieldMapper extends Mapper {
      * and then use it for synthetic source.
      * </p>
      * <p>
-     * Field mappers must override this method if they provide
-     * a custom implementation of {@link #syntheticFieldLoader()}
-     * in order to use a more efficient field-specific implementation.
+     * This method is final in order to support common use cases like fallback synthetic source and copy_to.
+     * Mappers that need custom support of synthetic source should override {@link #syntheticSourceSupport()}.
      * </p>
      * @return {@link SyntheticSourceMode}
      */
-    protected final SyntheticSourceMode syntheticSourceMode() {
+    final SyntheticSourceMode syntheticSourceMode() {
         if (hasScript()) {
             return SyntheticSourceMode.NATIVE;
         }
 
         if (copyTo.copyToFields().isEmpty() == false) {
-            // When copy_to is used, we need to
-            // Otherwise due to possible differences between synthetic source and stored source
+            // When copy_to is used, we need to use fallback logic to store source of the field exactly.
+            // Otherwise, due to possible differences between synthetic source and stored source,
             // values of fields that are destinations of copy_to would be different after reindexing.
             return SyntheticSourceMode.FALLBACK;
         }
@@ -473,8 +472,12 @@ public abstract class FieldMapper extends Mapper {
 
     /**
      * Returns synthetic field loader for the mapper.
-     * If mapper does not support synthetic source, it is generated using generic implementation
+     * If mapper does not support synthetic source, it is handled using generic implementation
      * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader()}.
+     * <br>
+     *
+     * This method is final in order to support common use cases like fallback synthetic source.
+     * Mappers that need custom support of synthetic source should override {@link #syntheticSourceSupport()}.
      *
      * @return implementation of {@link SourceLoader.SyntheticFieldLoader}
      */

@@ -128,11 +128,6 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
         return NAME;
     }
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
-    }
-
     public static String encode(int routingId) {
         byte[] bytes = new byte[4];
         ByteUtils.writeIntLE(routingId, bytes, 0);

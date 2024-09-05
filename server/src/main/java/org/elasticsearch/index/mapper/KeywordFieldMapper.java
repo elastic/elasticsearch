@@ -1027,6 +1027,12 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (hasNormalizer()) {
+            // NOTE: no matter if we have doc values or not we use fallback synthetic source
+            // to store the original value whose doc values would be altered by the normalizer
+            return SyntheticSourceSupport.FALLBACK;
+        }
+
         if (fieldType.stored() || hasDocValues) {
             return new SyntheticSourceSupport.Native(syntheticFieldLoader(leafName()));
         }
@@ -1034,14 +1040,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         return super.syntheticSourceSupport();
     }
 
-    private SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
         assert fieldType.stored() || hasDocValues;
-
-        if (hasNormalizer()) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
-            );
-        }
 
         var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
         if (fieldType.stored()) {

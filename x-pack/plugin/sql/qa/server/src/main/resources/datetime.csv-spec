@@ -1570,3 +1570,17 @@ SELECT CAST (CAST (birth_date AS VARCHAR) AS TIMESTAMP) a FROM test_emp WHERE YE
 ---------------
 1965-01-03T00:00:00Z
 ;
+
+
+// checking regressions after https://github.com/elastic/elasticsearch/pull/110222
+selectDateFunctionsCldr
+schema::ad:s|day_of_week2:s|month2:s|ad2:s
+SELECT DATETIME_FORMAT('2020-04-05T11:22:33.123Z'::date, 'G') AS ad,
+TO_CHAR('2020-04-05T11:22:33.123Z'::date, 'Day') AS day_of_week2,
+TO_CHAR('2020-04-05T11:22:33.123Z'::date, 'Month') AS month2,
+TO_CHAR('2020-04-05T11:22:33.123Z'::date, 'BC') AS ad2;
+
+  ad     |  day_of_week2  |  month2      |  ad2
+---------+----------------+--------------+------------
+  AD     | "Sunday   "    |  "April    " |  AD
+;

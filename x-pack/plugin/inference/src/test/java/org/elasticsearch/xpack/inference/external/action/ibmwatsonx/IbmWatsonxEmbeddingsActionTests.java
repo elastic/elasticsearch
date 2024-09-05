@@ -87,16 +87,17 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
 
             String responseJson = """
                 {
-                    "embeddings": [
-                        {
-                            "values": [
-                                0.0123,
-                                -0.0123
-                            ]
-                        }
+                    "results": [
+                       {
+                           "embedding": [
+                              0.0123,
+                              -0.0123
+                           ],
+                          "input": "abc"
+                       }
                     ]
-                }
-                """;
+               }
+            """;
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
@@ -109,22 +110,21 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().get(0).getUri().getQuery(), endsWith(apiKey));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap, aMapWithSize(1));
+            assertThat(requestMap, aMapWithSize(3));
             assertThat(
-                requestMap.get("requests"),
+                requestMap,
                 is(
-                    List.of(
                         Map.of(
-                            "model",
-                            Strings.format("%s/%s", "models", model),
-                            "content",
-                            Map.of("parts", List.of(Map.of("text", input)))
+                            "project_id",
+                            "projectId",
+                            "inputs",
+                            List.of(input),
+                            "model_id",
+                           "model"
                         )
-                    )
                 )
             );
         }

@@ -30,22 +30,11 @@ public class ShapeQueryBuilderOverPointTests extends ShapeQueryBuilderTests {
 
     @Override
     protected ShapeRelation getShapeRelation(ShapeType type) {
-        return ShapeRelation.INTERSECTS;
+        return randomFrom(ShapeRelation.INTERSECTS, ShapeRelation.CONTAINS, ShapeRelation.DISJOINT, ShapeRelation.WITHIN);
     }
 
     @Override
     protected Geometry getGeometry() {
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                return ShapeTestUtils.randomMultiPolygon(false);
-            } else {
-                return ShapeTestUtils.randomPolygon(false);
-            }
-        } else if (randomBoolean()) {
-            // it should be a circle
-            return ShapeTestUtils.randomPolygon(false);
-        } else {
-            return ShapeTestUtils.randomRectangle();
-        }
+        return ShapeTestUtils.randomGeometry(false);
     }
 }

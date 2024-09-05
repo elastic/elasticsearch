@@ -28,15 +28,14 @@ setup:
                   type: hnsw
                   m: 16
                   ef_construction: 200
-
   - do:
       index:
         index: test
         id: "1"
         body:
           name: cow.jpg
-          vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
-          another_vector: [130.0, 115.0, -1.02, 15.555, -100.0]
+          vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
+          another_vector: [ 130.0, 115.0, -1.02, 15.555, -100.0 ]
 
   - do:
       index:
@@ -44,8 +43,8 @@ setup:
         id: "2"
         body:
           name: moose.jpg
-          vector: [-0.5, 100.0, -13, 14.8, -156.0]
-          another_vector: [-0.5, 50.0, -1, 1, 120]
+          vector: [ -0.5, 100.0, -13, 14.8, -156.0 ]
+          another_vector: [ -0.5, 50.0, -1, 1, 120 ]
 
   - do:
       index:
@@ -53,11 +52,11 @@ setup:
         id: "3"
         body:
           name: rabbit.jpg
-          vector: [0.5, 111.3, -13.0, 14.8, -156.0]
-          another_vector: [-0.5, 11.0, 0, 12, 111.0]
+          vector: [ 0.5, 111.3, -13.0, 14.8, -156.0 ]
+          another_vector: [ -0.5, 11.0, 0, 12, 111.0 ]
 
   - do:
-      indices.refresh: {}
+      indices.refresh: { }
 
 ---
 "kNN search only":
@@ -71,15 +70,15 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
 
-  - match: {hits.hits.0._id: "2"}
-  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0.fields.name.0: "moose.jpg" }
 
-  - match: {hits.hits.1._id: "3"}
-  - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1.fields.name.0: "rabbit.jpg" }
 ---
 "kNN multi-field search only":
   - requires:
@@ -91,14 +90,14 @@ setup:
         body:
           fields: [ "name" ]
           knn:
-           - {field: vector, query_vector: [-0.5, 90.0, -10, 14.8, -156.0], k: 2, num_candidates: 3}
-           - {field: another_vector, query_vector: [-0.5, 11.0, 0, 12, 111.0], k: 2, num_candidates: 3}
+            - { field: vector, query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ], k: 2, num_candidates: 3 }
+            - { field: another_vector, query_vector: [ -0.5, 11.0, 0, 12, 111.0 ], k: 2, num_candidates: 3 }
 
-  - match: {hits.hits.0._id: "3"}
-  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0.fields.name.0: "rabbit.jpg" }
 
-  - match: {hits.hits.1._id: "2"}
-  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: "moose.jpg" }
 ---
 "kNN search plus query":
   - requires:
@@ -111,21 +110,21 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
           query:
             term:
               name: cow.jpg
 
-  - match: {hits.hits.0._id: "1"}
-  - match: {hits.hits.0.fields.name.0: "cow.jpg"}
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: "cow.jpg" }
 
-  - match: {hits.hits.1._id: "2"}
-  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: "moose.jpg" }
 
-  - match: {hits.hits.2._id: "3"}
-  - match: {hits.hits.2.fields.name.0: "rabbit.jpg"}
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2.fields.name.0: "rabbit.jpg" }
 ---
 "kNN multi-field search with query":
   - requires:
@@ -137,20 +136,20 @@ setup:
         body:
           fields: [ "name" ]
           knn:
-            - {field: vector, query_vector: [-0.5, 90.0, -10, 14.8, -156.0], k: 2, num_candidates: 3}
-            - {field: another_vector, query_vector: [-0.5, 11.0, 0, 12, 111.0], k: 2, num_candidates: 3}
+            - { field: vector, query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ], k: 2, num_candidates: 3 }
+            - { field: another_vector, query_vector: [ -0.5, 11.0, 0, 12, 111.0 ], k: 2, num_candidates: 3 }
           query:
             term:
               name: cow.jpg
 
-  - match: {hits.hits.0._id: "3"}
-  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0.fields.name.0: "rabbit.jpg" }
 
-  - match: {hits.hits.1._id: "1"}
-  - match: {hits.hits.1.fields.name.0: "cow.jpg"}
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.1.fields.name.0: "cow.jpg" }
 
-  - match: {hits.hits.2._id: "2"}
-  - match: {hits.hits.2.fields.name.0: "moose.jpg"}
+  - match: { hits.hits.2._id: "2" }
+  - match: { hits.hits.2.fields.name.0: "moose.jpg" }
 ---
 "kNN search with filter":
   - requires:
@@ -163,16 +162,16 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
             filter:
               term:
                 name: "rabbit.jpg"
 
-  - match: {hits.total.value: 1}
-  - match: {hits.hits.0._id: "3"}
-  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0.fields.name.0: "rabbit.jpg" }
 
   - do:
       search:
@@ -181,7 +180,7 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
             filter:
@@ -190,7 +189,7 @@ setup:
               - term:
                   _id: 2
 
-  - match: {hits.total.value: 0}
+  - match: { hits.total.value: 0 }
 
 ---
 "kNN search with explicit search_type":
@@ -206,7 +205,7 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
 
@@ -216,7 +215,7 @@ setup:
 ---
 "kNN search in _knn_search endpoint":
   - skip:
-      features: ["allowed_warnings"]
+      features: [ "allowed_warnings" ]
   - do:
       allowed_warnings:
         - "The kNN search API has been replaced by the `knn` option in the search API."
@@ -226,22 +225,22 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
 
-  - match: {hits.hits.0._id: "2"}
-  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0.fields.name.0: "moose.jpg" }
 
-  - match: {hits.hits.1._id: "3"}
-  - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1.fields.name.0: "rabbit.jpg" }
 
 ---
 "kNN search with filter in _knn_search endpoint":
   - requires:
       cluster_features: "gte_v8.2.0"
       reason: 'kNN with filtering added in 8.2'
-      test_runner_features: ["allowed_warnings"]
+      test_runner_features: [ "allowed_warnings" ]
   - do:
       allowed_warnings:
         - "The kNN search API has been replaced by the `knn` option in the search API."
@@ -251,16 +250,16 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
           filter:
             term:
               name: "rabbit.jpg"
 
-  - match: {hits.total.value: 1}
-  - match: {hits.hits.0._id: "3"}
-  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0.fields.name.0: "rabbit.jpg" }
 
   - do:
       allowed_warnings:
@@ -271,7 +270,7 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
           filter:
@@ -280,7 +279,7 @@ setup:
             - term:
                 _id: 2
 
-  - match: {hits.total.value: 0}
+  - match: { hits.total.value: 0 }
 
 ---
 "Test nonexistent field is match none":
@@ -298,7 +297,7 @@ setup:
             k: 2
             num_candidates: 3
 
-  - length: {hits.hits: 0}
+  - length: { hits.hits: 0 }
 
   - do:
       indices.create:
@@ -347,12 +346,12 @@ setup:
             k: 3
             field: vector
             similarity: 11
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
 
-  - length: {hits.hits: 1}
+  - length: { hits.hits: 1 }
 
-  - match: {hits.hits.0._id: "2"}
-  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0.fields.name.0: "moose.jpg" }
 ---
 "Vector similarity with filter only":
   - requires:
@@ -368,13 +367,13 @@ setup:
             k: 3
             field: vector
             similarity: 11
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
-            filter: {"term": {"name": "moose.jpg"}}
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+            filter: { "term": { "name": "moose.jpg" } }
 
-  - length: {hits.hits: 1}
+  - length: { hits.hits: 1 }
 
-  - match: {hits.hits.0._id: "2"}
-  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0.fields.name.0: "moose.jpg" }
 
   - do:
       search:
@@ -386,10 +385,10 @@ setup:
             k: 3
             field: vector
             similarity: 110
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
-            filter: {"term": {"name": "cow.jpg"}}
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+            filter: { "term": { "name": "cow.jpg" } }
 
-  - length: {hits.hits: 0}
+  - length: { hits.hits: 0 }
 ---
 "Knn search with mip":
   - requires:
@@ -421,7 +420,7 @@ setup:
         id: "1"
         body:
           name: cow.jpg
-          vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+          vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
 
   - do:
       index:
@@ -429,7 +428,7 @@ setup:
         id: "2"
         body:
           name: moose.jpg
-          vector: [-0.5, 100.0, -13, 14.8, -156.0]
+          vector: [ -0.5, 100.0, -13, 14.8, -156.0 ]
 
   - do:
       index:
@@ -437,30 +436,10 @@ setup:
         id: "3"
         body:
           name: rabbit.jpg
-          vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+          vector: [ 0.5, 111.3, -13.0, 14.8, -156.0 ]
 
   - do:
-      indices.refresh: {}
-
-  - do:
-      search:
-        index: mip
-        body:
-          fields: [ "name" ]
-          knn:
-            num_candidates: 3
-            k: 3
-            field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
-
-
-  - length: {hits.hits: 3}
-  - match: {hits.hits.0._id: "1"}
-  - close_to: {hits.hits.0._score: {value: 58694.902, error: 0.01}}
-  - match: {hits.hits.1._id: "3"}
-  - close_to: {hits.hits.1._score: {value: 34702.79, error: 0.01}}
-  - match: {hits.hits.2._id: "2"}
-  - close_to: {hits.hits.2._score: {value: 33686.29, error: 0.01}}
+      indices.refresh: { }
 
   - do:
       search:
@@ -471,14 +450,34 @@ setup:
             num_candidates: 3
             k: 3
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+
+
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "1" }
+  - close_to: { hits.hits.0._score: { value: 58694.902, error: 0.01 } }
+  - match: { hits.hits.1._id: "3" }
+  - close_to: { hits.hits.1._score: { value: 34702.79, error: 0.01 } }
+  - match: { hits.hits.2._id: "2" }
+  - close_to: { hits.hits.2._score: { value: 33686.29, error: 0.01 } }
+
+  - do:
+      search:
+        index: mip
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             filter: { "term": { "name": "moose.jpg" } }
 
 
 
-  - length: {hits.hits: 1}
-  - match: {hits.hits.0._id: "2"}
-  - close_to: {hits.hits.0._score: {value: 33686.29, error: 0.01}}
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "2" }
+  - close_to: { hits.hits.0._score: { value: 33686.29, error: 0.01 } }
 ---
 "Knn search with _name":
   - requires:
@@ -493,7 +492,7 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 3
             num_candidates: 3
             _name: "my_knn_query"
@@ -504,15 +503,41 @@ setup:
                 _name: "my_query"
 
 
-  - match: {hits.hits.0._id: "1"}
-  - match: {hits.hits.0.fields.name.0: "cow.jpg"}
-  - match: {hits.hits.0.matched_queries.0: "my_knn_query"}
-  - match: {hits.hits.0.matched_queries.1: "my_query"}
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: "cow.jpg" }
+  - match: { hits.hits.0.matched_queries.0: "my_knn_query" }
+  - match: { hits.hits.0.matched_queries.1: "my_query" }
 
-  - match: {hits.hits.1._id: "2"}
-  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
-  - match: {hits.hits.1.matched_queries.0: "my_knn_query"}
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: "moose.jpg" }
+  - match: { hits.hits.1.matched_queries.0: "my_knn_query" }
 
-  - match: {hits.hits.2._id: "3"}
-  - match: {hits.hits.2.fields.name.0: "rabbit.jpg"}
-  - match: {hits.hits.2.matched_queries.0: "my_knn_query"}
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2.fields.name.0: "rabbit.jpg" }
+  - match: { hits.hits.2.matched_queries.0: "my_knn_query" }
+
+---
+"kNN search on empty index should return 0 results and not an error":
+  - requires:
+      cluster_features: "gte_v8.15.1"
+      reason: 'Error fixed in 8.15.1'
+  - do:
+      indices.create:
+        index: test_empty
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+  - do:
+      search:
+        index: test_empty
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+            k: 2
+            num_candidates: 3
+
+  - match: { hits.total.value: 0 }

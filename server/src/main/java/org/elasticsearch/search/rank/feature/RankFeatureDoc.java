@@ -8,9 +8,11 @@
 
 package org.elasticsearch.search.rank.feature;
 
+import org.apache.lucene.search.Explanation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -22,7 +24,7 @@ public class RankFeatureDoc extends RankDoc {
 
     public static final String NAME = "rank_feature_doc";
 
-    // todo: update to support more than 1 fields; and not restrict to string data
+    // TODO: update to support more than 1 fields; and not restrict to string data
     public String featureData;
 
     public RankFeatureDoc(int doc, float score, int shardIndex) {
@@ -32,6 +34,11 @@ public class RankFeatureDoc extends RankDoc {
     public RankFeatureDoc(StreamInput in) throws IOException {
         super(in);
         featureData = in.readOptionalString();
+    }
+
+    @Override
+    public Explanation explain() {
+        throw new UnsupportedOperationException("explain is not supported for {" + getClass() + "}");
     }
 
     public void featureData(String featureData) {
@@ -57,5 +64,10 @@ public class RankFeatureDoc extends RankDoc {
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("featureData", featureData);
     }
 }

@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -152,7 +151,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class SecurityTests extends ESTestCase {
-
     private Security security = null;
     private ThreadContext threadContext = null;
     private SecurityContext securityContext = null;
@@ -960,8 +958,11 @@ public class SecurityTests extends ESTestCase {
     public void testReload() throws Exception {
         final Settings settings = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir()).build();
 
-        final PlainActionFuture<ActionResponse.Empty> value = new PlainActionFuture<>();
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
         final Client mockedClient = mock(Client.class);
+        when(mockedClient.threadPool()).thenReturn(threadPool);
 
         final JwtRealm mockedJwtRealm = mock(JwtRealm.class);
         final List<ReloadableSecurityComponent> reloadableComponents = List.of(mockedJwtRealm);
@@ -992,11 +993,17 @@ public class SecurityTests extends ESTestCase {
         verify(mockedJwtRealm).reload(same(inputSettings));
     }
 
-    public void testReloadWithFailures() throws Exception {
+    public void testReloadWithFailures() {
         final Settings settings = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir()).build();
 
         final boolean failRemoteClusterCredentialsReload = randomBoolean();
+
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
         final Client mockedClient = mock(Client.class);
+        when(mockedClient.threadPool()).thenReturn(threadPool);
+
         final JwtRealm mockedJwtRealm = mock(JwtRealm.class);
         final List<ReloadableSecurityComponent> reloadableComponents = List.of(mockedJwtRealm);
         if (failRemoteClusterCredentialsReload) {

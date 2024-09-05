@@ -1,6 +1,0 @@
-pr: 110066
-summary: Support flattened fields and multi-fields as dimensions in downsampling
-area: Downsampling
-type: bug
-issues:
- - 99297

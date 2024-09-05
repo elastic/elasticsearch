@@ -1,0 +1,7 @@
+pr: 112173
+summary: Prevent synthetic field loaders accessing stored fields from using stale
+  data
+area: Mapping
+type: bug
+issues:
+ - 112156

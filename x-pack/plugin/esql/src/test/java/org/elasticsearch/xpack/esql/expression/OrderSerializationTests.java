@@ -22,20 +22,20 @@ public class OrderSerializationTests extends AbstractExpressionSerializationTest
         return randomOrder();
     }
 
-    private static org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection randomDirection() {
-        return randomFrom(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.values());
+    private static Order.OrderDirection randomDirection() {
+        return randomFrom(Order.OrderDirection.values());
     }
 
-    private static org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition randomNulls() {
-        return randomFrom(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.values());
+    private static Order.NullsPosition randomNulls() {
+        return randomFrom(Order.NullsPosition.values());
     }
 
     @Override
     protected Order mutateInstance(Order instance) throws IOException {
         Source source = instance.source();
         Expression child = instance.child();
-        org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection direction = instance.direction();
-        org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition nulls = instance.nullsPosition();
+        Order.OrderDirection direction = instance.direction();
+        Order.NullsPosition nulls = instance.nullsPosition();
         switch (between(0, 2)) {
             case 0 -> child = randomValueOtherThan(child, AbstractExpressionSerializationTests::randomChild);
             case 1 -> direction = randomValueOtherThan(direction, OrderSerializationTests::randomDirection);

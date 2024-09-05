@@ -24,11 +24,9 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
@@ -38,53 +36,41 @@ import java.util.Objects;
  * via {@link ExchangeService#openExchange} before sending this request to the remote cluster. The coordinator on the main cluster
  * will poll pages from this sink. Internally, this compute will trigger sub-computes on data nodes via {@link DataNodeRequest}.
  */
-final class ClusterComputeRequest extends TransportRequest implements IndicesRequest {
+final class ClusterComputeRequest extends TransportRequest implements IndicesRequest.Replaceable {
     private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
     private final String clusterAlias;
     private final String sessionId;
-    private final EsqlConfiguration configuration;
-    private final PhysicalPlan plan;
+    private final Configuration configuration;
+    private final RemoteClusterPlan plan;
 
-    private final String[] originalIndices;
-    private final String[] indices;
+    private transient String[] indices;
 
     /**
      * A request to start a compute on a remote cluster.
      *
-     * @param clusterAlias the cluster alias of this remote cluster
-     * @param sessionId the sessionId in which the output pages will be placed in the exchange sink specified by this id
-     * @param configuration the configuration for this compute
+     * @param clusterAlias      the cluster alias of this remote cluster
+     * @param sessionId         the sessionId in which the output pages will be placed in the exchange sink specified by this id
+     * @param configuration     the configuration for this compute
      * @param plan the physical plan to be executed
-     * @param indices the target indices
-     * @param originalIndices the original indices - needed to resolve alias filters
      */
-    ClusterComputeRequest(
-        String clusterAlias,
-        String sessionId,
-        EsqlConfiguration configuration,
-        PhysicalPlan plan,
-        String[] indices,
-        String[] originalIndices
-    ) {
+    ClusterComputeRequest(String clusterAlias, String sessionId, Configuration configuration, RemoteClusterPlan plan) {
         this.clusterAlias = clusterAlias;
         this.sessionId = sessionId;
         this.configuration = configuration;
         this.plan = plan;
-        this.indices = indices;
-        this.originalIndices = originalIndices;
+        this.indices = plan.originalIndices().indices();
     }
 
     ClusterComputeRequest(StreamInput in) throws IOException {
         super(in);
         this.clusterAlias = in.readString();
         this.sessionId = in.readString();
-        this.configuration = new EsqlConfiguration(
+        this.configuration = new Configuration(
             // TODO make EsqlConfiguration Releasable
             new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
         );
-        this.plan = new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry(), configuration).readPhysicalPlanNode();
-        this.indices = in.readStringArray();
-        this.originalIndices = in.readStringArray();
+        this.plan = RemoteClusterPlan.from(new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry(), configuration));
+        this.indices = plan.originalIndices().indices();
     }
 
     @Override
@@ -93,9 +79,7 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
         out.writeString(clusterAlias);
         out.writeString(sessionId);
         configuration.writeTo(out);
-        new PlanStreamOutput(out, planNameRegistry, configuration).writePhysicalPlanNode(plan);
-        out.writeStringArray(indices);
-        out.writeStringArray(originalIndices);
+        plan.writeTo(new PlanStreamOutput(out, planNameRegistry, configuration));
     }
 
     @Override
@@ -104,8 +88,14 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
     }
 
     @Override
+    public IndicesRequest indices(String... indices) {
+        this.indices = indices;
+        return this;
+    }
+
+    @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        return plan.originalIndices().indicesOptions();
     }
 
     @Override
@@ -130,21 +120,17 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
         return sessionId;
     }
 
-    EsqlConfiguration configuration() {
+    Configuration configuration() {
         return configuration;
     }
 
-    String[] originalIndices() {
-        return originalIndices;
-    }
-
-    PhysicalPlan plan() {
+    RemoteClusterPlan remoteClusterPlan() {
         return plan;
     }
 
     @Override
     public String getDescription() {
-        return "indices=" + Arrays.toString(indices) + " plan=" + plan;
+        return "plan=" + plan;
     }
 
     @Override
@@ -160,14 +146,12 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
         return clusterAlias.equals(request.clusterAlias)
             && sessionId.equals(request.sessionId)
             && configuration.equals(request.configuration)
-            && Arrays.equals(indices, request.indices)
-            && Arrays.equals(originalIndices, request.originalIndices)
             && plan.equals(request.plan)
             && getParentTask().equals(request.getParentTask());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, configuration, Arrays.hashCode(indices), Arrays.hashCode(originalIndices), plan);
+        return Objects.hash(sessionId, configuration, plan);
     }
 }

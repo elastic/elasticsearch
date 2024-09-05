@@ -5,7 +5,7 @@
 <titleabbrev>Create or update lifecycle policy</titleabbrev>
 ++++
 
-Creates or updates lifecycle policy. See <<ilm-index-lifecycle>> for
+Creates or updates <<index-lifecycle-management,lifecycle>> policy. See <<ilm-index-lifecycle>> for
 definitions of policy components.
 
 [[ilm-put-lifecycle-request]]

@@ -59,10 +59,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingUpgradeTestCase {
         final String repositoryName = "snapshot_based_recovery_repo";
         final int numDocs = 200;
         if (isOldCluster()) {
-            Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+            Settings.Builder settings = indexSettings(1, 0).put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
             createIndex(indexName, settings.build());
             ensureGreen(indexName);

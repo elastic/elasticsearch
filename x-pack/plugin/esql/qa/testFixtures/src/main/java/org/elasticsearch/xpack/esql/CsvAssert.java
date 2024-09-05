@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
@@ -127,6 +128,7 @@ public final class CsvAssert {
 
                 if (blockType == Type.LONG
                     && (expectedType == Type.DATETIME
+                        || expectedType == Type.DATE_NANOS
                         || expectedType == Type.GEO_POINT
                         || expectedType == Type.CARTESIAN_POINT
                         || expectedType == UNSIGNED_LONG)) {
@@ -214,6 +216,12 @@ public final class CsvAssert {
                         // convert the long from CSV back to its STRING form
                         if (expectedType == Type.DATETIME) {
                             expectedValue = rebuildExpected(expectedValue, Long.class, x -> UTC_DATE_TIME_FORMATTER.formatMillis((long) x));
+                        } else if (expectedType == Type.DATE_NANOS) {
+                            expectedValue = rebuildExpected(
+                                expectedValue,
+                                Long.class,
+                                x -> DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos((long) x)
+                            );
                         } else if (expectedType == Type.GEO_POINT) {
                             expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
                         } else if (expectedType == Type.CARTESIAN_POINT) {

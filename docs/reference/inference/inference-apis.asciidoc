@@ -5,14 +5,16 @@
 experimental[]
 
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
-{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure, Google AI Studio or
-Hugging Face. For built-in models and models uploaded through Eland, the {infer}
-APIs offer an alternative way to use and manage trained models. However, if you
-do not plan to use the {infer} APIs to use these models or if you want to use
-non-NLP models, use the <<ml-df-trained-models-apis>>.
+{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure,
+Google AI Studio or Hugging Face. For built-in models and models uploaded
+through Eland, the {infer} APIs offer an alternative way to use and manage
+trained models. However, if you do not plan to use the {infer} APIs to use these
+models or if you want to use non-NLP models, use the
+<<ml-df-trained-models-apis>>.
 
 The {infer} APIs enable you to create {infer} endpoints and use {ml} models of
-different providers - such as Cohere, OpenAI, or HuggingFace - as a service. Use
+different providers - such as Amazon Bedrock, Anthropic, Azure AI Studio,
+Cohere, Google AI, Mistral, OpenAI, or HuggingFace - as a service. Use
 the following APIs to manage {infer} models and perform {infer}:
 
 * <<delete-inference-api>>
@@ -20,12 +22,26 @@ the following APIs to manage {infer} models and perform {infer}:
 * <<post-inference-api>>
 * <<put-inference-api>>
 
+[[inference-landscape]]
+.A representation of the Elastic inference landscape
+image::images/inference-landscape.png[A representation of the Elastic inference landscape,align="center"]
+
+An {infer} endpoint enables you to use the corresponding {ml} model without
+manual deployment and apply it to your data at ingestion time through
+<<semantic-search-semantic-text, semantic text>>. 
+
+Choose a model from your provider or use ELSER – a retrieval model trained by 
+Elastic –, then create an {infer} endpoint by the <<put-inference-api>>.
+Now use <<semantic-search-semantic-text, semantic text>> to perform
+<<semantic-search, semantic search>> on your data.
 
 include::delete-inference.asciidoc[]
 include::get-inference.asciidoc[]
 include::post-inference.asciidoc[]
 include::put-inference.asciidoc[]
+include::service-alibabacloud-ai-search.asciidoc[]
 include::service-amazon-bedrock.asciidoc[]
+include::service-anthropic.asciidoc[]
 include::service-azure-ai-studio.asciidoc[]
 include::service-azure-openai.asciidoc[]
 include::service-cohere.asciidoc[]

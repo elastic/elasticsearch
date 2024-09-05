@@ -97,6 +97,193 @@ public final class ExceptionsHelper {
         return stackTraceStringWriter.toString();
     }
 
+    /**
+     * Constructs a limited and compressed stack trace string. Each exception printed as part of the full stack trace will have its printed
+     * stack frames capped at the given trace depth. Stack traces that are longer than the given trace depth will summarize the count of the
+     * remaining frames at the end of the trace. Each stack frame omits the module information and limits the package names to single
+     * characters per part.
+     * <br><br>
+     * An example result when using a trace depth of 2 and one nested cause:
+     * <pre><code>
+     * o.e.s.GenericException: some generic exception!
+     *   at o.e.s.SomeClass.method(SomeClass.java:100)
+     *   at o.e.s.SomeOtherClass.earlierMethod(SomeOtherClass.java:24)
+     *   ... 5 more
+     * Caused by: o.e.s.GenericException: some other generic exception!
+     *   at o.e.s.SomeClass.method(SomeClass.java:115)
+     *   at o.e.s.SomeOtherClass.earlierMethod(SomeOtherClass.java:16)
+     *   ... 12 more
+     * </code></pre>
+     *
+     * @param e Throwable object to construct a printed stack trace for
+     * @param traceDepth The maximum number of stack trace elements to display per exception referenced
+     * @return A string containing a limited and compressed stack trace.
+     */
+    public static String limitedStackTrace(Throwable e, int traceDepth) {
+        assert traceDepth >= 0 : "Cannot print stacktraces with negative trace depths";
+        StringWriter stackTraceStringWriter = new StringWriter();
+        PrintWriter printWriter = new PrintWriter(stackTraceStringWriter);
+        printLimitedStackTrace(e, printWriter, traceDepth);
+        return stackTraceStringWriter.toString();
+    }
+
+    /** Caption for labeling causative exception stack traces */
+    private static final String CAUSE_CAPTION = "Caused by: ";
+    /** Caption for labeling suppressed exception stack traces */
+    private static final String SUPPRESSED_CAPTION = "Suppressed: ";
+
+    private static void printLimitedStackTrace(Throwable e, PrintWriter s, int maxLines) {
+        // Guard against malicious overrides of Throwable.equals by
+        // using a Set with identity equality semantics.
+        Set<Throwable> dejaVu = Collections.newSetFromMap(new IdentityHashMap<>());
+        dejaVu.add(e);
+
+        // Print our stack trace
+        s.println(compressExceptionMessage(e));
+        StackTraceElement[] trace = e.getStackTrace();
+        int linesPrinted = 0;
+        for (StackTraceElement traceElement : trace) {
+            if (linesPrinted >= maxLines) {
+                break;
+            } else {
+                s.println(compressStackTraceElement(new StringBuilder("\tat "), traceElement));
+                linesPrinted++;
+            }
+        }
+        if (trace.length > linesPrinted) {
+            s.println("\t... " + (trace.length - linesPrinted) + " more");
+        }
+
+        // Print suppressed exceptions, if any
+        for (Throwable se : e.getSuppressed()) {
+            limitAndPrintEnclosedStackTrace(se, s, trace, SUPPRESSED_CAPTION, "\t", maxLines, dejaVu);
+        }
+
+        // Print cause, if any
+        Throwable ourCause = e.getCause();
+        if (ourCause != null) {
+            limitAndPrintEnclosedStackTrace(ourCause, s, trace, CAUSE_CAPTION, "", maxLines, dejaVu);
+        }
+    }
+
+    private static void limitAndPrintEnclosedStackTrace(
+        Throwable e,
+        PrintWriter s,
+        StackTraceElement[] enclosingTrace,
+        String caption,
+        String prefix,
+        int maxLines,
+        Set<Throwable> dejaVu
+    ) {
+        if (dejaVu.contains(e)) {
+            s.println(prefix + caption + "[CIRCULAR REFERENCE: " + compressExceptionMessage(e) + "]");
+        } else {
+            dejaVu.add(e);
+            // Compute number of frames in common between this and enclosing trace
+            StackTraceElement[] trace = e.getStackTrace();
+            int m = trace.length - 1;
+            int n = enclosingTrace.length - 1;
+            while (m >= 0 && n >= 0 && trace[m].equals(enclosingTrace[n])) {
+                m--;
+                n--;
+            }
+            int framesInCommon = trace.length - 1 - m;
+
+            // Instead of breaking out of the print loop below when it reaches the maximum
+            // print lines, we simply cap how many frames we plan on printing here.
+            int linesToPrint = m + 1;
+            if (linesToPrint > maxLines) {
+                // The print loop below is "<=" based instead of "<", so subtract
+                // one from the max lines to convert a count value to an array index
+                // value and avoid an off by one error.
+                m = maxLines - 1;
+                framesInCommon = trace.length - 1 - m;
+            }
+
+            // Print our stack trace
+            s.println(prefix + caption + compressExceptionMessage(e));
+            for (int i = 0; i <= m; i++) {
+                s.println(compressStackTraceElement(new StringBuilder(prefix).append("\tat "), trace[i]));
+            }
+            if (framesInCommon != 0) {
+                s.println(prefix + "\t... " + framesInCommon + " more");
+            }
+
+            // Print suppressed exceptions, if any
+            for (Throwable se : e.getSuppressed()) {
+                limitAndPrintEnclosedStackTrace(se, s, trace, SUPPRESSED_CAPTION, prefix + "\t", maxLines, dejaVu);
+            }
+
+            // Print cause, if any
+            Throwable ourCause = e.getCause();
+            if (ourCause != null) {
+                limitAndPrintEnclosedStackTrace(ourCause, s, trace, CAUSE_CAPTION, prefix, maxLines, dejaVu);
+            }
+        }
+    }
+
+    private static String compressExceptionMessage(Throwable e) {
+        StringBuilder msg = new StringBuilder();
+        compressPackages(msg, e.getClass().getName());
+        String message = e.getLocalizedMessage();
+        if (message != null) {
+            msg.append(": ").append(message);
+        }
+        return msg.toString();
+    }
+
+    private static StringBuilder compressStackTraceElement(StringBuilder s, final StackTraceElement stackTraceElement) {
+        String declaringClass = stackTraceElement.getClassName();
+        compressPackages(s, declaringClass);
+
+        String methodName = stackTraceElement.getMethodName();
+        s.append(".").append(methodName).append("(");
+
+        if (stackTraceElement.isNativeMethod()) {
+            s.append("Native Method)");
+        } else {
+            String fileName = stackTraceElement.getFileName();
+            int lineNumber = stackTraceElement.getLineNumber();
+            if (fileName != null && lineNumber >= 0) {
+                s.append(fileName).append(":").append(lineNumber).append(")");
+            } else if (fileName != null) {
+                s.append(fileName).append(")");
+            } else {
+                s.append("Unknown Source)");
+            }
+        }
+        return s;
+    }
+
+    // Visible for testing
+    static void compressPackages(StringBuilder s, String className) {
+        assert s != null : "s cannot be null";
+        assert className != null : "className cannot be null";
+        int finalDot = className.lastIndexOf('.');
+        if (finalDot < 0) {
+            s.append(className);
+            return;
+        }
+        int lastPackageName = className.lastIndexOf('.', finalDot - 1);
+        if (lastPackageName < 0) {
+            if (finalDot >= 1) {
+                s.append(className.charAt(0)).append('.');
+            }
+            s.append(className.substring(finalDot + 1));
+            return;
+        }
+        boolean firstChar = true;
+        char[] charArray = className.toCharArray();
+        for (int idx = 0; idx <= lastPackageName + 1; idx++) {
+            char c = charArray[idx];
+            if (firstChar && '.' != c) {
+                s.append(c).append('.');
+            }
+            firstChar = '.' == c;
+        }
+        s.append(className.substring(finalDot + 1));
+    }
+
     public static String formatStackTrace(final StackTraceElement[] stackTrace) {
         return Arrays.stream(stackTrace).skip(1).map(e -> "\tat " + e).collect(Collectors.joining("\n"));
     }

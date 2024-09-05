@@ -567,7 +567,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
             randomFrom((RoleDescriptor.ApplicationResourcePrivileges[]) null, new RoleDescriptor.ApplicationResourcePrivileges[0]),
             new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList("", "\""))),
-                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("\"")) },
+                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("\"")),
+                new ConfigurableClusterPrivileges.ManageRolesPrivilege(
+                    List.of(
+                        new ConfigurableClusterPrivileges.ManageRolesPrivilege.ManageRolesIndexPermissionGroup(
+                            new String[] { "test*" },
+                            new String[] { "read", "write" }
+                        )
+                    )
+                ) },
             new String[] { "\"[a]/" },
             Map.of(),
             Map.of()

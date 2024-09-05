@@ -10,7 +10,7 @@ Creates an {infer} endpoint to perform an {infer} task.
 ====
 * The {infer} APIs enable you to use certain services, such as built-in
 {ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Mistral,
-Azure OpenAI, Google AI Studio, Google Vertex AI or Hugging Face.
+Azure OpenAI, Google AI Studio, Google Vertex AI, Anthropic or Hugging Face.
 * For built-in models and models uploaded through Eland, the {infer} APIs offer an
 alternative way to use and manage trained models. However, if you do not plan to
 use the {infer} APIs to use these models or if you want to use non-NLP models,
@@ -39,7 +39,9 @@ The create {infer} API enables you to create an {infer} endpoint and configure a
 
 The following services are available through the {infer} API, click the links to review the configuration details of the services:
 
+* <<infer-service-alibabacloud-ai-search,AlibabaCloud AI Search>>
 * <<infer-service-amazon-bedrock,Amazon Bedrock>>
+* <<infer-service-anthropic,Anthropic>>
 * <<infer-service-azure-ai-studio,Azure AI Studio>>
 * <<infer-service-azure-openai,Azure OpenAI>>
 * <<infer-service-cohere,Cohere>>

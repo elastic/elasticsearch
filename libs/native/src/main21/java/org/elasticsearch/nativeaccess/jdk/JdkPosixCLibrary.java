@@ -10,6 +10,7 @@ package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.lang.foreign.Arena;
@@ -24,8 +25,10 @@ import java.lang.invoke.VarHandle;
 
 import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
 import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
+import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 import static org.elasticsearch.nativeaccess.jdk.MemorySegmentUtil.varHandleWithoutOffset;
 
@@ -89,6 +92,18 @@ class JdkPosixCLibrary implements PosixCLibrary {
         }
         fstat$mh = fstat;
     }
+    private static final MethodHandle socket$mh = downcallHandleWithErrno(
+        "socket",
+        FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT)
+    );
+    private static final MethodHandle connect$mh = downcallHandleWithErrno(
+        "connect",
+        FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT)
+    );
+    private static final MethodHandle send$mh = downcallHandleWithErrno(
+        "send",
+        FunctionDescriptor.of(JAVA_LONG, JAVA_INT, ADDRESS, JAVA_LONG, JAVA_INT)
+    );
 
     static final MemorySegment errnoState = Arena.ofAuto().allocate(CAPTURE_ERRNO_LAYOUT);
 
@@ -226,6 +241,44 @@ class JdkPosixCLibrary implements PosixCLibrary {
         }
     }
 
+    @Override
+    public int socket(int domain, int type, int protocol) {
+        try {
+            return (int) socket$mh.invokeExact(errnoState, domain, type, protocol);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public SockAddr newUnixSockAddr(String path) {
+        return new JdkSockAddr(path);
+    }
+
+    @Override
+    public int connect(int sockfd, SockAddr addr) {
+        assert addr instanceof JdkSockAddr;
+        var jdkAddr = (JdkSockAddr) addr;
+        try {
+            return (int) connect$mh.invokeExact(errnoState, sockfd, jdkAddr.segment, (int) jdkAddr.segment.byteSize());
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public long send(int sockfd, CloseableByteBuffer buffer, int flags) {
+        assert buffer instanceof JdkCloseableByteBuffer;
+        var nativeBuffer = (JdkCloseableByteBuffer) buffer;
+        var segment = nativeBuffer.segment;
+        try {
+            logger.info("Sending {} bytes to socket", buffer.buffer().remaining());
+            return (long) send$mh.invokeExact(errnoState, sockfd, segment, (long) buffer.buffer().remaining(), flags);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
     static class JdkRLimit implements RLimit {
         private static final MemoryLayout layout = MemoryLayout.structLayout(JAVA_LONG, JAVA_LONG);
         private static final VarHandle rlim_cur$vh = varHandleWithoutOffset(layout, groupElement(0));
@@ -324,6 +377,17 @@ class JdkPosixCLibrary implements PosixCLibrary {
         @Override
         public long bytesalloc() {
             return (long) st_bytesalloc$vh.get(segment);
+        }
+    }
+
+    private static class JdkSockAddr implements SockAddr {
+        private static final MemoryLayout layout = MemoryLayout.structLayout(JAVA_SHORT, MemoryLayout.sequenceLayout(108, JAVA_BYTE));
+        final MemorySegment segment;
+
+        JdkSockAddr(String path) {
+            segment = Arena.ofAuto().allocate(layout);
+            segment.set(JAVA_SHORT, 0, AF_UNIX);
+            MemorySegmentUtil.setString(segment, 2, path);
         }
     }
 }

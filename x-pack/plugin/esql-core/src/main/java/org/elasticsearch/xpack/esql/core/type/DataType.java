@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.core.type;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -35,18 +37,42 @@ public enum DataType {
      * rendered as {@code null} in the response.
      */
     UNSUPPORTED(builder().typeName("UNSUPPORTED").unknownSize()),
+    /**
+     * Fields that are always {@code null}, usually created with constant
+     * {@code null} values.
+     */
     NULL(builder().esType("null").estimatedSize(0)),
+    /**
+     * Fields that can either be {@code true} or {@code false}.
+     */
     BOOLEAN(builder().esType("boolean").estimatedSize(1)),
 
     /**
-     * These are numeric fields labeled as metric counters in time-series indices. Although stored
-     * internally as numeric fields, they represent cumulative metrics and must not be treated as regular
-     * numeric fields. Therefore, we define them differently and separately from their parent numeric field.
-     * These fields are strictly for use in retrieval from indices, rate aggregation, and casting to their
-     * parent numeric type.
+     * 64-bit signed numbers labeled as metric counters in time-series indices.
+     * Although stored internally as numeric fields, they represent cumulative
+     * metrics and must not be treated as regular numeric fields. Therefore,
+     * we define them differently and separately from their parent numeric field.
+     * These fields are strictly for use in retrieval from indices, rate
+     * aggregation, and casting to their parent numeric type.
      */
     COUNTER_LONG(builder().esType("counter_long").estimatedSize(Long.BYTES).docValues().counter()),
+    /**
+     * 32-bit signed numbers labeled as metric counters in time-series indices.
+     * Although stored internally as numeric fields, they represent cumulative
+     * metrics and must not be treated as regular numeric fields. Therefore,
+     * we define them differently and separately from their parent numeric field.
+     * These fields are strictly for use in retrieval from indices, rate
+     * aggregation, and casting to their parent numeric type.
+     */
     COUNTER_INTEGER(builder().esType("counter_integer").estimatedSize(Integer.BYTES).docValues().counter()),
+    /**
+     * 64-bit floating point numbers labeled as metric counters in time-series indices.
+     * Although stored internally as numeric fields, they represent cumulative
+     * metrics and must not be treated as regular numeric fields. Therefore,
+     * we define them differently and separately from their parent numeric field.
+     * These fields are strictly for use in retrieval from indices, rate
+     * aggregation, and casting to their parent numeric type.
+     */
     COUNTER_DOUBLE(builder().esType("counter_double").estimatedSize(Double.BYTES).docValues().counter()),
 
     /**
@@ -97,15 +123,42 @@ public enum DataType {
      */
     SCALED_FLOAT(builder().esType("scaled_float").estimatedSize(Long.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
 
+    /**
+     * String fields that are analyzed when the document is received but never
+     * cut into more than one token. ESQL always loads these after-analysis.
+     * Generally ESQL uses {@code keyword} fields as raw strings. So things like
+     * {@code TO_STRING} will make a {@code keyword} field.
+     */
     KEYWORD(builder().esType("keyword").unknownSize().docValues()),
+    /**
+     * String fields that are analyzed when the document is received and may be
+     * cut into more than one token. Generally ESQL only sees {@code text} fields
+     * when loaded from the index and ESQL will load these fields
+     * <strong>without</strong> analysis. The {@code MATCH} operator can be used
+     * to query these fields with analysis.
+     */
     TEXT(builder().esType("text").unknownSize()),
+    /**
+     * Millisecond precision date, stored as a 64-bit signed number.
+     */
     DATETIME(builder().esType("date").typeName("DATETIME").estimatedSize(Long.BYTES).docValues()),
-    // IP addresses, both IPv4 and IPv6, are encoded using 16 bytes.
+    /**
+     * Nanosecond precision date, stored as a 64-bit signed number.
+     */
+    DATE_NANOS(builder().esType("date_nanos").estimatedSize(Long.BYTES).docValues()),
+    /**
+     * IP addresses. IPv4 address are always
+     * <a href="https://datatracker.ietf.org/doc/html/rfc4291#section-2.5.5">embedded</a>
+     * in IPv6. These flow through the compute engine as fixed length, 16 byte
+     * {@link BytesRef}s.
+     */
     IP(builder().esType("ip").estimatedSize(16).docValues()),
+    /**
+     * A version encoded in a way that sorts using semver.
+     */
     // 8.15.2-SNAPSHOT is 15 bytes, most are shorter, some can be longer
     VERSION(builder().esType("version").estimatedSize(15).docValues()),
     OBJECT(builder().esType("object").unknownSize()),
-    NESTED(builder().esType("nested").unknownSize()),
     SOURCE(builder().esType(SourceFieldMapper.NAME).unknownSize()),
     DATE_PERIOD(builder().typeName("DATE_PERIOD").estimatedSize(3 * Integer.BYTES)),
     TIME_DURATION(builder().typeName("TIME_DURATION").estimatedSize(Integer.BYTES + Long.BYTES)),
@@ -140,6 +193,16 @@ public enum DataType {
      * mapping and should be hidden from users.
      */
     PARTIAL_AGG(builder().esType("partial_agg").unknownSize());
+
+    /**
+     * Types that are actively being built. These types are not returned
+     * from Elasticsearch if their associated {@link FeatureFlag} is disabled.
+     * They aren't included in generated documentation. And the tests don't
+     * check that sending them to a function produces a sane error message.
+     */
+    public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
+        Map.entry(DATE_NANOS, EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG)
+    );
 
     private final String typeName;
 
@@ -227,13 +290,25 @@ public enum DataType {
         return TYPES;
     }
 
+    /**
+     * Resolve a type from a name. This name is sometimes user supplied,
+     * like in the case of {@code ::<typename>} and is sometimes the name
+     * used over the wire, like in {@link #readFrom(String)}.
+     */
     public static DataType fromTypeName(String name) {
         return NAME_TO_TYPE.get(name.toLowerCase(Locale.ROOT));
     }
 
     public static DataType fromEs(String name) {
         DataType type = ES_TO_TYPE.get(name);
-        return type != null ? type : UNSUPPORTED;
+        if (type == null) {
+            return UNSUPPORTED;
+        }
+        FeatureFlag underConstruction = UNDER_CONSTRUCTION.get(type);
+        if (underConstruction != null && underConstruction.isEnabled() == false) {
+            return UNSUPPORTED;
+        }
+        return type;
     }
 
     public static DataType fromJava(Object value) {
@@ -287,7 +362,7 @@ public enum DataType {
     }
 
     public static boolean isPrimitive(DataType t) {
-        return t != OBJECT && t != NESTED;
+        return t != OBJECT;
     }
 
     public static boolean isNull(DataType t) {
@@ -335,7 +410,6 @@ public enum DataType {
      */
     public static boolean isRepresentable(DataType t) {
         return t != OBJECT
-            && t != NESTED
             && t != UNSUPPORTED
             && t != DATE_PERIOD
             && t != TIME_DURATION
@@ -371,6 +445,14 @@ public enum DataType {
 
     public String esType() {
         return esType;
+    }
+
+    /**
+     * Return the Elasticsearch field name of this type if there is one,
+     * otherwise return the ESQL specific name.
+     */
+    public String esNameIfPossible() {
+        return esType != null ? esType : typeName;
     }
 
     /**
@@ -442,8 +524,20 @@ public enum DataType {
 
     public static DataType readFrom(StreamInput in) throws IOException {
         // TODO: Use our normal enum serialization pattern
-        String name = in.readString();
+        return readFrom(in.readString());
+    }
+
+    /**
+     * Resolve a {@link DataType} from a name read from a {@link StreamInput}.
+     * @throws IOException on an unknown dataType
+     */
+    public static DataType readFrom(String name) throws IOException {
         if (name.equalsIgnoreCase(DataType.DOC_DATA_TYPE.nameUpper())) {
+            /*
+             * DOC is not declared in fromTypeName because fromTypeName is
+             * exposed to users for things like `::<typename>` and we don't
+             * want folks to be able to convert to `DOC`.
+             */
             return DataType.DOC_DATA_TYPE;
         }
         DataType dataType = DataType.fromTypeName(name);

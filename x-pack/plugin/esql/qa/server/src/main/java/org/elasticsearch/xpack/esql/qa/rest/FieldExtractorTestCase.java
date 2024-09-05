@@ -231,7 +231,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private Matcher<Double> scaledFloatMatcher(double scalingFactor, double d) {
         long encoded = Math.round(d * scalingFactor);
         double decoded = encoded / scalingFactor;
-        return closeTo(decoded, Math.ulp(decoded));
+        // We can lose a little more the ulp in the round trip.
+        return closeTo(decoded, Math.ulp(decoded) * 2);
     }
 
     public void testBoolean() throws IOException {

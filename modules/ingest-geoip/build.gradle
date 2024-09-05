@@ -88,3 +88,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTestsByFilePattern("**/ingest_geoip/20_geoip_processor.yml", "from 8.0 yaml rest tests use geoip test fixture and default geoip are no longer packaged. In 7.x yaml tests used default databases which makes tests results very different, so skipping these tests")
   // task.skipTest("lang_mustache/50_multi_search_template/Multi-search template with errors", "xxx")
 }
+
+artifacts {
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}

@@ -266,11 +266,11 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
      * <p>
      * Normally, you want to use one of the static {@code create} methods to implement this.
      * <p>
-     * For {@link org.elasticsearch.xpack.esql.core.plan.QueryPlan}s, it is very important that
+     * For {@code QueryPlan}s, it is very important that
      * the properties contain all of the expressions and references relevant to this node, and
      * that all of the properties are used in the provided constructor; otherwise query plan
      * transformations like
-     * {@link org.elasticsearch.xpack.esql.core.plan.QueryPlan#transformExpressionsOnly(Function)}
+     * {@code QueryPlan#transformExpressionsOnly(Function)}
      * will not have an effect.
      */
     protected abstract NodeInfo<? extends T> info();

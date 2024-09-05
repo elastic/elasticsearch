@@ -31,7 +31,7 @@ public class ModifyDataStreamsRequestTests extends AbstractWireSerializingTestCa
         for (int k = 1; k <= numActions; k++) {
             actions.add(DataStreamActionTests.createTestInstance());
         }
-        return new Request(actions);
+        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, actions);
     }
 
     @Override
@@ -41,6 +41,6 @@ public class ModifyDataStreamsRequestTests extends AbstractWireSerializingTestCa
         for (int k = 1; k <= moreActions; k++) {
             actions.add(DataStreamActionTests.createTestInstance());
         }
-        return new Request(actions);
+        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, actions);
     }
 }

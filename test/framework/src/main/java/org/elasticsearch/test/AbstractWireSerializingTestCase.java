@@ -26,10 +26,17 @@ public abstract class AbstractWireSerializingTestCase<T extends Writeable> exten
     protected abstract Writeable.Reader<T> instanceReader();
 
     /**
+     * Returns a {@link Writeable.Writer} that will be used to serialize the instance
+     */
+    protected Writeable.Writer<T> instanceWriter() {
+        return StreamOutput::writeWriteable;
+    }
+
+    /**
      * Copy the {@link Writeable} by round tripping it through {@linkplain StreamInput} and {@linkplain StreamOutput}.
      */
     @Override
     protected final T copyInstance(T instance, TransportVersion version) throws IOException {
-        return copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), version);
+        return copyInstance(instance, getNamedWriteableRegistry(), instanceWriter(), instanceReader(), version);
     }
 }

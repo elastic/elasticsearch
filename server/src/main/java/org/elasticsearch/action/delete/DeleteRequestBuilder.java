@@ -30,6 +30,7 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
     private Long term;
     private WriteRequest.RefreshPolicy refreshPolicy;
 
+    @SuppressWarnings("this-escape")
     public DeleteRequestBuilder(ElasticsearchClient client, @Nullable String index) {
         super(client, TransportDeleteAction.TYPE);
         setIndex(index);

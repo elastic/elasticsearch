@@ -126,6 +126,14 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     }
 
     /**
+     * Checks if the provided node is scheduled for being permanently removed from the cluster.
+     */
+    public boolean isNodeMarkedForRemoval(String nodeId) {
+        var singleNodeShutdownMetadata = get(nodeId);
+        return singleNodeShutdownMetadata != null && singleNodeShutdownMetadata.getType().isRemovalType();
+    }
+
+    /**
      * Add or update the shutdown metadata for a single node.
      * @param nodeShutdownMetadata The single node shutdown metadata to add or update.
      * @return A new {@link NodesShutdownMetadata} that reflects the updated value.

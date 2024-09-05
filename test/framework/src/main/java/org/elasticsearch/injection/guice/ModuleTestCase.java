@@ -1,0 +1,66 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+package org.elasticsearch.injection.guice;
+
+import org.elasticsearch.injection.guice.spi.Element;
+import org.elasticsearch.injection.guice.spi.Elements;
+import org.elasticsearch.injection.guice.spi.InstanceBinding;
+import org.elasticsearch.injection.guice.spi.ProviderInstanceBinding;
+import org.elasticsearch.test.ESTestCase;
+
+import java.lang.annotation.Annotation;
+import java.util.List;
+import java.util.function.Predicate;
+
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
+
+/**
+ * Base testcase for testing {@link Module} implementations.
+ */
+public abstract class ModuleTestCase extends ESTestCase {
+    /**
+     * Configures the module, and ensures an instance is bound to the "to" class, and the
+     * provided tester returns true on the instance.
+     */
+    public static <T> void assertInstanceBinding(Module module, Class<T> to, Predicate<T> tester) {
+        assertInstanceBindingWithAnnotation(module, to, tester, null);
+    }
+
+    /**
+     * Like {@link #assertInstanceBinding(Module, Class, Predicate)}, but filters the
+     * classes checked by the given annotation.
+     */
+    private static <T> void assertInstanceBindingWithAnnotation(
+        Module module,
+        Class<T> to,
+        Predicate<T> tester,
+        Class<? extends Annotation> annotation
+    ) {
+        List<Element> elements = Elements.getElements(module);
+        for (Element element : elements) {
+            if (element instanceof InstanceBinding<?> binding) {
+                if (to.equals(binding.getKey().getTypeLiteral().getType())) {
+                    if (annotation == null || annotation.equals(binding.getKey().getAnnotationType())) {
+                        assertThat(tester, trueWith(to.cast(binding.getInstance())));
+                        return;
+                    }
+                }
+            } else if (element instanceof ProviderInstanceBinding<?> binding) {
+                if (to.equals(binding.getKey().getTypeLiteral().getType())) {
+                    assertThat(tester, trueWith(to.cast(binding.getProviderInstance().get())));
+                    return;
+                }
+            }
+        }
+        StringBuilder s = new StringBuilder();
+        for (Element element : elements) {
+            s.append(element).append("\n");
+        }
+        fail("Did not find any instance binding to " + to.getName() + ". Found these bindings:\n" + s);
+    }
+}

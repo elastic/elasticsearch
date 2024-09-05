@@ -206,7 +206,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         TriFunction<String, Object, SearchRequest, Boolean> extraParamParser
     ) throws IOException {
         int from = 0;
-        byte marker = xContent.streamSeparator();
+        byte marker = xContent.bulkSeparator();
         while (true) {
             int nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
@@ -343,7 +343,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 writeSearchRequestParams(request, xContentBuilder);
                 BytesReference.bytes(xContentBuilder).writeTo(output);
             }
-            output.write(xContent.streamSeparator());
+            output.write(xContent.bulkSeparator());
             try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {
                 if (request.source() != null) {
                     request.source().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
@@ -353,7 +353,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 }
                 BytesReference.bytes(xContentBuilder).writeTo(output);
             }
-            output.write(xContent.streamSeparator());
+            output.write(xContent.bulkSeparator());
         }
         return output.toByteArray();
     }

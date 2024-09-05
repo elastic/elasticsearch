@@ -48,8 +48,8 @@ public abstract class FilterRestHandler implements RestHandler {
     }
 
     @Override
-    public boolean supportsContentStream() {
-        return delegate.supportsContentStream();
+    public boolean supportsBulkContent() {
+        return delegate.supportsBulkContent();
     }
 
     @Override

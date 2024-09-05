@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -2501,7 +2502,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry,
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            new DataStreamGlobalRetentionResolver(DataStreamFactoryRetention.emptyFactoryRetention())
+            DataStreamGlobalRetentionSettings.create(
+                ClusterSettings.createBuiltInClusterSettings(),
+                DataStreamFactoryRetention.emptyFactoryRetention()
+            )
         );
 
         final List<Throwable> throwables = new ArrayList<>();
@@ -2543,9 +2547,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     private MetadataIndexTemplateService getMetadataIndexTemplateService() {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = new DataStreamGlobalRetentionResolver(
-            DataStreamFactoryRetention.emptyFactoryRetention()
-        );
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             Settings.EMPTY,
             clusterService,
@@ -2568,7 +2569,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            dataStreamGlobalRetentionResolver
+            DataStreamGlobalRetentionSettings.create(
+                ClusterSettings.createBuiltInClusterSettings(),
+                DataStreamFactoryRetention.emptyFactoryRetention()
+            )
         );
     }
 

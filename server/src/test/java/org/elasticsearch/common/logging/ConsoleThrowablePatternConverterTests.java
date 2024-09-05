@@ -11,8 +11,8 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.impl.Log4jLogEvent;
 import org.elasticsearch.bootstrap.StartupException;
-import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.inject.spi.Message;
+import org.elasticsearch.injection.guice.CreationException;
+import org.elasticsearch.injection.guice.spi.Message;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;

@@ -1,0 +1,5 @@
+pr: 110633
+summary: Add manage roles privilege
+area: Authorization
+type: enhancement
+issues: []

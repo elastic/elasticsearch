@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
@@ -30,9 +29,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 
 /**
  * Tests for discovery during disruptions.
@@ -136,13 +132,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         internalCluster().setDisruptionScheme(isolatePreferredMaster);
         isolatePreferredMaster.startDisrupting();
 
-        client(randomFrom(nonPreferredNodes)).admin()
-            .indices()
-            .prepareCreate("test")
-            .setSettings(
-                Settings.builder().put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            )
-            .get();
+        client(randomFrom(nonPreferredNodes)).admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)).get();
 
         internalCluster().clearDisruptionScheme(false);
         internalCluster().setDisruptionScheme(isolateAllNodes);

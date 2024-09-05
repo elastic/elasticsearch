@@ -143,6 +143,11 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                             }
 
                             @Override
+                            public boolean needs_termStats() {
+                                return false;
+                            }
+
+                            @Override
                             public ScoreScript newInstance(DocReader docReader) {
                                 return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
                                     @Override
@@ -162,6 +167,11 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                         searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                             @Override
                             public boolean needs_score() {
+                                return false;
+                            }
+
+                            @Override
+                            public boolean needs_termStats() {
                                 return false;
                             }
 

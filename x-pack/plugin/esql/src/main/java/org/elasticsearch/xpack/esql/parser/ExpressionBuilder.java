@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DateUtils;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -73,15 +73,15 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.source;
-import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.typedParsing;
-import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseTemporalAmout;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIntegral;
@@ -657,7 +657,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
         Expression value = expression(ctx.booleanExpression());
         var source = source(ctx);
-        String name = id == null ? source.text() : id.qualifiedName();
+        String name = id == null ? source.text() : id.name();
         return new Alias(source, name, value);
     }
 
@@ -688,7 +688,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                         name = source(field).text();
                     }
                 } else {
-                    name = id.qualifiedName();
+                    name = id.name();
                 }
                 // wrap when necessary - no alias and no underlying attribute
                 if (ne == null) {
@@ -772,7 +772,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         return new MatchQueryPredicate(
             source(ctx),
-            visitQualifiedName(ctx.qualifiedName()),
+            expression(ctx.valueExpression()),
             visitString(ctx.queryString).fold().toString(),
             null
         );

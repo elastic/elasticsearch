@@ -8,26 +8,60 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.delete.TransportDeleteRepositoryAction;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
@@ -744,5 +778,352 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     private static GetSnapshotsRequestBuilder baseGetSnapshotsRequest(String[] repoNames) {
         return clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoNames)
             .setSnapshots("*", "-" + AbstractSnapshotIntegTestCase.OLD_VERSION_SNAPSHOT_PREFIX + "*");
+    }
+
+    public void testAllFeatures() {
+        // A test that uses (potentially) as many of the features of the get-snapshots API at once as possible, to verify that they interact
+        // in the expected order etc.
+
+        // Create a few repositories and a few indices
+        final var repositories = randomList(1, 4, ESTestCase::randomIdentifier);
+        final var indices = randomList(1, 4, ESTestCase::randomIdentifier);
+        final var slmPolicies = randomList(1, 4, ESTestCase::randomIdentifier);
+
+        safeAwait(l -> {
+            try (var listeners = new RefCountingListener(l.map(v -> null))) {
+                for (final var repository : repositories) {
+                    client().execute(
+                        TransportPutRepositoryAction.TYPE,
+                        new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repository).type(FsRepository.TYPE)
+                            .settings(Settings.builder().put("location", randomRepoPath()).build()),
+                        listeners.acquire(ElasticsearchAssertions::assertAcked)
+                    );
+                }
+
+                for (final var index : indices) {
+                    client().execute(
+                        TransportCreateIndexAction.TYPE,
+                        new CreateIndexRequest(index, indexSettings(1, 0).build()),
+                        listeners.acquire(ElasticsearchAssertions::assertAcked)
+                    );
+                }
+            }
+        });
+        ensureGreen();
+
+        // Create a few snapshots
+        final var snapshotInfos = Collections.synchronizedList(new ArrayList<SnapshotInfo>());
+        safeAwait(l -> {
+            try (var listeners = new RefCountingListener(l.map(v -> null))) {
+                for (int i = 0; i < 10; i++) {
+                    client().execute(
+                        TransportCreateSnapshotAction.TYPE,
+                        new CreateSnapshotRequest(
+                            TEST_REQUEST_TIMEOUT,
+                            // at least one snapshot per repository to satisfy consistency checks
+                            i < repositories.size() ? repositories.get(i) : randomFrom(repositories),
+                            randomIdentifier()
+                        ).indices(randomNonEmptySubsetOf(indices))
+                            .userMetadata(
+                                randomBoolean() ? Map.of() : Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, randomFrom(slmPolicies))
+                            )
+                            .waitForCompletion(true),
+                        listeners.acquire(
+                            createSnapshotResponse -> snapshotInfos.add(Objects.requireNonNull(createSnapshotResponse.getSnapshotInfo()))
+                        )
+                    );
+                }
+            }
+        });
+
+        if (randomBoolean()) {
+            // Sometimes also simulate bwc repository contents where some details are missing from the root blob
+            safeAwait(l -> {
+                try (var listeners = new RefCountingListener(l.map(v -> null))) {
+                    for (final var repositoryName : randomSubsetOf(repositories)) {
+                        removeDetailsForRandomSnapshots(repositoryName, listeners.acquire());
+                    }
+                }
+            });
+        }
+
+        Predicate<SnapshotInfo> snapshotInfoPredicate = Predicates.always();
+
+        // {repository} path parameter
+        final String[] requestedRepositories;
+        if (randomBoolean()) {
+            requestedRepositories = new String[] { randomFrom("_all", "*") };
+        } else {
+            final var selectedRepositories = Set.copyOf(randomNonEmptySubsetOf(repositories));
+            snapshotInfoPredicate = snapshotInfoPredicate.and(si -> selectedRepositories.contains(si.repository()));
+            requestedRepositories = selectedRepositories.toArray(new String[0]);
+        }
+
+        // {snapshot} path parameter
+        final String[] requestedSnapshots;
+        if (randomBoolean()) {
+            requestedSnapshots = randomBoolean() ? Strings.EMPTY_ARRAY : new String[] { randomFrom("_all", "*") };
+        } else {
+            final var selectedSnapshots = randomNonEmptySubsetOf(snapshotInfos).stream()
+                .map(si -> si.snapshotId().getName())
+                .collect(Collectors.toSet());
+            snapshotInfoPredicate = snapshotInfoPredicate.and(si -> selectedSnapshots.contains(si.snapshotId().getName()));
+            requestedSnapshots = selectedSnapshots.stream()
+                // if we have multiple repositories, add a trailing wildcard to each requested snapshot name, because if we specify exact
+                // names then there must be a snapshot with that name in every requested repository
+                .map(n -> repositories.size() == 1 && randomBoolean() ? n : n + "*")
+                .toArray(String[]::new);
+        }
+
+        // ?slm_policy_filter parameter
+        final String[] requestedSlmPolicies;
+        switch (between(0, 3)) {
+            default -> requestedSlmPolicies = Strings.EMPTY_ARRAY;
+            case 1 -> {
+                requestedSlmPolicies = new String[] { "*" };
+                snapshotInfoPredicate = snapshotInfoPredicate.and(
+                    si -> si.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD) != null
+                );
+            }
+            case 2 -> {
+                requestedSlmPolicies = new String[] { "_none" };
+                snapshotInfoPredicate = snapshotInfoPredicate.and(
+                    si -> si.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD) == null
+                );
+            }
+            case 3 -> {
+                final var selectedPolicies = Set.copyOf(randomNonEmptySubsetOf(slmPolicies));
+                requestedSlmPolicies = selectedPolicies.stream()
+                    .map(policy -> randomBoolean() ? policy : policy + "*")
+                    .toArray(String[]::new);
+                snapshotInfoPredicate = snapshotInfoPredicate.and(
+                    si -> si.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD) instanceof String policy
+                        && selectedPolicies.contains(policy)
+                );
+            }
+        }
+
+        // ?sort and ?order parameters
+        final var sortKey = randomFrom(SnapshotSortKey.values());
+        final var order = randomFrom(SortOrder.values());
+        // NB we sometimes choose to sort by FAILED_SHARDS, but there are no failed shards in these snapshots. We're still testing the
+        // fallback sorting by snapshot ID in this case. We also have no multi-shard indices so there's no difference between sorting by
+        // INDICES and by SHARDS. The actual sorting behaviour for these cases is tested elsewhere, here we're just checking that sorting
+        // interacts correctly with the other parameters to the API.
+
+        // compute the ordered sequence of snapshots which match the repository/snapshot name filters and SLM policy filter
+        final var selectedSnapshots = snapshotInfos.stream()
+            .filter(snapshotInfoPredicate)
+            .sorted(sortKey.getSnapshotInfoComparator(order))
+            .toList();
+
+        final var getSnapshotsRequest = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, requestedRepositories, requestedSnapshots).policies(
+            requestedSlmPolicies
+        )
+            // apply sorting params
+            .sort(sortKey)
+            .order(order);
+
+        // sometimes use ?from_sort_value to skip some items; note that snapshots skipped in this way are subtracted from
+        // GetSnapshotsResponse.totalCount whereas snapshots skipped by ?after and ?offset are not
+        final int skippedByFromSortValue;
+        if (randomBoolean()) {
+            final var startingSnapshot = randomFrom(snapshotInfos);
+            getSnapshotsRequest.fromSortValue(switch (sortKey) {
+                case START_TIME -> Long.toString(startingSnapshot.startTime());
+                case NAME -> startingSnapshot.snapshotId().getName();
+                case DURATION -> Long.toString(startingSnapshot.endTime() - startingSnapshot.startTime());
+                case INDICES, SHARDS -> Integer.toString(startingSnapshot.indices().size());
+                case FAILED_SHARDS -> "0";
+                case REPOSITORY -> startingSnapshot.repository();
+            });
+            final Predicate<SnapshotInfo> fromSortValuePredicate = snapshotInfo -> {
+                final var comparison = switch (sortKey) {
+                    case START_TIME -> Long.compare(snapshotInfo.startTime(), startingSnapshot.startTime());
+                    case NAME -> snapshotInfo.snapshotId().getName().compareTo(startingSnapshot.snapshotId().getName());
+                    case DURATION -> Long.compare(
+                        snapshotInfo.endTime() - snapshotInfo.startTime(),
+                        startingSnapshot.endTime() - startingSnapshot.startTime()
+                    );
+                    case INDICES, SHARDS -> Integer.compare(snapshotInfo.indices().size(), startingSnapshot.indices().size());
+                    case FAILED_SHARDS -> 0;
+                    case REPOSITORY -> snapshotInfo.repository().compareTo(startingSnapshot.repository());
+                };
+                return order == SortOrder.ASC ? comparison < 0 : comparison > 0;
+            };
+
+            int skipCount = 0;
+            for (final var snapshotInfo : selectedSnapshots) {
+                if (fromSortValuePredicate.test(snapshotInfo)) {
+                    skipCount += 1;
+                } else {
+                    break;
+                }
+            }
+            skippedByFromSortValue = skipCount;
+        } else {
+            skippedByFromSortValue = 0;
+        }
+
+        // ?offset parameter
+        if (randomBoolean()) {
+            getSnapshotsRequest.offset(between(0, selectedSnapshots.size() + 1));
+        }
+
+        // ?size parameter
+        if (randomBoolean()) {
+            getSnapshotsRequest.size(between(1, selectedSnapshots.size() + 1));
+        }
+
+        // compute the expected offset and size of the returned snapshots as indices in selectedSnapshots:
+        final var expectedOffset = Math.min(selectedSnapshots.size(), skippedByFromSortValue + getSnapshotsRequest.offset());
+        final var expectedSize = Math.min(
+            selectedSnapshots.size() - expectedOffset,
+            getSnapshotsRequest.size() == GetSnapshotsRequest.NO_LIMIT ? Integer.MAX_VALUE : getSnapshotsRequest.size()
+        );
+
+        // get the actual response
+        final GetSnapshotsResponse getSnapshotsResponse = safeAwait(
+            l -> client().execute(TransportGetSnapshotsAction.TYPE, getSnapshotsRequest, l)
+        );
+
+        // verify it returns the expected results
+        assertEquals(
+            selectedSnapshots.stream().skip(expectedOffset).limit(expectedSize).map(SnapshotInfo::snapshotId).toList(),
+            getSnapshotsResponse.getSnapshots().stream().map(SnapshotInfo::snapshotId).toList()
+        );
+        assertEquals(expectedSize, getSnapshotsResponse.getSnapshots().size());
+        assertEquals(selectedSnapshots.size() - skippedByFromSortValue, getSnapshotsResponse.totalCount());
+        assertEquals(selectedSnapshots.size() - expectedOffset - expectedSize, getSnapshotsResponse.remaining());
+        assertEquals(getSnapshotsResponse.remaining() > 0, getSnapshotsResponse.next() != null);
+
+        // now use ?after to page through the rest of the results
+        var nextRequestAfter = getSnapshotsResponse.next();
+        var nextExpectedOffset = expectedOffset + expectedSize;
+        var remaining = getSnapshotsResponse.remaining();
+        while (nextRequestAfter != null) {
+            final var nextSize = between(1, remaining);
+            final var nextRequest = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, requestedRepositories, requestedSnapshots)
+                // same name/policy filters, same ?sort and ?order params, new ?size, but no ?offset or ?from_sort_value because of ?after
+                .policies(requestedSlmPolicies)
+                .sort(sortKey)
+                .order(order)
+                .size(nextSize)
+                .after(SnapshotSortKey.decodeAfterQueryParam(nextRequestAfter));
+            final GetSnapshotsResponse nextResponse = safeAwait(l -> client().execute(TransportGetSnapshotsAction.TYPE, nextRequest, l));
+
+            assertEquals(
+                selectedSnapshots.stream().skip(nextExpectedOffset).limit(nextSize).map(SnapshotInfo::snapshotId).toList(),
+                nextResponse.getSnapshots().stream().map(SnapshotInfo::snapshotId).toList()
+            );
+            assertEquals(nextSize, nextResponse.getSnapshots().size());
+            assertEquals(selectedSnapshots.size(), nextResponse.totalCount());
+            assertEquals(remaining - nextSize, nextResponse.remaining());
+            assertEquals(nextResponse.remaining() > 0, nextResponse.next() != null);
+
+            nextRequestAfter = nextResponse.next();
+            nextExpectedOffset += nextSize;
+            remaining -= nextSize;
+        }
+
+        assertEquals(0, remaining);
+    }
+
+    /**
+     * Older versions of Elasticsearch don't record in {@link RepositoryData} all the details needed for the get-snapshots API to pick out
+     * the right snapshots, so in this case the API must fall back to reading those details from each candidate {@link SnapshotInfo} blob.
+     * Simulate this situation by manipulating the {@link RepositoryData} blob directly to remove all the optional details from some subset
+     * of its snapshots.
+     */
+    private static void removeDetailsForRandomSnapshots(String repositoryName, ActionListener<Void> listener) {
+        final Set<SnapshotId> snapshotsWithoutDetails = ConcurrentCollections.newConcurrentSet();
+        final var masterRepositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
+        final var repository = asInstanceOf(FsRepository.class, masterRepositoriesService.repository(repositoryName));
+        final var repositoryMetadata = repository.getMetadata();
+        final var repositorySettings = repositoryMetadata.settings();
+        final var repositoryDataBlobPath = asInstanceOf(FsBlobStore.class, repository.blobStore()).path()
+            .resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryMetadata.generation());
+
+        SubscribableListener
+
+            // unregister the repository while we're mucking around with its internals
+            .<AcknowledgedResponse>newForked(
+                l -> client().execute(
+                    TransportDeleteRepositoryAction.TYPE,
+                    new DeleteRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName),
+                    l
+                )
+            )
+            .andThenAccept(ElasticsearchAssertions::assertAcked)
+
+            // rewrite the RepositoryData blob with some details removed
+            .andThenAccept(ignored -> {
+                // load the existing RepositoryData JSON blob as raw maps/lists/etc.
+                final var repositoryDataBytes = Files.readAllBytes(repositoryDataBlobPath);
+                final var repositoryDataMap = XContentHelper.convertToMap(
+                    JsonXContent.jsonXContent,
+                    repositoryDataBytes,
+                    0,
+                    repositoryDataBytes.length,
+                    true
+                );
+
+                // modify the contents
+                final var snapshotsList = asInstanceOf(List.class, repositoryDataMap.get("snapshots"));
+                for (final var snapshotObj : snapshotsList) {
+                    if (randomBoolean()) {
+                        continue;
+                    }
+                    final var snapshotMap = asInstanceOf(Map.class, snapshotObj);
+                    snapshotsWithoutDetails.add(
+                        new SnapshotId(
+                            asInstanceOf(String.class, snapshotMap.get("name")),
+                            asInstanceOf(String.class, snapshotMap.get("uuid"))
+                        )
+                    );
+
+                    // remove the optional details fields
+                    assertNotNull(snapshotMap.remove("start_time_millis"));
+                    assertNotNull(snapshotMap.remove("end_time_millis"));
+                    assertNotNull(snapshotMap.remove("slm_policy"));
+                }
+
+                // overwrite the RepositoryData JSON blob with its new contents
+                final var updatedRepositoryDataBytes = XContentTestUtils.convertToXContent(repositoryDataMap, XContentType.JSON);
+                try (var outputStream = Files.newOutputStream(repositoryDataBlobPath)) {
+                    BytesRef bytesRef;
+                    final var iterator = updatedRepositoryDataBytes.iterator();
+                    while ((bytesRef = iterator.next()) != null) {
+                        outputStream.write(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                    }
+                }
+            })
+
+            // re-register the repository
+            .<AcknowledgedResponse>andThen(
+                l -> client().execute(
+                    TransportPutRepositoryAction.TYPE,
+                    new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName).type(FsRepository.TYPE)
+                        .settings(repositorySettings),
+                    l
+                )
+            )
+            .andThenAccept(ElasticsearchAssertions::assertAcked)
+
+            // verify that the details are indeed now missing
+            .<RepositoryData>andThen(
+                l -> masterRepositoriesService.repository(repositoryName).getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l)
+            )
+            .andThenAccept(repositoryData -> {
+                for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
+                    assertEquals(
+                        repositoryName + "/" + snapshotId.toString() + ": " + repositoryData.getSnapshotDetails(snapshotId),
+                        snapshotsWithoutDetails.contains(snapshotId),
+                        repositoryData.hasMissingDetails(snapshotId)
+                    );
+                }
+            })
+
+            .addListener(listener);
     }
 }

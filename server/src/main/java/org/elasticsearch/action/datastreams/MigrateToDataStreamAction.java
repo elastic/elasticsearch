@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -34,8 +35,8 @@ public class MigrateToDataStreamAction extends ActionType<AcknowledgedResponse> 
 
         private final String aliasName;
 
-        public Request(String aliasName) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String aliasName) {
+            super(masterNodeTimeout, ackTimeout);
             this.aliasName = aliasName;
         }
 

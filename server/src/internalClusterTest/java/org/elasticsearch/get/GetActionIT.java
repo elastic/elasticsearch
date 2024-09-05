@@ -22,7 +22,6 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -849,13 +848,7 @@ public class GetActionIT extends ESIntegTestCase {
         SearcherWrapperPlugin.enabled = true;
         assertAcked(
             prepareCreate("test").setMapping("f", "type=keyword")
-                .setSettings(
-                    Settings.builder()
-                        .put("index.refresh_interval", "-1")
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put("index.routing.rebalance.enable", "none")
-                )
+                .setSettings(indexSettings(1, 0).put("index.refresh_interval", "-1").put("index.routing.rebalance.enable", "none"))
         );
         // start tracking translog locations in the live version map
         {

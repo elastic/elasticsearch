@@ -37,11 +37,12 @@ public class MvLastTests extends AbstractMultivalueFunctionTestCase {
         longs(cases, "mv_last", "MvLast", DataType.LONG, (size, values) -> equalTo(values.reduce((f, s) -> s).getAsLong()));
         unsignedLongs(cases, "mv_last", "MvLast", DataType.UNSIGNED_LONG, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
         dateTimes(cases, "mv_last", "MvLast", DataType.DATETIME, (size, values) -> equalTo(values.reduce((f, s) -> s).getAsLong()));
+        dateNanos(cases, "mv_last", "MvLast", DataType.DATE_NANOS, (size, values) -> equalTo(values.reduce((f, s) -> s).getAsLong()));
         geoPoints(cases, "mv_last", "MvLast", DataType.GEO_POINT, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
         cartesianPoints(cases, "mv_last", "MvLast", DataType.CARTESIAN_POINT, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
         geoShape(cases, "mv_last", "MvLast", DataType.GEO_SHAPE, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
         cartesianShape(cases, "mv_last", "MvLast", DataType.CARTESIAN_SHAPE, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases, (v, p) -> "numeric");
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases, (v, p) -> "representable");
     }
 
     @Override

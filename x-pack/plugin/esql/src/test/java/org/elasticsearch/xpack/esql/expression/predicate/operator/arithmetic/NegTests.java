@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NegTests extends AbstractScalarFunctionTestCase {

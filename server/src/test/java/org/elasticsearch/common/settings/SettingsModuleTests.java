@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.injection.guice.ModuleTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;

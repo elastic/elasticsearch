@@ -36,7 +36,7 @@ public class ConsumeProcessor implements Processor {
     public Set<String> getSupportedAnnotationTypes() {
         return Set.of(
             "org.elasticsearch.core.Nullable",
-            "org.elasticsearch.common.inject.Inject",
+            "org.elasticsearch.injection.guice.Inject",
             "org.elasticsearch.xpack.esql.expression.function.FunctionInfo",
             "org.elasticsearch.xpack.esql.expression.function.Param",
             "org.elasticsearch.rest.ServerlessScope",

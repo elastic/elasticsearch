@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DateUtils;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -22,6 +21,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 
 // BETWEEN or range - is a mix of gt(e) AND lt(e)
 public class Range extends ScalarFunction {
@@ -118,10 +118,10 @@ public class Range extends ScalarFunction {
         if (DataType.isDateTime(value.dataType()) || DataType.isDateTime(lower.dataType()) || DataType.isDateTime(upper.dataType())) {
             try {
                 if (upperValue instanceof String upperString) {
-                    upperValue = DateUtils.asDateTime(upperString);
+                    upperValue = asDateTime(upperString);
                 }
                 if (lowerValue instanceof String lowerString) {
-                    lowerValue = DateUtils.asDateTime(lowerString);
+                    lowerValue = asDateTime(lowerString);
                 }
             } catch (DateTimeException e) {
                 // one of the patterns is not a normal date, it could be a date math expression

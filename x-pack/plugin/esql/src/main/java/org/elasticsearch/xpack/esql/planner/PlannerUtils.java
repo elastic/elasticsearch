@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
@@ -48,7 +49,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
@@ -61,21 +62,22 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
-import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
-import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.TRANSLATOR_HANDLER;
+import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushToSource;
 
 public class PlannerUtils {
 
-    public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, EsqlConfiguration config) {
+    public static final EsqlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
+
+    public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {
         var dataNodePlan = new Holder<PhysicalPlan>();
 
         // split the given plan when encountering the exchange
         PhysicalPlan coordinatorPlan = plan.transformUp(ExchangeExec.class, e -> {
             // remember the datanode subplan and wire it to a sink
             var subplan = e.child();
-            dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), e.isInBetweenAggs(), subplan));
+            dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), e.inBetweenAggs(), subplan));
 
-            return new ExchangeSourceExec(e.source(), e.output(), e.isInBetweenAggs());
+            return new ExchangeSourceExec(e.source(), e.output(), e.inBetweenAggs());
         });
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }
@@ -97,7 +99,7 @@ public class PlannerUtils {
                 Mapper mapper = new Mapper(true);
                 var physicalPlan = EstimatesRowSize.estimateRowSize(0, mapper.map(plan));
                 var aggregate = (AggregateExec) physicalPlan.collectFirstChildren(AggregateExec.class::isInstance).get(0);
-                return aggregate.withMode(AggregateExec.Mode.PARTIAL);
+                return aggregate.withMode(AggregatorMode.INITIAL);
             } else {
                 throw new EsqlIllegalArgumentException("unsupported unary physical plan node [" + pipelineBreaker.nodeName() + "]");
             }
@@ -133,11 +135,11 @@ public class PlannerUtils {
         return indices.toArray(String[]::new);
     }
 
-    public static PhysicalPlan localPlan(List<SearchExecutionContext> searchContexts, EsqlConfiguration configuration, PhysicalPlan plan) {
+    public static PhysicalPlan localPlan(List<SearchExecutionContext> searchContexts, Configuration configuration, PhysicalPlan plan) {
         return localPlan(configuration, plan, new SearchStats(searchContexts));
     }
 
-    public static PhysicalPlan localPlan(EsqlConfiguration configuration, PhysicalPlan plan, SearchStats searchStats) {
+    public static PhysicalPlan localPlan(Configuration configuration, PhysicalPlan plan, SearchStats searchStats) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration, searchStats));
 
@@ -241,7 +243,7 @@ public class PlannerUtils {
     public static ElementType toElementType(DataType dataType, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
 
         return switch (dataType) {
-            case LONG, DATETIME, UNSIGNED_LONG, COUNTER_LONG -> ElementType.LONG;
+            case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG -> ElementType.LONG;
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
             // unsupported fields are passed through as a BytesRef
@@ -253,8 +255,8 @@ public class PlannerUtils {
             case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
             case GEO_SHAPE, CARTESIAN_SHAPE -> ElementType.BYTES_REF;
             case PARTIAL_AGG -> ElementType.COMPOSITE;
-            case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, NESTED, FLOAT, HALF_FLOAT, SCALED_FLOAT ->
-                throw EsqlIllegalArgumentException.illegalDataType(dataType);
+            case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
+                .illegalDataType(dataType);
         };
     }
 

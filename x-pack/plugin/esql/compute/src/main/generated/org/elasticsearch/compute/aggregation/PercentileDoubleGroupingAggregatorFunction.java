@@ -95,7 +95,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
 
   private void addRawInput(int positionOffset, IntVector groups, DoubleBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
@@ -109,7 +109,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
 
   private void addRawInput(int positionOffset, IntVector groups, DoubleVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       PercentileDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
     }
   }
@@ -122,7 +122,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         if (values.isNull(groupPosition + positionOffset)) {
           continue;
         }
@@ -143,7 +143,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         PercentileDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
       }
     }
@@ -160,7 +160,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }

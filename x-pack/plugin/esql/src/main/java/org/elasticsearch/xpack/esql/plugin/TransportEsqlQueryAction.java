@@ -13,13 +13,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.io.IOException;
@@ -55,6 +55,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     implements
         AsyncTaskManagementService.AsyncOperation<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> {
 
+    private final ThreadPool threadPool;
     private final PlanExecutor planExecutor;
     private final ComputeService computeService;
     private final ExchangeService exchangeService;
@@ -82,6 +83,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this.threadPool = threadPool;
         this.planExecutor = planExecutor;
         this.clusterService = clusterService;
         this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
@@ -146,7 +148,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        EsqlConfiguration configuration = new EsqlConfiguration(
+        Configuration configuration = new Configuration(
             ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
             // TODO: plug-in security
@@ -178,15 +180,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
     }
 
-    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, EsqlConfiguration configuration, Result result) {
-        List<ColumnInfoImpl> columns = result.schema()
-            .stream()
-            .map(c -> new ColumnInfoImpl(c.qualifiedName(), c.dataType().outputType()))
-            .toList();
+    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {
+        List<ColumnInfoImpl> columns = result.schema().stream().map(c -> new ColumnInfoImpl(c.name(), c.dataType().outputType())).toList();
         EsqlQueryResponse.Profile profile = configuration.profile() ? new EsqlQueryResponse.Profile(result.profiles()) : null;
+        threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, "?0");
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
-            String id = asyncTask.getExecutionId().getEncoded();
-            return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), id, false, request.async());
+            String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
+            threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
+            return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), asyncExecutionId, false, request.async());
         }
         return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async());
     }
@@ -234,12 +235,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     @Override
     public EsqlQueryResponse initialResponse(EsqlQueryTask task) {
+        var asyncExecutionId = task.getExecutionId().getEncoded();
+        threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
+        threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, "?1");
         return new EsqlQueryResponse(
             List.of(),
             List.of(),
             null,
             false,
-            task.getExecutionId().getEncoded(),
+            asyncExecutionId,
             true, // is_running
             true // isAsync
         );

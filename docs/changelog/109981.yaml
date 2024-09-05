@@ -1,5 +1,0 @@
-pr: 109981
-summary: Limit number of synonym rules that can be created
-area: Mapping
-type: bug
-issues: [108785]

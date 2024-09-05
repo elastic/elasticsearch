@@ -39,7 +39,7 @@ public interface DocumentParsingProvider {
     /**
      * @return an observer
      */
-    default <T> DocumentSizeObserver newDocumentSizeObserver(DocWriteRequest<T> request) {
-        return DocumentSizeObserver.EMPTY_INSTANCE;
+    default <T> XContentMeteringParserDecorator newMeteringParserDecorator(DocWriteRequest<T> request) {
+        return XContentMeteringParserDecorator.NOOP;
     }
 }

@@ -233,6 +233,7 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
         public void cleanUpFeature(ClusterService clusterService, Client client, ActionListener<ResetFeatureStateStatus> listener) {
             Collection<SystemDataStreamDescriptor> dataStreamDescriptors = getSystemDataStreamDescriptors();
             final DeleteDataStreamAction.Request request = new DeleteDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
                 dataStreamDescriptors.stream().map(SystemDataStreamDescriptor::getDataStreamName).toList().toArray(Strings.EMPTY_ARRAY)
             );
             request.indicesOptions(

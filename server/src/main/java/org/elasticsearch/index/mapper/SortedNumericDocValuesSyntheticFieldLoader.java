@@ -104,8 +104,12 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
                 values.write(b);
                 ignoreMalformedValues.write(b);
                 b.endArray();
-                return;
         }
+    }
+
+    @Override
+    public void reset() {
+        ignoreMalformedValues.reset();
     }
 
     private interface Values {

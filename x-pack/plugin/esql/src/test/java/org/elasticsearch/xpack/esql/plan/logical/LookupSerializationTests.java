@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelationSerialiationTests;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelationSerializationTests;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,7 +23,7 @@ public class LookupSerializationTests extends AbstractLogicalPlanSerializationTe
         LogicalPlan child = randomChild(depth);
         Expression tableName = AbstractExpressionSerializationTests.randomChild();
         List<Attribute> matchFields = randomFieldAttributes(1, 10, false);
-        LocalRelation localRelation = randomBoolean() ? null : LocalRelationSerialiationTests.randomLocalRelation();
+        LocalRelation localRelation = randomBoolean() ? null : LocalRelationSerializationTests.randomLocalRelation();
         return new Lookup(source, child, tableName, matchFields, localRelation);
     }
 
@@ -45,7 +45,7 @@ public class LookupSerializationTests extends AbstractLogicalPlanSerializationTe
             case 2 -> matchFields = randomValueOtherThan(matchFields, () -> randomFieldAttributes(1, 10, false));
             case 3 -> localRelation = randomValueOtherThan(
                 localRelation,
-                () -> randomBoolean() ? null : LocalRelationSerialiationTests.randomLocalRelation()
+                () -> randomBoolean() ? null : LocalRelationSerializationTests.randomLocalRelation()
             );
         }
         return new Lookup(source, child, tableName, matchFields, localRelation);

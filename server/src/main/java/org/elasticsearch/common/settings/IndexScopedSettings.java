@@ -181,6 +181,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,
         IndexSettings.PREFER_ILM_SETTING,
         DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING,
+        FieldMapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

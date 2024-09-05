@@ -81,7 +81,7 @@ final class ElasticServiceAccounts {
         "fleet-server",
         new RoleDescriptor(
             NAMESPACE + "/fleet-server",
-            new String[] { "monitor", "manage_own_api_key", "read_fleet_secrets" },
+            new String[] { "monitor", "manage_own_api_key", "read_fleet_secrets", "manage_connector" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
@@ -156,7 +156,23 @@ final class ElasticServiceAccounts {
                     // Fleet Server needs "read" privilege to be able to retrieve multi-agent docs
                     .privileges("read", "write", "create_index", "auto_configure")
                     .allowRestrictedIndices(false)
-                    .build() },
+                    .build(),
+                // Elastic connectors package requires custom permissions to manage connectors
+                // and hence Fleet Server requires additional permissions
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(
+                        ".elastic-connectors",
+                        ".elastic-connectors-v*",
+                        ".elastic-connectors-sync-jobs",
+                        ".elastic-connectors-sync-jobs-v*"
+                    )
+                    .privileges("read", "write")
+                    .build(),
+                // Permissions required by connectors for data indices and corresponding access control filters
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("search-*", ".search-acl-filter-*")
+                    .privileges("read", "write", "view_index_metadata", "maintenance")
+                    .build(), },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
                     .application("kibana-*")

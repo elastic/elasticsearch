@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.external.action.ibmwatsonx;
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
@@ -46,7 +45,6 @@ import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTest
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModelTests.createModel;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -86,18 +84,18 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
             sender.start();
 
             String responseJson = """
-                {
-                    "results": [
-                       {
-                           "embedding": [
-                              0.0123,
-                              -0.0123
-                           ],
-                          "input": "abc"
-                       }
-                    ]
-               }
-            """;
+                    {
+                        "results": [
+                           {
+                               "embedding": [
+                                  0.0123,
+                                  -0.0123
+                               ],
+                              "input": "abc"
+                           }
+                        ]
+                   }
+                """;
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
@@ -114,19 +112,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap, aMapWithSize(3));
-            assertThat(
-                requestMap,
-                is(
-                        Map.of(
-                            "project_id",
-                            "projectId",
-                            "inputs",
-                            List.of(input),
-                            "model_id",
-                           "model"
-                        )
-                )
-            );
+            assertThat(requestMap, is(Map.of("project_id", "projectId", "inputs", List.of(input), "model_id", "model")));
         }
     }
 

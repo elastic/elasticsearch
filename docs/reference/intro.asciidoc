@@ -133,9 +133,9 @@ In {es}, metadata fields are prefixed with an underscore.
 
 The most important metadata fields are:
 
-* `_source`. Contains the original JSON document.
-* `_index`. The name of the index where the document is stored.
-* `_id`. The document's ID. IDs must be unique per index.
+* `_source`: Contains the original JSON document.
+* `_index`: The name of the index where the document is stored.
+* `_id`: The document's ID. IDs must be unique per index.
 
 [discrete]
 [[elasticsearch-intro-documents-fields-mappings]]

@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -99,6 +100,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public TimeValue getOverallTook() {
         return overallTook;
+    }
+
+    public Set<String> getClusterAliases() {
+        return clusterInfo.keySet();
     }
 
     // MP TODO: is there a better way to supply this info? Awkward to have it here?

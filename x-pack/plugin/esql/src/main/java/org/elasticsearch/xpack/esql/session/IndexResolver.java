@@ -16,6 +16,7 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -166,25 +167,47 @@ public class IndexResolver {
         }
 
         Set<String> concreteIndices = new HashSet<>(fieldCapsResponse.getIndexResponses().size());
+        Map<String, StringBuilder> clusterAndResolvedIndices = new HashMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             String indexExpression = ir.getIndexName();
             concreteIndices.add(indexExpression);
 
             String clusterAlias = parseClusterAlias(indexExpression);
-            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
-            // populate the EsqlExecutionInfo cluster map with responses from each cluster coming back from field-caps
-            if (cluster == null) {
-                executionInfo.swapCluster(
-                    clusterAlias,
-                    (k, v) -> new EsqlExecutionInfo.Cluster(clusterAlias, indexExpression, executionInfo.isSkipUnavailable(clusterAlias))
-                );
-            } else {
-                String newIndexExpr = cluster.getIndexExpression() + "," + indexExpression;
-                executionInfo.swapCluster(
-                    clusterAlias,
-                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setIndexExpression(newIndexExpr).build()
-                );
-            }
+            clusterAndResolvedIndices.compute(clusterAlias, (k, v) -> {
+                if (v == null) {
+                    return new StringBuilder().append(indexExpression);
+                } else {
+                    return v.append(',').append(indexExpression);
+                }
+            });
+        }
+
+        Set<String> clustersWithoutFieldCapsResponses = executionInfo.getClusterAliases();
+        for (Map.Entry<String, StringBuilder> entry : clusterAndResolvedIndices.entrySet()) {
+            final String clusterAlias = entry.getKey();
+            final EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+            assert cluster != null : "All cluster aliases should have already been inserted into ExecutionInfo. Missing: " + clusterAlias;
+            clustersWithoutFieldCapsResponses.remove(clusterAlias);
+            executionInfo.swapCluster(
+                clusterAlias,
+                // overwrite the existing unresolved index expression with the resolved indices
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(cluster).setIndexExpression(entry.getValue().toString()).build()
+            );
+        }
+
+        // clusters in the original request but not present in the field-caps response were specified with an index
+        // or indices that do not exist, so the search on that cluster is done, so mark it as complete
+        for (String c : clustersWithoutFieldCapsResponses) {
+            executionInfo.swapCluster(
+                c,
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                    .setTook(new TimeValue(0))
+                    .setTotalShards(0)
+                    .setSuccessfulShards(0)
+                    .setSkippedShards(0)
+                    .setFailedShards(0)
+                    .build()
+            );
         }
 
         // check for "remote unavailable" type errors that occurred during field-caps lookup on remote clusters

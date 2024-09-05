@@ -181,6 +181,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             configuration,
             enrichPolicyResolver,
             executionInfo,
+            remoteClusterService,
             runPhase,
             listener.map(result -> toResponse(task, request, configuration, result))
         );

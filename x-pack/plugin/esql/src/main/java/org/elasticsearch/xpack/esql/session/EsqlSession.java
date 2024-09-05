@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
@@ -17,6 +19,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -87,6 +91,7 @@ public class EsqlSession {
 
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
+    private final RemoteClusterService remoteClusterService;
 
     public EsqlSession(
         String sessionId,
@@ -97,7 +102,8 @@ public class EsqlSession {
         EsqlFunctionRegistry functionRegistry,
         LogicalPlanOptimizer logicalPlanOptimizer,
         Mapper mapper,
-        Verifier verifier
+        Verifier verifier,
+        RemoteClusterService remoteClusterService
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -109,6 +115,7 @@ public class EsqlSession {
         this.mapper = mapper;
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
+        this.remoteClusterService = remoteClusterService;
     }
 
     public String sessionId() {
@@ -262,6 +269,27 @@ public class EsqlSession {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
+            Map<String, OriginalIndices> clusterIndices = remoteClusterService.groupIndices(
+                IndicesOptions.DEFAULT,
+                Strings.splitStringByCommaToArray(table.index())
+            );
+            for (Map.Entry<String, OriginalIndices> entry : clusterIndices.entrySet()) {
+                final String clusterAlias = entry.getKey();
+                String indexExpr;
+                if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
+                } else {
+                    indexExpr = Strings.collectionToDelimitedString(Arrays.asList(entry.getValue().indices()), ",", clusterAlias + ":", "");
+                }
+                executionInfo.swapCluster(clusterAlias, (k, v) -> {
+                    assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
+                    return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr.toString(), executionInfo.isSkipUnavailable(clusterAlias));
+                });
+                System.err.println("JUST SWAPPED IN FIRST PASS for " + clusterAlias);
+            }
+            System.err.println("====================");
+            System.err.println("ExecInfo: " + executionInfo);
+            System.err.println("====================");
             indexResolver.resolveAsMergedMapping(table.index(), fieldNames, executionInfo, listener);
         } else {
             try {

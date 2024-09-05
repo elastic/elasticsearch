@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
@@ -53,6 +54,7 @@ public class PlanExecutor {
         Configuration cfg,
         EnrichPolicyResolver enrichPolicyResolver,
         EsqlExecutionInfo executionInfo,
+        RemoteClusterService remoteClusterService,
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
         ActionListener<Result> listener
     ) {
@@ -65,7 +67,8 @@ public class PlanExecutor {
             functionRegistry,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg)),
             mapper,
-            verifier
+            verifier,
+            remoteClusterService
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);

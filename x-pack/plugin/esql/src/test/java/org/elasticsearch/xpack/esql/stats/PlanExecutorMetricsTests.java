@@ -104,17 +104,26 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         // test a failed query: xyz field doesn't exist
         request.query("from test | stats m = max(xyz)");
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase = (p, r) -> fail("this shouldn't happen");
-        planExecutor.esql(request, randomAlphaOfLength(10), EsqlTestUtils.TEST_CFG, enrichResolver, null, runPhase, new ActionListener<>() {
-            @Override
-            public void onResponse(Result result) {
-                fail("this shouldn't happen");
-            }
+        planExecutor.esql(
+            request,
+            randomAlphaOfLength(10),
+            EsqlTestUtils.TEST_CFG,
+            enrichResolver,
+            null,
+            null,
+            runPhase,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Result result) {
+                    fail("this shouldn't happen");
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                assertThat(e, instanceOf(VerificationException.class));
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(VerificationException.class));
+                }
             }
-        });
+        );
 
         // check we recorded the failure and that the query actually came
         assertEquals(1, planExecutor.metrics().stats().get("queries._all.failed"));
@@ -124,15 +133,24 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         // fix the failing query: foo field does exist
         request.query("from test | stats m = max(foo)");
         runPhase = (p, r) -> r.onResponse(null);
-        planExecutor.esql(request, randomAlphaOfLength(10), EsqlTestUtils.TEST_CFG, enrichResolver, null, runPhase, new ActionListener<>() {
-            @Override
-            public void onResponse(Result result) {}
+        planExecutor.esql(
+            request,
+            randomAlphaOfLength(10),
+            EsqlTestUtils.TEST_CFG,
+            enrichResolver,
+            null,
+            null,
+            runPhase,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Result result) {}
 
-            @Override
-            public void onFailure(Exception e) {
-                fail("this shouldn't happen");
+                @Override
+                public void onFailure(Exception e) {
+                    fail("this shouldn't happen");
+                }
             }
-        });
+        );
 
         // check the new metrics
         assertEquals(1, planExecutor.metrics().stats().get("queries._all.failed"));

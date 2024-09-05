@@ -563,10 +563,9 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             )
         );
         filters.add(PreConfiguredTokenFilter.indexVersion("word_delimiter_graph", false, false, (input, version) -> {
-            boolean adjustOffsets = version.onOrAfter(IndexVersions.V_7_3_0);
             return new WordDelimiterGraphFilter(
                 input,
-                adjustOffsets,
+                true,
                 WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE,
                 WordDelimiterGraphFilter.GENERATE_WORD_PARTS | WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS
                     | WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE | WordDelimiterGraphFilter.SPLIT_ON_NUMERICS
@@ -587,12 +586,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.add(PreConfiguredTokenizer.singleton("letter", LetterTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("whitespace", WhitespaceTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("ngram", NGramTokenizer::new));
-        tokenizers.add(PreConfiguredTokenizer.indexVersion("edge_ngram", (version) -> {
-            if (version.onOrAfter(IndexVersions.V_7_3_0)) {
-                return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
-            }
-            return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
-        }));
+        tokenizers.add(
+            PreConfiguredTokenizer.indexVersion(
+                "edge_ngram",
+                (version) -> new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE)
+            )
+        );
         tokenizers.add(PreConfiguredTokenizer.singleton("pattern", () -> new PatternTokenizer(Regex.compile("\\W+", null), -1)));
         tokenizers.add(PreConfiguredTokenizer.singleton("thai", ThaiTokenizer::new));
         // TODO deprecate and remove in API
@@ -630,10 +629,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                         + "Please change the tokenizer name to [edge_ngram] instead."
                 );
             }
-            if (version.onOrAfter(IndexVersions.V_7_3_0)) {
-                return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
-            }
-            return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
+            return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         }));
         tokenizers.add(PreConfiguredTokenizer.singleton("PathHierarchy", PathHierarchyTokenizer::new));
 

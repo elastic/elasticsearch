@@ -105,7 +105,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final NodeFeature INT4_QUANTIZATION = new NodeFeature("mapper.vectors.int4_quantization");
     public static final NodeFeature BIT_VECTORS = new NodeFeature("mapper.vectors.bit_vectors");
 
-    public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
     public static final IndexVersion NORMALIZE_COSINE = IndexVersions.NORMALIZED_VECTOR_COSINE;
     public static final IndexVersion DEFAULT_TO_INT8 = DEFAULT_DENSE_VECTOR_TO_INT8_HNSW;
@@ -2039,19 +2038,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
         // this code is here and not in the VectorEncoderDecoder so not to create extra arrays
         int dims = fieldType().dims;
         ElementType elementType = fieldType().elementType;
-        int numBytes = indexCreatedVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)
-            ? elementType.getNumBytes(dims) + MAGNITUDE_BYTES
-            : elementType.getNumBytes(dims);
+        int numBytes = elementType.getNumBytes(dims) + MAGNITUDE_BYTES;
 
         ByteBuffer byteBuffer = elementType.createByteBuffer(indexCreatedVersion, numBytes);
         VectorData vectorData = elementType.parseKnnVector(context, this);
         vectorData.addToBuffer(byteBuffer);
-        if (indexCreatedVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)) {
-            // encode vector magnitude at the end
-            double dotProduct = elementType.computeSquaredMagnitude(vectorData);
-            float vectorMagnitude = (float) Math.sqrt(dotProduct);
-            byteBuffer.putFloat(vectorMagnitude);
-        }
+        // encode vector magnitude at the end
+        double dotProduct = elementType.computeSquaredMagnitude(vectorData);
+        float vectorMagnitude = (float) Math.sqrt(dotProduct);
+        byteBuffer.putFloat(vectorMagnitude);
         Field field = new BinaryDocValuesField(fieldType().name(), new BytesRef(byteBuffer.array()));
         context.doc().addWithKey(fieldType().name(), field);
     }

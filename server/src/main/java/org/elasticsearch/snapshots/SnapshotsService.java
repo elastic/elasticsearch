@@ -147,7 +147,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     public static final IndexVersion FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION = IndexVersions.V_7_16_0;
 
-    public static final IndexVersion OLD_SNAPSHOT_FORMAT = IndexVersions.V_7_5_0;
+    // TODO lucene 10 upgrade, check if IndexVersion removal affects reading supported spanshots
+    // public static final IndexVersion OLD_SNAPSHOT_FORMAT = IndexVersions.V_7_5_0;
 
     public static final String POLICY_ID_METADATA_FIELD = "policy";
 
@@ -2321,7 +2322,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         + "] but did not have versions tracked for snapshot ["
                         + snapshotId
                         + "]";
-                return OLD_SNAPSHOT_FORMAT;
+                // TODO lucene 10 upgrade: should this whole block be removed instead of returning the minimal available version?
+                return IndexVersions.V_8_0_0;
             } else {
                 minCompatVersion = IndexVersion.min(minCompatVersion, known);
             }

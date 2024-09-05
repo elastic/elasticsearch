@@ -32,7 +32,7 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         float[] expectedMagnitudes = { 1.7320f, 2.4495f, 3.3166f };
 
-        for (IndexVersion indexVersion : List.of(IndexVersions.V_7_4_0, IndexVersion.current())) {
+        for (IndexVersion indexVersion : List.of(IndexVersions.V_8_0_0, IndexVersion.current())) {
             BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT, indexVersion);
             DenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", ElementType.FLOAT, dims, indexVersion);
             DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
@@ -235,9 +235,7 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
     }
 
     public static BytesRef mockEncodeDenseVector(float[] values, ElementType elementType, IndexVersion indexVersion) {
-        int numBytes = indexVersion.onOrAfter(DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION)
-            ? elementType.getNumBytes(values.length) + DenseVectorFieldMapper.MAGNITUDE_BYTES
-            : elementType.getNumBytes(values.length);
+        int numBytes = elementType.getNumBytes(values.length) + DenseVectorFieldMapper.MAGNITUDE_BYTES;
         double dotProduct = 0f;
         ByteBuffer byteBuffer = elementType.createByteBuffer(indexVersion, numBytes);
         for (float value : values) {
@@ -251,11 +249,9 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
             dotProduct += value * value;
         }
 
-        if (indexVersion.onOrAfter(DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION)) {
-            // encode vector magnitude at the end
-            float vectorMagnitude = (float) Math.sqrt(dotProduct);
-            byteBuffer.putFloat(vectorMagnitude);
-        }
+        // encode vector magnitude at the end
+        float vectorMagnitude = (float) Math.sqrt(dotProduct);
+        byteBuffer.putFloat(vectorMagnitude);
         return new BytesRef(byteBuffer.array());
     }
 

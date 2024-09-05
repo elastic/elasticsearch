@@ -17,14 +17,12 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -55,26 +53,6 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
                 assertAnalyzesTo(analyzer, "test", new String[] { "t", "te" });
             }
         }
-
-        // Check deprecated name as well, needs version before 8.0 because throws IAE after that
-        {
-            try (
-                IndexAnalyzers indexAnalyzers = buildAnalyzers(
-                    IndexVersionUtils.randomVersionBetween(
-                        random(),
-                        IndexVersions.V_7_3_0,
-                        IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
-                    ),
-                    "edgeNGram"
-                )
-            ) {
-                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
-                assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "test", new String[] { "t", "te" });
-
-            }
-        }
-
     }
 
     public void testCustomTokenChars() throws IOException {

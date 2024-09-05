@@ -10,10 +10,10 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.BinaryDenseVectorScriptDocValuesTests;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -68,22 +68,21 @@ public class DenseVectorTests extends ESTestCase {
         assertEquals(knn.cosineSimilarity(arrayQV), knn.cosineSimilarity(listQV), 0.001f);
         assertEquals(knn.cosineSimilarity((Object) listQV), knn.cosineSimilarity((Object) arrayQV), 0.001f);
 
-        for (IndexVersion indexVersion : List.of(IndexVersions.V_7_4_0, IndexVersion.current())) {
-            BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(docVector, ElementType.FLOAT, indexVersion);
-            BinaryDenseVector bdv = new BinaryDenseVector(docVector, value, dims, indexVersion);
+        IndexVersion randomCompatibleVersion = IndexVersionUtils.randomCompatibleVersion(random());
+        BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(docVector, ElementType.FLOAT, randomCompatibleVersion);
+        BinaryDenseVector bdv = new BinaryDenseVector(docVector, value, dims, randomCompatibleVersion);
 
-            assertEquals(bdv.dotProduct(arrayQV), bdv.dotProduct(listQV), 0.001f);
-            assertEquals(bdv.dotProduct((Object) listQV), bdv.dotProduct((Object) arrayQV), 0.001f);
+        assertEquals(bdv.dotProduct(arrayQV), bdv.dotProduct(listQV), 0.001f);
+        assertEquals(bdv.dotProduct((Object) listQV), bdv.dotProduct((Object) arrayQV), 0.001f);
 
-            assertEquals(bdv.l1Norm(arrayQV), bdv.l1Norm(listQV), 0.001f);
-            assertEquals(bdv.l1Norm((Object) listQV), bdv.l1Norm((Object) arrayQV), 0.001f);
+        assertEquals(bdv.l1Norm(arrayQV), bdv.l1Norm(listQV), 0.001f);
+        assertEquals(bdv.l1Norm((Object) listQV), bdv.l1Norm((Object) arrayQV), 0.001f);
 
-            assertEquals(bdv.l2Norm(arrayQV), bdv.l2Norm(listQV), 0.001f);
-            assertEquals(bdv.l2Norm((Object) listQV), bdv.l2Norm((Object) arrayQV), 0.001f);
+        assertEquals(bdv.l2Norm(arrayQV), bdv.l2Norm(listQV), 0.001f);
+        assertEquals(bdv.l2Norm((Object) listQV), bdv.l2Norm((Object) arrayQV), 0.001f);
 
-            assertEquals(bdv.cosineSimilarity(arrayQV), bdv.cosineSimilarity(listQV), 0.001f);
-            assertEquals(bdv.cosineSimilarity((Object) listQV), bdv.cosineSimilarity((Object) arrayQV), 0.001f);
-        }
+        assertEquals(bdv.cosineSimilarity(arrayQV), bdv.cosineSimilarity(listQV), 0.001f);
+        assertEquals(bdv.cosineSimilarity((Object) listQV), bdv.cosineSimilarity((Object) arrayQV), 0.001f);
     }
 
     public void testByteVsListQueryVector() {

@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -214,10 +213,6 @@ public class SpatialRelatesQuery extends Query {
             ShapeRelation relation,
             SearchExecutionContext context
         ) {
-            // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0);
-            if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(IndexVersions.V_7_5_0)) {
-                throw new QueryShardException(context, relation + " query relation not supported for Field [" + fieldName + "].");
-            }
             final MappedFieldType fieldType = context.getFieldType(fieldName);
             try {
                 return XYQueriesUtils.toXYShapeQuery(geometry, fieldName, relation, fieldType.isIndexed(), fieldType.hasDocValues());

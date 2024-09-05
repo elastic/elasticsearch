@@ -529,7 +529,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             Collections.emptyList(),
             Collections.emptyList(),
             "failed on purpose",
-            SnapshotsService.OLD_SNAPSHOT_FORMAT,
+            IndexVersion.fromId(7_05_00_99),
             0L,
             0L,
             0,
@@ -547,7 +547,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                     getRepositoryData(repoName).getGenId(),
                     state.metadata(),
                     snapshotInfo,
-                    SnapshotsService.OLD_SNAPSHOT_FORMAT,
+                    IndexVersion.fromId(7_05_00_99),
                     listener,
                     info -> {}
                 )

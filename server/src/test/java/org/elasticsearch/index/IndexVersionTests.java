@@ -32,27 +32,27 @@ import static org.hamcrest.Matchers.sameInstance;
 public class IndexVersionTests extends ESTestCase {
 
     public void testVersionComparison() {
-        IndexVersion V_7_2_0 = IndexVersions.V_7_2_0;
         IndexVersion V_8_0_0 = IndexVersions.V_8_0_0;
-        assertThat(V_7_2_0.before(V_8_0_0), is(true));
-        assertThat(V_7_2_0.before(V_7_2_0), is(false));
-        assertThat(V_8_0_0.before(V_7_2_0), is(false));
+        IndexVersion V_8_10_0 = IndexVersions.V_8_10_0;
+        assertThat(V_8_0_0.before(V_8_10_0), is(true));
+        assertThat(V_8_0_0.before(V_8_0_0), is(false));
+        assertThat(V_8_10_0.before(V_8_0_0), is(false));
 
-        assertThat(V_7_2_0.onOrBefore(V_8_0_0), is(true));
-        assertThat(V_7_2_0.onOrBefore(V_7_2_0), is(true));
-        assertThat(V_8_0_0.onOrBefore(V_7_2_0), is(false));
+        assertThat(V_8_0_0.onOrBefore(V_8_10_0), is(true));
+        assertThat(V_8_0_0.onOrBefore(V_8_0_0), is(true));
+        assertThat(V_8_10_0.onOrBefore(V_8_0_0), is(false));
 
-        assertThat(V_7_2_0.after(V_8_0_0), is(false));
-        assertThat(V_7_2_0.after(V_7_2_0), is(false));
-        assertThat(V_8_0_0.after(V_7_2_0), is(true));
+        assertThat(V_8_0_0.after(V_8_10_0), is(false));
+        assertThat(V_8_0_0.after(V_8_0_0), is(false));
+        assertThat(V_8_10_0.after(V_8_0_0), is(true));
 
-        assertThat(V_7_2_0.onOrAfter(V_8_0_0), is(false));
-        assertThat(V_7_2_0.onOrAfter(V_7_2_0), is(true));
-        assertThat(V_8_0_0.onOrAfter(V_7_2_0), is(true));
+        assertThat(V_8_0_0.onOrAfter(V_8_10_0), is(false));
+        assertThat(V_8_0_0.onOrAfter(V_8_0_0), is(true));
+        assertThat(V_8_10_0.onOrAfter(V_8_0_0), is(true));
 
-        assertThat(V_7_2_0, is(lessThan(V_8_0_0)));
-        assertThat(V_7_2_0.compareTo(V_7_2_0), is(0));
-        assertThat(V_8_0_0, is(greaterThan(V_7_2_0)));
+        assertThat(V_8_0_0, is(lessThan(V_8_10_0)));
+        assertThat(V_8_0_0.compareTo(V_8_0_0), is(0));
+        assertThat(V_8_10_0, is(greaterThan(V_8_0_0)));
     }
 
     public static class CorrectFakeVersion {

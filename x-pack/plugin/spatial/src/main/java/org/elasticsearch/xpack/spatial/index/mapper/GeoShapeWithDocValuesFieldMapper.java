@@ -46,7 +46,6 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.StoredValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
@@ -258,13 +257,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
             failIfNotIndexedNorDocValuesFallback(context);
-            // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
-            if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(IndexVersions.V_7_5_0)) {
-                throw new QueryShardException(
-                    context,
-                    ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]."
-                );
-            }
             Query query;
             if (isIndexed()) {
                 query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries);

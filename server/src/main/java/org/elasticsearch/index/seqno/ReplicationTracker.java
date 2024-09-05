@@ -976,9 +976,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.routingTable = null;
         this.replicationGroup = null;
         this.hasAllPeerRecoveryRetentionLeases = indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_7_6_0)
-            || (indexSettings.isSoftDeleteEnabled()
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_7_4_0)
-                && indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN);
+            || (indexSettings.isSoftDeleteEnabled() && indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN);
 
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;

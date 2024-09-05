@@ -2736,8 +2736,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
             assert mappingVersion : "mapping version should be present for indices created on or after 6.5.0";
             assert settingsVersion : "settings version should be present for indices created on or after 6.5.0";
-            assert indexCreatedVersion(builder.settings).before(IndexVersions.V_7_2_0) || aliasesVersion
-                : "aliases version should be present for indices created on or after 7.2.0";
             return builder.build(true);
         }
 

@@ -2,9 +2,6 @@ tests:
 - class: "org.elasticsearch.upgrades.SearchStatesIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108991"
   method: "testCanMatch"
-- class: "org.elasticsearch.upgrades.MlTrainedModelsUpgradeIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/108993"
-  method: "testTrainedModelInference"
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-async-query-api/line_17}
   issue: https://github.com/elastic/elasticsearch/issues/109260
@@ -170,6 +167,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.external.http.RequestBasedTaskRunnerTests
   method: testLoopOneAtATime
   issue: https://github.com/elastic/elasticsearch/issues/112471
+- class: org.elasticsearch.xpack.security.authc.kerberos.SimpleKdcLdapServerTests
+  method: testClientServiceMutualAuthentication
+  issue: https://github.com/elastic/elasticsearch/issues/112529
 
 # Examples:
 #

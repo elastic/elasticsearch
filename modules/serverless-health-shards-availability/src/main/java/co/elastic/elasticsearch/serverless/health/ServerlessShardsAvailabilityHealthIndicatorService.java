@@ -29,12 +29,15 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
+import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.indices.SystemIndices;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -168,6 +171,27 @@ public class ServerlessShardsAvailabilityHealthIndicatorService extends ShardsAv
             } else {
                 return GREEN;
             }
+        }
+
+        @Override
+        public HealthIndicatorDetails getDetails(boolean verbose) {
+            final HealthIndicatorDetails details = super.getDetails(verbose);
+            if (details == HealthIndicatorDetails.EMPTY) {
+                return details;
+            }
+            assert details instanceof SimpleHealthIndicatorDetails : details.getClass().getName();
+            if (primaries.indicesWithUnavailableShards.isEmpty() && replicas.indicesWithUnavailableShards.isEmpty()) {
+                return details;
+            }
+
+            final Map<String, Object> map = new HashMap<>(((SimpleHealthIndicatorDetails) details).details());
+            if (primaries.indicesWithUnavailableShards.isEmpty() == false) {
+                map.put("indices_with_unavailable_primaries", getTruncatedIndices(primaries.indicesWithUnavailableShards, clusterMetadata));
+            }
+            if (replicas.indicesWithUnavailableShards.isEmpty() == false) {
+                map.put("indices_with_unavailable_replicas", getTruncatedIndices(replicas.indicesWithUnavailableShards, clusterMetadata));
+            }
+            return new SimpleHealthIndicatorDetails(Map.copyOf(map));
         }
 
         @Override

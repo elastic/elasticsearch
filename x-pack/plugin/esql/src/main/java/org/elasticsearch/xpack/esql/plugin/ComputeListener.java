@@ -178,11 +178,9 @@ final class ComputeListener implements Releasable {
             TimeValue tookOnDataNode = new TimeValue(tookTimeMillis);
             esqlExecutionInfo.swapCluster(clusterAlias, (k, v) -> {
                 if (v.getTook() == null || v.getTook().millis() < tookOnDataNode.millis()) {
-                    return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
-                        .setTook(tookOnDataNode)
-                        .build();
+                    return new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookOnDataNode).build();
                 } else {
-                    // other data node had higher took time, so keep the current value
+                    // another data node had higher took time, so keep the current value
                     return v;
                 }
             });

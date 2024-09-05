@@ -5,6 +5,8 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -29,7 +31,7 @@ restResources {
   }
 }
 
-tasks.named('yamlRestTest') {
+tasks.withType(StandaloneRestIntegTestTask).configureEach {
   usesDefaultDistribution()
 }
 

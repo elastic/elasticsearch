@@ -54,8 +54,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         def result = gradleRunner("yamlRestCompatTest", '--stacktrace').build()
 
         then:
-        // we set the task to be skipped if there are no matching tests in the compatibility test sourceSet
-        result.task(":yamlRestCompatTest").outcome == TaskOutcome.SKIPPED
+        result.task(":yamlRestCompatTest").outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
         result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
@@ -162,7 +161,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         then:
         result.task(':check').outcome == TaskOutcome.UP_TO_DATE
         result.task(':checkRestCompat').outcome == TaskOutcome.UP_TO_DATE
-        result.task(":yamlRestCompatTest").outcome == TaskOutcome.SKIPPED
+        result.task(":yamlRestCompatTest").outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
         result.task(transformTask).outcome == TaskOutcome.NO_SOURCE

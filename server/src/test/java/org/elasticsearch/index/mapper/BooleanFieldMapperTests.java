@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.BooleanFieldScript;
@@ -25,11 +26,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class BooleanFieldMapperTests extends MapperTestCase {
 
@@ -257,15 +261,27 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testDimensionMultiValuedField() throws IOException {
-        XContentBuilder mapping = fieldMapping(b -> {
+    public void testDimensionMultiValuedFieldTSDB() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true);
-        });
-        DocumentMapper mapper = randomBoolean() ? createDocumentMapper(mapping) : createTimeSeriesModeDocumentMapper(mapping);
+        }), IndexMode.TIME_SERIES);
 
         Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.array("field", true, false))));
         assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+    }
+
+    public void testDimensionMultiValuedFieldNonTSDB() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", true);
+        }), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.array("field", true, false);
+            b.field("@timestamp", Instant.now());
+        }));
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
     public void testDimensionInRoutingPath() throws IOException {

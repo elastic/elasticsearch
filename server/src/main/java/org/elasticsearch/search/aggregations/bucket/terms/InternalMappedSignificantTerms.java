@@ -71,8 +71,9 @@ public abstract class InternalMappedSignificantTerms<
     }
 
     @Override
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public Iterator<SignificantTerms.Bucket> iterator() {
-        return buckets.stream().map(bucket -> (SignificantTerms.Bucket) bucket).toList().iterator();
+        return (Iterator) buckets.iterator();
     }
 
     @Override

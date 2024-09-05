@@ -57,7 +57,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -528,14 +527,9 @@ public class HistogramFieldMapper extends FieldMapper {
         );
     }
 
-    private class HistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.Layer {
+    private class HistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
         private final InternalHistogramValue value = new InternalHistogramValue();
         private BytesRef binaryValue;
-
-        @Override
-        public Stream<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of();
-        }
 
         @Override
         public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf)

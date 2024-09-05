@@ -1,5 +1,12 @@
 pr: 112451
 summary: Update data stream lifecycle telemetry to track global retention
 area: Data streams
-type: enhancement
+type: "breaking, enhancement"
 issues: []
+breaking:
+  title: Update data stream lifecycle telemetry to track global retention
+  area: Data streams
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

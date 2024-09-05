@@ -37,11 +37,9 @@ import org.apache.lucene.search.similarities.NormalizationH1;
 import org.apache.lucene.search.similarities.NormalizationH2;
 import org.apache.lucene.search.similarities.NormalizationH3;
 import org.apache.lucene.search.similarities.NormalizationZ;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 
 import java.util.Arrays;
@@ -101,23 +99,9 @@ final class SimilarityProviders {
         if (model == null) {
             String replacement = LEGACY_BASIC_MODELS.get(basicModel);
             if (replacement != null) {
-                if (indexCreatedVersion.onOrAfter(IndexVersions.V_7_0_0)) {
-                    throw new IllegalArgumentException(
-                        "Basic model [" + basicModel + "] isn't supported anymore, " + "please use another model."
-                    );
-                } else {
-                    deprecationLogger.warn(
-                        DeprecationCategory.INDICES,
-                        basicModel + "_similarity_model_replaced",
-                        "Basic model ["
-                            + basicModel
-                            + "] isn't supported anymore and has arbitrarily been replaced with ["
-                            + replacement
-                            + "]."
-                    );
-                    model = BASIC_MODELS.get(replacement);
-                    assert model != null;
-                }
+                throw new IllegalArgumentException(
+                    "Basic model [" + basicModel + "] isn't supported anymore, " + "please use another model."
+                );
             }
         }
 
@@ -140,23 +124,9 @@ final class SimilarityProviders {
         if (effect == null) {
             String replacement = LEGACY_AFTER_EFFECTS.get(afterEffect);
             if (replacement != null) {
-                if (indexCreatedVersion.onOrAfter(IndexVersions.V_7_0_0)) {
-                    throw new IllegalArgumentException(
-                        "After effect [" + afterEffect + "] isn't supported anymore, please use another effect."
-                    );
-                } else {
-                    deprecationLogger.warn(
-                        DeprecationCategory.INDICES,
-                        afterEffect + "_after_effect_replaced",
-                        "After effect ["
-                            + afterEffect
-                            + "] isn't supported anymore and has arbitrarily been replaced with ["
-                            + replacement
-                            + "]."
-                    );
-                    effect = AFTER_EFFECTS.get(replacement);
-                    assert effect != null;
-                }
+                throw new IllegalArgumentException(
+                    "After effect [" + afterEffect + "] isn't supported anymore, please use another effect."
+                );
             }
         }
 
@@ -240,15 +210,7 @@ final class SimilarityProviders {
         unknownSettings.removeAll(Arrays.asList(supportedSettings));
         unknownSettings.remove("type"); // used to figure out which sim this is
         if (unknownSettings.isEmpty() == false) {
-            if (version.onOrAfter(IndexVersions.V_7_0_0)) {
-                throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
-            } else {
-                deprecationLogger.warn(
-                    DeprecationCategory.INDICES,
-                    "unknown_similarity_setting",
-                    "Unknown settings for similarity of type [" + type + "]: " + unknownSettings
-                );
-            }
+            throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
         }
     }
 

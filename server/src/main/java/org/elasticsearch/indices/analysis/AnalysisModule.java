@@ -137,7 +137,7 @@ public final class AnalysisModule {
         tokenFilters.register("standard", new AnalysisProvider<TokenFilterFactory>() {
             @Override
             public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-                if (indexSettings.getIndexVersionCreated().before(IndexVersions.V_7_0_0)) {
+                if (indexSettings.getIndexVersionCreated().before(IndexVersions.V_8_0_0)) {
                     deprecationLogger.warn(
                         DeprecationCategory.ANALYSIS,
                         "standard_deprecation",

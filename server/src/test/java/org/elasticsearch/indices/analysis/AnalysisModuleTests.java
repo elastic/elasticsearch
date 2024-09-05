@@ -191,28 +191,15 @@ public class AnalysisModuleTests extends ESTestCase {
         // standard tokenfilter should have been removed entirely in the 7x line. However, a
         // cacheing bug meant that it was still possible to create indexes using a standard
         // filter until 7.6
-        {
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_6_0, IndexVersion.current());
-            final Settings settings = Settings.builder()
-                .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
-                .put("index.analysis.analyzer.my_standard.filter", "standard")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-                .build();
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> getIndexAnalyzers(settings));
-            assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
-        }
-        {
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_5_2);
-            final Settings settings = Settings.builder()
-                .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
-                .put("index.analysis.analyzer.my_standard.filter", "standard")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-                .build();
-            getIndexAnalyzers(settings);
-            assertWarnings("The [standard] token filter is deprecated and will be removed in a future version.");
-        }
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current());
+        final Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
+            .put("index.analysis.analyzer.my_standard.filter", "standard")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> getIndexAnalyzers(settings));
+        assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
     }
 
     /**

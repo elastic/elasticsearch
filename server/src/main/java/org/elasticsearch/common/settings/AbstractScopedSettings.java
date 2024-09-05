@@ -17,6 +17,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -436,6 +437,8 @@ public abstract class AbstractScopedSettings {
         addSettingsUpdateConsumer(setting, consumer);
     }
 
+    @UpdateForV9
+    // do we need to rename / rework this method for v9?
     protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {}
 
     /**

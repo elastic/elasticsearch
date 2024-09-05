@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.LegacyFormatNames;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -30,13 +31,15 @@ import java.util.function.Function;
  */
 public class IndexDeprecationChecks {
 
+    @UpdateForV9
     static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata) {
         // TODO: this check needs to be revised. It's trivially true right now.
         IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
-        if (currentCompatibilityVersion.before(IndexVersions.V_7_0_0)) {
+        if (currentCompatibilityVersion.before(IndexVersions.V_8_0_0)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
-                "Old index with a compatibility version < 7.0",
+                "Old index with a compatibility version < 8.0",
+                // we probably have to link this to "breaking-changes-9.0.html",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/" + "breaking-changes-8.0.html",
                 "This index has version: " + currentCompatibilityVersion.toReleaseVersion(),
                 false,

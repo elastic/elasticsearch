@@ -1620,21 +1620,13 @@ public class MetadataCreateIndexService {
      * the less default split operations are supported
      */
     public static int calculateNumRoutingShards(int numShards, IndexVersion indexVersionCreated) {
-        if (indexVersionCreated.onOrAfter(IndexVersions.V_7_0_0)) {
-            // only select this automatically for indices that are created on or after 7.0 this will prevent this new behaviour
-            // until we have a fully upgraded cluster. Additionally it will make integrating testing easier since mixed clusters
-            // will always have the behavior of the min node in the cluster.
-            //
-            // We use as a default number of routing shards the higher number that can be expressed
-            // as {@code numShards * 2^x`} that is less than or equal to the maximum number of shards: 1024.
-            int log2MaxNumShards = 10; // logBase2(1024)
-            int log2NumShards = 32 - Integer.numberOfLeadingZeros(numShards - 1); // ceil(logBase2(numShards))
-            int numSplits = log2MaxNumShards - log2NumShards;
-            numSplits = Math.max(1, numSplits); // Ensure the index can be split at least once
-            return numShards * 1 << numSplits;
-        } else {
-            return numShards;
-        }
+        // We use as a default number of routing shards the higher number that can be expressed
+        // as {@code numShards * 2^x`} that is less than or equal to the maximum number of shards: 1024.
+        int log2MaxNumShards = 10; // logBase2(1024)
+        int log2NumShards = 32 - Integer.numberOfLeadingZeros(numShards - 1); // ceil(logBase2(numShards))
+        int numSplits = log2MaxNumShards - log2NumShards;
+        numSplits = Math.max(1, numSplits); // Ensure the index can be split at least once
+        return numShards * 1 << numSplits;
     }
 
     public static void validateTranslogRetentionSettings(Settings indexSettings) {

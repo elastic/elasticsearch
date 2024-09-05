@@ -47,36 +47,7 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
     }
 
     public void testPreConfiguredTokenizer() throws IOException {
-
-        // Before 7.3 we return ngrams of length 1 only
-        {
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(
-                random(),
-                IndexVersions.V_7_0_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersions.V_7_3_0)
-            );
-            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edge_ngram")) {
-                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
-                assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "test", new String[] { "t" });
-            }
-        }
-
-        // Check deprecated name as well
-        {
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(
-                random(),
-                IndexVersions.V_7_0_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersions.V_7_3_0)
-            );
-            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edgeNGram")) {
-                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
-                assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "test", new String[] { "t" });
-            }
-        }
-
-        // Afterwards, we return ngrams of length 1 and 2, to match the default factory settings
+        // we return ngrams of length 1 and 2, to match the default factory settings
         {
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(IndexVersion.current(), "edge_ngram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");

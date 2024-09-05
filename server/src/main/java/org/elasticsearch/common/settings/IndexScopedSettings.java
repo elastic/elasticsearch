@@ -263,7 +263,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         // error out on those validations, we will check with the creation version present at index
         // creation time, as well as on index update settings.
         if (indexVersion.equals(IndexVersions.ZERO) == false
-            && (indexVersion.before(IndexVersions.V_7_0_0) || indexVersion.onOrAfter(IndexVersions.V_8_0_0))) {
+            // TODO lucene 10 upgrade, check if we need to change anything for pre8 indices
+            // old: && (indexVersion.before(IndexVersions.V_7_0_0) || indexVersion.onOrAfter(IndexVersions.V_8_0_0))) {
+            && indexVersion.onOrAfter(IndexVersions.V_8_0_0)) {
             throw new IllegalArgumentException("unknown setting [" + setting.getKey() + "]");
         }
     }

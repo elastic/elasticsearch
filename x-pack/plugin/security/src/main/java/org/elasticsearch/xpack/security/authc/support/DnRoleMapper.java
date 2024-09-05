@@ -114,9 +114,7 @@ public class DnRoleMapper extends AbstractRoleMapperClearRealmCache {
         }
 
         try {
-            // create this here so it's in an allowed stack frame
-            var file = Files.newInputStream(path);
-            Settings settings = Settings.builder().loadFromStream(path.getFileName().toString(), file, false).build();
+            Settings settings = Settings.builder().loadFromPath(path).build();
 
             Map<DN, Set<String>> dnToRoles = new HashMap<>();
             Set<String> roles = settings.names();

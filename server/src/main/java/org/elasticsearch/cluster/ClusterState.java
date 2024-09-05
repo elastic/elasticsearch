@@ -466,11 +466,19 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 }
             });
         }
-        if (metadata.getProject().indicesLookupInitialized() == false) {
+        var anyProjectRequiresInitialization = metadata.projects()
+            .values()
+            .stream()
+            .allMatch(ProjectMetadata::indicesLookupInitialized) == false;
+        if (anyProjectRequiresInitialization) {
             executor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    metadata.getProject().getIndicesLookup();
+                    for (ProjectMetadata project : metadata.projects().values()) {
+                        if (project.indicesLookupInitialized() == false) {
+                            project.getIndicesLookup();
+                        }
+                    }
                 }
 
                 @Override

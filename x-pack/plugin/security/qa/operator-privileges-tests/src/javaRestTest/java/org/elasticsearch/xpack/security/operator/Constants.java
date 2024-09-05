@@ -364,6 +364,7 @@ public class Constants {
         "cluster:monitor/settings",
         "cluster:monitor/state",
         "cluster:monitor/stats",
+        "cluster:monitor/stats/remote",
         "cluster:monitor/task",
         "cluster:monitor/task/get",
         "cluster:monitor/tasks/lists",

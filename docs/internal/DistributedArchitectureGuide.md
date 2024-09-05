@@ -365,17 +365,96 @@ There are several more Decider Services, implementing the `AutoscalingDeciderSer
 
 # Task Management / Tracking
 
-(How we identify operations/tasks in the system and report upon them. How we group operations via parent task ID.)
+[TransportRequest]:https://github.com/elastic/elasticsearch/blob/6d161e3d63bedc28088246cff58ce8ffe269e112/server/src/main/java/org/elasticsearch/transport/TransportRequest.java
+[TaskManager]:https://github.com/elastic/elasticsearch/blob/6d161e3d63bedc28088246cff58ce8ffe269e112/server/src/main/java/org/elasticsearch/tasks/TaskManager.java
+[TaskManager#register]:https://github.com/elastic/elasticsearch/blob/6d161e3d63bedc28088246cff58ce8ffe269e112/server/src/main/java/org/elasticsearch/tasks/TaskManager.java#L125
+[TaskId]:https://github.com/elastic/elasticsearch/blob/6d161e3d63bedc28088246cff58ce8ffe269e112/server/src/main/java/org/elasticsearch/tasks/TaskId.java
+[Task]:https://github.com/elastic/elasticsearch/blob/6d161e3d63bedc28088246cff58ce8ffe269e112/server/src/main/java/org/elasticsearch/tasks/Task.java
+[TaskAwareRequest]:https://github.com/elastic/elasticsearch/blob/6d161e3d63bedc28088246cff58ce8ffe269e112/server/src/main/java/org/elasticsearch/tasks/TaskAwareRequest.java
+[CancellableTask]:https://github.com/elastic/elasticsearch/blob/d59df8af3e591a248a25b849612e448972068f10/server/src/main/java/org/elasticsearch/tasks/CancellableTask.java#L20
+[TransportService]:https://github.com/elastic/elasticsearch/blob/d59df8af3e591a248a25b849612e448972068f10/server/src/main/java/org/elasticsearch/transport/TransportService.java
+
+The Tasks infrastructure is used to track currently executing operations in the Elasticsearch cluster. The [Task management API](https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html) provides an interface for querying, cancelling, and monitoring the status of tasks.
+
+Each individual Task is local to a node, but can be related to other tasks via parent-child relationship(s).
+
+### Task tracking and registration
+
+Tasks are tracked in-memory on each node in the node's [TaskManager], new tasks are registered via one of the [TaskManager#register] methods. These methods allocate the task a numeric ID unique to the node on which the task is located, create and store a [Task] instance to track the task and populate it with some metadata.
+
+Tasks are uniquely addressable in a cluster via the string `{node-ID}:{local-task-ID}`, e.g. `oTUltX4IQMOUUVeiohTt8A:124`. The [TaskId] class is a DTO used to represent the globally unique ID.
+
+The `register` methods will return the registered [Task] instance, which can be used to interact with the task. The `Task` class is often sub-classed to carry operation-specific data and operations. The means of providing the specific type when registering is via the `createTask` method implemented on the [TaskAwareRequest] passed to the `register` methods.
+
+When a task is completed, it must be unregistered via [TaskManager#unregister](https://github.com/elastic/elasticsearch/blob/d59df8af3e591a248a25b849612e448972068f10/server/src/main/java/org/elasticsearch/tasks/TaskManager.java#L317).
 
 ### What Tasks Are Tracked
 
-### Tracking A Task Across Threads
+Ideally every operation in the ES cluster has a corresponding task.
 
-### Tracking A Task Across Nodes
+Some (non-exhaustive) examples of operations that are tracked using tasks include:
+- Execution of [TransportAction]s
+  - `NodeClient#executeLocally` invokes `TaskManager#registerAndExecute`
+  - `RequestHandlerRegistry` registers tasks for actions that are started to handle [TransportRequest]s (see `#processMessageReceived`)
+- Publication of `ClusterState` updates
+
+### Tracking a Task Across Threads and Nodes
+
+#### ThreadContext
+[ThreadContext]:https://github.com/elastic/elasticsearch/blob/6d161e3d63bedc28088246cff58ce8ffe269e112/server/src/main/java/org/elasticsearch/common/util/concurrent/ThreadContext.java#L47
+
+All `ThreadPool` threads have an associated [ThreadContext]. The [ThreadContext] contains a map of headers which carry information relevant to the operation being executed. For example a thread spawned to handle a REST request will include the HTTP headers received in that request.
+
+When threads submit work to an `ExecutorService` from the `ThreadPool`, those spawned threads will inherit the [ThreadContext] of the thread that submitted them. In this way `ThreadContext` is preserved across threads involved in an operation.
+
+When [TransportRequest]s are dispatched, the headers from the sending [ThreadContext] included and then loaded into the [ThreadContext] of the thread handling the request.
+
+#### Headers
+When a task is registered by a thread, a subset (defined by `Task#HEADERS_TO_COPY` and any `ActionPlugin`s loaded on the node) of the headers from the [ThreadContext] are copied into the [Task]'s set of headers.
+
+One such header is the `X-Opaque-Id`. This is a string that [can be submitted on REST requests](https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html#_identifying_running_tasks), and it will be associated with all tasks created on all nodes in the course of handling that request.
+
+#### Parent/child relationships
+Another way to track the operations of a task is by following the parent/child relationships. When registering a task it can be optionally associated with a parent task. Generally if an executing task initiates sub-tasks, the ID of the executing task will be set as the parent of any spawned tasks (see `ParentTaskAssigningClient` and `TaskAwareRequest#setParentTask` for how this is implemented for `TransportActions`).
 
 ### Kill / Cancel A Task
 
+Some long-running tasks are implemented to be cancel-able. Cancellation can be done via the [REST API](https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html#task-cancellation) or programmatically using `TaskManager#cancelTaskAndDescendants`.
+
+When a task is cancelled, that task and all of its descendant tasks will be cancelled. In order to support cancellation, the [Task] instance associated with the task must extend [CancellableTask].
+
+When a [Task] extends [CancellableTask] the [TaskManager] keeps track of it and any child tasks that it spawns. When the task is cancelled, requests are sent to any nodes that have had child tasks submitted to them to ban the starting of any further children of that task, and any cancellable child tasks already running are themselves cancelled (see `BanParentRequestHandler`).
+
+When a cancellable task dispatches child requests through the [TransportService], it registers a proxy so that if one of those child requests completes exceptionally, all other outstanding child requests descended from the same parent are cancelled (see `UnregisterChildTransportResponseHandler`).
+
+It is the job of any long-running workload tracked by a [CancellableTask] to periodically check whether it has been cancelled and if so, halt.
+
+### Publishing Task Results
+
+// I think this should cover the TaskResultsService et. al.
+
 ### Persistent Tasks
+
+[PersistentTasksExecutor]:https://github.com/elastic/elasticsearch/blob/6d161e3d63bedc28088246cff58ce8ffe269e112/server/src/main/java/org/elasticsearch/persistent/PersistentTasksExecutor.java
+[PersistentTasksExecutorRegistry]:https://github.com/elastic/elasticsearch/blob/d59df8af3e591a248a25b849612e448972068f10/server/src/main/java/org/elasticsearch/persistent/PersistentTasksExecutorRegistry.java
+[PersistentTasksNodeService]:https://github.com/elastic/elasticsearch/blob/d59df8af3e591a248a25b849612e448972068f10/server/src/main/java/org/elasticsearch/persistent/PersistentTasksNodeService.java
+[AllocatedPersistentTask]:https://github.com/elastic/elasticsearch/blob/d59df8af3e591a248a25b849612e448972068f10/server/src/main/java/org/elasticsearch/persistent/AllocatedPersistentTask.java
+
+Up until now we have discussed only ephemeral tasks. If we want a task to survive node failures, it needs to be registered as a persistent task at the cluster level.
+
+Plugins can register persistent tasks by returning a [PersistentTasksExecutor] instance. These are collated into a [PersistentTasksExecutorRegistry] which is provided to [PersistentTasksNodeService] running on each node in the cluster.
+
+The [PersistentTasksNodeService] monitors the [ClusterState] to
+ - Start any tasks allocated to it (tracked in the local [TaskManager] by an [AllocatedPersistentTask])
+ - Cancel any running tasks that have been removed ([AllocatedPersistentTask] extends [CancellableTask])
+
+The [PersistentTasksClusterService] runs on the master to manage the set of running persistent tasks. It periodically checks that all started tasks are allocated and handles the starting/completion/cancellation and removal of persistent task instances.
+
+// WIP
+
+### Integration with telemetry
+
+// TODO (perhaps this should be under the "Tracking" header, although it seems different enough)
 
 # Cross Cluster Replication (CCR)
 

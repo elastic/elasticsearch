@@ -38,9 +38,12 @@ public class Categorize extends AggregateFunction implements ToAggregator {
         preview = true,
         description = "The categorization of a text field.",
         isAggregation = true,
-        examples = @Example(file = "string", tag = "categorize"))
-    public Categorize(Source source, @Param(name = "field", type = { "keyword", "text" }, description = "Name of the column to categorize."
-    ) Expression v) {
+        examples = @Example(file = "string", tag = "categorize")
+    )
+    public Categorize(
+        Source source,
+        @Param(name = "field", type = { "keyword", "text" }, description = "Name of the column to categorize.") Expression v
+    ) {
         super(source, v);
     }
 

@@ -86,7 +86,7 @@ public abstract class FieldMapper extends Mapper {
     protected record BuilderParams(
         MultiFields multiFields,
         CopyTo copyTo,
-        Optional<StoreSourceMode> storeSourceMode,
+        Optional<SourceKeepMode> storeSourceMode,
         boolean hasScript,
         OnScriptError onScriptError
     ) {
@@ -139,7 +139,7 @@ public abstract class FieldMapper extends Mapper {
         return builderParams.multiFields;
     }
 
-    public Optional<StoreSourceMode> storeSourceMode() {
+    public Optional<SourceKeepMode> storeSourceMode() {
         return builderParams.storeSourceMode;
     }
 
@@ -1293,7 +1293,7 @@ public abstract class FieldMapper extends Mapper {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
         protected CopyTo copyTo = CopyTo.EMPTY;
-        protected Optional<StoreSourceMode> storeSourceMode = Optional.empty();
+        protected Optional<SourceKeepMode> storeSourceMode = Optional.empty();
         protected boolean hasScript = false;
         protected OnScriptError onScriptError = null;
 
@@ -1431,8 +1431,8 @@ public abstract class FieldMapper extends Mapper {
                         iterator.remove();
                         continue;
                     }
-                    case STORE_SOURCE_PARAM -> {
-                        storeSourceMode = Optional.of(StoreSourceMode.from(XContentMapValues.nodeStringValue(propNode)));
+                    case SYNTHETIC_SOURCE_KEEP_PARAM -> {
+                        storeSourceMode = Optional.of(SourceKeepMode.from(XContentMapValues.nodeStringValue(propNode)));
                         iterator.remove();
                         continue;
                     }

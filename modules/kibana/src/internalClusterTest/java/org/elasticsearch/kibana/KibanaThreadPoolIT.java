@@ -128,10 +128,10 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
         var e3 = expectThrows(
             SearchPhaseExecutionException.class,
             () -> client().prepareSearch(USER_INDEX)
-        .setQuery(QueryBuilders.matchAllQuery())
-        // Request times out if max concurrent shard requests is set to 1
-        .setMaxConcurrentShardRequests(usually() ? SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS : randomIntBetween(2, 10))
-        .get()
+                .setQuery(QueryBuilders.matchAllQuery())
+                // Request times out if max concurrent shard requests is set to 1
+                .setMaxConcurrentShardRequests(usually() ? SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS : randomIntBetween(2, 10))
+                .get()
         );
         assertThat(e3.getMessage(), containsString("all shards failed"));
     }

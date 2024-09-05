@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPattern;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionRule<RegexMatch<?>> {
 
@@ -25,7 +26,18 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
     public Expression rule(RegexMatch<?> regexMatch) {
         Expression e = regexMatch;
         StringPattern pattern = regexMatch.pattern();
-        if (pattern.matchesAll()) {
+        boolean matchesAll;
+        try {
+            matchesAll = pattern.matchesAll();
+        } catch (IllegalArgumentException ex) {
+            throw new ParsingException(
+                regexMatch.source(),
+                "Invalid regex pattern for RLIKE [{}]: [{}]",
+                regexMatch.pattern().pattern(),
+                ex.getMessage()
+            );
+        }
+        if (matchesAll) {
             e = new IsNotNull(e.source(), regexMatch.field());
         } else {
             String match = pattern.exactMatch();

@@ -23,7 +23,3 @@ restResources {
     include '_common', 'get', 'indices', 'index', 'search', 'msearch'
   }
 }
-
-tasks.named("yamlRestCompatTestTransform").configure{ task ->
-  task.addAllowedWarningRegex("\\[types removal\\].*")
-}

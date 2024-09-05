@@ -1,14 +1,18 @@
 pr: 112451
 summary: Update data stream lifecycle telemetry to track global retention
 area: Data streams
-type: "breaking, enhancement"
+type: breaking
 issues: []
 breaking:
   title: Update data stream lifecycle telemetry to track global retention
-  area: Data streams
+  area: "REST API"
   details: |-
-    In this release we introduced global retention settings that apply on every non-internal data stream managed
-    by the data stream lifecycle. As a result, we defined different types of retention:
+    In this release we introduced global retention settings that fulfil the following criteria:
+
+    - a data stream managed by the data stream lifecycle,
+    - a data stream that is not an internal data stream.
+
+    As a result, we defined different types of retention:
 
     - **data retention**: the retention configured on data stream level by the data stream user or owner
     - **default global retention:** the retention configured by an admin on a cluster level and applied to any

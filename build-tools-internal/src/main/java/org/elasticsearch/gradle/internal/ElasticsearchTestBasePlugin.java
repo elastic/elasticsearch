@@ -87,7 +87,11 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     if (BuildParams.getRuntimeJavaVersion() == JavaVersion.VERSION_1_8) {
                         test.systemProperty("java.locale.providers", "SPI,JRE");
                     } else {
-                        test.systemProperty("java.locale.providers", "SPI,COMPAT");
+                        if (BuildParams.getRuntimeJavaVersion().compareTo(JavaVersion.VERSION_22) <= 0) {
+                            test.systemProperty("java.locale.providers", "SPI,COMPAT");
+                        } else {
+                            test.systemProperty("java.locale.providers", "SPI,CLDR");
+                        }
                         test.jvmArgs(
                             "--illegal-access=deny",
                             // TODO: only open these for mockito when it is modularized

@@ -14,8 +14,6 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.util.Map;
 
-import static java.util.Map.entry;
-
 public class ExampleProcessorPlugin extends Plugin implements IngestPlugin {
 
     @Override

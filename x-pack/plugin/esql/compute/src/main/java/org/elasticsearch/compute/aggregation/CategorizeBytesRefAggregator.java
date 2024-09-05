@@ -66,6 +66,9 @@ class CategorizeBytesRefAggregator {
         ByteArrayStreamInput in = new ByteArrayStreamInput();
         for (int i = start; i < end; i++) {
             values.getBytesRef(i, scratch);
+            if (scratch.length == 0) {
+                continue;
+            }
             in.reset(scratch.bytes, scratch.offset, scratch.length);
             try {
                 state.categorizer.mergeWireCategory(new SerializableTokenListCategory(in));

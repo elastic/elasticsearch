@@ -197,8 +197,9 @@ text with copy_to:
               mode: synthetic
             properties:
               kubernetes_event_message:
-                type: match_only_text
                 copy_to: message
+                type: text
+                store: true
               message:
                 type: text
                 store: true

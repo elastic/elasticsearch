@@ -45,6 +45,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     // Number of references held against each commit point acquired externally.
     private final Map<IndexCommit, Integer> externallyAcquiredIndexCommits;
     // Number of references held against each commit point acquired by the commits listener.
+    // We want to track them separately to be able to disregard them when checking for externally acquired index commits
+    // that haven't been released.
     private final Map<IndexCommit, Integer> internallyAcquiredIndexCommits;
 
     interface CommitsListener {

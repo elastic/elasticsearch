@@ -468,7 +468,7 @@ client_ip:ip | count_env:i | max_env:keyword
 ;
 
 
-enrichCidr2#[skip:-8.99.99, reason:ip_range support not added yet]
+enrichCidr2#[skip:-9.99.99, reason:ip_range support not added yet]
 required_capability: enrich_load
 
 FROM sample_data

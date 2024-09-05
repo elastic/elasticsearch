@@ -95,6 +95,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -6615,6 +6616,9 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    @UpdateForV9
+    // below we were looking for an index version between minimum compatible and 8.0.0 and this has been updated but might need to be
+    // verified if that is the correct behavior
     public void testRecoverFromHardDeletesIndex() throws Exception {
         IndexWriterFactory hardDeletesWriter = (directory, iwc) -> new IndexWriter(directory, iwc) {
             boolean isTombstone(Iterable<? extends IndexableField> doc) {
@@ -6665,7 +6669,8 @@ public class InternalEngineTests extends EngineTestCase {
                     .put(defaultSettings.getSettings())
                     .put(
                         IndexMetadata.SETTING_VERSION_CREATED,
-                        IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0)
+                        // This might need to be updated for the version 9.0 bump
+                        IndexVersionUtils.randomCompatibleVersion(random())
                     )
                     .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
             )
@@ -7499,14 +7504,14 @@ public class InternalEngineTests extends EngineTestCase {
                 .setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
             try (IndexWriter indexWriter = new IndexWriter(store.directory(), indexWriterConfig)) {
                 Map<String, String> commitUserDataWithOlderVersion = new HashMap<>(committedSegmentsInfo.userData);
-                commitUserDataWithOlderVersion.put(ES_VERSION, IndexVersions.V_7_0_0.toString());
+                commitUserDataWithOlderVersion.put(ES_VERSION, IndexVersions.MINIMUM_COMPATIBLE.toString());
                 indexWriter.setLiveCommitData(commitUserDataWithOlderVersion.entrySet());
                 indexWriter.commit();
             }
 
             Map<String, String> userDataBeforeTrimUnsafeCommits = store.readLastCommittedSegmentsInfo().getUserData();
             assertThat(userDataBeforeTrimUnsafeCommits, hasKey(ES_VERSION));
-            assertThat(userDataBeforeTrimUnsafeCommits.get(ES_VERSION), is(equalTo(IndexVersions.V_7_0_0.toString())));
+            assertThat(userDataBeforeTrimUnsafeCommits.get(ES_VERSION), is(equalTo(IndexVersions.MINIMUM_COMPATIBLE.toString())));
 
             store.trimUnsafeCommits(config.getTranslogConfig().getTranslogPath());
 

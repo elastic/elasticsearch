@@ -18,8 +18,13 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
-public class DependencyConsistency<P extends QueryPlan<P>> {
+public class PlanConsistencyChecker<P extends QueryPlan<P>> {
 
+    /**
+     * Check whether a single {@link QueryPlan} produces no duplicate attributes and its children provide all of its required
+     * {@link QueryPlan#references() references}. Otherwise, add
+     * {@link org.elasticsearch.xpack.esql.common.Failure Failure}s to the {@link Failures} object.
+     */
     public void checkPlan(P p, Failures failures) {
         AttributeSet refs = p.references();
         AttributeSet input = p.inputSet();

@@ -142,6 +142,6 @@ public final class ReplaceStatsAggExpressionWithEval extends OptimizerRules.Opti
     }
 
     static String syntheticName(Expression expression, Expression af, int counter) {
-        return TempNameUtils.temporaryName(expression, af, counter);
+        return TemporaryNameUtils.temporaryName(expression, af, counter);
     }
 }

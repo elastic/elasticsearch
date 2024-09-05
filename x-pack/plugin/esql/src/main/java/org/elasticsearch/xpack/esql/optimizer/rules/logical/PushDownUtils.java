@@ -156,7 +156,7 @@ class PushDownUtils {
             rewrittenExpressions.add(expr.transformUp(Attribute.class, attr -> {
                 if (attributeNamesToRename.contains(attr.name())) {
                     Alias renamedAttribute = aliasesForReplacedAttributes.computeIfAbsent(attr, a -> {
-                        String tempName = TempNameUtils.locallyUniqueTemporaryName(a.name(), "temp_name");
+                        String tempName = TemporaryNameUtils.locallyUniqueTemporaryName(a.name(), "temp_name");
                         return new Alias(a.source(), tempName, a, null, true);
                     });
                     return renamedAttribute.toAttribute();
@@ -181,7 +181,7 @@ class PushDownUtils {
         for (Attribute attr : potentiallyConflictingAttributes) {
             String name = attr.name();
             if (reservedNames.contains(name)) {
-                renameAttributeTo.putIfAbsent(name, TempNameUtils.locallyUniqueTemporaryName(name, "temp_name"));
+                renameAttributeTo.putIfAbsent(name, TemporaryNameUtils.locallyUniqueTemporaryName(name, "temp_name"));
             }
         }
 

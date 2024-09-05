@@ -151,6 +151,6 @@ public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.O
     }
 
     static String syntheticName(Expression expression, AggregateFunction af, int counter) {
-        return TempNameUtils.temporaryName(expression, af, counter);
+        return TemporaryNameUtils.temporaryName(expression, af, counter);
     }
 }

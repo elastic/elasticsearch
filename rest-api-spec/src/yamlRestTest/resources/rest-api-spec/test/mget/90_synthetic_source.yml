@@ -197,9 +197,8 @@ text with copy_to:
               mode: synthetic
             properties:
               text:
-                type: text
+                type: match_only_text
                 copy_to: text_copy
-                store: true
               text_copy:
                 type: text
                 store: true

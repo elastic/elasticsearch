@@ -1453,6 +1453,11 @@ public final class TextFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (store == false && copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
         if (store) {
             return new StringStoredFieldFieldLoader(fullPath(), leafName()) {
                 @Override

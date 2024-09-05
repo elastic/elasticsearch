@@ -27,7 +27,6 @@ import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.stream.Collectors;
 
-import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.VOCABULARY;

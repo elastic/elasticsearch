@@ -2,20 +2,16 @@
 == {es} basics
 
 This guide covers the essential basics for getting started with {es}.
-
-You can use it in two ways:
-
-* As a concrete guide for getting hands-on with {es} quickly.
-* As a map of the most important {es} information for your use case across the Elastic documentation, Github repos, and blog pages.
+If you'd prefer to get started with code examples, jump to our <<quickstart,quickstarts>>.
 
 This guide covers:
 
-* <<elasticsearch-intro-what-is-es>> Learn about {es} and some of its main use cases.
-* <<elasticsearch-intro-deploy>>. Understand your options for deploying {es} in different environments, including a fast local dev setup.
-* <<documents-indices>>. Understand {es}'s most important primitives and how it stores data.
-* <<es-ingestion-overview>>. Understand your options for ingesting data into {es}.
-* <<search-analyze>>. Understand your options for searching and analyzing data in {es}.
-* <<scalability>>. Learn the essentials about moving your {es} deployment to production.
+* <<elasticsearch-intro-what-is-es>>: Learn about {es} and some of its main use cases.
+* <<elasticsearch-intro-deploy>>: Understand your options for deploying {es} in different environments, including a fast local dev setup.
+* <<documents-indices>>: Understand {es}'s most important primitives and how it stores data.
+* <<es-ingestion-overview>>: Understand your options for ingesting data into {es}.
+* <<search-analyze>>: Understand your options for searching and analyzing data in {es}.
+* <<scalability>>: Learn the essentials about moving your {es} deployment to production.
 
 [[elasticsearch-intro-what-is-es]]
 === What is {es}?
@@ -24,22 +20,47 @@ This guide covers:
 It's optimized for speed and relevance on production-scale workloads.
 Use {es} to search, index, store, and analyze data of all shapes and sizes in near real time.
 
+{es} is the heart of the {estc-welcome-current}/stack-components.html[Elastic Stack]. 
+Combined with https://www.elastic.co/kibana[{kib}] it powers the following Elastic solutions:
+
+* https://www.elastic.co/enterprise-search[Search]
+* https://www.elastic.co/observability[Observability]
+* https://www.elastic.co/security[Security]
+
 [TIP]
 ====
 {es} has a lot of features. Explore the full list on the https://www.elastic.co/elasticsearch/features[product webpage^].
 ====
 
-{es} is the heart of the {estc-welcome-current}/stack-components.html[Elastic Stack] and powers the Elastic https://www.elastic.co/enterprise-search[Search], https://www.elastic.co/observability[Observability] and https://www.elastic.co/security[Security] solutions.
+[discrete]
+[[elasticsearch-intro-use-cases]]
+==== Use cases
 
 {es} is used for a wide and growing range of use cases. Here are a few examples:
 
-* *Monitor log and event data*. Store logs, metrics, and event data for observability and security information and event management (SIEM).
-* *Build search applications*. Add search capabilities to apps or websites, or build enterprise search engines over your organization's internal data sources.
-* *Vector database*. Store and search vectorized data, and create vector embeddings with built-in and third-party natural language processing (NLP) models.
-* *Retrieval augmented generation (RAG)*. Use {es} as a retrieval engine to augment Generative AI models.
-* *Application and security monitoring*. Monitor and analyze application performance and security data effectively.
+**Observability**
 
-This is just a sample of search, observability, and security use cases enabled by {es}. 
+* *Logs, metrics, and traces*: Collect, store, and analyze logs, metrics, and traces from applications, systems, and services.
+* *Application performance monitoring (APM)*: Monitor and analyze application performance data.
+* *Real user monitoring (RUM)*: Monitor, quantify, and analyze user interactions with web applications.
+* *OpenTelemetry*: Elastic has full native support for OpenTelemetry data.
+
+**Search**
+
+* *Full-text search*: Fast, relevant full-text search using inverted indexes, tokenization, and text analysis.
+* *Vector database*: Store and search vectorized data, and create vector embeddings with built-in and third-party natural language processing (NLP) models.
+* *Hybrid search*: Combine full-text search with vector search using state-of-the-art ranking algorithms.
+* *Search applications*: Add hybrid search capabilities to apps or websites, or build enterprise search engines over your organization's internal data sources.
+* *Retrieval augmented generation (RAG)*: Use {es} as a retrieval engine to update and augment Generative AI models.
+* *Geospatial search*: {es} is the leading search and analytics engine for geospatial data.
+
+**Security**
+
+* *Security information and event management (SIEM)*: Collect, store, and analyze security data from applications, systems, and services.
+* *Endpoint security*: Monitor and analyze endpoint security data.
+* *Threat hunting*: Search and analyze data to detect and respond to security threats.
+
+This is just a sample of search, observability, and security use cases enabled by {es}.
 Refer to our https://www.elastic.co/customers/success-stories[customer success stories] for concrete examples across a range of industries.
 
 [discrete]
@@ -56,46 +77,20 @@ https://www.elastic.co/guide/en/starting-with-the-elasticsearch-platform-and-its
 To use {es}, you need a running instance of the {es} service.
 You can deploy {es} in various ways.
 
-**Quick start options**
+**Quick start option**
 
-* <<run-elasticsearch-locally,*Local dev*>>. Get started quickly with a minimal local Docker setup. Recommended if you like getting started in a local environment.
-* {cloud}/ec-getting-started-trial.html[*Elastic Cloud*]. {es} is available as part of our hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14 day free trial].
-* {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless* (technical preview)]. Create serverless projects for autoscaled and fully managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14 day free trial].
+* <<run-elasticsearch-locally,*Local dev*>>: Get started quickly with a minimal local Docker setup. Recommended if you like getting started in a local environment.
 
-**Advanced deployment options**
+**Hosted options**
 
-* <<elasticsearch-deployment-options,*Self-managed*>>. Install, configure, and run {es} on your own premises.
-* {ece-ref}/Elastic-Cloud-Enterprise-overview.html[*Elastic Cloud Enterprise*]. Deploy Elastic Cloud on public or private clouds, virtual machines, or your own premises.
-* {eck-ref}/k8s-overview.html[*Elastic Cloud on Kubernetes*]. Deploy Elastic Cloud on Kubernetes.
+* {cloud}/ec-getting-started-trial.html[*Elastic Cloud*]: {es} is available as part of our hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14 day free trial].
+* {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless* (technical preview)]: Create serverless projects for fully autoscaled and managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14 day free trial].
 
-[discrete]
-[[elasticsearch-intro-cluster-nodes-shards]]
-=== Clusters, nodes, and shards
+**Advanced options**
 
-A single instance of Elasticsearch is a node.
-A collection of connected nodes is called a cluster.
-In production environments, nodes typically run on individual servers or virtual machines.
-Adding nodes to a cluster increases capacity and redundancy.
-
-{es} automatically distributes data and query load across all available nodes using shards and replicas.
-Shards are the internal building blocks of an index, and each shard is a single Lucene index.
-
-.What you need to know
-*******************************
-Nodes, clusters and shards are what make Elasticsearch distributed and scalable.
-Learn more in <<scalability,Plan for production>>.
-
-These concepts aren't essential if you're just getting started.
-How you <<elasticsearch-intro-deploy,deploy Elasticsearch>> in production determines what you need to know:
-
-* *Self-managed Elasticsearch*. You are responsible for setting up and managing nodes, clusters, shards, and replicas.
-This includes managing the underlying infrastructure, scaling, and ensuring high availability through failover and backup strategies.
-* *Elastic Cloud*. Elastic can autoscale resources in response to workload changes.
-Choose from different deployment types to apply sensible defaults for your use case.
-A basic understanding of nodes, shards, and replicas is still important.
-* *Elastic Cloud Serverless*. You don't need to know about nodes, shards, replicas.
-These resources are 100% automated on the serverless platform, which is designed to scale with your workload.
-*******************************
+* <<elasticsearch-deployment-options,*Self-managed*>>: Install, configure, and run {es} on your own premises.
+* {ece-ref}/Elastic-Cloud-Enterprise-overview.html[*Elastic Cloud Enterprise*]: Deploy Elastic Cloud on public or private clouds, virtual machines, or your own premises.
+* {eck-ref}/k8s-overview.html[*Elastic Cloud on Kubernetes*]: Deploy Elastic Cloud on Kubernetes.
 
 // new html page 
 [[documents-indices]]
@@ -193,20 +188,36 @@ This is useful when you have a mix of known and unknown fields in your data.
 [[es-ingestion-overview]]
 === Add data to {es}
 
-There are multiple ways to ingest data into {es}.
+There are multiple ways to ingest data into {es}, but it depends on whether you're working with time-series data or general content that doesn't have a timestamp.
 
-Here are a few options for getting started:
+[discrete]
+[[es-ingestion-overview-time-series]]
+==== Time-series data
 
-* <<docs,*API*>>. Use the {es} Document APIs to index documents directly, using the Dev Tools Console in {kib} or a programming language client. Once you get past the very basics, you'll want to use the <<docs-bulk,Bulk API>> for efficiency.
-* {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[*File upload*]. Use the {kib} File Uploader to upload and index CSV, JSON, and log files.
-* {kibana-ref}/connect-to-elasticsearch.html#_add_sample_data[*Sample data*]. Load sample data sets into your {es} cluster using {kib}.
-* {enterprise-search-ref}/crawler.html[*Web Crawler*]. Extract and index web page content into {es} documents.
-* {enterprise-search-ref}/connectors.html[*Connectors*]. Sync data from various third-party data sources to create searchable, read-only replicas in {es}.
+For time-series data, we you have the following options for adding data to {es} data streams:
+
+* https://www.elastic.co/guide/en/fleet/8.15/fleet-overview.html[Elastic Agent and Fleet]: The preferred way to index timestamped data. Each Elastic Agent based integration includes default ingestion rules, dashboards, and visualizations to start analyzing your data right away.
+You can use the Fleet UI in {kib} to centrally manage Elastic Agents and their policies.
+* https://www.elastic.co/guide/en/beats/libbeat/8.15/beats-reference.html[Beats]: If your data source isn't supported by Elastic Agent, use Beats to collect and ship data. You install a separate Beat for each type of data to collect.
+* https://www.elastic.co/guide/en/logstash/8.15/introduction.html[Logstash]: Logstash is an open source data collection engine with real-time pipelining capabilities that supports a wide variety of data sources. You might use this option because neither Elastic Agent nor Beats supports your data source. You can also use Logstash to persist incoming data, or if you need to send the data to multiple destinations. 
+* https://www.elastic.co/guide/en/cloud/current/ec-ingest-guides.html[Language clients]: The linked tutorials demonstrate how to use {es} programming language clients to ingest data from an application. (In these examples, {es} is running on Elastic Cloud, but the same principles apply to any {es} deployment.)
 
 [TIP]
 ====
 If you're interested in data ingestion pipelines for time-series data, use the decision tree in the {cloud}/ec-cloud-ingest-data.html#ec-data-ingest-pipeline[Elastic Cloud docs] to understand your options.
 ====
+
+[discrete]
+[[es-ingestion-overview-general-content]]
+==== General content
+
+For general content, you have the following options for adding data to {es} indices:
+
+* <<docs,API>>: Use the {es} Document APIs to index documents directly, using the Dev Tools Console in {kib} or a programming language client. Once you get past the very basics, you'll want to use the <<docs-bulk,Bulk API>> for efficiency.
+* {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[File upload]: Use the {kib} File Uploader to upload and index CSV, JSON, and log files.
+* {kibana-ref}/connect-to-elasticsearch.html#_add_sample_data[Sample data]: Load sample data sets into your {es} cluster using {kib}.
+* {enterprise-search-ref}/crawler.html[Web Crawler]: Extract and index web page content into {es} documents.
+* {enterprise-search-ref}/connectors.html[Connectors]: Sync data from various third-party data sources to create searchable, read-only replicas in {es}.
 
 // New html page
 [[search-analyze]]
@@ -216,12 +227,23 @@ You can use {es} as a basic document store to simply retrieve documents and thei
 metadata.
 However, the real power of {es} comes from its advanced search and analytics capabilities.
 
-The primary tool for interacting with {es} today is the <<query-dsl, Query DSL>>.
+{es} provides a simple, coherent REST API for managing your cluster and indexing
+and searching your data.
+For testing purposes, you can easily submit requests
+directly from the command line or through the Dev Tools {kibana-ref}/console-kibana.html[Console] in {kib}.
+From your applications, you can use the
+https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} clients]
+in your programming language of choice.
+
+<<query-dsl, Query DSL>> is the primary query language for {es} today.
+It's a full-featured JSON-style query language that allows you to perform complex searches and aggregations.
 We'll be using the Query DSL for most of our examples.
+
+// TODO: link to query languages table overview when we find a good place for it
 
 [TIP]
 ====
-<<esql,{esql}>> is our new piped query language (and compute engine) that is initally mainly focused on time-series data like logs and metrics.
+<<esql,{esql}>> is our new piped query language (and compute engine) that is initially mainly focused on time-series data like logs and metrics.
 ====
 
 [discrete]
@@ -245,53 +267,33 @@ A query that uses the `filter` parameter indicates <<filter-context,filter conte
 {esql} also has powerful filtering capabilities.
 
 [discrete]
-[[intro-search-query-languages]]
-==== Query languages
-
-The following languages can be used to query {es}:
-
-[cols="1,2,2,1", options="header"]
-|===
-| Name | Description | Use cases | API endpoint
-
-| <<query-dsl,Query DSL>>
-| Primary query language for {es}. Powerful and flexible JSON-style language that enables complex queries.
-| Supports full-text search, semantic search, keyword search, filtering, aggregations, and more.
-| <<search-search,`_search`>>
-
-
-| <<esql,{esql}>>
-| Introduced in *8.11*, the Elasticsearch Query Language ({esql}) is a piped query language language for filtering, transforming, and analyzing data.
-| Initially tailored towards working with time series data like logs and metrics. 
-Robust integration with {kib} for querying, visualizing, and analyzing data.
-Does not yet support full-text search.
-| <<esql-rest,`_query`>>
-
-
-| <<eql,EQL>>
-| Event Query Language (EQL) is a query language for event-based time series data. Data must contain an `@timestamp` field to use EQL.
-| Designed for the threat hunting security use case.
-| <<eql-apis,`_eql`>>
-
-| <<xpack-sql,Elasticsearch SQL>>
-| Allows native, real-time SQL-like querying against {es} data. JDBC and ODBC drivers are available for integration with business intelligence (BI) tools.
-| Enables users familiar with SQL to query {es} data using familiar syntax for BI and reporting.
-| <<sql-apis,`_sql`>>
-
-|===
-
-[discrete]
 [[analyze-data]]
 ==== Analyzing your data
 
 {es} enables a host of use cases based on aggregations and analytics.
+These include real-world applications like:
+
+* *Log analysis*: Monitoring system performance and detecting anomalies in IT infrastructure.
+* *E-commerce analytics*: Analyzing sales trends, customer behavior, and product performance.
+* *Search analytics*: Tracking user search patterns and improving relevance of search results.
+* *Business intelligence*: Generating real-time dashboards and reports for data-driven decision making.
+* *Content recommendation*: Analyzing user interactions to provide personalized content suggestions.
 
 [discrete]
 [[analyze-data-query-dsl]]
 ===== Query DSL
 
 <<search-aggregations,Aggregations>> are the primary tool for analyzing {es} data using the Query DSL.
-An aggregation summarizes your data as metrics, statistics, or other analytics:
+Aggregrations enable you to build complex summaries of your data and gain
+insight into key metrics, patterns, and trends.
+
+Because aggregations leverage the same data-structures used for search, they are
+also very fast. This enables you to analyze and visualize your data in real time.
+You can search documents, filter results, and perform analytics at the same time, on the same
+data, in a single request.
+That means aggregations are calculated in the context of the search query.
+
+The folowing aggregation types are available:
 
 * <<search-aggregations-metrics,Metric>>. Calculate metrics,
 such as a sum or average, from field values.
@@ -313,41 +315,8 @@ It comes with a comprehensive set of <<esql-functions-operators,functions and op
 
 Learn more in <<esql-getting-started,Getting started with {esql}>>, or try https://www.elastic.co/training/introduction-to-esql[our training course].
 
-[discrete]
-[[elasticsearch-intro-search-analyze-next-step]]
-==== Next step
-
-Now that you understand the basics of searching and analyzing data in {es}, you're ready to start ingesting data.
-In this getting started guide, we'll be using Dev Tools Console syntax to call the {es} REST APIs.
-
-[[elasticsearch-intro-start-rest-api]]
-=== Start with the REST API
-
-//TODO:WIP
-
-You send data and other requests to {es} using REST APIs.
-This lets you interact
-with {es} using any client that sends HTTP requests, such as
-https://curl.se[curl] or our https://www.elastic.co/guide/en/elasticsearch/client/index.html[programming language clients].
-
-In this guide we'll use {kib}'s Console to send requests to {es}.
-
-[TIP]
-====
-Elastic docs default to using Console syntax for code samples, but you can also copy these examples as `curl` and other programming languages, using the code sample language selector.
-
-As of 8.16.0 (and earlier on Elastic Cloud Serverless), you can copy requests directly from the Console UI into different programming language syntaxes, including Python, JavaScript, and Ruby.
-====
-
-Test your connection to {es} by sending a request to the root endpoint.
-
-[source,console]
-----
-GET /
-----
-
-This should return a response with information about your {es} cluster.
-
+// New html page
+// TODO: this page won't live here long term
 [[scalability]]
 === Plan for production
 

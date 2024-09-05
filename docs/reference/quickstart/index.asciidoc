@@ -16,12 +16,6 @@ Get started quickly with a <<run-elasticsearch-locally,local dev environment>> i
 
 * <<getting-started,First steps with {es}>>. Learn how to add data to {es} and perform basic searches.
 
-[NOTE]
-====
-These quickstarts are focused on working with non-timestamped data, for search use cases like full-text search, vector search, and reranking.
-If you're working with time series data, see the {cloud}/ec-cloud-ingest-data.html#ec-data-ingest-pipeline[Elastic Cloud docs] for getting started information.
-====
-
 [discrete]
 [[quickstart-python-links]]
 == Working in Python

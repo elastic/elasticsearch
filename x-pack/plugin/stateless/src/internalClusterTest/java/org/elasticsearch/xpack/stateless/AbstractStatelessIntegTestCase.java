@@ -548,7 +548,11 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     protected void indexDocsAndRefresh(String indexName, int numDocs) throws Exception {
-        var bulkRequest = client().prepareBulk();
+        indexDocsAndRefresh(client(), indexName, numDocs);
+    }
+
+    protected void indexDocsAndRefresh(Client client, String indexName, int numDocs) throws Exception {
+        var bulkRequest = client.prepareBulk();
         for (int i = 0; i < numDocs; i++) {
             bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
         }
@@ -558,7 +562,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         }
         assertNoFailures(bulkRequest.get());
         if (bulkRefreshes == false) {
-            assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
+            assertNoFailures(client.admin().indices().prepareRefresh(indexName).execute().get());
         }
     }
 

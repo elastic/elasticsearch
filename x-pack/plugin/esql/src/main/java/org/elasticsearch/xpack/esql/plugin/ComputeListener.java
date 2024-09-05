@@ -117,13 +117,41 @@ final class ComputeListener implements Releasable {
     /**
      * Acquires a new listener that collects compute result. This listener will also collects warnings emitted during compute
      */
-    ActionListener<ComputeResponse> acquireComputeForDataNodes() {
+    ActionListener<ComputeResponse> acquireCompute() {
         return acquireAvoid().map(resp -> {
             responseHeaders.collect();
             var profiles = resp.getProfiles();
             if (profiles != null && profiles.isEmpty() == false) {
                 collectedProfiles.addAll(profiles);
             }
+            return null;
+        });
+    }
+
+    /**
+     * Acts like {@code acquireCompute} handling the response(s) from the runComputeOnDataNodes
+     * phase. Per-cluster took time is recorded in the {@link EsqlExecutionInfo}.
+     * @param clusterAlias remote cluster alias the data node compute is running on
+     * @param configuration holds the getQueryStartTimeMillis for computing took time (per cluster)
+     */
+    ActionListener<ComputeResponse> acquireComputeForDataNodes(String clusterAlias, Configuration configuration) {
+        assert clusterAlias != null : "Must provide non-null cluster alias to acquireCompute";
+        return acquireAvoid().map(resp -> {
+            responseHeaders.collect();
+            var profiles = resp.getProfiles();
+            if (profiles != null && profiles.isEmpty() == false) {
+                collectedProfiles.addAll(profiles);
+            }
+            long tookTimeMillis = System.currentTimeMillis() - configuration.getQueryStartTimeMillis();
+            TimeValue tookOnDataNode = new TimeValue(tookTimeMillis);
+            esqlExecutionInfo.swapCluster(clusterAlias, (k, v) -> {
+                if (v.getTook() == null || v.getTook().millis() < tookOnDataNode.millis()) {
+                    return new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookOnDataNode).build();
+                } else {
+                    // another data node had higher took time, so keep the current value
+                    return v;
+                }
+            });
             return null;
         });
     }
@@ -157,33 +185,6 @@ final class ComputeListener implements Releasable {
                     .setFailedShards(resp.getFailedShards())
                     .build()
             );
-            return null;
-        });
-    }
-
-    /**
-     * Acts like {@code acquireCompute} for handling the response(s) form the runComputeOnDataNodes
-     * phase. Per-cluster took time is recorded in the {@link EsqlExecutionInfo}.
-     * @param clusterAlias remote cluster alias the data node compute is running on
-     */
-    ActionListener<ComputeResponse> acquireComputeForDataNodes(String clusterAlias, Configuration configuration) {
-        assert clusterAlias != null : "Must provide non-null cluster alias to acquireCompute";
-        return acquireAvoid().map(resp -> {
-            responseHeaders.collect();
-            var profiles = resp.getProfiles();
-            if (profiles != null && profiles.isEmpty() == false) {
-                collectedProfiles.addAll(profiles);
-            }
-            long tookTimeMillis = System.currentTimeMillis() - configuration.getQueryStartTimeMillis();
-            TimeValue tookOnDataNode = new TimeValue(tookTimeMillis);
-            esqlExecutionInfo.swapCluster(clusterAlias, (k, v) -> {
-                if (v.getTook() == null || v.getTook().millis() < tookOnDataNode.millis()) {
-                    return new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookOnDataNode).build();
-                } else {
-                    // another data node had higher took time, so keep the current value
-                    return v;
-                }
-            });
             return null;
         });
     }

@@ -181,7 +181,7 @@ public class ComputeService {
                     listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo))
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireComputeForDataNodes());
+                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
                 return;
             }
         } else {
@@ -215,7 +215,7 @@ public class ComputeService {
                 rootTask,
                 new ComputeContext(sessionId, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, List.of(), configuration, exchangeSource, null),
                 coordinatorPlan,
-                computeListener.acquireComputeForDataNodes()
+                computeListener.acquireCompute()
             );
             // starts computes on data nodes on the main cluster
             if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {
@@ -646,7 +646,7 @@ public class ComputeService {
             final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shardIds().size());
             List<ShardId> shardIds = request.shardIds().subList(startBatchIndex, endBatchIndex);
             ActionListener<ComputeResponse> batchListener = new ActionListener<>() {
-                final ActionListener<ComputeResponse> ref = computeListener.acquireComputeForDataNodes();
+                final ActionListener<ComputeResponse> ref = computeListener.acquireCompute();
 
                 @Override
                 public void onResponse(ComputeResponse result) {
@@ -712,7 +712,7 @@ public class ComputeService {
             var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
             exchangeSource.addCompletionListener(computeListener.acquireAvoid());
             exchangeSource.addRemoteSink(internalSink::fetchPageAsync, 1);
-            ActionListener<ComputeResponse> reductionListener = computeListener.acquireComputeForDataNodes();
+            ActionListener<ComputeResponse> reductionListener = computeListener.acquireCompute();
             runCompute(
                 task,
                 new ComputeContext(
@@ -860,7 +860,7 @@ public class ComputeService {
                 parentTask,
                 new ComputeContext(localSessionId, clusterAlias, List.of(), configuration, exchangeSource, exchangeSink),
                 coordinatorPlan,
-                computeListener.acquireComputeForDataNodes()
+                computeListener.acquireCompute()
             );
             startComputeOnDataNodes(
                 localSessionId,

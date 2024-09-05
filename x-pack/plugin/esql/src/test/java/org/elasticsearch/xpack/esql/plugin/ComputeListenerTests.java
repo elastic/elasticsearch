@@ -124,7 +124,7 @@ public class ComputeListenerTests extends ESTestCase {
                 } else {
                     ComputeResponse resp = randomResponse();
                     allProfiles.addAll(resp.getProfiles());
-                    ActionListener<ComputeResponse> subListener = computeListener.acquireComputeForDataNodes();
+                    ActionListener<ComputeResponse> subListener = computeListener.acquireCompute();
                     threadPool.schedule(
                         ActionRunnable.wrap(subListener, l -> l.onResponse(resp)),
                         TimeValue.timeValueNanos(between(0, 100)),
@@ -153,7 +153,7 @@ public class ComputeListenerTests extends ESTestCase {
         CancellableTask rootTask = newTask();
         try (ComputeListener computeListener = new ComputeListener(transportService, rootTask, new EsqlExecutionInfo(), rootListener)) {
             for (int i = 0; i < successTasks; i++) {
-                ActionListener<ComputeResponse> subListener = computeListener.acquireComputeForDataNodes();
+                ActionListener<ComputeResponse> subListener = computeListener.acquireCompute();
                 threadPool.schedule(
                     ActionRunnable.wrap(subListener, l -> l.onResponse(randomResponse())),
                     TimeValue.timeValueNanos(between(0, 100)),
@@ -161,9 +161,7 @@ public class ComputeListenerTests extends ESTestCase {
                 );
             }
             for (int i = 0; i < failedTasks; i++) {
-                ActionListener<?> subListener = randomBoolean()
-                    ? computeListener.acquireAvoid()
-                    : computeListener.acquireComputeForDataNodes();
+                ActionListener<?> subListener = randomBoolean() ? computeListener.acquireAvoid() : computeListener.acquireCompute();
                 threadPool.schedule(ActionRunnable.wrap(subListener, l -> {
                     Exception ex = rootCauseExceptions.poll();
                     if (ex == null) {
@@ -235,7 +233,7 @@ public class ComputeListenerTests extends ESTestCase {
                     for (Map.Entry<String, String> e : warnings.entrySet()) {
                         allWarnings.computeIfAbsent(e.getKey(), v -> new HashSet<>()).add(e.getValue());
                     }
-                    ActionListener<ComputeResponse> subListener = computeListener.acquireComputeForDataNodes();
+                    ActionListener<ComputeResponse> subListener = computeListener.acquireCompute();
                     threadPool.schedule(ActionRunnable.wrap(subListener, l -> {
                         for (Map.Entry<String, String> e : warnings.entrySet()) {
                             threadPool.getThreadContext().addResponseHeader(e.getKey(), e.getValue());

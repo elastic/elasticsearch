@@ -815,9 +815,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError("from a | where foo like 12", "mismatched input '12'");
         expectError("from a | where foo rlike 12", "mismatched input '12'");
+
         expectError(
-            "from a | where foo rlike \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"",
-            "line 1:17: Invalid regex pattern for RLIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: [invalid range: from (95) cannot be > to (93)]"
+            "from a | where foo like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"",
+            "line 1:17: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
+                + "[Invalid sequence - escape character is not followed by special wildcard char]"
         );
     }
 

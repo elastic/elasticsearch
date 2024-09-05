@@ -38,6 +38,8 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -55,14 +57,18 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -73,9 +79,12 @@ import java.util.function.Function;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -142,50 +151,7 @@ public class ClusterStateTests extends ESTestCase {
         final DiscoveryNode node1 = DiscoveryNodeUtils.create("node01");
         final DiscoveryNode node2 = DiscoveryNodeUtils.create("node02");
         final DiscoveryNode node3 = DiscoveryNodeUtils.create("node03");
-
-        final Metadata metadata = Metadata.builder()
-            .clusterUUID("N8nJxElHSP23swO0bPLOcQ")
-            .clusterUUIDCommitted(true)
-            .version(86L)
-            .coordinationMetadata(
-                CoordinationMetadata.builder()
-                    .term(22)
-                    .lastCommittedConfiguration(CoordinationMetadata.VotingConfiguration.of(node1, node2))
-                    .build()
-            )
-            .put(
-                ProjectMetadata.builder(new ProjectId("3LftaL7hgfXAsF60Gm6jcD"))
-                    .put(
-                        IndexMetadata.builder("common-index")
-                            .settings(
-                                indexSettings(IndexVersion.current(), 1, 2).put(IndexMetadata.SETTING_INDEX_UUID, "dyQMAHOKifstVZeq1fbe2g")
-                            )
-                    )
-                    .put(
-                        IndexMetadata.builder("another-index")
-                            .settings(
-                                indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, "3BgcDKea85VWlp4Tr514s6")
-                            )
-                    )
-            )
-            .put(
-                ProjectMetadata.builder(new ProjectId("tb5W0bx765nDVIwqJPw92G"))
-                    .put(
-                        IndexMetadata.builder("common-index")
-                            .settings(
-                                indexSettings(IndexVersion.current(), 3, 1).put(IndexMetadata.SETTING_INDEX_UUID, "tE62Ga40yvlmOSujUvruVw")
-                            )
-                    )
-            )
-            .put(ProjectMetadata.builder(new ProjectId("WHyuJ0uqBYOPgHX9kYUXlZ")))
-            .build();
-        final ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
-            .stateUUID("dIP3KIhRQPux2CgaDWgTMA")
-            .version(404)
-            .metadata(metadata)
-            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3).build())
-            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
-            .build();
+        final ClusterState clusterState = buildMultiProjectClusterState(node1, node2, node3);
 
         final String toString = clusterState.toString();
         assertThat(toString, startsWith("""
@@ -196,7 +162,7 @@ public class ClusterStateTests extends ESTestCase {
             meta data version: 86
                coordination_metadata:
                   term: 22
-                  last_committed_config: VotingConfiguration{node01,node02}
+                  last_committed_config: VotingConfiguration{node01}
                   last_accepted_config: VotingConfiguration{}
                   voting tombstones: []
             """));
@@ -238,6 +204,613 @@ public class ClusterStateTests extends ESTestCase {
         assertThat(toString, containsString("-- index [[common-index/tE62Ga40yvlmOSujUvruVw]]\n----shard_id [common-index][0]\n"));
         assertThat(toString, containsString("\n----shard_id [common-index][1]\n"));
         assertThat(toString, containsString("\n----shard_id [common-index][2]\n"));
+    }
+
+    public void testToXContentWithMultipleProjects() throws IOException {
+        DiscoveryNode[] nodes = new DiscoveryNode[5];
+        for (int i = 0; i < nodes.length; i++) {
+            nodes[i] = DiscoveryNodeUtils.create(
+                Strings.format("node_%02d", i + 1),
+                new TransportAddress(InetAddress.getByName("0.0.0.0"), (i + 1))
+            );
+        }
+        final ClusterState clusterState = buildMultiProjectClusterState(nodes);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        writeChunks(
+            clusterState,
+            builder,
+            new ToXContent.MapParams(
+                Map.ofEntries(
+                    Map.entry(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API),
+                    Map.entry("multi-project", "true"),
+                    Map.entry("metric", "version,master_node,blocks,nodes,metadata,routing_table,customs")
+                    // not routing_nodes because the order is not predictable
+                )
+            )
+        );
+        builder.endObject();
+
+        final String actual = Strings.toString(builder)
+            .replaceAll("\"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?Z\"", "\"_DATE_\"");
+        final String expected = Strings.format(
+            """
+                {
+                  "cluster_uuid": "N8nJxElHSP23swO0bPLOcQ",
+                  "version": 404,
+                  "state_uuid": "dIP3KIhRQPux2CgaDWgTMA",
+                  "master_node": null,
+                  "blocks": {},
+                  "nodes": {
+                    "node_01": {
+                      "name": "",
+                      "ephemeral_id": "%s",
+                      "transport_address": "0.0.0.0:1",
+                      "external_id": "",
+                      "attributes": {},
+                      "roles": [
+                        "data",
+                        "data_cold",
+                        "data_content",
+                        "data_frozen",
+                        "data_hot",
+                        "data_warm",
+                        "index",
+                        "ingest",
+                        "master",
+                        "ml",
+                        "remote_cluster_client",
+                        "search",
+                        "transform",
+                        "voting_only"
+                      ],
+                      "version": "%s",
+                      "min_index_version": %s,
+                      "max_index_version": %s
+                    },
+                    "node_02": {
+                      "name": "",
+                      "ephemeral_id": "%s",
+                      "transport_address": "0.0.0.0:2",
+                      "external_id": "",
+                      "attributes": {},
+                      "roles": [
+                        "data",
+                        "data_cold",
+                        "data_content",
+                        "data_frozen",
+                        "data_hot",
+                        "data_warm",
+                        "index",
+                        "ingest",
+                        "master",
+                        "ml",
+                        "remote_cluster_client",
+                        "search",
+                        "transform",
+                        "voting_only"
+                      ],
+                      "version": "%s",
+                      "min_index_version": %s,
+                      "max_index_version": %s
+                    },
+                    "node_03": {
+                      "name": "",
+                      "ephemeral_id": "%s",
+                      "transport_address": "0.0.0.0:3",
+                      "external_id": "",
+                      "attributes": {},
+                      "roles": [
+                        "data",
+                        "data_cold",
+                        "data_content",
+                        "data_frozen",
+                        "data_hot",
+                        "data_warm",
+                        "index",
+                        "ingest",
+                        "master",
+                        "ml",
+                        "remote_cluster_client",
+                        "search",
+                        "transform",
+                        "voting_only"
+                      ],
+                      "version": "%s",
+                      "min_index_version": %s,
+                      "max_index_version": %s
+                    },
+                    "node_04": {
+                      "name": "",
+                      "ephemeral_id": "%s",
+                      "transport_address": "0.0.0.0:4",
+                      "external_id": "",
+                      "attributes": {},
+                      "roles": [
+                        "data",
+                        "data_cold",
+                        "data_content",
+                        "data_frozen",
+                        "data_hot",
+                        "data_warm",
+                        "index",
+                        "ingest",
+                        "master",
+                        "ml",
+                        "remote_cluster_client",
+                        "search",
+                        "transform",
+                        "voting_only"
+                      ],
+                      "version": "%s",
+                      "min_index_version": %s,
+                      "max_index_version": %s
+                    },
+                    "node_05": {
+                      "name": "",
+                      "ephemeral_id": "%s",
+                      "transport_address": "0.0.0.0:5",
+                      "external_id": "",
+                      "attributes": {},
+                      "roles": [
+                        "data",
+                        "data_cold",
+                        "data_content",
+                        "data_frozen",
+                        "data_hot",
+                        "data_warm",
+                        "index",
+                        "ingest",
+                        "master",
+                        "ml",
+                        "remote_cluster_client",
+                        "search",
+                        "transform",
+                        "voting_only"
+                      ],
+                      "version": "%s",
+                      "min_index_version": %s,
+                      "max_index_version": %s
+                    }
+                  },
+                  "nodes_versions": [],
+                  "nodes_features": [
+                     {"node_id":"node_01","features":[]},
+                     {"node_id":"node_02","features":[]},
+                     {"node_id":"node_03","features":[]},
+                     {"node_id":"node_04","features":[]},
+                     {"node_id":"node_05","features":[]}
+                  ],
+                  "metadata": {
+                    "cluster_uuid": "N8nJxElHSP23swO0bPLOcQ",
+                    "cluster_uuid_committed": true,
+                    "cluster_coordination": {
+                      "term": 22,
+                      "last_committed_config": [ "node_01" ],
+                      "last_accepted_config": [],
+                      "voting_config_exclusions": []
+                    },
+                    "projects": [
+                      {
+                        "id": "tb5W0bx765nDVIwqJPw92G",
+                        "templates": {},
+                        "indices": {
+                          "common-index": {
+                            "version": 2,
+                            "mapping_version": 1,
+                            "settings_version": 1,
+                            "aliases_version": 1,
+                            "routing_num_shards": 3,
+                            "state": "open",
+                            "settings": {
+                              "index": {
+                                "number_of_shards": "3",
+                                "number_of_replicas": "1",
+                                "uuid": "tE62Ga40yvlmOSujUvruVw",
+                                "version": { "created": "%s" }
+                              }
+                            },
+                            "mappings": {},
+                            "aliases": [],
+                            "primary_terms": { "0":0, "1":0, "2":0 },
+                            "in_sync_allocations": { "0":[], "1":[], "2":[] },
+                            "rollover_info": {},
+                            "mappings_updated_version": %s,
+                            "system": false,
+                            "timestamp_range": { "shards":[] },
+                            "event_ingested_range": { "shards": [] }
+                          }
+                        },
+                        "index-graveyard": { "tombstones": [] }
+                      },
+                      {
+                        "id": "3LftaL7hgfXAsF60Gm6jcD",
+                        "templates": {},
+                        "indices": {
+                          "another-index": {
+                            "version": 2,
+                            "mapping_version": 1,
+                            "settings_version": 1,
+                            "aliases_version": 1,
+                            "routing_num_shards": 1,
+                            "state": "open",
+                            "settings": {
+                              "index": {
+                                "number_of_shards": "1",
+                                "number_of_replicas": "1",
+                                "uuid": "3BgcDKea85VWlp4Tr514s6",
+                                "version": { "created": "%s" }
+                              }
+                            },
+                            "mappings": {},
+                            "aliases": [],
+                            "primary_terms": { "0": 0 },
+                            "in_sync_allocations": { "0": [] },
+                            "rollover_info": {},
+                            "mappings_updated_version": %s,
+                            "system": false,
+                            "timestamp_range": { "shards": [] },
+                            "event_ingested_range": { "shards": [] }
+                          },
+                          "common-index": {
+                            "version": 2,
+                            "mapping_version": 1,
+                            "settings_version": 1,
+                            "aliases_version": 1,
+                            "routing_num_shards": 1,
+                            "state": "open",
+                            "settings": {
+                              "index": {
+                                "number_of_shards": "1",
+                                "number_of_replicas": "2",
+                                "uuid": "dyQMAHOKifstVZeq1fbe2g",
+                                "version": { "created": "%s" }
+                              }
+                            },
+                            "mappings": {},
+                            "aliases": [],
+                            "primary_terms": { "0": 0 },
+                            "in_sync_allocations": { "0": [] },
+                            "rollover_info": {},
+                            "mappings_updated_version": %s,
+                            "system": false,
+                            "timestamp_range": { "shards": [] },
+                            "event_ingested_range": { "shards": [] }
+                          }
+                        },
+                        "index-graveyard": { "tombstones": [] }
+                      },
+                      {
+                        "id": "WHyuJ0uqBYOPgHX9kYUXlZ",
+                        "templates": {},
+                        "indices": {},
+                        "index-graveyard": { "tombstones": [] }
+                      }
+                    ],
+                    "reserved_state": {}
+                  },
+                  "routing_table": {
+                    "projects": [
+                      {
+                        "id": "3LftaL7hgfXAsF60Gm6jcD",
+                        "indices": {
+                          "another-index": {
+                            "shards": {
+                              "0": [
+                                {
+                                  "state": "UNASSIGNED",
+                                  "primary": true,
+                                  "node": null,
+                                  "relocating_node": null,
+                                  "shard": 0,
+                                  "index": "another-index",
+                                  "recovery_source": { "type": "EMPTY_STORE" },
+                                  "unassigned_info": {
+                                    "reason": "INDEX_CREATED",
+                                    "at": "_DATE_",
+                                    "delayed": false,
+                                    "allocation_status": "no_attempt"
+                                  },
+                                  "relocation_failure_info": { "failed_attempts": 0 }
+                                },
+                                {
+                                  "state": "UNASSIGNED",
+                                  "primary": false,
+                                  "node": null,
+                                  "relocating_node": null,
+                                  "shard": 0,
+                                  "index": "another-index",
+                                  "recovery_source": { "type": "PEER" },
+                                  "unassigned_info": {
+                                    "reason": "INDEX_CREATED",
+                                    "at": "_DATE_",
+                                    "delayed": false,
+                                    "allocation_status": "no_attempt"
+                                  },
+                                  "relocation_failure_info": { "failed_attempts": 0 }
+                                }
+                              ]
+                            }
+                          },
+                          "common-index": {
+                            "shards": {
+                              "0": [
+                                {
+                                  "state": "UNASSIGNED",
+                                  "primary": true,
+                                  "node": null,
+                                  "relocating_node": null,
+                                  "shard": 0,
+                                  "index": "common-index",
+                                  "recovery_source": { "type": "EMPTY_STORE" },
+                                  "unassigned_info": {
+                                    "reason": "INDEX_CREATED",
+                                    "at": "_DATE_",
+                                    "delayed": false,
+                                    "allocation_status": "no_attempt"
+                                  },
+                                  "relocation_failure_info": { "failed_attempts": 0 }
+                                },
+                                {
+                                  "state": "UNASSIGNED",
+                                  "primary": false,
+                                  "node": null,
+                                  "relocating_node": null,
+                                  "shard": 0,
+                                  "index": "common-index",
+                                  "recovery_source": { "type": "PEER" },
+                                  "unassigned_info": {
+                                    "reason": "INDEX_CREATED",
+                                    "at": "_DATE_",
+                                    "delayed": false,
+                                    "allocation_status": "no_attempt"
+                                  },
+                                  "relocation_failure_info": { "failed_attempts": 0 }
+                                },
+                                {
+                                  "state": "UNASSIGNED",
+                                  "primary": false,
+                                  "node": null,
+                                  "relocating_node": null,
+                                  "shard": 0,
+                                  "index": "common-index",
+                                  "recovery_source": { "type": "PEER" },
+                                  "unassigned_info": {
+                                    "reason": "INDEX_CREATED",
+                                    "at": "_DATE_",
+                                    "delayed": false,
+                                    "allocation_status": "no_attempt"
+                                  },
+                                  "relocation_failure_info": { "failed_attempts": 0 }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "id": "WHyuJ0uqBYOPgHX9kYUXlZ",
+                        "indices": {}
+                      },
+                      {
+                        "id": "tb5W0bx765nDVIwqJPw92G",
+                        "indices": {
+                          "common-index": {
+                            "shards": {
+                              "0": [
+                                {
+                                  "state": "UNASSIGNED",
+                                  "primary": true,
+                                  "node": null,
+                                  "relocating_node": null,
+                                  "shard": 0,
+                                  "index": "common-index",
+                                  "recovery_source": { "type": "EMPTY_STORE" },
+                                  "unassigned_info": {
+                                    "reason": "INDEX_CREATED",
+                                    "at": "_DATE_",
+                                    "delayed": false,
+                                    "allocation_status": "no_attempt"
+                                  },
+                                  "relocation_failure_info": { "failed_attempts": 0 }
+                                },
+                                {
+                                  "state": "UNASSIGNED",
+                                  "primary": false,
+                                  "node": null,
+                                  "relocating_node": null,
+                                  "shard": 0,
+                                  "index": "common-index",
+                                  "recovery_source": { "type": "PEER" },
+                                  "unassigned_info": {
+                                    "reason": "INDEX_CREATED",
+                                    "at": "_DATE_",
+                                    "delayed": false,
+                                    "allocation_status": "no_attempt"
+                                  },
+                                  "relocation_failure_info": { "failed_attempts": 0 }
+                                }
+                              ],
+                              "1": [
+                                {
+                                  "state": "UNASSIGNED",
+                                  "primary": true,
+                                  "node": null,
+                                  "relocating_node": null,
+                                  "shard": 1,
+                                  "index": "common-index",
+                                  "recovery_source": { "type": "EMPTY_STORE" },
+                                  "unassigned_info": {
+                                    "reason": "INDEX_CREATED",
+                                    "at": "_DATE_",
+                                    "delayed": false,
+                                    "allocation_status": "no_attempt"
+                                  },
+                                  "relocation_failure_info": { "failed_attempts": 0 }
+                                },
+                                {
+                                  "state": "UNASSIGNED",
+                                  "primary": false,
+                                  "node": null,
+                                  "relocating_node": null,
+                                  "shard": 1,
+                                  "index": "common-index",
+                                  "recovery_source": { "type": "PEER" },
+                                  "unassigned_info": {
+                                    "reason": "INDEX_CREATED",
+                                    "at": "_DATE_",
+                                    "delayed": false,
+                                    "allocation_status": "no_attempt"
+                                  },
+                                  "relocation_failure_info": { "failed_attempts": 0 }
+                                }
+                              ],
+                              "2": [
+                                {
+                                  "state": "UNASSIGNED",
+                                  "primary": true,
+                                  "node": null,
+                                  "relocating_node": null,
+                                  "shard": 2,
+                                  "index": "common-index",
+                                  "recovery_source": { "type": "EMPTY_STORE" },
+                                  "unassigned_info": {
+                                    "reason": "INDEX_CREATED",
+                                    "at": "_DATE_",
+                                    "delayed": false,
+                                    "allocation_status": "no_attempt"
+                                  },
+                                  "relocation_failure_info": { "failed_attempts": 0 }
+                                },
+                                {
+                                  "state": "UNASSIGNED",
+                                  "primary": false,
+                                  "node": null,
+                                  "relocating_node": null,
+                                  "shard": 2,
+                                  "index": "common-index",
+                                  "recovery_source": { "type": "PEER" },
+                                  "unassigned_info": {
+                                    "reason": "INDEX_CREATED",
+                                    "at": "_DATE_",
+                                    "delayed": false,
+                                    "allocation_status": "no_attempt"
+                                  },
+                                  "relocation_failure_info": { "failed_attempts": 0 }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+                """,
+            // Node 1
+            clusterState.getNodes().get("node_01").getEphemeralId(),
+            Version.CURRENT,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersion.current(),
+            // Node 2
+            clusterState.getNodes().get("node_02").getEphemeralId(),
+            Version.CURRENT,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersion.current(),
+            // Node 3
+            clusterState.getNodes().get("node_03").getEphemeralId(),
+            Version.CURRENT,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersion.current(),
+            // Node 4
+            clusterState.getNodes().get("node_04").getEphemeralId(),
+            Version.CURRENT,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersion.current(),
+            // Node 5
+            clusterState.getNodes().get("node_05").getEphemeralId(),
+            Version.CURRENT,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersion.current(),
+            // project:tb5W0bx765nDVIwqJPw92G index:common-index
+            IndexVersion.current(),
+            IndexVersion.current(),
+            // project:3LftaL7hgfXAsF60Gm6jcD index:another-index
+            IndexVersion.current(),
+            IndexVersion.current(),
+            // project:3LftaL7hgfXAsF60Gm6jcD index:common-index
+            IndexVersion.current(),
+            IndexVersion.current()
+        );
+
+        // We cannot guarantee the order of the routing table, so we parse & sort the generated XContent
+        final BytesReference sorted = sortRoutingTableXContent(actual);
+        assertToXContentEquivalent(new BytesArray(expected), sorted, XContentType.JSON);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static BytesReference sortRoutingTableXContent(String jsonContent) throws IOException {
+        final Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(jsonContent), true, XContentType.JSON).v2();
+        final List<Map<String, Object>> routingTable = ObjectPath.eval("routing_table.projects", map);
+        assertThat("Cannot find routing table in " + map.keySet(), routingTable, notNullValue());
+        routingTable.sort(Comparator.comparing((Map<String, Object> m) -> {
+            final Object projectId = m.get("id");
+            assertThat(projectId, notNullValue());
+            assertThat(projectId, instanceOf(String.class));
+            return (String) projectId;
+        }));
+        return XContentTestUtils.convertToXContent(map, XContentType.JSON);
+    }
+
+    private static ClusterState buildMultiProjectClusterState(DiscoveryNode... nodes) {
+        final Metadata metadata = Metadata.builder()
+            .clusterUUID("N8nJxElHSP23swO0bPLOcQ")
+            .clusterUUIDCommitted(true)
+            .version(86L)
+            .coordinationMetadata(
+                CoordinationMetadata.builder()
+                    .term(22)
+                    .lastCommittedConfiguration(CoordinationMetadata.VotingConfiguration.of(nodes[0]))
+                    .build()
+            )
+            .put(
+                ProjectMetadata.builder(new ProjectId("3LftaL7hgfXAsF60Gm6jcD"))
+                    .put(
+                        IndexMetadata.builder("common-index")
+                            .settings(
+                                indexSettings(IndexVersion.current(), 1, 2).put(IndexMetadata.SETTING_INDEX_UUID, "dyQMAHOKifstVZeq1fbe2g")
+                            )
+                    )
+                    .put(
+                        IndexMetadata.builder("another-index")
+                            .settings(
+                                indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, "3BgcDKea85VWlp4Tr514s6")
+                            )
+                    )
+            )
+            .put(
+                ProjectMetadata.builder(new ProjectId("tb5W0bx765nDVIwqJPw92G"))
+                    .put(
+                        IndexMetadata.builder("common-index")
+                            .settings(
+                                indexSettings(IndexVersion.current(), 3, 1).put(IndexMetadata.SETTING_INDEX_UUID, "tE62Ga40yvlmOSujUvruVw")
+                            )
+                    )
+            )
+            .put(ProjectMetadata.builder(new ProjectId("WHyuJ0uqBYOPgHX9kYUXlZ")))
+            .build();
+        final DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder();
+        for (var node : nodes) {
+            discoveryNodes.add(node);
+        }
+
+        return ClusterState.builder(new ClusterName("my-cluster"))
+            .stateUUID("dIP3KIhRQPux2CgaDWgTMA")
+            .version(404)
+            .metadata(metadata)
+            .nodes(discoveryNodes.build())
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .build();
     }
 
     public void testToXContent() throws IOException {
@@ -1313,7 +1886,8 @@ public class ClusterStateTests extends ESTestCase {
         final var iterator = clusterState.toXContentChunked(params);
         int chunks = 0;
         while (iterator.hasNext()) {
-            iterator.next().toXContent(builder, params);
+            final ToXContent chunk = iterator.next();
+            chunk.toXContent(builder, params);
             chunks += 1;
         }
         assertEquals(expectedChunkCount(params, clusterState), chunks);
@@ -1438,11 +2012,17 @@ public class ClusterStateTests extends ESTestCase {
 
         // routing table
         if (metrics.contains(ClusterState.Metric.ROUTING_TABLE)) {
+            final boolean multiProject = params.paramAsBoolean("multi-project", false);
             chunkCount += 2;
-            for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-                chunkCount += 2;
-                for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
-                    chunkCount += 2 + indexRoutingTable.shard(shardId).size();
+            for (var projectRouting : clusterState.globalRoutingTable()) {
+                if (multiProject) {
+                    chunkCount += 2;
+                }
+                for (IndexRoutingTable indexRoutingTable : projectRouting) {
+                    chunkCount += 2;
+                    for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                        chunkCount += 2 + indexRoutingTable.shard(shardId).size();
+                    }
                 }
             }
         }

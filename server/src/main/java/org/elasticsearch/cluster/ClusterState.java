@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -656,6 +657,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         final var metrics = Metric.parseString(outerParams.param("metric", "_all"), true);
+        final boolean multiProject = outerParams.paramAsBoolean("multi-project", false);
 
         return Iterators.concat(
 
@@ -739,35 +741,27 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             metrics.contains(Metric.METADATA) ? metadata.toXContentChunked(outerParams) : Collections.emptyIterator(),
 
             // routing table
-            chunkedSection(
-                metrics.contains(Metric.ROUTING_TABLE),
-                (builder, params) -> builder.startObject("routing_table").startObject("indices"),
-                routingTable().iterator(),
-                indexRoutingTable -> {
-                    Iterator<Iterator<ToXContent>> input = Iterators.forRange(0, indexRoutingTable.size(), shardId -> {
-                        final var indexShardRoutingTable = indexRoutingTable.shard(shardId);
-                        return Iterators.concat(
-                            Iterators.single(
-                                (builder, params) -> builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()))
-                            ),
-                            Iterators.forRange(
-                                0,
-                                indexShardRoutingTable.size(),
-                                copy -> (builder, params) -> indexShardRoutingTable.shard(copy).toXContent(builder, params)
-                            ),
-                            Iterators.single((builder, params) -> builder.endArray())
-                        );
-                    });
-                    return Iterators.concat(
-                        Iterators.single(
-                            (builder, params) -> builder.startObject(indexRoutingTable.getIndex().getName()).startObject("shards")
-                        ),
-                        Iterators.flatMap(input, Function.identity()),
-                        Iterators.single((builder, params) -> builder.endObject().endObject())
-                    );
-                },
-                (builder, params) -> builder.endObject().endObject()
-            ),
+            multiProject
+                ? chunkedSection(
+                    metrics.contains(Metric.ROUTING_TABLE),
+                    (builder, params) -> builder.startObject("routing_table").startArray("projects"),
+                    globalRoutingTable().routingTables().entrySet().iterator(),
+                    entry -> chunkedSection(
+                        true,
+                        (builder, params) -> builder.startObject().field("id", entry.getKey()).startObject("indices"),
+                        entry.getValue().iterator(),
+                        ClusterState::indexRoutingTableXContent,
+                        (builder, params) -> builder.endObject().endObject()
+                    ),
+                    (builder, params) -> builder.endArray().endObject()
+                )
+                : chunkedSection(
+                    metrics.contains(Metric.ROUTING_TABLE),
+                    (builder, params) -> builder.startObject("routing_table").startObject("indices"),
+                    routingTable().iterator(),
+                    ClusterState::indexRoutingTableXContent,
+                    (builder, params) -> builder.endObject().endObject()
+                ),
 
             // routing nodes
             chunkedSection(
@@ -796,6 +790,26 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                     cursor -> ChunkedToXContentHelper.wrapWithObject(cursor.getKey(), cursor.getValue().toXContentChunked(outerParams))
                 )
                 : Collections.emptyIterator()
+        );
+    }
+
+    private static Iterator<ToXContent> indexRoutingTableXContent(IndexRoutingTable indexRoutingTable) {
+        Iterator<Iterator<ToXContent>> input = Iterators.forRange(0, indexRoutingTable.size(), shardId -> {
+            final var indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            return Iterators.concat(
+                Iterators.single((builder, params) -> builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()))),
+                Iterators.forRange(
+                    0,
+                    indexShardRoutingTable.size(),
+                    copy -> (builder, params) -> indexShardRoutingTable.shard(copy).toXContent(builder, params)
+                ),
+                Iterators.single((builder, params) -> builder.endArray())
+            );
+        });
+        return Iterators.concat(
+            Iterators.single((builder, params) -> builder.startObject(indexRoutingTable.getIndex().getName()).startObject("shards")),
+            Iterators.flatMap(input, Function.identity()),
+            Iterators.single((builder, params) -> builder.endObject().endObject())
         );
     }
 

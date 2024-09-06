@@ -217,14 +217,12 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 for (int j = nodes.size(); j < numNodes; j++) {
                     if (frequently()) {
                         if (randomBoolean()) {
-                            nodes.add(
-                                newNode("node" + (nodeIdx++), VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion())
-                            );
+                            nodes.add(newNode("node" + (nodeIdx++), VersionUtils.getPreviousVersion(), IndexVersion.current()));
                         } else {
                             nodes.add(newNode("node" + (nodeIdx++), Version.CURRENT, IndexVersion.current()));
                         }
                     } else {
-                        nodes.add(newNode("node" + (nodeIdx++), VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
+                        nodes.add(newNode("node" + (nodeIdx++), VersionUtils.randomVersion(random()), IndexVersion.current()));
                     }
                 }
             }
@@ -270,9 +268,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("old0", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
-                    .add(newNode("old1", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
-                    .add(newNode("old2", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
+                    .add(newNode("old0", VersionUtils.getPreviousVersion(), IndexVersion.current()))
+                    .add(newNode("old1", VersionUtils.getPreviousVersion(), IndexVersion.current()))
+                    .add(newNode("old2", VersionUtils.getPreviousVersion(), IndexVersion.current()))
             )
             .build();
         clusterState = stabilize(clusterState, service);
@@ -280,8 +278,8 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("old0", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
-                    .add(newNode("old1", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
+                    .add(newNode("old0", VersionUtils.getPreviousVersion(), IndexVersion.current()))
+                    .add(newNode("old1", VersionUtils.getPreviousVersion(), IndexVersion.current()))
                     .add(newNode("new0"))
             )
             .build();
@@ -291,7 +289,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("node0", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
+                    .add(newNode("node0", VersionUtils.getPreviousVersion(), IndexVersion.current()))
                     .add(newNode("new1"))
                     .add(newNode("new0"))
             )
@@ -321,11 +319,11 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         final DiscoveryNode newNode = DiscoveryNodeUtils.builder("newNode").roles(MASTER_DATA_ROLES).build();
         final DiscoveryNode oldNode1 = DiscoveryNodeUtils.builder("oldNode1")
             .roles(MASTER_DATA_ROLES)
-            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
+            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
         final DiscoveryNode oldNode2 = DiscoveryNodeUtils.builder("oldNode2")
             .roles(MASTER_DATA_ROLES)
-            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
+            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
         AllocationId allocationId1P = AllocationId.newInitializing();
         AllocationId allocationId1R = AllocationId.newInitializing();

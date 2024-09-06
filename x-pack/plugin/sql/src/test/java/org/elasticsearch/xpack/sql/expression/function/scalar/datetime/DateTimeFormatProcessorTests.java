@@ -157,12 +157,12 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
             new DateTimeFormat(Source.EMPTY, dateTime, l("YYYY-MM-dd HH:mm:ss.SSSSSSSS"), zoneId).makePipe().asProcessor().process(null)
         );
         assertEquals("+1000", new DateTimeFormat(Source.EMPTY, dateTime, l("Z"), zoneId).makePipe().asProcessor().process(null));
-        assertEquals("Etc/GMT-10", new DateTimeFormat(Source.EMPTY, dateTime, l("z"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals("GMT+10:00", new DateTimeFormat(Source.EMPTY, dateTime, l("z"), zoneId).makePipe().asProcessor().process(null));
         assertEquals("Etc/GMT-10", new DateTimeFormat(Source.EMPTY, dateTime, l("VV"), zoneId).makePipe().asProcessor().process(null));
 
         zoneId = ZoneId.of("America/Sao_Paulo");
         assertEquals("-0300", new DateTimeFormat(Source.EMPTY, dateTime, l("Z"), zoneId).makePipe().asProcessor().process(null));
-        assertEquals("BRT", new DateTimeFormat(Source.EMPTY, dateTime, l("z"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals("GMT-03:00", new DateTimeFormat(Source.EMPTY, dateTime, l("z"), zoneId).makePipe().asProcessor().process(null));
         assertEquals(
             "America/Sao_Paulo",
             new DateTimeFormat(Source.EMPTY, dateTime, l("VV"), zoneId).makePipe().asProcessor().process(null)
@@ -208,7 +208,7 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
         );
         assertEquals("Z", new Format(Source.EMPTY, dateTime, l("Z"), zoneId).makePipe().asProcessor().process(null));
         assertEquals("+10", new Format(Source.EMPTY, dateTime, l("z"), zoneId).makePipe().asProcessor().process(null));
-        assertEquals("Etc/GMT-10", new Format(Source.EMPTY, dateTime, l("K"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals("GMT+10:00", new Format(Source.EMPTY, dateTime, l("K"), zoneId).makePipe().asProcessor().process(null));
 
         assertEquals("1", new Format(Source.EMPTY, dateTime, l("F"), zoneId).makePipe().asProcessor().process(null));
         assertEquals("12", new Format(Source.EMPTY, dateTime, l("FF"), zoneId).makePipe().asProcessor().process(null));

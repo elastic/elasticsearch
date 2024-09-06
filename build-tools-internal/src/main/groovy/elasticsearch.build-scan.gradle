@@ -41,7 +41,7 @@ develocity {
       if (BuildParams.inFipsJvm) {
         tag 'FIPS'
       }
-      println "onCI = $onCI"
+
       if (onCI) { //Buildkite-specific build scan metadata
         String buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL')
         def branch = System.getenv('BUILDKITE_PULL_REQUEST_BASE_BRANCH') ?: System.getenv('BUILDKITE_BRANCH')

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -57,6 +58,11 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
         this.policyMatchField = policyMatchField;
         this.concreteIndices = concreteIndices;
         this.enrichFields = enrichFields;
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        return matchField.references();
     }
 
     @Override

@@ -47,6 +47,11 @@ public class Row extends LeafPlan {
     }
 
     @Override
+    public String commandName() {
+        return "ROW";
+    }
+
+    @Override
     public boolean expressionsResolved() {
         return Resolvables.resolved(fields);
     }

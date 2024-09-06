@@ -72,8 +72,7 @@ public class BinaryFieldMapper extends FieldMapper {
             return new BinaryFieldMapper(
                 leafName(),
                 new BinaryFieldType(context.buildFullName(leafName()), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 this
             );
         }
@@ -142,14 +141,8 @@ public class BinaryFieldMapper extends FieldMapper {
     private final boolean hasDocValues;
     private final boolean isSyntheticSourceEnabledViaIndexMode;
 
-    protected BinaryFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    protected BinaryFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
+        super(simpleName, mappedFieldType, builderParams);
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.isSyntheticSourceEnabledViaIndexMode = builder.isSyntheticSourceEnabledViaIndexMode;

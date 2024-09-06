@@ -196,14 +196,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 metric.getValue(),
                 indexMode
             );
-            return new ScaledFloatFieldMapper(
-                leafName(),
-                type,
-                multiFieldsBuilder.build(this, context),
-                copyTo,
-                context.isSourceSynthetic(),
-                this
-            );
+            return new ScaledFloatFieldMapper(leafName(), type, builderParams(this, context), context.isSourceSynthetic(), this);
         }
     }
 
@@ -469,12 +462,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     private ScaledFloatFieldMapper(
         String simpleName,
         ScaledFloatFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         boolean isSourceSynthetic,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, builderParams);
         this.isSourceSynthetic = isSourceSynthetic;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();

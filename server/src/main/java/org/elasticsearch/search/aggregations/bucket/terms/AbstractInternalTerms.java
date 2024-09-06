@@ -137,28 +137,18 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
      * @param sink Handle the reduced buckets. Returns false if we should stop iterating the buckets, true if we should continue.
      * @return the order we used to reduce the buckets
      */
-    private BucketOrder reduceBuckets(
-        List<List<B>> bucketsList,
-        BucketOrder thisReduceOrder,
-        AggregationReduceContext reduceContext,
-        Consumer<DelayedBucket<B>> sink
-    ) {
+    private BucketOrder reduceBuckets(List<List<B>> bucketsList, BucketOrder thisReduceOrder, Consumer<DelayedBucket<B>> sink) {
         if (isKeyOrder(thisReduceOrder)) {
             // extract the primary sort in case this is a compound order.
             thisReduceOrder = InternalOrder.key(isKeyAsc(thisReduceOrder));
-            reduceMergeSort(bucketsList, thisReduceOrder, reduceContext, sink);
+            reduceMergeSort(bucketsList, thisReduceOrder, sink);
         } else {
-            reduceLegacy(bucketsList, reduceContext, sink);
+            reduceLegacy(bucketsList, sink);
         }
         return thisReduceOrder;
     }
 
-    private void reduceMergeSort(
-        List<List<B>> bucketsList,
-        BucketOrder thisReduceOrder,
-        AggregationReduceContext reduceContext,
-        Consumer<DelayedBucket<B>> sink
-    ) {
+    private void reduceMergeSort(List<List<B>> bucketsList, BucketOrder thisReduceOrder, Consumer<DelayedBucket<B>> sink) {
         assert isKeyOrder(thisReduceOrder);
         final Comparator<Bucket> cmp = thisReduceOrder.comparator();
         final PriorityQueue<IteratorAndCurrent<B>> pq = new PriorityQueue<>(bucketsList.size()) {
@@ -179,7 +169,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             if (lastBucket != null && cmp.compare(top.current(), lastBucket) != 0) {
                 // the key changed so bundle up the last key's worth of buckets
                 sameTermBuckets.trimToSize();
-                sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
+                sink.accept(new DelayedBucket<>(sameTermBuckets));
                 sameTermBuckets = new ArrayList<>();
             }
             lastBucket = top.current();
@@ -200,11 +190,11 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
 
         if (sameTermBuckets.isEmpty() == false) {
             sameTermBuckets.trimToSize();
-            sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
+            sink.accept(new DelayedBucket<>(sameTermBuckets));
         }
     }
 
-    private void reduceLegacy(List<List<B>> bucketsList, AggregationReduceContext reduceContext, Consumer<DelayedBucket<B>> sink) {
+    private void reduceLegacy(List<List<B>> bucketsList, Consumer<DelayedBucket<B>> sink) {
         final Map<Object, ArrayList<B>> bucketMap = new HashMap<>();
         for (List<B> buckets : bucketsList) {
             for (B bucket : buckets) {
@@ -213,7 +203,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         }
         for (ArrayList<B> sameTermBuckets : bucketMap.values()) {
             sameTermBuckets.trimToSize();
-            sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
+            sink.accept(new DelayedBucket<>(sameTermBuckets));
         }
     }
 
@@ -297,9 +287,9 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                  * so we can just have an optimize collection.
                  */
                 result = new ArrayList<>();
-                thisReduceOrder = reduceBuckets(bucketsList, getThisReduceOrder(), reduceContext, bucket -> {
+                thisReduceOrder = reduceBuckets(bucketsList, getThisReduceOrder(), bucket -> {
                     if (result.size() < getRequiredSize()) {
-                        result.add(bucket.reduced());
+                        result.add(bucket.reduced(AbstractInternalTerms.this::reduceBucket, reduceContext));
                     } else {
                         otherDocCount[0] += bucket.getDocCount();
                     }
@@ -308,9 +298,11 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                 TopBucketBuilder<B> top = TopBucketBuilder.build(
                     getRequiredSize(),
                     getOrder(),
-                    removed -> otherDocCount[0] += removed.getDocCount()
+                    removed -> otherDocCount[0] += removed.getDocCount(),
+                    AbstractInternalTerms.this::reduceBucket,
+                    reduceContext
                 );
-                thisReduceOrder = reduceBuckets(bucketsList, getThisReduceOrder(), reduceContext, bucket -> {
+                thisReduceOrder = reduceBuckets(bucketsList, getThisReduceOrder(), bucket -> {
                     if (bucket.getDocCount() >= getMinDocCount()) {
                         top.add(bucket);
                     }
@@ -318,7 +310,11 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                 result = top.build();
             } else {
                 result = new ArrayList<>();
-                thisReduceOrder = reduceBuckets(bucketsList, getThisReduceOrder(), reduceContext, bucket -> result.add(bucket.reduced()));
+                thisReduceOrder = reduceBuckets(
+                    bucketsList,
+                    getThisReduceOrder(),
+                    bucket -> result.add(bucket.reduced(AbstractInternalTerms.this::reduceBucket, reduceContext))
+                );
             }
             for (B r : result) {
                 if (sumDocCountError == -1) {

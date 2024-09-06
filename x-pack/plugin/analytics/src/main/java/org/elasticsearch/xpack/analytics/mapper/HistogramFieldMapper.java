@@ -98,8 +98,7 @@ public class HistogramFieldMapper extends FieldMapper {
             return new HistogramFieldMapper(
                 leafName(),
                 new HistogramFieldType(context.buildFullName(leafName()), meta.getValue()),
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 this
             );
         }
@@ -113,14 +112,8 @@ public class HistogramFieldMapper extends FieldMapper {
     private final Explicit<Boolean> ignoreMalformed;
     private final boolean ignoreMalformedByDefault;
 
-    public HistogramFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    public HistogramFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
+        super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
     }

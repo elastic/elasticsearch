@@ -138,13 +138,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         @Override
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
             MatchOnlyTextFieldType tft = buildFieldType(context);
-            MultiFields multiFields = multiFieldsBuilder.build(this, context);
             return new MatchOnlyTextFieldMapper(
                 leafName(),
                 Defaults.FIELD_TYPE,
                 tft,
-                multiFields,
-                copyTo,
+                builderParams(this, context),
                 context.isSourceSynthetic(),
                 this
             );
@@ -381,12 +379,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         String simpleName,
         FieldType fieldType,
         MatchOnlyTextFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         boolean storeSource,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, builderParams);
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);

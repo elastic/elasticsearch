@@ -118,13 +118,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         @Override
         public VersionStringFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
-            return new VersionStringFieldMapper(
-                leafName(),
-                fieldtype,
-                buildFieldType(context, fieldtype),
-                multiFieldsBuilder.build(this, context),
-                copyTo
-            );
+            return new VersionStringFieldMapper(leafName(), fieldtype, buildFieldType(context, fieldtype), builderParams(this, context));
         }
 
         @Override
@@ -360,14 +354,8 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     private final FieldType fieldType;
 
-    private VersionStringFieldMapper(
-        String simpleName,
-        FieldType fieldType,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    private VersionStringFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType, BuilderParams buildParams) {
+        super(simpleName, mappedFieldType, buildParams);
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
     }
 

@@ -245,8 +245,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 ),
                 ignoreAbove.get(),
                 context.isSourceSynthetic(),
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 nullValue.get(),
                 indexVersionCreated
             );
@@ -901,12 +900,11 @@ public class WildcardFieldMapper extends FieldMapper {
         WildcardFieldType mappedFieldType,
         int ignoreAbove,
         boolean storeIgnored,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         String nullValue,
         IndexVersion indexVersionCreated
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, builderParams);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
         this.storeIgnored = storeIgnored;

@@ -109,14 +109,16 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
-import org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules;
-import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters;
-import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineLimits;
-import org.elasticsearch.xpack.esql.optimizer.rules.PushDownEnrich;
-import org.elasticsearch.xpack.esql.optimizer.rules.PushDownEval;
-import org.elasticsearch.xpack.esql.optimizer.rules.PushDownRegexExtract;
-import org.elasticsearch.xpack.esql.optimizer.rules.SplitInWithFoldableValue;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateNullable;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFilters;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
@@ -1936,6 +1938,22 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var isNotNull = as(filter.condition(), IsNotNull.class);
         assertTrue(filter.child() instanceof EsRelation);
+    }
+
+    public void testRLikeWrongPattern() {
+        String query = "from test | where first_name rlike \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"";
+        String error = "line 1:20: Invalid regex pattern for RLIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
+            + "[invalid range: from (95) cannot be > to (93)]";
+        ParsingException e = expectThrows(ParsingException.class, () -> plan(query));
+        assertThat(e.getMessage(), is(error));
+    }
+
+    public void testLikeWrongPattern() {
+        String query = "from test | where first_name like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"";
+        String error = "line 1:20: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
+            + "[Invalid sequence - escape character is not followed by special wildcard char]";
+        ParsingException e = expectThrows(ParsingException.class, () -> plan(query));
+        assertThat(e.getMessage(), is(error));
     }
 
     public void testFoldNullInToLocalRelation() {

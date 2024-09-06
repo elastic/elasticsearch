@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.InferenceFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
@@ -154,8 +155,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             String[] inferenceFields = mappingLookup.inferenceFields()
                 .keySet()
                 .stream()
-                .map(s -> s + ".inference.chunks.embedding")
+                .map(InferenceFieldMapper::getInferenceFieldName)
                 .toArray(String[]::new);
+            excludeFields = ArrayUtils.concat(excludeFields, inferenceFields);
 
             if (includeVectors != null) {
                 String[] denseVectors = mappingLookup.getFullNameToFieldType()

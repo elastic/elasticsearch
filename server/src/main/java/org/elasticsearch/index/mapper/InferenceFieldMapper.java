@@ -34,4 +34,14 @@ public interface InferenceFieldMapper {
      * @return The field's original value, or {@code null} if none was provided
      */
     Object getOriginalValue(Map<String, Object> sourceAsMap);
+
+    /**
+     * Get the field's embedding name
+     *
+     * @param fieldName The inference field name
+     * @return The field's full path to embedding value
+     */
+    static String getInferenceFieldName(String fieldName) {
+        return fieldName + ".inference.chunks.embeddings";
+    }
 }

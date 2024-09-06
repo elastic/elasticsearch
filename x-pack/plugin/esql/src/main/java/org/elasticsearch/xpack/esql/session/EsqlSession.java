@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
@@ -17,7 +18,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -64,9 +65,11 @@ import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -90,7 +93,7 @@ public class EsqlSession {
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanningMetrics planningMetrics;
-    private final RemoteClusterService remoteClusterService;
+    private final Function<String, Map<String, OriginalIndices>> resolveClusterAndIndicesFunction;
 
     public EsqlSession(
         String sessionId,
@@ -103,7 +106,7 @@ public class EsqlSession {
         Mapper mapper,
         Verifier verifier,
         PlanningMetrics planningMetrics,
-        RemoteClusterService remoteClusterService
+        Function<String, Map<String, OriginalIndices>> resolveClusterAndIndicesFunction
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -116,7 +119,7 @@ public class EsqlSession {
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planningMetrics = planningMetrics;
-        this.remoteClusterService = remoteClusterService;
+        this.resolveClusterAndIndicesFunction = resolveClusterAndIndicesFunction;
     }
 
     public String sessionId() {
@@ -135,6 +138,7 @@ public class EsqlSession {
         LOGGER.debug("ESQL query:\n{}", request.query());
         analyzedPlan(
             parse(request.query(), request.params()),
+            executionInfo,
             listener.delegateFailureAndWrap(
                 (next, analyzedPlan) -> executeOptimizedPlan(request, runPhase, optimizedPlan(analyzedPlan), next)
             )
@@ -194,13 +198,13 @@ public class EsqlSession {
         return parsed;
     }
 
-    public void analyzedPlan(LogicalPlan parsed, ActionListener<LogicalPlan> listener) {
+    public void analyzedPlan(LogicalPlan parsed, EsqlExecutionInfo executionInfo, ActionListener<LogicalPlan> listener) {
         if (parsed.analyzed()) {
             listener.onResponse(parsed);
             return;
         }
 
-        preAnalyze(parsed, (indices, policies) -> {
+        preAnalyze(parsed, executionInfo, (indices, policies) -> {
             planningMetrics.gatherPreAnalysisMetrics(parsed);
             Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
             var plan = analyzer.analyze(parsed);
@@ -210,7 +214,12 @@ public class EsqlSession {
         }, listener);
     }
 
-    private <T> void preAnalyze(LogicalPlan parsed, BiFunction<IndexResolution, EnrichResolution, T> action, ActionListener<T> listener) {
+    private <T> void preAnalyze(
+        LogicalPlan parsed,
+        EsqlExecutionInfo executionInfo,
+        BiFunction<IndexResolution, EnrichResolution, T> action,
+        ActionListener<T> listener
+    ) {
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         var unresolvedPolicies = preAnalysis.enriches.stream()
             .map(e -> new EnrichPolicyResolver.UnresolvedPolicy((String) e.policyName().fold(), e.mode()))
@@ -226,7 +235,7 @@ public class EsqlSession {
                 .stream()
                 .map(ResolvedEnrichPolicy::matchField)
                 .collect(Collectors.toSet());
-            preAnalyzeIndices(parsed, l.delegateFailureAndWrap((ll, indexResolution) -> {
+            preAnalyzeIndices(parsed, executionInfo, l.delegateFailureAndWrap((ll, indexResolution) -> {
                 if (indexResolution.isValid()) {
                     Set<String> newClusters = enrichPolicyResolver.groupIndicesPerCluster(
                         indexResolution.get().concreteIndices().toArray(String[]::new)
@@ -248,7 +257,12 @@ public class EsqlSession {
         }));
     }
 
-    private void preAnalyzeIndices(LogicalPlan parsed, ActionListener<IndexResolution> listener, Set<String> enrichPolicyMatchFields) {
+    private void preAnalyzeIndices(
+        LogicalPlan parsed,
+        EsqlExecutionInfo executionInfo,
+        ActionListener<IndexResolution> listener,
+        Set<String> enrichPolicyMatchFields
+    ) {
         PreAnalyzer.PreAnalysis preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         if (preAnalysis.indices.size() > 1) {
@@ -258,6 +272,22 @@ public class EsqlSession {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
+
+            Map<String, OriginalIndices> clusterIndices = resolveClusterAndIndicesFunction.apply(table.index());
+            for (Map.Entry<String, OriginalIndices> entry : clusterIndices.entrySet()) {
+                final String clusterAlias = entry.getKey();
+                String indexExpr;
+                if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
+                } else {
+                    indexExpr = Strings.collectionToDelimitedString(Arrays.asList(entry.getValue().indices()), ",", clusterAlias + ":", "");
+                }
+                executionInfo.swapCluster(clusterAlias, (k, v) -> {
+                    assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
+                    return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr.toString(), executionInfo.isSkipUnavailable(clusterAlias));
+                });
+            }
+            // indexResolver.resolveAsMergedMapping(table.index(), fieldNames, executionInfo, listener); // MP TODO: uncomment
             indexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
         } else {
             try {

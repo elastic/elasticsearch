@@ -244,7 +244,7 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
         ).setSerializerCheck((id, ic, v) -> ic);
 
         private final FieldMapper.Parameter<OnScriptError> onScriptError = FieldMapper.Parameter.onScriptErrorParam(
-            m -> m.onScriptError,
+            m -> m.builderParams.onScriptError(),
             script
         );
 

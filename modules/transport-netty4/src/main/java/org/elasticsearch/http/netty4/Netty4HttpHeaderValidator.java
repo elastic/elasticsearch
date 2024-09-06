@@ -60,6 +60,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
                 pending.add(ReferenceCountUtil.retain(httpObject));
                 requestStart(ctx);
                 assert state == QUEUEING_DATA;
+                ctx.channel().config().setAutoRead(false);
                 break;
             case QUEUEING_DATA:
                 pending.add(ReferenceCountUtil.retain(httpObject));
@@ -80,10 +81,9 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             case DROPPING_DATA_PERMANENTLY:
                 assert pending.isEmpty();
                 ReferenceCountUtil.release(httpObject); // consume without enqueuing
+                ctx.channel().config().setAutoRead(false);
                 break;
         }
-
-        setAutoReadForState(ctx, state);
     }
 
     private void requestStart(ChannelHandlerContext ctx) {
@@ -160,7 +160,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         }
 
         assert state == WAITING_TO_START || state == QUEUEING_DATA || state == FORWARDING_DATA_UNTIL_NEXT_REQUEST;
-        setAutoReadForState(ctx, state);
+        ctx.channel().config().setAutoRead(state != QUEUEING_DATA);
     }
 
     private void forwardRequestWithDecoderExceptionAndNoContent(ChannelHandlerContext ctx, Exception e) {
@@ -187,7 +187,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         }
 
         assert state == WAITING_TO_START || state == QUEUEING_DATA || state == DROPPING_DATA_UNTIL_NEXT_REQUEST;
-        setAutoReadForState(ctx, state);
+        ctx.channel().config().setAutoRead(state != QUEUEING_DATA);
     }
 
     @Override

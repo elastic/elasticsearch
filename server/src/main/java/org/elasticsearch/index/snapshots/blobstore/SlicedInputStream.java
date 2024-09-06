@@ -100,9 +100,10 @@ public abstract class SlicedInputStream extends InputStream {
     public void close() throws IOException {
         closed = true;
         initialized = true;
-        currentStream = null;
         currentSliceOffset = 0;
-        IOUtils.close(currentStream);
+        final InputStream stream = currentStream;
+        currentStream = null;
+        IOUtils.close(stream);
     }
 
     public boolean isClosed() {

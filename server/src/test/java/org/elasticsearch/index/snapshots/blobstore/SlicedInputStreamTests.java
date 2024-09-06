@@ -76,7 +76,6 @@ public class SlicedInputStreamTests extends ESTestCase {
         for (int i = 0; i < streams.length; i++) {
             assertTrue(streams[i].closed);
         }
-
     }
 
     public void testRandomMarkReset() throws IOException {

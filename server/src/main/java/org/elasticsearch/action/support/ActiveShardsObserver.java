@@ -54,7 +54,7 @@ public enum ActiveShardsObserver {
         }
 
         final ClusterState state = clusterService.state();
-        if (activeShardCount.enoughShardsActive(state, indexNames)) {
+        if (activeShardCount.enoughShardsActive(state.metadata(), state.routingTable(), indexNames)) {
             listener.onResponse(true);
             return;
         }
@@ -82,7 +82,7 @@ public enum ActiveShardsObserver {
                     listener.onResponse(false);
                 }
             },
-            newState -> activeShardCount.enoughShardsActive(newState, indexNames),
+            newState -> activeShardCount.enoughShardsActive(newState.metadata(), newState.routingTable(), indexNames),
             timeout
         );
     }

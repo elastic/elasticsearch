@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
@@ -46,7 +47,8 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata idxMeta = clusterState.metadata().index(index);
+        Metadata metadata = clusterState.metadata();
+        IndexMetadata idxMeta = metadata.index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
@@ -57,10 +59,10 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             preferredTierConfiguration,
             clusterState.getNodes(),
             DesiredNodes.latestFromClusterState(clusterState),
-            clusterState.metadata().nodeShutdowns()
+            metadata.nodeShutdowns()
         );
 
-        if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
+        if (ActiveShardCount.ALL.enoughShardsActive(metadata, clusterState.routingTable(), index.getName()) == false) {
             if (preferredTierConfiguration.isEmpty()) {
                 logger.debug(
                     "[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",

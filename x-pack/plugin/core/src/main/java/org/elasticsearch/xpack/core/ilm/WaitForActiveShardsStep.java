@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ParseField;
@@ -51,6 +52,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
         Metadata metadata = clusterState.metadata();
+        RoutingTable routingTable = clusterState.routingTable();
         IndexMetadata originalIndexMeta = metadata.index(index);
 
         if (originalIndexMeta == null) {
@@ -137,9 +139,9 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         }
 
         ActiveShardCount activeShardCount = ActiveShardCount.parseString(waitForActiveShardsSettingValue);
-        boolean enoughShardsActive = activeShardCount.enoughShardsActive(clusterState, rolledIndexName);
+        boolean enoughShardsActive = activeShardCount.enoughShardsActive(metadata, routingTable, rolledIndexName);
 
-        IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(rolledIndexName);
+        IndexRoutingTable indexRoutingTable = routingTable.index(rolledIndexName);
         int currentActiveShards = 0;
         for (int i = 0; i < indexRoutingTable.size(); i++) {
             currentActiveShards += indexRoutingTable.shard(i).activeShards().size();

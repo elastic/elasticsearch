@@ -101,9 +101,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799
-- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
-  method: testScaledFloat
-  issue: https://github.com/elastic/elasticsearch/issues/112003
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/80_random_rerank_retriever/Random rerank retriever predictably shuffles results}
   issue: https://github.com/elastic/elasticsearch/issues/111999
@@ -124,9 +121,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDeleteJobAsync
   issue: https://github.com/elastic/elasticsearch/issues/112212
-- class: org.elasticsearch.search.retriever.rankdoc.RankDocsSortBuilderTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/112312
 - class: org.elasticsearch.search.retriever.RankDocRetrieverBuilderIT
   method: testRankDocsRetrieverWithCollapse
   issue: https://github.com/elastic/elasticsearch/issues/112254
@@ -167,9 +161,23 @@ tests:
 - class: org.elasticsearch.xpack.inference.external.http.RequestBasedTaskRunnerTests
   method: testLoopOneAtATime
   issue: https://github.com/elastic/elasticsearch/issues/112471
+- class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/111497
+- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
+  method: test {yaml=ingest/80_ingest_simulate/Test ingest simulate with reroute and mapping validation from templates}
+  issue: https://github.com/elastic/elasticsearch/issues/112575
+- class: org.elasticsearch.script.mustache.LangMustacheClientYamlTestSuiteIT
+  method: test {yaml=lang_mustache/50_multi_search_template/Multi-search template with errors}
+  issue: https://github.com/elastic/elasticsearch/issues/112580
 - class: org.elasticsearch.xpack.security.authc.kerberos.SimpleKdcLdapServerTests
   method: testClientServiceMutualAuthentication
   issue: https://github.com/elastic/elasticsearch/issues/112529
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=simulate.ingest/10_basic/Test mapping validation from templates}
+  issue: https://github.com/elastic/elasticsearch/issues/112597
+- class: org.elasticsearch.search.basic.SearchWhileRelocatingIT
+  method: testSearchAndRelocateConcurrentlyRandomReplicas
+  issue: https://github.com/elastic/elasticsearch/issues/112515
 
 # Examples:
 #

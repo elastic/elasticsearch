@@ -73,7 +73,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1564,7 +1563,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    @TestLogging(value = "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:TRACE", reason = "Investigate #2577")
     public void testAllCommitsAreDeletedWhenIndexIsDeleted() throws Exception {
         Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
@@ -1624,7 +1622,17 @@ public class StatelessCommitServiceTests extends ESTestCase {
             waitUntilBCCIsUploaded(commitService, shardId, initialCommits.get(initialCommits.size() - 1).getGeneration());
 
             // Wait for sending all new commit notification requests, to be able to respond to them.
-            assertBusy(() -> assertThat(fakeSearchNode.generationPendingListeners.size(), equalTo(numberOfCommits)));
+            assertBusy(() -> {
+                int notifications = 0;
+                for (var notificationFuture : fakeSearchNode.generationPendingListeners.values()) {
+                    // also wait for "new uploaded commit notification" request to be processed so that the search node is registered
+                    // for all commits (in BlobReference.searchNodesRef) and the following deletion and unregister will be able to
+                    // fully decref the BlobReference.
+                    assertThat(notificationFuture.upload.isDone(), equalTo(true));
+                    notifications++;
+                }
+                assertThat(notifications, equalTo(numberOfCommits));
+            });
 
             logger.info("--> Deleting shard {}", shardId);
             testHarness.commitService.delete(testHarness.shardId);

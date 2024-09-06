@@ -17,8 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -46,12 +44,7 @@ public class PublishNodeIngestLoadRequest extends MasterNodeRequest<PublishNodeI
     public PublishNodeIngestLoadRequest(StreamInput in) throws IOException {
         super(in);
         this.nodeId = in.readString();
-        // TODO: Remove version BWC once all nodes are on newer version
-        if (in.getTransportVersion().onOrAfter(ServerlessTransportVersions.NODE_NAME_IN_PUBLISH_INGEST_LOAD_REQUEST)) {
-            this.nodeName = in.readString();
-        } else {
-            this.nodeName = "";
-        }
+        this.nodeName = in.readString();
         this.seqNo = in.readLong();
         this.ingestionLoad = in.readDouble();
     }
@@ -60,10 +53,7 @@ public class PublishNodeIngestLoadRequest extends MasterNodeRequest<PublishNodeI
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(nodeId);
-        // TODO: Remove version BWC once all nodes are on newer version
-        if (out.getTransportVersion().onOrAfter(ServerlessTransportVersions.NODE_NAME_IN_PUBLISH_INGEST_LOAD_REQUEST)) {
-            out.writeString(nodeName);
-        }
+        out.writeString(nodeName);
         out.writeLong(seqNo);
         out.writeDouble(ingestionLoad);
     }

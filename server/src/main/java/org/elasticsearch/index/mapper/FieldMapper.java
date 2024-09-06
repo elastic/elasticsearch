@@ -464,7 +464,7 @@ public abstract class FieldMapper extends Mapper {
             return SyntheticSourceMode.NATIVE;
         }
 
-        if (copyTo.copyToFields().isEmpty() == false) {
+        if (builderParams.copyTo.copyToFields().isEmpty() == false) {
             // When copy_to is used, we need to use fallback logic to store source of the field exactly.
             // Otherwise, due to possible differences between synthetic source and stored source,
             // values of fields that are destinations of copy_to would be different after reindexing.

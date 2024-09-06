@@ -40,6 +40,8 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -140,7 +142,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
             License [{}] on [{}].
             # If you have a new license, please update it. Otherwise, please reach out to
             # your support contact.
-            #\s""", expiredMsg, LicenseUtils.DATE_FORMATTER.formatMillis(expirationMillis));
+            #\s""", expiredMsg, LicenseUtils.formatMillis(expirationMillis));
         if (expired) {
             general = general.toUpperCase(Locale.ROOT);
         }

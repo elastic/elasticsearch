@@ -122,8 +122,6 @@ public interface DateFormatter {
             input = input.substring(1);
         }
 
-        DateUtils.checkTextualDateFormats(input);
-
         // forPattern can be hot (e.g. executing a date processor on each document in a 1000 document bulk index request),
         // so this is a for each loop instead of the equivalent stream pipeline
         String[] patterns = splitCombinedPatterns(input);

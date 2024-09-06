@@ -7,21 +7,31 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import static java.util.Collections.emptySet;
-
 public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "FieldExtractExec",
+        FieldExtractExec::new
+    );
+
     private final List<Attribute> attributesToExtract;
     private final Attribute sourceAttribute;
     // attributes to extract as doc values
@@ -29,15 +39,37 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     private List<Attribute> lazyOutput;
 
-    public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract) {
-        this(source, child, attributesToExtract, emptySet());
-    }
-
     public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract, Set<Attribute> docValuesAttributes) {
         super(source, child);
         this.attributesToExtract = attributesToExtract;
         this.sourceAttribute = extractSourceAttributesFrom(child);
         this.docValuesAttributes = docValuesAttributes;
+    }
+
+    private FieldExtractExec(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            ((PlanStreamInput) in).readPhysicalPlanNode(),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_EXTRACT_DOC_VALUES)
+                ? in.readCollectionAsSet(i -> i.readNamedWriteable(Attribute.class))
+                : Set.of()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        ((PlanStreamOutput) out).writePhysicalPlanNode(child());
+        out.writeNamedWriteableCollection(attributesToExtract());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_EXTRACT_DOC_VALUES)) {
+            out.writeNamedWriteableCollection(docValuesAttributes);
+        }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public static Attribute extractSourceAttributesFrom(PhysicalPlan plan) {
@@ -77,7 +109,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         return sourceAttribute;
     }
 
-    public Collection<Attribute> docValuesAttributes() {
+    public Set<Attribute> docValuesAttributes() {
         return docValuesAttributes;
     }
 

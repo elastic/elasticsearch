@@ -25,10 +25,12 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -64,6 +66,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final EnrichLookupService enrichLookupService;
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
+    private final RemoteClusterService remoteClusterService;
 
     @Inject
     @SuppressWarnings("this-escape")
@@ -114,6 +117,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             threadPool,
             bigArrays
         );
+        this.remoteClusterService = transportService.getRemoteClusterService();
     }
 
     @Override
@@ -162,6 +166,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.tables()
         );
         String sessionId = sessionID(task);
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias));
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase = (physicalPlan, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,
@@ -187,9 +192,25 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
             threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
-            return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), asyncExecutionId, false, request.async());
+            return new EsqlQueryResponse(
+                columns,
+                result.pages(),
+                profile,
+                request.columnar(),
+                asyncExecutionId,
+                false,
+                request.async(),
+                null /*request.executionInfo()*/
+            );  // MP TODO: replace this null with the execInfo
         }
-        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async());
+        return new EsqlQueryResponse(
+            columns,
+            result.pages(),
+            profile,
+            request.columnar(),
+            request.async(),
+            null /*request.executionInfo()*/
+        );
     }
 
     /**
@@ -245,7 +266,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             false,
             asyncExecutionId,
             true, // is_running
-            true // isAsync
+            true, // isAsync
+            null
         );
     }
 

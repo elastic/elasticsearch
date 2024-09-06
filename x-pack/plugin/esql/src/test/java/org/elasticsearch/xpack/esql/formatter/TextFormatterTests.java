@@ -80,7 +80,8 @@ public class TextFormatterTests extends ESTestCase {
         ),
         null,
         randomBoolean(),
-        randomBoolean()
+        randomBoolean(),
+        null
     );
 
     TextFormatter formatter = new TextFormatter(esqlResponse);
@@ -154,7 +155,8 @@ public class TextFormatterTests extends ESTestCase {
             ),
             null,
             randomBoolean(),
-            randomBoolean()
+            randomBoolean(),
+            null
         );
 
         String[] result = getTextBodyContent(new TextFormatter(response).format(false)).split("\n");
@@ -194,7 +196,8 @@ public class TextFormatterTests extends ESTestCase {
                         ),
                         null,
                         randomBoolean(),
-                        randomBoolean()
+                        randomBoolean(),
+                        null
                     )
                 ).format(false)
             )

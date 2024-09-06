@@ -390,13 +390,13 @@ public class DateUtils {
 
     // check for all textual fields, and localized zone offset
     private static final Predicate<String> CONTAINS_CHANGING_TEXT_SPECIFIERS = System.getProperty("java.locale.providers", "")
-        .contains("COMPAT") ? Pattern.compile("[EcqLGaO]").asPredicate() : Predicates.never();
+        .contains("COMPAT") ? Pattern.compile("[EcGaO]|MMM|LLL|eee|ccc|QQQ|ZZZZ").asPredicate() : Predicates.never();
 
     @UpdateForV9    // this can be removed, we will only use CLDR on v9
     static void checkTextualDateFormats(String format) {
         if (CONTAINS_CHANGING_TEXT_SPECIFIERS.test(format)) {
             LogManager.getLogger(DateFormatter.class)
-                .warn("Date format {} contains textual field specifiers that could change in JDK 23", format);
+                .warn("Date format [{}] contains textual field specifiers that could change in JDK 23", format);
         }
     }
 }

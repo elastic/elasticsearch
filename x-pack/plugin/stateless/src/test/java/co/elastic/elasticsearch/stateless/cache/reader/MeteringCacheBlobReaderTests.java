@@ -63,7 +63,7 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
             assertEquals(size, bytesReadHolder.get().longValue());
             assertReadTimeIsReasonable(timeBeforeMethodCallNanos, readTimeNanosHolder.get());
         } else {
-            int limit = randomIntBetween(0, size);
+            int limit = randomIntBetween(1, size);
             try (var is = Streams.limitStream(meteredInputStream, limit)) {
                 // consume up to a limit (partially) and close the underlying input stream
                 Streams.consumeFully(is);

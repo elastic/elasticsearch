@@ -98,6 +98,7 @@ public class StringMatcherTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/112453")
     public void testSingleRegex() throws Exception {
         final String notStr = randomAlphaOfLengthBetween(3, 5);
         final StringMatcher matcher = StringMatcher.of("/~(" + notStr + ")/");

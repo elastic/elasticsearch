@@ -274,7 +274,12 @@ public class EsqlCapabilities {
         /**
          * Allow mixed numeric types in coalesce
          */
-        MIXED_NUMERIC_TYPES_IN_COALESCE;
+        MIXED_NUMERIC_TYPES_IN_COALESCE,
+
+        /**
+         * Support named parameters for field names.
+         */
+        NAMED_PARAMETER_FOR_FIELD_NAME;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

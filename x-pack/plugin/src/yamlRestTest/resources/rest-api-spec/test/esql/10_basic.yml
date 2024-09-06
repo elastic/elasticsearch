@@ -401,7 +401,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ named_positional_parameter_field_name ]
+          capabilities: [ named_parameter_for_field_name ]
       reason: "named or positional parameters for field names"
 
   - do:
@@ -416,9 +416,9 @@ setup:
   - match: {columns.1.name: "y"}
   - match: {columns.1.type: "long"}
   - length: {values: 3}
-  - match: {values.0: ["blue",123,1674835275193]}
-  - match: {values.1: ["green",123,1674835275193]}
-  - match: {values.2: ["red",123,1674835275193]}
+  - match: {values.0: ["blue",10,1674835275193]}
+  - match: {values.1: ["green",10,1674835275193]}
+  - match: {values.2: ["red",20,1674835275193]}
 
 ---
 version is not allowed:

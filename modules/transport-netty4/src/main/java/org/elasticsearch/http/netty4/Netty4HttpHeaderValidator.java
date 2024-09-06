@@ -77,7 +77,8 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
                 if (httpObject instanceof LastHttpContent) {
                     state = WAITING_TO_START;
                 }
-                // fall-through
+                ReferenceCountUtil.release(httpObject);
+                break;
             case DROPPING_DATA_PERMANENTLY:
                 assert pending.isEmpty();
                 ReferenceCountUtil.release(httpObject); // consume without enqueuing

@@ -1182,6 +1182,10 @@ synthetic_source with disabled doc_values:
 
 ---
 fallback synthetic_source for text field:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_restrictions_removed"]
+      reason: requires disabled doc_values support in synthetic source
+
   - do:
       indices.create:
         index: test

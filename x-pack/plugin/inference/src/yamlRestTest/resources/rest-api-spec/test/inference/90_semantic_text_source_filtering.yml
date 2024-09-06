@@ -1,0 +1,68 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: semantic_text source filtering introduced in 8.16.0
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field:
+            text: "these are not the droids you're looking for. He's free to go around"
+            inference:
+              inference_id: sparse-inference-id
+              model_settings:
+                task_type: sparse_embedding
+              chunks:
+                - text: "these are not the droids you're looking for"
+                  embeddings:
+                    feature_0: 1.0
+                    feature_1: 2.0
+                    feature_2: 3.0
+                    feature_3: 4.0
+                - text: "He's free to go around"
+                  embeddings:
+                    feature_4: 0.1
+                    feature_5: 0.2
+                    feature_6: 0.3
+                    feature_7: 0.4
+
+---
+"Filter embedding from source":
+  - do:
+      search:
+        body: { query: { match_all: { } } }
+
+  - not_exists: _source.sparse_field.inference.chunks.0.embeddings
+  - match: { _source.sparse_field.inference.chunks.0.text: "these are not the droids you're looking for" }
+  - not_exists: _source.sparse_field.inference.chunks.1.embeddings
+  - match: { _source.sparse_field.inference.chunks.0.text: "He's free to go around" }
+
+  - do:
+      search:
+        body: { _source: { include_vector: false }, query: { match_all: { } } }
+
+  - not_exists: _source.sparse_field.inference.chunks.0.embeddings
+  - match: { _source.sparse_field.inference.chunks.0.text: "these are not the droids you're looking for" }
+  - not_exists: _source.sparse_field.inference.chunks.1.embeddings
+  - match: { _source.sparse_field.inference.chunks.0.text: "He's free to go around" }
+
+---
+"Does not filter embedding from source":
+  - do:
+      search:
+        body: { _source: { include_vector: true }, query: { match_all: { } } }
+
+  - exists: _source.sparse_field.inference.chunks.0.embeddings
+  - exists: _source.sparse_field.inference.chunks.1.embeddings

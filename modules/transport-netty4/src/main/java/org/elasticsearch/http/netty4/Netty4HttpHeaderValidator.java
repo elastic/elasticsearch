@@ -243,10 +243,6 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         }
     }
 
-    private static void setAutoReadForState(ChannelHandlerContext ctx, State state) {
-        ctx.channel().config().setAutoRead((state == QUEUEING_DATA || state == DROPPING_DATA_PERMANENTLY) == false);
-    }
-
     enum State {
         WAITING_TO_START,
         QUEUEING_DATA,
